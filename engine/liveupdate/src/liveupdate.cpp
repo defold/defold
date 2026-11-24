@@ -291,4 +291,12 @@ namespace dmLiveUpdate
     }
 };
 
-DM_DECLARE_EXTENSION(LiveUpdateExt, "LiveUpdate", 0, 0, dmLiveUpdate::Initialize, dmLiveUpdate::Update, 0, dmLiveUpdate::Finalize)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, dmLiveUpdate::Initialize);
+    dmExtension::SetUpdateFn(extension, dmLiveUpdate::Update);
+    dmExtension::SetFinalizeFn(extension, dmLiveUpdate::Finalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(LiveUpdateExt, RegisterExtension, 0)

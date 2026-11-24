@@ -30,6 +30,12 @@ add_custom_command(OUTPUT "${LZ4_PATCHED_HC_SOURCE}"
   VERBATIM)
 
 add_library(lz4 STATIC src/lz4.c "${LZ4_PATCHED_HC_SOURCE}")
+# Use the toolchain visibility instead of LZ4's default exports.
+# dlib_shared provides the exported interface used by desktop tooling.
+target_compile_definitions(lz4 PRIVATE LZ4LIB_VISIBILITY=)
+if(NOT MSVC_CL)
+  target_compile_options(lz4 PRIVATE -ffunction-sections -fdata-sections)
+endif()
 target_link_libraries(lz4 PRIVATE defold_sdk)
 set_target_properties(lz4 PROPERTIES PREFIX "lib")
 

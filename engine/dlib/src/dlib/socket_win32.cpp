@@ -761,7 +761,7 @@ namespace dmSocket
             static bool warning_emitted = false;
             if (!warning_emitted)
             {
-                dmLogWarning("No IP found for local hostname %s. Fallbacks to localhost", hostname);
+                dmLogWarning("No IP address found for local hostname '%s'. Falling back to localhost.", hostname);
             }
             warning_emitted = true;
         }

@@ -95,12 +95,12 @@ namespace
     {
         uint64_t begin = dmTime::GetMonotonicTime();
         RenderFrameTicket ticket = {};
-        RenderFrameStatistics statistics = {};
-        RenderFrameTable table = { 1, 0, ITEM_COUNT, sizeof(BenchmarkItem) };
+        RenderFrameUsage usage = {};
+        RenderFrameTable table = { source, 1, ITEM_COUNT, sizeof(BenchmarkItem) };
         RenderFrameView direct_view = {};
         direct_view.m_Payload = (const uint8_t*)source;
         direct_view.m_Tables = &table;
-        direct_view.m_Statistics.m_TableCount = 1;
+        direct_view.m_Usage.m_TableCount = 1;
         uint32_t index = 0;
 
         if (queue && BeginRenderFrameCapture(queue, &ticket) != RENDER_FRAME_OK)
@@ -150,7 +150,7 @@ namespace
         // Read counters before retirement resets them; this cost is included in retirement.
         if (queue)
         {
-            statistics = GetRenderFrameStatistics(ticket.m_Frame);
+            usage = GetRenderFrameUsage(ticket.m_Frame);
             if (RetireRenderFrames(queue) != 1)
             {
                 return false;
@@ -168,9 +168,10 @@ namespace
             result->m_Copy += copied - captured;
             result->m_Consume += consumed - copied;
             result->m_Retire += retired - consumed;
-            result->m_CopiedBytes += statistics.m_CopiedBytes;
-            result->m_Reservations += statistics.m_AllocationCount;
+            result->m_CopiedBytes += usage.m_CopiedBytes;
+            result->m_Reservations += usage.m_TableCount;
         }
+
         return true;
     }
 
@@ -232,12 +233,12 @@ namespace
 
         const double iterations = ITERATION_COUNT;
         printf("%s: startup=%llu us, fixed_frame_storage=%llu B, source=%u B\n", name,
-            (unsigned long long)(allocated - started),
-            (unsigned long long)(mode == DIRECT_CONTROL ? 0 : GetRenderFrameQueueStorageSize(params.m_Limits)),
-            mode == INLINE_ARENA ? 0u : (uint32_t)(ITEM_COUNT * sizeof(BenchmarkItem)));
+               (unsigned long long)(allocated - started),
+               (unsigned long long)(mode == DIRECT_CONTROL ? 0 : GetRenderFrameQueueStorageSize(params)),
+               mode == INLINE_ARENA ? 0u : (uint32_t)(ITEM_COUNT * sizeof(BenchmarkItem)));
         printf("  mean us/frame: capture=%.3f copy=%.3f publish_consume=%.3f retire=%.3f total=%.3f\n",
-            result->m_Capture / iterations, result->m_Copy / iterations, result->m_Consume / iterations,
-            result->m_Retire / iterations, (result->m_Capture + result->m_Copy + result->m_Consume + result->m_Retire) / iterations);
+               result->m_Capture / iterations, result->m_Copy / iterations, result->m_Consume / iterations,
+               result->m_Retire / iterations, (result->m_Capture + result->m_Copy + result->m_Consume + result->m_Retire) / iterations);
         printf("  mean/frame: copied_bytes=%.0f arena_reservations=%.1f; checksum=%llu releases=%llu\n",
             result->m_CopiedBytes / iterations, result->m_Reservations / iterations,
             (unsigned long long)result->m_Consumer.m_Checksum, (unsigned long long)result->m_Consumer.m_Released);

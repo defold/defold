@@ -445,15 +445,23 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
 {
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
-        // This extension can finalize before ProfilerExt calls ProfileFinalize().
+        // Detach before freeing samples so workers can finish their scopes during shutdown.
+        ProfileUnregisterProfiler(g_ProfilerName);
         if (dmProfilerRemotery::IsInitialized())
         {
             dmProfilerRemotery::DestroyListener(g_Listener.m_Ctx);
         }
-        ProfileUnregisterProfiler(g_ProfilerName);
+
         dmProfilerRemotery::g_ProfilerRegistered = false;
     }
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerRemotery, g_ProfilerName, ProfilerRemotery_AppInitialize, ProfilerRemotery_AppFinalize, 0, 0, 0, 0);
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, ProfilerRemotery_AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, ProfilerRemotery_AppFinalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerRemotery, RegisterExtension, 0);

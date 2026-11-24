@@ -721,7 +721,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s is already enabled", GetCollectionResorcePath(proxy));
+                LogMessageError(message, "Collection '%s' is already enabled.", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -729,7 +729,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", GetCollectionResorcePath(proxy));
+            LogMessageError(message, "Cannot enable collection '%s' because it has not been loaded.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;

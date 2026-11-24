@@ -462,6 +462,38 @@ public class ExtenderUtil {
     }
 
     @SuppressWarnings("unchecked")
+    private static boolean migrateLinuxVulkanLibraries(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean includesVulkan = false;
+        for (String key : List.of("libs", "engineLibs", "symbols")) {
+            if (context.get(key) instanceof List<?> entries) {
+                includesVulkan |= entries.contains("graphics_vulkan") || entries.contains("platform_vulkan")
+                        || entries.contains("GraphicsAdapterVulkan");
+            }
+        }
+        if (!includesVulkan) {
+            return false;
+        }
+
+        // Both libraries are now optional runtime dependencies. Keep the adapter selection
+        // and custom libraries, but remove the links added by legacy Vulkan manifests.
+        boolean modified = false;
+        for (String key : List.of("libs", "engineLibs", "dynamicLibs")) {
+            if (context.get(key) instanceof List<?> libraries) {
+                List<Object> migrated = new ArrayList<>(libraries);
+                if (migrated.removeIf(library -> "vulkan".equals(library) || "X11-xcb".equals(library))) {
+                    context.put(key, migrated);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
+    @SuppressWarnings("unchecked")
     private static boolean migrateSimulatorGraphics(Object contextValue) {
         if (!(contextValue instanceof Map<?, ?>)) {
             return false;
@@ -587,6 +619,32 @@ public class ExtenderUtil {
         return modified;
     }
 
+    @SuppressWarnings("unchecked")
+    private static boolean migrateWindowsVulkanSelection(Object value) {
+        if (!(value instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) value;
+        List<Object> enabled = new ArrayList<>();
+        List<Object> excluded = new ArrayList<>();
+        for (String key : List.of("libs", "engineLibs", "symbols")) {
+            if (context.get(key) instanceof List<?>) enabled.addAll((List<?>) context.get(key));
+        }
+        for (String key : List.of("excludeLibs", "excludeSymbols")) {
+            if (context.get(key) instanceof List<?>) excluded.addAll((List<?>) context.get(key));
+        }
+        if (!AppManifestMigration.isLegacyWindowsVulkanSelection(enabled, excluded)) {
+            return false;
+        }
+        for (String key : List.of("excludeLibs", "excludeSymbols")) {
+            List<Object> items = new ArrayList<>();
+            if (context.get(key) instanceof List<?>) items.addAll((List<?>) context.get(key));
+            items.add(key.equals("excludeLibs") ? "graphics_dx12" : "GraphicsAdapterDX12");
+            context.put(key, items);
+        }
+        return true;
+    }
+
     // Migrate legacy app manifest settings before upload, even without opening
     // the editor.
     private static byte[] migrateAppManifest(byte[] content) {
@@ -617,6 +675,9 @@ public class ExtenderUtil {
                     if ("arm64_sim-ios".equals(platform.getKey())) {
                         modified |= migrateSimulatorGraphics(context);
                     }
+                    if (List.of("linux", "x86_64-linux", "arm64-linux").contains(platform.getKey())) {
+                        modified |= migrateLinuxVulkanLibraries(context);
+                    }
                     if ("osx".equals(platform.getKey())
                             || "arm64-osx".equals(platform.getKey())
                             || "x86_64-osx".equals(platform.getKey())) {
@@ -626,6 +687,7 @@ public class ExtenderUtil {
                             || "x86-win32".equals(platform.getKey())
                             || "x86_64-win32".equals(platform.getKey())) {
                         modified |= migrateLibraryNames(context, AppManifestMigration.WINDOWS_LIBRARY_NAMES);
+                        modified |= migrateWindowsVulkanSelection(context);
                     }
                     modified |= migrateRecordExclusions(context, platform.getKey());
                 }

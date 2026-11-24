@@ -14,7 +14,7 @@ in mediump vec4 bone_indices;
 
 #ifdef PBR_INSTANCED
 in highp mat4 mtx_world;
-in mediump mat4 mtx_normal;
+in mediump mat3 mtx_normal;
 
 #ifdef PBR_SKINNED
 in highp vec4 animation_data;

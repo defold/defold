@@ -6,11 +6,11 @@ The order of the includes are shown (.cmake is implied)
 
 - defold - sets up the common build configuration
 - functions - optional helpers that set defines/flags/linkerflags on build artefacts
-- tools - verify our list of tools (e.g. java, ninja etc)
-- verify our list of tools (e.g. java, ninja etc)
+- features - declares build options
+- tools - checks the build tools, including Java and Ninja
 - platform - the compiler/tool setup for the target platform. sets HOST_PLATFORM/TARGET_PLATFORM.
   - sdk - the toolset for the target platforms
-- defold_post_process - run just at the start of a `project()` call, in order to do fixup on teh compiler flags
+- [defold_post_project](defold_post_project.cmake) - adjusts compiler flags once the compilers have been selected by `project()`.
 
 Some rules:
 * Only include a file _once_ (for efficiency)
@@ -100,6 +100,24 @@ manual targets remain available. Null-backend rendering, shaders, fonts, and oth
 remain instrumented. The font compiler API test compiles the API into its MSan
 executable instead of loading the ordinary JVM shared library.
 
+Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
+`--with-vulkan` (`WITH_OPENGL=ON` or `WITH_VULKAN=ON`) to include additional
+adapters. `--with-dx12` remains accepted for compatibility. App manifest
+graphics selections control bundled adapters and shader formats; DX12 uses HLSL 6.0 / DXIL.
+
+Linux builds include Vulkan by default, with OpenGL on x86-64 and OpenGL ES
+on ARM64 as fallbacks. Vulkan loads `libvulkan.so.1` at runtime, so automatic
+adapter selection can still choose OpenGL when the Vulkan loader is absent or
+Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails
+if Vulkan is unavailable or unsupported. For an OpenGL-only engine,
+configure CMake with `-DWITH_VULKAN=OFF` or select OpenGL in the Linux app manifest.
+
+On all platforms, automatic graphics selection tries registered adapters in priority
+order, skipping unsupported adapters. If window or graphics-context creation fails,
+startup closes the window and tries the next supported adapter until one succeeds
+or all candidates have been tried. Explicit `--graphics-adapter=...` requests fail
+without retrying another adapter.
+
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
 pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.
@@ -131,6 +149,25 @@ runtime selector yet. Enabled builds currently reject startup because the thread
 executor and component/resource migration are not available. This option
 does not enable Emscripten pthreads or select a different web binary.
 
+Complete CPU frames use one slot for inline execution and two for threaded
+execution. Each slot preallocates the component capture reserve and fixed
+render-pass command, operand, and table storage derived from
+the command capacity. Variable constant-buffer snapshots use separate blocks
+owned by each slot. Capture allocates blocks on demand without moving earlier
+snapshots, so recorded pointers remain stable. Every draw and compute dispatch
+records its own snapshot, even when they use the same source buffer.
+
+There is no project setting or fixed aggregate byte budget for these variable
+blocks. Block capacities are rounded up so small increases in snapshot size can
+reuse existing storage. Each slot retains its blocks after retirement or
+cancellation and reuses them for later frames; blocks are freed at slot deletion,
+not automatically trimmed after a large frame. A published frame is immutable
+until its CPU consumer retires it; allocation failure cancels the whole frame
+without partial replay.
+CPU retirement does not track GPU completion: uploads or resources needed by the
+GPU after consumption require their own storage and lifetime management. The
+threaded startup gate above still applies independently of frame storage.
+
 ## Invocation
 
 `scripts/build.py` shows compact CMake and Ninja progress by default. A terminal
@@ -138,8 +175,9 @@ updates one progress line; redirected output and CI print progress at ten-percen
 intervals, with updates during longer builds. Complete command output is
 saved under `logs/` in each CMake build directory. On failure, the console shows
 the failed command and its diagnostics and prints the full log's location.
-Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
-the build fails. Pass `--verbose` to stream the complete command output instead.
+Engine CI uploads these logs, the engine and external `.ninja_log` files, and
+`build_times.json` as `cmake-logs-<platform>` artifacts, including when the build
+fails. Pass `--verbose` to stream the complete command output instead.
 
 Compiler diagnostics retain their colors on terminals, including through the
 runner's output capture. Redirected output, CI output, and saved logs stay plain.
@@ -205,8 +243,21 @@ python3 scripts/cmake/plot_ninja_log.py engine/build/arm64-macos/.ninja_log -o b
 
 The page supports mouse wheel zoom, sideways drag panning, horizontal trackpad
 panning, hover details, and search highlighting. Without a path, the script
-uses the newest `engine/**/.ninja_log`. It renders every log entry by default;
+uses the newest `engine/**/.ninja_log`. It renders every command by default;
 pass `--latest` to render only the latest Ninja invocation.
+Commands with multiple outputs appear once. Tooltips show their output count
+and sample paths, and search matches all outputs. Gamesys content commands are labeled as
+batches: a folder stamp such as `atlas.stamp` shares the duration of the entire
+batch, not just that folder. The batch label counts folder outputs, including
+folders that may be up to date during an incremental build.
+
+For individual Gamesys folder times, search `engine_libs-build.log` for
+`Gamesys test content timing`. Each attempted folder reports its total elapsed
+time and a breakdown of preparation (clearing previous project metadata), Bob
+execution, and publishing (copying outputs and writing the completion stamp).
+Failed folders report the elapsed phases before the error is propagated. These
+lines are included in the existing `cmake-logs-<platform>` CI artifacts. Folder
+times exclude shared batch setup and shutdown.
 
 The normal `scripts/build.py build_engine` CMake path configures one top-level
 CMake cache under `engine/build/<platform>`.
@@ -285,16 +336,20 @@ once and reuses it between folders, clearing Bob's build metadata before each
 invocation. Folder outputs and extracted tools remain isolated. Other generators
 use one chain and one source copy to bound JVM memory use.
 
-Native desktop `run_tests` builds its prerequisites, then runs up to two test
-commands concurrently. Set
+Native desktop `run_tests` builds its prerequisites, then runs up to three test
+commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
-limit. Tests use the `shared` resource group by default, so existing network
-tests and HTTP servers still run one at a time. Independently runnable font,
+limit. Tests use the `shared` resource group by default. Independently runnable font,
 sound, texture-codec, gameobject and headless gamesys tests use separate groups.
 Gameobject tests use module-local content and process-local message sockets.
 The headless gamesys suites use null device backends and share a group because
-their resource reload tests modify staged files; gamesys HTTP tests remain in
-the `shared` group. The scheduler only starts a command when its group is free,
+their resource reload tests modify staged files. Script and gamesys HTTP tests
+share `http_9001`, protecting their fixed server port while overlapping unrelated
+tests. Platform-service tests use an ephemeral port and a fake window; platform
+launcher tests own temporary app directories. Those suites and logging have
+separate groups. Logging uses an ephemeral port and a build-local output file.
+Resource tests that modify shared fixtures remain in `shared`.
+The scheduler only starts a command when its group is free,
 so queued tests do not occupy worker slots.
 The long macOS sound suite has priority to overlap with shared tests. A group
 lock covers the entire command, including server startup and cleanup, and also

@@ -181,6 +181,7 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     uint8_t glsl_emit_ubo = 0;
     uint8_t glsl_es = 0;
     uint8_t hlsl_move_sv_position_to_front = 0;
+    int32_t hlsl_output_mode = out_options->m_HLSLOutputMode;
     int32_t glsl_es_default_float_precision = out_options->m_GlslEsDefaultFloatPrecision;
     int32_t glsl_es_default_int_precision = out_options->m_GlslEsDefaultIntPrecision;
     int32_t target_platform = out_options->m_TargetPlatform;
@@ -197,6 +198,8 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEmitUboAsPlainUniforms", &glsl_emit_ubo, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEs", &glsl_es, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "hLSLMoveSVPositionToFront", &hlsl_move_sv_position_to_front, false, 0);
+    ok = ok && ReadEnumFieldSafe(env, options_obj, options_cls, "hLSLOutputMode", "L" CLASS_NAME "$HLSLOutputMode;",
+                                 &hlsl_output_mode, false, hlsl_output_mode);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "entryPoint", (char**) &out_options->m_EntryPoint, false);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerPath", (char**) &out_options->m_ExternalCompilerPath, false);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerArgs", (char**) &out_options->m_ExternalCompilerArgs, false);
@@ -211,6 +214,7 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     out_options->m_GlslEmitUboAsPlainUniforms = glsl_emit_ubo;
     out_options->m_GlslEs = glsl_es;
     out_options->m_HLSLMoveSVPositionToFront = hlsl_move_sv_position_to_front;
+    out_options->m_HLSLOutputMode = (dmShaderc::HLSLOutputMode) hlsl_output_mode;
 
     env->DeleteLocalRef(options_cls);
     if (!ok)

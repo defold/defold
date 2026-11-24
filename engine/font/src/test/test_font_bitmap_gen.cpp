@@ -58,8 +58,7 @@ static bool        g_AlignmentPreview = false;
 // process; pixels come from an off-screen target, never the window framebuffer.
 #include <testmain/testmain.h>
 #include <graphics/graphics.h>
-#include <graphics_private.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 #include <platform/window.hpp>
 #include <font_render.h>
 #include <font_effect.h>
@@ -151,7 +150,7 @@ static void InitializeFontImages()
 #endif
     TestMainPlatformInit();
     dmExportedSymbols();
-    ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
     g_ImageWindow = dmPlatform::NewWindow();
     WindowCreateParams window;
     WindowCreateParamsInitialize(&window);

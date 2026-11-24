@@ -202,6 +202,7 @@ max_count = 32
 max_tile_count = 1024
 
 [engine]
+datastore = 1
 run_while_iconified = 1
 fixed_update_frequency = 30
 max_time_step = 0.1
@@ -289,6 +290,9 @@ defold_min_version = 1.10.0
 [liveupdate]
 enabled = 1
 settings = /liveupdate.settings
+
+[archive]
+manifest = /packages.archivemanifest
 
 [native_extension]
 app_manifest = /checked.appmanifest

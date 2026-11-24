@@ -366,7 +366,7 @@
       (pair pb-field pb-value))
     entry))
 
-(declare base-node-type-registry extension-type-name->id gui-node-type-registry-from-resource-types gui-resource-kind-registry-from-resource-types registered-node-desc-type-info registered-node-type-info update-gui-resource-type-tx-data)
+(declare base-node-type-registry extension-type-name->id gui-node-type-registry-from-resource-types registered-node-desc-type-info registered-node-type-info update-gui-resource-type-tx-data)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -583,12 +583,14 @@
 (s/def ^:private TGuiResourcePageCounts s/Any #_{s/Str (s/maybe s/Int)})
 (s/def ^:private TGuiResourceTextureInfos s/Any #_{s/Str TTextureInfo})
 (s/def ^:private TFontDatas s/Any #_{s/Str {s/Keyword s/Any}})
+(s/def ^:private TFontStyleInfos s/Any #_{s/Str {s/Keyword s/Any}})
 (s/def ^:private TParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
 (s/def ^:private TTrivialGuiSceneInfo {(s/optional-key :id-prefix) s/Str
                                        (s/optional-key :current-layout) s/Str
                                        (s/optional-key :gui-node-type-registry) s/Any
                                        (s/optional-key :layout-names) TGuiResourceNames})
 (s/def ^:private TBasicGuiSceneInfo {(s/optional-key :font-names) TGuiResourceNames
+                                     (s/optional-key :font-style-infos) TFontStyleInfos
                                      (s/optional-key :gui-resource-kind-basic-info) {s/Keyword s/Any}
                                      (s/optional-key :gui-resource-kind-names) {s/Keyword TGuiResourceNames}
                                      (s/required-key :layer->index) TNameIndices
@@ -617,6 +619,7 @@
 (g/deftype ^:private GuiResourcePageCounts TGuiResourcePageCounts)
 (g/deftype ^:private GuiResourceTextureInfos TGuiResourceTextureInfos)
 (g/deftype ^:private FontDatas TFontDatas)
+(g/deftype ^:private FontStyleInfos TFontStyleInfos)
 (g/deftype ^:private ParticleFXInfos TParticleFXInfos)
 (g/deftype ^:private GuiResourceTypeNames {TGuiResourceType TGuiResourceNames})
 
@@ -2108,8 +2111,8 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
-(defn- validate-font-size [node-id font-data font-size]
-  (when (:vector? font-data)
+(defn- validate-font-size [node-id font-style-info font-size]
+  (when (:vector? font-style-info)
     (validation/prop-error :fatal node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size))))
 
 (g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style ^:raw arc-radius ^:raw arc-angle]
@@ -2156,10 +2159,10 @@
   (property style g/Str (default "default")
             (dynamic label (properties/label-dynamic :font :style))
             (dynamic tooltip (properties/tooltip-dynamic :font :style))
-            (dynamic edit-type (g/fnk [font-data]
-                                 (wrap-layout-property-edit-type style (font/style-choices (:font-map font-data)))))
-            (dynamic error (g/fnk [_node-id font-data style]
-                             (font/style-error _node-id (:font-map font-data) style)))
+            (dynamic edit-type (g/fnk [^:try font-style-info]
+                                 (wrap-layout-property-edit-type style (font/style-choices font-style-info))))
+            (dynamic error (g/fnk [_node-id font-style-info style]
+                             (font/style-error _node-id font-style-info style)))
             (value (layout-property-getter style))
             (set (layout-property-setter style)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
@@ -2174,9 +2177,9 @@
             (value (layout-property-getter font))
             (set (layout-property-setter font)))
   (property font-size g/Num (default (protobuf/default Gui$NodeDesc :font-size))
-            (dynamic visible (g/fnk [font-data] (:vector? font-data)))
-            (dynamic error (g/fnk [_node-id font-size font-data]
-                             (validate-font-size _node-id font-data font-size)))
+            (dynamic visible (g/fnk [^:try font-style-info] (:vector? font-style-info)))
+            (dynamic error (g/fnk [_node-id font-size font-style-info]
+                             (validate-font-size _node-id font-style-info font-size)))
             (dynamic edit-type (layout-property-edit-type font-size {:type g/Num}))
             (dynamic label (properties/label-dynamic :gui :font-size))
             (value (layout-property-getter font-size))
@@ -2208,8 +2211,8 @@
             (value (layout-property-getter arc-angle))
             (set (layout-property-setter arc-angle)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
-            (dynamic read-only? (g/fnk [^:try font-data]
-                                  (not (font/supports-effect? (:font-map font-data) :outline))))
+            (dynamic read-only? (g/fnk [^:try font-style-info]
+                                  (not (font/supports-effect? font-style-info :outline))))
             (dynamic edit-type (layout-property-edit-type outline {:type types/Color
                                                                    :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :outline))
@@ -2217,8 +2220,8 @@
             (value (layout-property-getter outline))
             (set (layout-property-setter outline)))
   (property outline-alpha g/Num (default (protobuf/default Gui$NodeDesc :outline-alpha))
-            (dynamic read-only? (g/fnk [^:try font-data]
-                                  (not (font/supports-effect? (:font-map font-data) :outline))))
+            (dynamic read-only? (g/fnk [^:try font-style-info]
+                                  (not (font/supports-effect? font-style-info :outline))))
             (dynamic edit-type (layout-property-edit-type outline-alpha {:type :slider
                                                                          :min 0.0
                                                                          :max 1.0
@@ -2228,8 +2231,8 @@
             (value (layout-property-getter outline-alpha))
             (set (layout-property-setter outline-alpha)))
   (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
-            (dynamic read-only? (g/fnk [^:try font-data]
-                                  (not (font/supports-effect? (:font-map font-data) :shadow))))
+            (dynamic read-only? (g/fnk [^:try font-style-info]
+                                  (not (font/supports-effect? font-style-info :shadow))))
             (dynamic edit-type (layout-property-edit-type shadow {:type types/Color
                                                                   :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :shadow))
@@ -2237,8 +2240,8 @@
             (value (layout-property-getter shadow))
             (set (layout-property-setter shadow)))
   (property shadow-alpha g/Num (default (protobuf/default Gui$NodeDesc :shadow-alpha))
-            (dynamic read-only? (g/fnk [^:try font-data]
-                                  (not (font/supports-effect? (:font-map font-data) :shadow))))
+            (dynamic read-only? (g/fnk [^:try font-style-info]
+                                  (not (font/supports-effect? font-style-info :shadow))))
             (dynamic edit-type (layout-property-edit-type shadow-alpha {:type :slider
                                                                         :min 0.0
                                                                         :max 1.0
@@ -2250,6 +2253,11 @@
 
   (display-order (into base-display-order [:manual-size :arc-radius :arc-angle :enabled :visible :text :line-break :font :font-size :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
+  (output font-style-info g/Any
+          (g/fnk [basic-gui-scene-info font]
+            (let [font-style-infos (:font-style-infos basic-gui-scene-info)]
+              (or (get font-style-infos font)
+                  (get font-style-infos "")))))
   (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
                                     (let [font-datas (:font-datas costly-gui-scene-info)]
                                       (or (get font-datas font)
@@ -2284,8 +2292,8 @@
                :color color+alpha
                :override-material-shader font-shader
                :renderable-tags #{:gui-text}})))
-  (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
-                                       (font/markup-error _node-id :text (:font-map font-data) text)))
+  (output markup-error g/Any :cached (g/fnk [_node-id font-style-info text]
+                                       (font/markup-error _node-id :text font-style-info text)))
   (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
                             (font/arc-error _node-id arc-radius arc-angle)))
   (output arc-active g/Bool (g/fnk [arc-angle ^:try arc-error]
@@ -2319,19 +2327,19 @@
                                                 :vertical-align (pivot->v-align pivot)))
                                        (font/with-arc-properties arc-radius arc-angle arc-error))))
   (output own-build-errors g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
-                  font-datas (:font-datas costly-gui-scene-info)]
+                  font-style-infos (:font-style-infos basic-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node
                 (when (g/error-fatal? markup-error) markup-error)
                 (mapv (fn [props]
-                        (let [font-data (get font-datas (:font props))]
+                        (let [font-style-info (get font-style-infos (:font props))]
                           (g/package-errors
                             _node-id
-                            (font/style-error _node-id (:font-map font-data) (:style props "default"))
-                            (validate-font-size _node-id font-data (:font-size props))
+                            (font/style-error _node-id font-style-info (:style props "default"))
+                            (validate-font-size _node-id font-style-info (:font-size props))
                             (font/arc-error _node-id (:arc-radius props 100.0) (:arc-angle props 0.0)))))
                       (coll/vals layout->prop->value))
                 (validate-font _node-id font-names font))))))
@@ -2753,6 +2761,7 @@
                    (project/resource-setter
                      evaluation-context self old-value new-value
                      [:resource :font-resource]
+                     [:font-style-info :font-style-info]
                      [:font-data :font-data]
                      [:material-shader :font-shader]
                      [:build-targets :dep-build-targets])))
@@ -2764,6 +2773,7 @@
 
   (input name-counts NameCounts)
   (input font-resource resource/Resource)
+  (input font-style-info g/Any :substitute (constantly nil))
   (input font-data font/FontData :substitute (constantly nil))
   (input font-shader ShaderLifecycle :substitute (constantly nil))
 
@@ -2791,6 +2801,12 @@
                                          ;; This will cause every usage to fall back on the no-font entry for "".
                                          (when (some? font-data)
                                            {name font-data})))
+  (output font-style-infos FontStyleInfos :cached
+          (g/fnk [font-style-info name]
+            ;; Omit missing fonts so text nodes will use the font-style-info of
+            ;; the default font.
+            (when font-style-info
+              {name font-style-info})))
   (output build-errors g/Any (g/fnk [_node-id name name-counts font]
                                (g/package-errors _node-id
                                  (prop-unique-id-error _node-id :name name name-counts name-message)
@@ -3131,6 +3147,7 @@
    (concat
      (g/connect font :_node-id self :nodes)
      (g/connect font :font-shaders self :font-shaders)
+     (g/connect font :font-style-infos self :font-style-infos)
      (g/connect font :font-datas self :font-datas)
      (when (not internal?)
        (concat
@@ -3448,7 +3465,7 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(g/defnk produce-save-value [layout-names node-msgs node-overrides pb-msg resource-types]
+(g/defnk produce-save-value [gui-resource-type layout-names node-msgs node-overrides pb-msg]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
   ;; be included, but ultimately it is the fields listed as :overridden-fields
@@ -3456,7 +3473,7 @@
   ;; inside the editor. Note that a field may be among the :overridden-fields
   ;; without us writing a corresponding value for it to the file in case its
   ;; overridden value matches the protobuf field default.
-  (let [gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+  (let [gui-node-type-registry (:gui-node-type-registry gui-resource-type)
 
         layout-descs
         (mapv #(make-layout-desc gui-node-type-registry % node-msgs)
@@ -3649,7 +3666,7 @@
                                  node-desc-for-layout)
                        node-desc-for-layout))))))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs resource-types]
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs gui-resource-type]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
   ;; overridden properties will be done by the runtime. A corresponding NodeDesc
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
@@ -3663,7 +3680,7 @@
         :user-data {:pb {}
                     :pb-class (:pb-class pb-def)}})]
     (g/precluding-errors build-errors
-      (let [gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+      (let [gui-node-type-registry (:gui-node-type-registry gui-resource-type)
 
             template-build-targets (flatten template-build-targets)
 
@@ -3889,7 +3906,7 @@
   (input project-settings g/Any)
   (input default-tex-params g/Any)
   (input exclude-gles-sm100 g/Any)
-  (input resource-types g/Any)
+  (input gui-resource-type g/Any)
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input node-msgs g/Any)
@@ -3928,6 +3945,7 @@
                   material-infos)))
 
   (input font-shaders GuiResourceShaders :array)
+  (input font-style-infos FontStyleInfos :array)
   (input font-datas FontDatas :array)
   (input font-names g/Str :array)
   (output font-names GuiResourceNames :cached
@@ -4022,9 +4040,9 @@
 
   (input aux-trivial-gui-scene-info TrivialGuiSceneInfo)
   (output own-trivial-gui-scene-info TrivialGuiSceneInfo
-          (g/fnk [resource-types layout-names visible-layout]
+          (g/fnk [gui-resource-type layout-names visible-layout]
             {:current-layout visible-layout
-             :gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+             :gui-node-type-registry (:gui-node-type-registry gui-resource-type)
              :layout-names layout-names}))
   (output trivial-gui-scene-info TrivialGuiSceneInfo :cached
           (g/fnk [aux-trivial-gui-scene-info own-trivial-gui-scene-info]
@@ -4042,8 +4060,9 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [font-names gui-resource-kind-basic-info gui-resource-kind-names layer->index layer-names material-infos particlefx-resource-names texture-page-counts exclude-gles-sm100 texture-resource-names]
+          (g/fnk [font-style-infos font-names gui-resource-kind-basic-info gui-resource-kind-names layer->index layer-names material-infos particlefx-resource-names texture-page-counts exclude-gles-sm100 texture-resource-names]
             {:font-names font-names
+             :font-style-infos (reduce coll/merge font-style-infos)
              :gui-resource-kind-basic-info gui-resource-kind-basic-info
              :gui-resource-kind-names gui-resource-kind-names
              :layer->index layer->index
@@ -4143,8 +4162,8 @@
 
 (defn- scene->gui-node-type-infos [scene evaluation-context]
   (-> scene
-      (g/node-value :resource-types evaluation-context)
-      gui-node-type-registry-from-resource-types
+      (g/node-value :gui-resource-type evaluation-context)
+      :gui-node-type-registry
       :type-infos))
 
 (defn- add-handler-options [node evaluation-context]
@@ -4159,7 +4178,7 @@
                                    (when-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
                                                        add-gui-node-handler (node-type-info->add-handler-user-data info))))
-                                 (scene->gui-node-type-infos scene evaluation-context)))
+                                 (scene->gui-node-type-infos template-scene evaluation-context)))
                          [])
 
                        (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
@@ -4270,13 +4289,10 @@
 (def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
-(defn load-gui-scene [{:keys [project resolve-resource-fn workspace] :as load-opts} {:keys [owner-resource] self :node-id scene :source-value}]
+(defn load-gui-scene [{:keys [project resolve-resource-fn workspace]} {:keys [owner-resource resource-type] self :node-id scene :source-value}]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
-  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type load-opts)
-        editable (resource/editable-resource? owner-resource)
-        resource-types (editable->type-ext->resource-type editable)
-        gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
-        gui-resource-kind-registry (gui-resource-kind-registry-from-resource-types resource-types)
+  (let [gui-node-type-registry (:gui-node-type-registry resource-type)
+        gui-resource-kind-registry (:gui-resource-kind-registry resource-type)
 
         node->layout->prop->override
         (reduce (fn [node->layout->prop->override layout-desc]
@@ -4351,7 +4367,7 @@
         adjust-reference :adjust-reference
         max-nodes :max-nodes
         max-dynamic-textures :max-dynamic-textures)
-      (g/connect workspace :resource-types self :resource-types)
+      (g/connect workspace :gui-resource-type self :gui-resource-type)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
@@ -4680,8 +4696,8 @@
                         (fn [[resource-kind {:keys [exts] :as resource-kind-info}]]
                           (when-not (neg? (coll/index-of exts ext))
                             (pair resource-kind resource-kind-info)))
-                        (gui-resource-kind-registry-from-resource-types
-                          (g/node-value gui-scene :resource-types evaluation-context)))]
+                        (:gui-resource-kind-registry
+                          (g/node-value gui-scene :gui-resource-type evaluation-context)))]
             (let [target-node (gui-resource-kind-node (:basis evaluation-context) gui-scene resource-kind)
                   name-counts (g/node-value target-node :name-counts evaluation-context)
                   name (id/gen base-name name-counts)]
@@ -5196,9 +5212,6 @@
 (defn- gui-node-type-registry-from-resource-types [resource-types]
   (:gui-node-type-registry (get resource-types (:ext pb-def))))
 
-(defn- gui-resource-kind-registry-from-resource-types [resource-types]
-  (:gui-resource-kind-registry (get resource-types (:ext pb-def))))
-
 (defn- update-gui-resource-type-map [resource-types f & args]
   (apply update resource-types (:ext pb-def) f args))
 
@@ -5309,9 +5322,8 @@
                   #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw))))))))))
 
 (defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
-  (let [workspace (project/workspace project evaluation-context)
-        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
-        gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+  (let [gui-scene (node->gui-scene basis parent-node-id)
+        gui-node-type-registry (:gui-node-type-registry (g/node-value gui-scene :gui-resource-type evaluation-context))
         {:keys [type defaults]} (registered-node-type-info gui-node-type-registry child-node-type)
         node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)

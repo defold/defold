@@ -9,11 +9,9 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     clang
     cmake
-    freeglut
     git
     glib
     libGL
-    libGLU
     libxext
     ninja
     openal
@@ -42,10 +40,8 @@ pkgs.mkShell {
     export JAVA_HOME="${jdk.home}"
     export LD_LIBRARY_PATH=${
       pkgs.lib.makeLibraryPath [
-        pkgs.freeglut
         pkgs.glib
         pkgs.libGL
-        pkgs.libGLU
         pkgs.libxext
         pkgs.openal
         pkgs.xorg.libX11

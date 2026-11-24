@@ -1,0 +1,37 @@
+base_file_compression_preset: "default"
+file_compression_presets { name: "default" }
+file_compression_presets { name: "small" lz4_level: 12 }
+container_presets { name: "zip" zip_level: 9 }
+output_directory: "build/packages"
+packages {
+  container_preset: "zip"
+  file_compression_preset: "small"
+  name: "common"
+  rules { name: "Common content" path: "/common/.*" }
+}
+packages {
+  container_preset: "zip"
+  file_compression_preset: "small"
+  name: "episodes_common"
+  rules { name: "Shared episode content" path: "/episodes/common/.*" }
+}
+packages {
+  container_preset: "zip"
+  file_compression_preset: "small"
+  name: "episodes_00_09"
+  rules { name: "Episodes 00–09" path: "/episodes/0[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  container_preset: "zip"
+  file_compression_preset: "small"
+  name: "episodes_10_19"
+  rules { name: "Episodes 10–19" path: "/episodes/1[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  container_preset: "zip"
+  file_compression_preset: "small"
+  name: "halloween"
+  rules { name: "Halloween content" path: "/halloween/.*[.](collection|txt)" }
+}

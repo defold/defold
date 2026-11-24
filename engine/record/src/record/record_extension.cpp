@@ -13,16 +13,18 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record_service.h"
+#include <dmsdk/engine/engine_event.hpp>
 #include "record_window.h"
-#include <dmsdk/engine/extension.hpp>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/dlib/webserver.h>
 #include <dmsdk/dlib/log.h>
 
 namespace dmRecord
 {
     static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
     {
-        dmWebServer::HServer server = dmEngine::GetWebServer(params);
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        dmWebServer::HServer server = registry ? (dmWebServer::HServer)ContextRegistryGet(registry, WEBSERVER_CONTEXT_NAME) : 0;
         if (server && !RegisterService(server, GetRecordingWindow))
         {
             dmLogError("Unable to register the recording service");
@@ -42,10 +44,11 @@ namespace dmRecord
         return dmExtension::RESULT_OK;
     }
 
-    static void OnEvent(dmExtension::Params*, const dmExtension::Event* event)
+    static void OnEvent(dmExtension::Params*, dmhash_t event_id, const void* data, uint32_t data_size)
     {
         // Join native capture before sound, render and window teardown begins.
-        if (event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent) &&
+            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             FinalizeService();
         }
@@ -59,4 +62,14 @@ namespace dmRecord
     }
 } // namespace dmRecord
 
-DM_DECLARE_EXTENSION(EngineRecord, "Record", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, 0, dmRecord::OnEvent, dmRecord::FinalizeExtension)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, dmRecord::AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, dmRecord::AppFinalize);
+    dmExtension::SetInitializeFn(extension, dmRecord::Initialize);
+    dmExtension::SetFinalizeFn(extension, dmRecord::FinalizeExtension);
+    dmExtension::SetEventFn(extension, dmRecord::OnEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineRecord, RegisterExtension, 0)

@@ -44,6 +44,8 @@ namespace dmRender
         return context->m_RenderListDispatch.Size() - 1;
     }
 
+    // Legacy entry API: create a dispatch for this frame's RenderListAlloc/Submit entries.
+    // RegisterRenderListDispatch instead keeps the registration across frames.
     HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
     {
         dmLogOnceWarning("RenderListMakeDispatch() is deprecated. Use RegisterRenderListDispatch() and SubmitRenderListDispatch().");
@@ -94,15 +96,36 @@ namespace dmRender
         assert(dispatch < context->m_RenderItemDispatches.Size() && context->m_RenderItemDispatches[dispatch]);
         RenderItemDispatch& registration = *context->m_RenderItemDispatches[dispatch];
         if (registration.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
+        {
             return;
+        }
+
         const RenderListDispatch& d = registration.m_Dispatch;
         HRenderListDispatch       frame_dispatch = AllocateRenderListDispatch(context, d.m_DispatchFn, d.m_VisibilityFn, d.m_UserData);
         if (frame_dispatch == RENDERLIST_INVALID_DISPATCH)
+        {
             return;
+        }
+
         context->m_RenderListDispatch[frame_dispatch] = d;
         registration.m_FrameDispatch = frame_dispatch;
         context->m_SubmittedRenderItemDispatches.Push(dispatch);
-        context->m_RenderListRanges.SetSize(0);
+        if (d.m_VisibilityFn)
+        {
+            // Custom culling may read new captured inputs even when the camera
+            // and transforms are unchanged. Cache it only within this frame.
+            // Typed bounds remain valid until their setters invalidate them.
+            for (uint32_t i = 0; i < registration.m_EnabledItems.Size(); ++i)
+            {
+                uint32_t index = registration.m_EnabledItems[i];
+                if (context->m_PersistentRenderItems[index].m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
+                {
+                    context->m_RenderList[index].m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+                }
+            }
+        }
+
+        context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
     static PersistentRenderItem* GetPersistentRenderItem(HRenderContext context, HRenderItem handle)
@@ -117,22 +140,32 @@ namespace dmRender
     static void RecordRenderItemCacheChange(HRenderContext context, RenderItemDispatch& dispatch, uint32_t index)
     {
         if (dispatch.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
-            context->m_RenderListRanges.SetSize(0);
+        {
+            context->m_RenderListScratch.m_Ranges.SetSize(0);
+        }
+
         if (dispatch.m_RebuildCache)
+        {
             return;
+        }
+
         // Deduplicate by slot, retaining its original cached tag even if it is
         // deleted and reused before the next draw.
         for (uint32_t i = 0; i < dispatch.m_NumChanges; ++i)
         {
             if (dispatch.m_Changes[i].m_Index == index)
+            {
                 return;
+            }
         }
+
         if (dispatch.m_NumChanges == MAX_RENDER_ITEM_CACHE_CHANGES)
         {
             dispatch.m_RebuildCache = true;
             dispatch.m_NumChanges = 0;
             return;
         }
+
         RenderItemCacheChange change = { index, context->m_RenderList[index].m_TagListKey };
         dispatch.m_Changes[dispatch.m_NumChanges++] = change;
     }

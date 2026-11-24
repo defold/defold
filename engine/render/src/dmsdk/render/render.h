@@ -80,6 +80,13 @@ namespace dmRender
     typedef struct Material* HMaterial;
 
     /*#
+     * Uniform buffer binding handle
+     * @typedef
+     * @name HUniformBufferBinding
+     */
+    typedef struct UniformBufferBinding* HUniformBufferBinding;
+
+    /*#
      * Font map handle
      * @typedef
      * @name HFont
@@ -197,6 +204,12 @@ namespace dmRender
      */
 
     /*#
+     * The maximum number of uniform buffer bindings the render object can hold (4)
+     * @constant
+     * @name dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT
+     */
+
+    /*#
      * Render objects represent an actual draw call
      * @struct
      * @name RenderObject
@@ -208,6 +221,7 @@ namespace dmRender
      * @member m_IndexBuffer [type: dmGraphics::HIndexBuffer] the index buffer
      * @member m_Material [type: dmRender::HMaterial] the material
      * @member m_Textures [type: dmGraphics::HTexture[]] the textures
+     * @member m_UniformBuffers [type: dmRender::HUniformBufferBinding[]] the uniform buffer bindings; zero marks an unused slot
      * @member m_PrimitiveType [type: dmGraphics::PrimitiveType] the primitive type
      * @member m_IndexType [type: dmGraphics::Type] the index type (16/32 bit)
      * @member m_SourceBlendFactor [type: dmGraphics::BlendFactor] the source blend factor
@@ -223,10 +237,12 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT       = 16;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
+        static const uint32_t MAX_TEXTURE_COUNT        = 16;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT  = 3;
+        static const uint32_t MAX_UNIFORM_BUFFER_COUNT = 4;
 
         HNamedConstantBuffer            m_ConstantBuffer;
+        HUniformBufferBinding           m_UniformBuffers[MAX_UNIFORM_BUFFER_COUNT];
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         union
@@ -458,6 +474,9 @@ namespace dmRender
      * submission in one frame has no effect. Only submitted registrations consume
      * frame dispatch IDs; at most 255 are available, shared with legacy dispatches.
      * If that limit is reached, an error is logged and this submission is skipped.
+     * Custom visibility is rechecked on the first draw with a frustum each frame,
+     * since callback data may have changed. Typed bounds keep their cached result
+     * until their bounds, transform or the view changes.
      * @name SubmitRenderListDispatch
      * @param context [type:dmRender::HRenderContext] the render context
      * @param dispatch [type:dmRender::HRenderItemDispatch] a registration created in this context
@@ -523,7 +542,8 @@ namespace dmRender
      * Copies the local-to-world affine transform. Its translation supplies the sort
      * position, and it transforms local OBB bounds. World-space sphere and AABB
      * bounds are unaffected. Every call invalidates cached visibility; also call
-     * when callback-owned visibility data changes without a transform change.
+     * when callback-owned visibility data changes between draws within a frame,
+     * even without a transform change.
      * @name SetWorldTransform
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context

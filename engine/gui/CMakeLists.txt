@@ -91,3 +91,17 @@ install(DIRECTORY "${GUI_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MA
 if(BUILD_TESTS)
   add_subdirectory(src/test)
 endif()
+
+if(BUILD_TESTS)
+  defold_add_library(gui_test STATIC "${GUI_SRC_DIR}/test/gui_test.cpp")
+  defold_target_link_libraries(gui_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(gui_test gui_sdk_headers)
+  defold_add_sdk_headers_target(gui_test_sdk_headers
+    DESTINATION include/gui
+    SOURCE_ROOT "${GUI_SRC_DIR}/test"
+    FILES "${GUI_SRC_DIR}/test/gui_test.hpp"
+    DEPENDS gui_test)
+  set_target_properties(gui_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET gui_test_sdk_headers)
+  defold_install_targets(TARGETS gui_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${GUI_SRC_DIR}/test/gui_test.hpp" DESTINATION include/gui)
+endif()

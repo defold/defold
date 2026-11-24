@@ -205,6 +205,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -361,12 +362,13 @@ namespace dmGraphics
 
     static void NullBeginFrame(HContext context)
     {
-        // NOP
+        ++((NullContext*)context)->m_BeginFrameCount;
     }
 
     static void NullFlip(HContext _context)
     {
         NullContext* context = (NullContext*) _context;
+        ++context->m_FlipCount;
         PostDeleteTextures(context, false);
 
         // Mimick glfw
@@ -1099,6 +1101,11 @@ namespace dmGraphics
             memcpy((char*)p->m_FP->m_Data, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
         }
 
+        delete[] p->m_UniformData;
+        p->m_UniformBuffers.SetSize(0);
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram);
+        CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
+
         return true;
     }
 
@@ -1132,15 +1139,18 @@ namespace dmGraphics
                 return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
                        language == ShaderDesc::LANGUAGE_GLES_SM300 ||
                        language == ShaderDesc::LANGUAGE_MSL_22 ||
+                       language == ShaderDesc::LANGUAGE_HLSL_60 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_FRAGMENT:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM330 ||
                        language == ShaderDesc::LANGUAGE_GLES_SM300 ||
                        language == ShaderDesc::LANGUAGE_MSL_22 ||
+                       language == ShaderDesc::LANGUAGE_HLSL_60 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
                 return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
                        language == ShaderDesc::LANGUAGE_MSL_22 ||
+                       language == ShaderDesc::LANGUAGE_HLSL_60 ||
                        language == ShaderDesc::LANGUAGE_SPIRV;
         }
     #endif

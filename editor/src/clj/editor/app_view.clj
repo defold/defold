@@ -620,40 +620,40 @@
 
 (handler/register-menu! :toolbar
   [{:id :select
-    :tooltip "Select tool"
+    :tooltip (localization/message "toolbar.select-tool")
     :icon "icons/45/Icons_T_01_Select.png"
     :command :scene.select-select-tool}
    {:id :move
-    :tooltip "Move tool"
+    :tooltip (localization/message "toolbar.move-tool")
     :icon "icons/45/Icons_T_02_Move.png"
     :command :scene.select-move-tool}
    {:id :rotate
-    :tooltip "Rotate tool"
+    :tooltip (localization/message "toolbar.rotate-tool")
     :icon "icons/45/Icons_T_03_Rotate.png"
     :command :scene.select-rotate-tool}
    {:id :scale
-    :tooltip "Scale tool"
+    :tooltip (localization/message "toolbar.scale-tool")
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scene.select-scale-tool}
    menu-items/separator
    {:id :grid
-    :tooltip "Grid"
+    :tooltip (localization/message "command.scene.visibility.toggle-grid")
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
     :command :scene.visibility.toggle-grid
     :more {:id :show-grid-settings
            :command :scene.grid.show-settings}}
    {:id :2d-mode
-    :tooltip "2d mode"
+    :tooltip (localization/message "toolbar.2d-mode")
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
     :command :scene.toggle-interaction-mode}
    {:id :perspective-camera
-    :tooltip "Perspective camera"
+    :tooltip (localization/message "command.scene.set-camera-type.option.perspective")
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :scene.toggle-camera-type
     :more {:id :show-perspective-camera-settings
            :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
-    :tooltip "Visibility settings"
+    :tooltip (localization/message "toolbar.visibility-settings")
     :graphic-fn make-visibility-settings-graphic
     :command :scene.visibility.show-settings}])
 
@@ -789,7 +789,8 @@
    :save-all progress/done
    :fetch-libraries progress/done
    :download-update progress/done
-   :beta-check progress/done})
+   :beta-check progress/done
+   :language-server progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -797,7 +798,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :beta-check :main])
+  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :beta-check :language-server :main])
 
 (def status-bar-controls-delay
   (delay
@@ -2269,14 +2270,20 @@
     (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
-(defn- save-scene-camera-prefs! [prefs view resource]
+(defn- save-scene-view-prefs! [prefs view resource]
   (g/let-ec [camera (some-> (:basis evaluation-context)
                             (scene/view->camera view)
                             (g/node-value :local-camera evaluation-context))
+             active-planes (some-> (g/node-value view :grid evaluation-context)
+                                   (g/node-value :active-planes evaluation-context))
              path-key (resource/resource->proj-path resource)]
-    (when (and camera path-key)
-      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
-                                (camera/camera->prefs-value camera)))))
+    (when path-key
+      (when camera
+        (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                  (camera/camera->prefs-value camera)))
+      (when active-planes
+        (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:grid-active-planes]
+                                  active-planes)))))
 
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
@@ -2381,7 +2388,7 @@
                                (doseq [view-id scene-view-ids]
                                  (try
                                    (when-let [resource (:resource (get open-views view-id))]
-                                     (save-scene-camera-prefs! prefs view-id resource))
+                                     (save-scene-view-prefs! prefs view-id resource))
                                    (scene/dispose-scene-view! view-id)
                                    (catch Throwable error
                                      (error-reporting/report-exception! error)))))
@@ -2579,10 +2586,13 @@
         workspace (resource/workspace resource)
         resource-type (resource/resource-type resource basis)
 
+        path-key (resource/resource->proj-path resource)
+
         camera-opts (when (= :scene (:id view-type))
-                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
-                        {:camera stored-camera}
-                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
+                      (assoc (if-let [stored-camera (camera/try-load-camera-from-prefs prefs path-key)]
+                               {:camera stored-camera}
+                               {:default-camera-projection (default-camera-projection project resource resource-node)})
+                        :grid-active-planes (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:grid-active-planes] nil)))
 
         view-opts (merge opts
                          (get (:view-opts resource-type) (:id view-type))
@@ -2620,7 +2630,7 @@
                                       (let [resource (resource-node/resource (:basis evaluation-context) resource-node)]
                                         (recent-files/add! prefs resource view-type)
                                         (when (= :scene (:id view-type))
-                                          (save-scene-camera-prefs! prefs view resource))))))}]
+                                          (save-scene-view-prefs! prefs view resource))))))}]
     (recent-files/add! prefs resource view-type)
     (let [^Tab tab (make-editor-tab! app-view localization tabs tab-spec view-opts)]
       (.setOnSelectionChanged tab (ui/event-handler event

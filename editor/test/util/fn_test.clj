@@ -17,7 +17,8 @@
             [util.fn :as fn])
   (:import [clojure.lang ArityException ExceptionInfo]
            [com.github.benmanes.caffeine.cache Caffeine]
-           [java.util.concurrent ExecutionException]))
+           [java.lang Thread$State]
+           [java.util.concurrent Callable FutureTask TimeUnit]))
 
 (defn- arity-void-test-fn
   ([]))
@@ -491,37 +492,187 @@
 
 ;; region memoize-late-bound
 
-(declare ^:private memoize-late-bound-memoized-fn)
-
-(defn- memoize-late-bound-memoized-fn-raw [arg]
-  (case arg
-    :outer (let [inner-fn (memoize-late-bound-memoized-fn :inner)]
-             (fn outer-fn [^long depth]
-               (case depth
-                 0 (inner-fn 1)
-                 2 "outer -> inner -> outer")))
-    :inner (let [outer-fn (memoize-late-bound-memoized-fn :outer)]
-             (fn inner-fn [^long depth]
-               (case depth
-                 1 (outer-fn 2))))))
-
-;; Calling the resulting function would cause a StackOverflowError
-;; if we were using the basic memoize function.
-(def ^:private memoize-late-bound-memoized-fn (fn/memoize-late-bound {:timeout-ms 0} memoize-late-bound-memoized-fn-raw))
-
+;; Mutually recursive functions can capture each other during initialization.
+;; With ordinary memoization, the nested lookup would overflow the stack.
 (deftest memoize-late-bound-allows-memoized-fn-to-call-itself
-  (try
-    (let [outer (memoize-late-bound-memoized-fn :outer)]
-      (is (= "outer -> inner -> outer" (outer 0))))
-    (finally
-      (ns-unmap *ns* 'memoize-late-bound-memoized-fn))))
+  (let [memoized-fn-promise (promise)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [fn-name]
+            (let [memoized-fn @memoized-fn-promise
+
+                  other-fn-name
+                  (case fn-name
+                    :outer :inner
+                    :inner :outer)
+
+                  other-lower-order-fn (memoized-fn other-fn-name)]
+              (fn lower-order-fn [^long depth]
+                (if (zero? depth)
+                  [fn-name]
+                  (let [remaining-path (other-lower-order-fn (dec depth))]
+                    (into [fn-name] remaining-path)))))))]
+    (deliver memoized-fn-promise memoized-fn)
+    (let [path-future
+          (future
+            (let [outer-fn (memoized-fn :outer)]
+              (outer-fn 2)))]
+      (try
+        (let [path (deref path-future 5000 ::timeout)]
+          (is (= [:outer :inner :outer] path)))
+        (finally
+          (future-cancel path-future))))))
+
+(defn- await-reader-wait [^Thread reader-thread]
+  (let [start-time (System/nanoTime)
+        timeout-nanos (.toNanos TimeUnit/SECONDS 5)]
+    (loop []
+      (let [state (.getState reader-thread)]
+        (cond
+          (or (= state Thread$State/BLOCKED)
+              (= state Thread$State/WAITING)
+              (= state Thread$State/TIMED_WAITING))
+          true
+
+          (and (.isAlive reader-thread)
+               (< (- (System/nanoTime) start-time) timeout-nanos))
+          (do
+            (.join reader-thread 10)
+            (recur))
+
+          :else
+          false)))))
+
+;; A reader can look up and invoke a pending function on the same thread
+;; even when initialization takes longer than the old one-second timeout.
+(deftest memoize-late-bound-shares-slow-initialization-test
+  (let [initialization-started-promise (promise)
+        finish-initialization-promise (promise)
+        reader-ready-promise (promise)
+        initialization-count-atom (atom 0)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [higher-order-fn-arg]
+            (swap! initialization-count-atom inc)
+            (deliver initialization-started-promise true)
+            @finish-initialization-promise
+            (fn lower-order-fn [lower-order-fn-arg]
+              [higher-order-fn-arg lower-order-fn-arg])))
+
+        initializer-future
+        (future
+          (let [lower-order-fn (memoized-fn :arg)]
+            (lower-order-fn :first)))
+
+        reader-task
+        (FutureTask.
+          ^Callable
+          (fn read-pending-fn []
+            @initialization-started-promise
+            (let [lower-order-fn (memoized-fn :arg)]
+              (deliver reader-ready-promise true)
+              (lower-order-fn :second))))
+
+        reader-thread (Thread/startVirtualThread reader-task)]
+    (try
+      (when (is (deref reader-ready-promise 5000 false)
+                "The reader should obtain the pending function.")
+        ;; After the lookup, the only remaining work on this thread is the call.
+        ;; Start timing once the reader is blocked inside it.
+        (when (is (await-reader-wait reader-thread)
+                  "Invoking the pending function should block the reader.")
+          (let [reader-result (deref reader-task 1500 ::pending)]
+            (is (= ::pending reader-result)))))
+
+      (deliver finish-initialization-promise true)
+      (let [initializer-result (deref initializer-future 5000 ::timeout)
+            reader-result (deref reader-task 5000 ::timeout)]
+        (is (= [:arg :first] initializer-result))
+        (when (is (= [:arg :second] reader-result))
+          (let [cached-fn (memoized-fn :arg)]
+            (is (= [:arg :cached] (cached-fn :cached)))))
+        (is (= 1 @initialization-count-atom)))
+      (finally
+        (deliver finish-initialization-promise true)
+        (future-cancel initializer-future)
+        (future-cancel reader-task)))))
+
+;; A recursive lookup returns the pending function. Invoking it during
+;; initialization throws an exception with the recursive key.
+(deftest memoize-late-bound-rejects-invocation-by-initializer-test
+  (let [memoized-fn-promise (promise)
+        recursive-lookup-result-atom (atom nil)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [arg]
+            (let [memoized-fn @memoized-fn-promise
+                  lower-order-fn (memoized-fn arg)]
+              (reset! recursive-lookup-result-atom lower-order-fn)
+              (lower-order-fn))))]
+    (deliver memoized-fn-promise memoized-fn)
+    (let [initializer-future
+          (future
+            (try
+              (memoized-fn :recursive)
+              ::unexpected-success
+              (catch ExceptionInfo exception
+                (:cache-key (ex-data exception)))))]
+      (try
+        (let [cache-key (deref initializer-future 5000 ::timeout)]
+          (is (ifn? @recursive-lookup-result-atom))
+          (is (= [:recursive] cache-key)))
+        (finally
+          (future-cancel initializer-future))))))
+
+;; A reader stays blocked through two rejected calls by the initializer. With
+;; a shared timeout, even if the first deadlines coincide, the reader's wait
+;; expires before the initializer finishes the second call.
+(deftest memoize-late-bound-rejects-initializer-while-reader-waits-test
+  (let [initialization-started-promise (promise)
+        pending-reader-promise (promise)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [arg]
+            (deliver initialization-started-promise true)
+            (let [[reader-thread pending-fn] @pending-reader-promise]
+              (is (await-reader-wait reader-thread))
+              (dotimes [_ 2]
+                (let [cache-key
+                      (try
+                        (pending-fn)
+                        ::unexpected-success
+                        (catch ExceptionInfo exception
+                          (:cache-key (ex-data exception))))]
+                  (is (= [arg] cache-key)))))
+            (constantly :ready)))
+
+        initializer-future
+        (future
+          (let [lower-order-fn (memoized-fn :arg)]
+            (lower-order-fn)))
+
+        reader-future
+        (future
+          @initialization-started-promise
+          (let [pending-fn (memoized-fn :arg)]
+            (deliver pending-reader-promise [(Thread/currentThread) pending-fn])
+            (pending-fn)))]
+    (try
+      (is (= :ready (deref reader-future 5000 ::timeout)))
+      (is (= :ready (deref initializer-future 5000 ::timeout)))
+      (finally
+        (future-cancel reader-future)
+        (future-cancel initializer-future)))))
 
 (deftest memoize-late-bound-retries-if-higher-order-fn-throws-test
   (let [attempt-count-atom (atom 0)
 
         memoized-fn
         (fn/memoize-late-bound
-          {:timeout-ms 0}
           (fn higher-order-fn [arg]
             (if (= 1 (swap! attempt-count-atom inc))
               (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))
@@ -533,22 +684,182 @@
       (is (= :arg (lower-order-fn))))
     (is (= 2 @attempt-count-atom))))
 
-(deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
-  (let [memoized-fn
+;; A reader that observes an initialization failure can immediately retry, even
+;; if it observes the failure while the initializer is removing its entry.
+(deftest memoize-late-bound-reader-retries-immediately-after-failure-test
+  (let [initialization-exception (ex-info "First initialization failed." {})
+        attempt-count-atom (atom 0)
+        pending-reader (volatile! nil)
+
+        memoized-fn
         (fn/memoize-late-bound
-          {:timeout-ms 100}
-          (fn higher-order-fn [arg]
-            (Thread/sleep 20)
-            (throw (ex-info "Thrown from higher-order-fn." {:arg arg}))))
+          (fn higher-order-fn [_arg]
+            (if (= 1 (swap! attempt-count-atom inc))
+              (throw initialization-exception)
+              (constantly :ready))))
 
-        concurrent-future
+        read-result
+        (fn read-result [lower-order-fn]
+          (try
+            (lower-order-fn)
+            (catch ExceptionInfo exception
+              (ex-cause exception))))
+
+        initializer-future
         (future
-          (Thread/sleep 10)
-          (let [lower-order-fn (memoized-fn :arg)]
-            (lower-order-fn)))]
+          ;; Probe the reader before removal commits. On the initializing
+          ;; thread, invoking a pending function throws immediately.
+          (set-validator!
+            (::fn/memoize-cache (meta memoized-fn))
+            (fn read-before-removal [next-cache]
+              (when (and (= 1 @attempt-count-atom)
+                         (zero? (count next-cache)))
+                (let [reader (memoized-fn :arg)]
+                  (vreset! pending-reader reader)
+                  (when (identical? initialization-exception (read-result reader))
+                    (let [retry-fn (memoized-fn :arg)
+                          retry-result (read-result retry-fn)]
+                      (is (= :ready retry-result))))))
+              true))
+          (let [initializer-failure
+                (try
+                  (memoized-fn :arg)
+                  (catch ExceptionInfo exception
+                    exception))
 
-    (is (thrown-with-msg? ExceptionInfo #"Thrown from higher-order-fn." (memoized-fn :arg)))
-    (is (thrown-with-msg? ExecutionException #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn." (deref concurrent-future)))))
+                reader-failure (read-result @pending-reader)
+                retry-fn (memoized-fn :arg)]
+            [initializer-failure reader-failure (retry-fn)]))]
+    (try
+      (let [result (deref initializer-future 5000 ::timeout)]
+        (when (is (not= ::timeout result) "The initializer should finish.")
+          (let [[initializer-failure reader-failure retry-result] result]
+            (is (identical? initialization-exception initializer-failure))
+            (is (identical? initialization-exception reader-failure))
+            (is (= :ready retry-result)))))
+      (finally
+        (future-cancel initializer-future)))))
+
+;; A waiting reader gets the cache key and original failure, then retries with
+;; a fresh lookup. Its saved function still reports the failed attempt.
+(deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
+  (let [initialization-started-promise (promise)
+        reader-thread-promise (promise)
+        attempt-count-atom (atom 0)
+        initialization-exception (ex-info "Thrown from higher-order-fn." {})
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [_arg]
+            (if (not= 1 (swap! attempt-count-atom inc))
+              (constantly :ready)
+              (do
+                (deliver initialization-started-promise true)
+                (when-let [reader-thread (is (deref reader-thread-promise 5000 nil))]
+                  (is (await-reader-wait reader-thread)))
+                (throw initialization-exception)))))
+
+        reader-future
+        (future
+          @initialization-started-promise
+          (let [pending-fn (memoized-fn :arg)]
+            (deliver reader-thread-promise (Thread/currentThread))
+            (try
+              (pending-fn)
+              nil
+              (catch ExceptionInfo reader-exception
+                (let [retry-fn (memoized-fn :arg)
+                      retry-result (retry-fn)
+
+                      saved-fn-exception
+                      (is (thrown-with-msg?
+                            ExceptionInfo
+                            #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
+                            (pending-fn)))]
+                  {:reader-exception reader-exception
+                   :retry-result retry-result
+                   :saved-fn-exception saved-fn-exception})))))]
+    (try
+      (is (thrown-with-msg?
+            ExceptionInfo
+            #"Thrown from higher-order-fn."
+            (memoized-fn :arg)))
+      (when-let [{:keys [reader-exception retry-result saved-fn-exception]}
+                 (is (deref reader-future 5000 nil)
+                     "The reader should receive the failure and complete its retry.")]
+        (is (= :ready retry-result))
+        (is (= [:arg] (:cache-key (ex-data reader-exception))))
+        (is (identical? initialization-exception (ex-cause reader-exception)))
+        (is (identical? initialization-exception (ex-cause saved-fn-exception))))
+      (is (= 2 @attempt-count-atom))
+      (finally
+        (future-cancel reader-future)))))
+
+;; An evicted initializer still delivers its own outcome to existing readers.
+;; Its success or failure must leave the replacement entry in the cache, even
+;; when the replacement returns the original reader's pending function.
+(deftest memoize-late-bound-preserves-replacement-after-eviction-test
+  (doseq [[description original-exception]
+          [["Original initialization succeeds" nil]
+           ["Original initialization fails" (ex-info "Original initialization failed." {})]]
+
+          replacement-kind [:fresh :captured]]
+    (testing (str description " with a " (name replacement-kind) " replacement")
+      (let [original-started-promise (promise)
+            replacement-installed-promise (promise)
+            replacement-fn-atom (atom nil)
+            initialization-count-atom (atom 0)
+
+            memoized-fn
+            (fn/memoize-late-bound
+              (fn higher-order-fn [_arg]
+                (let [attempt (swap! initialization-count-atom inc)]
+                  (if (not= 1 attempt)
+                    @replacement-fn-atom
+                    (do
+                      (deliver original-started-promise true)
+                      (let [installed-fn
+                            (deref replacement-installed-promise 5000 ::timeout)]
+                        (is (identical? @replacement-fn-atom installed-fn)))
+                      (when original-exception
+                        (throw original-exception))
+                      (constantly attempt))))))
+
+            reader-future
+            (future
+              @original-started-promise
+              (let [original-reader (memoized-fn :arg)
+
+                    replacement-fn
+                    (case replacement-kind
+                      :fresh (constantly 2)
+                      :captured original-reader)]
+                (reset! replacement-fn-atom replacement-fn)
+                (fn/evict-memoized! memoized-fn :arg)
+                (let [installed-fn (memoized-fn :arg)]
+                  (deliver replacement-installed-promise installed-fn))
+                (try
+                  (original-reader)
+                  (catch ExceptionInfo exception
+                    (ex-cause exception)))))]
+        (try
+          (let [expected-original-result (or original-exception 1)
+
+                original-result
+                (try
+                  (let [original-fn (memoized-fn :arg)]
+                    (original-fn))
+                  (catch ExceptionInfo exception
+                    exception))
+
+                reader-result (deref reader-future 5000 ::timeout)
+                cached-fn (memoized-fn :arg)]
+            (is (= expected-original-result original-result))
+            (is (= expected-original-result reader-result))
+            (is (identical? @replacement-fn-atom cached-fn))
+            (is (= 2 @initialization-count-atom)))
+          (finally
+            (future-cancel reader-future)))))))
 
 ;; endregion
 

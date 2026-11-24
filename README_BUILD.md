@@ -17,7 +17,7 @@ The standard workflow when building the engine is the following:
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
 
-*NOTE: Make sure you also have read our [Contribution Guide](https://github.com/defold/defold/blob/build-doc-update/CONTRIBUTING.md). Especially before undertaking larger tasks.*
+Before undertaking a larger change, read the [Contribution Guide](CONTRIBUTING.md).
 
 **NOTE for Linux users**: To avoid any problems with version of shared dependencies engine will link with - use Docker container to build the engine. More information [here](/scripts/docker/README.md).
 
@@ -72,6 +72,7 @@ $ ./scripts/build.py build_engine --platform=arm64-android
 The following platforms are supported:
 
 * `x86_64-linux`
+* `arm64-linux`
 * `x86_64-macos`
 * `arm64-macos`
 * `x86_64-win32`
@@ -79,6 +80,7 @@ The following platforms are supported:
 * `arm64_sim-ios`
 * `armv7-android`
 * `arm64-android`
+* `x86_64-android`
 * `wasm-web`
 * `wasm_pthread-web`
 
@@ -96,13 +98,11 @@ This will start a new shell with all of the required environment variables set (
 
 NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
 (Most likely, it is)
-See [Supported Hosts + Targets](./README_SETUP.md#supported-hosts-targets)
+See [Supported hosts + targets](README_SETUP.md#supported-hosts--targets).
 
 <details><summary>Install sdk</summary><p>
 
-See [./README_SETUP.md]()
-
-The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+The `install_sdk` command installs packaged SDKs such as the Android SDK and the Emscripten SDK for HTML5. See the [SDK setup instructions](README_SETUP.md#required-software---platform-sdks).
 
 If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
 
@@ -167,14 +167,7 @@ the selected platform (the host platform when `--platform` is omitted). It retai
 other platforms, shared dependency files, platform SDKs, engine outputs, and
 package archives outside the build directories.
 
-This step also installs some Python dependencies:
-
-* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
-* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from the pinned wheel in `packages/python`.
-* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
-* `requests` - Installed using pip
-* `pyaml` - Installed using pip
+This step also installs the build's pinned Python dependencies from the wheel files in [packages/python](packages/python/). These include Protobuf for DDF generation, Markdown and Pygments for the API reference, and boto3 for AWS access.
 
 DDF generators use these bundled Python dependencies without loading host
 site-packages. `install_ext` checks that the bundled Python Protobuf runtime loads,

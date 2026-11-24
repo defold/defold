@@ -61,6 +61,8 @@
           (is (false? (:dirty save-data)))
           (is (= migrated-content (resource-node/save-data-content save-data))))))))
 
+;; Verifies legacy macOS Vulkan manifests migrate all platform entries on load
+;; and remain unchanged after saving and reloading.
 (deftest legacy-macos-vulkan-load-migration-test
   (doseq [[filename selection] [["vulkan.appmanifest" :vulkan]
                                 ["vulkan_and_opengl_osx.appmanifest" :open-gl-vulkan]]]
@@ -77,6 +79,7 @@
               (is (true? (:dirty save-data)))
               (is (= manifest (-> original
                                   (#'app-manifest/migrate-windows-library-names)
+                                  (#'app-manifest/migrate-windows-vulkan-selection)
                                   (#'app-manifest/migrate-macos-vulkan-platform)
                                   (#'app-manifest/migrate-simulator-graphics)
                                   (#'app-manifest/migrate-bullet3d-exclusions))))
@@ -647,6 +650,110 @@
             (is (= exclude-bullet-script
                    (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
 
+;; Switching Linux backends updates the libraries and symbols on both targets.
+(deftest linux-graphics-setting-test
+  (let [setting app-manifest/graphics-setting
+        original {:platforms {:arm64-linux {:context {:libs ["custom"]}}}}]
+    (is (= :both (app-manifest/get-setting-value original setting)))
+    (doseq [from [:both :vulkan :open-gl]
+            to [:both :vulkan :open-gl]
+            [platform gl-lib gl-symbol] [[:x86_64-linux "graphics" "GraphicsAdapterOpenGL"]
+                                         [:arm64-linux "graphics_opengles" "GraphicsAdapterOpenGLES"]]]
+      (let [manifest (-> original
+                         (app-manifest/set-setting-value setting from)
+                         (app-manifest/set-setting-value setting to))
+            context (get-in manifest [:platforms platform :context])
+            excluded (set (:excludeLibs context))
+            excluded-symbols (set (:excludeSymbols context))]
+        (is (= to (app-manifest/get-setting-value manifest setting)))
+        (is (= (= :vulkan to) (contains? excluded gl-lib)))
+        (is (= (= :vulkan to) (contains? excluded-symbols gl-symbol)))
+        (is (= (= :open-gl to) (contains? excluded "graphics_vulkan")))
+        (is (= (= :open-gl to) (contains? excluded "platform_vulkan")))
+        (is (= (= :open-gl to) (contains? (set (:libs context)) "platform")))
+        (is (= (= :open-gl to) (contains? excluded-symbols "GraphicsAdapterVulkan")))
+        (is (= (= :open-gl to) (contains? (set (:excludeDynamicLibs context)) "vulkan")))
+        (is (coll/any? #{"custom"} (get-in manifest [:platforms :arm64-linux :context :libs])))))))
+
+;; Shared and architecture exclusions jointly determine the Linux choice.
+(deftest linux-shared-graphics-selection-test
+  (doseq [[shared-exclusions architecture-exclusions selection]
+          [[["GraphicsAdapterVulkan"] {} :open-gl]
+           [["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES"] {} :vulkan]
+           [["GraphicsAdapterOpenGL"] {:arm64-linux ["GraphicsAdapterOpenGLES"]} :vulkan]
+           [["GraphicsAdapterOpenGLES"] {:x86_64-linux ["GraphicsAdapterOpenGL"]} :vulkan]
+           [["GraphicsAdapterOpenGL"] {} nil]
+           [["GraphicsAdapterVulkan"] {:x86_64-linux ["GraphicsAdapterOpenGL"]} nil]
+           [["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"] {} nil]]]
+    (let [manifest
+          {:platforms (coll/into-> architecture-exclusions
+                        {:linux {:context {:excludeSymbols shared-exclusions}}}
+                        (map (fn [[platform exclusions]]
+                               [platform {:context {:excludeSymbols exclusions}}])))}]
+      (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting))
+          (pr-str manifest)))))
+
+;; Switching adapters clears shared conflicts and preserves unrelated settings.
+(deftest linux-shared-graphics-transition-test
+  (let [setting app-manifest/graphics-setting
+
+        unrelated-context
+        {:libs ["custom"]
+         :symbols ["CustomExtension"]
+         :dynamicLibs ["custom-dynamic"]
+         :excludeLibs ["custom-excluded"]
+         :excludeSymbols ["CustomExcluded"]
+         :excludeDynamicLibs ["custom-excluded-dynamic"]
+         :defines ["CUSTOM_DEFINE"]}
+
+        shared-context
+        (merge-with into unrelated-context
+                    {:libs ["platform" "graphics_vulkan" "platform_vulkan" "X11-xcb"]
+                     :symbols ["GraphicsAdapterVulkan"]
+                     :dynamicLibs ["vulkan"]
+                     :excludeLibs ["graphics" "graphics_opengles" "graphics_vulkan" "platform_vulkan" "platform"]
+                     :excludeSymbols ["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"]
+                     :excludeDynamicLibs ["GL" "GLU" "EGL" "GLESv1_CM" "GLESv2" "vulkan" "X11-xcb"]})
+
+        original
+        {:platforms {:linux {:context shared-context}
+                     :arm64-linux {:context {:libs ["custom-arm64"]}}
+                     :x86_64-win32 {:context unrelated-context}}}]
+    (doseq [selection [:both :vulkan :open-gl]]
+      (let [manifest (app-manifest/set-setting-value original setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest setting)))
+        (is (= unrelated-context (get-in manifest [:platforms :linux :context])))
+        (is (= unrelated-context (get-in manifest [:platforms :x86_64-win32 :context])))
+        (is (coll/any? #{"custom-arm64"} (get-in manifest [:platforms :arm64-linux :context :libs])))
+        (doseq [[platform gl-symbol] [[:x86_64-linux "GraphicsAdapterOpenGL"]
+                                      [:arm64-linux "GraphicsAdapterOpenGLES"]]]
+          (let [excluded-symbols
+                (into (set (get-in manifest [:platforms :linux :context :excludeSymbols]))
+                      (get-in manifest [:platforms platform :context :excludeSymbols]))
+
+                enabled-symbols
+                (coll/into-> [gl-symbol "GraphicsAdapterVulkan"] #{} (remove excluded-symbols))]
+            (is (= (case selection
+                     :both #{gl-symbol "GraphicsAdapterVulkan"}
+                     :vulkan #{"GraphicsAdapterVulkan"}
+                     :open-gl #{gl-symbol})
+                   enabled-symbols))))))))
+
+;; Editor properties and saved manifests must not disable both Linux adapters.
+(deftest linux-shared-graphics-property-test
+  (test-util/with-temp-project-content
+    {"/shared.appmanifest" (data/string->lines "platforms:\n  linux:\n    context:\n      excludeSymbols: [GraphicsAdapterVulkan]\n")}
+    (let [node (test-util/resource-node project "/shared.appmanifest")]
+      (is (= :open-gl (g/node-value node :graphics)))
+      (doseq [selection [:vulkan :both :open-gl]]
+        (g/set-property! node :graphics selection)
+        (is (= selection (g/node-value node :graphics)))
+        (let [saved
+              (yaml/load (resource-node/save-data-content (g/node-value node :save-data)) keyword)]
+          (is (= selection (app-manifest/get-setting-value saved app-manifest/graphics-setting)))
+          (is (coll/not-any? #{"GraphicsAdapterVulkan"}
+                             (get-in saved [:platforms :linux :context :excludeSymbols]))))))))
+
 ;; Verifies every Windows backend transition updates link inputs and preserves unrelated
 ;; settings, guarding against stale backend libraries and symbols.
 (deftest windows-graphics-setting-test
@@ -663,7 +770,7 @@
                                                          :symbols ["CustomExtension"]}}
                                 :arm64-ios {:context {:libs ["custom_ios"]}}}}
                    app-manifest/graphics-setting :vulkan)]
-    (is (= :open-gl (app-manifest/get-setting-value {} setting)))
+    (is (= :dx12 (app-manifest/get-setting-value {} setting)))
     (is (= (set (keys selections)) (into #{} (map first) app-manifest/windows-graphics-choice-options)))
 
     (doseq [from (keys selections)
@@ -680,18 +787,18 @@
           (is (= to (app-manifest/get-setting-value manifest setting)))
 
           (doseq [[backend library symbol] [[:vulkan "graphics_vulkan" "GraphicsAdapterVulkan"]
-                                            [:dx12 "graphics_dx12" "GraphicsAdapterDX12"]]]
+                                            [:open-gl "graphics" "GraphicsAdapterOpenGL"]]]
             (is (= (contains? backends backend) (contains? libs library)))
             (is (= (contains? backends backend) (contains? symbols symbol))))
 
           (doseq [library ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]]
-            (is (= (contains? backends :dx12) (contains? libs library))))
+            (is (not (contains? libs library))))
 
           (doseq [library ["platform_vulkan" "vulkan-1"]]
             (is (= (contains? backends :vulkan) (contains? libs library))))
           (is (= (contains? backends :vulkan) (contains? excluded "platform")))
-          (is (= (not (contains? backends :open-gl)) (contains? excluded "graphics")))
-          (is (= (not (contains? backends :open-gl)) (contains? excluded-symbols "GraphicsAdapterOpenGL")))
+          (is (= (not (contains? backends :dx12)) (contains? excluded "graphics_dx12")))
+          (is (= (not (contains? backends :dx12)) (contains? excluded-symbols "GraphicsAdapterDX12")))
           (is (contains? libs "custom"))
           (is (contains? symbols "CustomExtension"))
           (is (= (dissoc (:platforms original) :x86_64-win32)
@@ -705,7 +812,7 @@
 (deftest windows-graphics-legacy-library-names-test
   (doseq [libs [["libgraphics_vulkan.lib" "platform_vulkan.lib" "vulkan-1.lib"]
                 ["graphics_vulkan" "platform_vulkan" "vulkan-1"]]
-          [excluded selection] [[[] :open-gl-vulkan] [["libgraphics"] :vulkan]]]
+          [excluded selection] [[[] :vulkan-dx12] [["libgraphics"] :vulkan-dx12]]]
     (let [legacy {:platforms {:x86_64-win32
                               {:context {:libs libs
                                          :excludeLibs (conj excluded "platform")
@@ -716,12 +823,12 @@
           context (get-in dx12 [:platforms :x86_64-win32 :context])]
       (is (= selection (app-manifest/get-setting-value legacy setting)))
       (is (= :dx12 (app-manifest/get-setting-value dx12 setting)))
-      (is (= #{"graphics_dx12" "d3d12.lib" "dxgi.lib" "d3dcompiler.lib"} (set (:libs context))))
-      (is (= ["graphics"] (:excludeLibs context)))
-      (is (= ["GraphicsAdapterDX12"] (:symbols context))))))
+      (is (= #{} (set (:libs context))))
+      (is (= [] (:excludeLibs context)))
+      (is (= [] (:symbols context))))))
 
-;; Verifies legacy DX12 system library names normalize to lowercase SDK filenames with
-;; .lib suffixes, guarding against linker failures on case-sensitive build hosts.
+;; Verifies redundant legacy DX12 libraries are removed on backend selection,
+;; since these libraries are now supplied by engine defaults.
 (deftest windows-dx12-system-library-names-test
   (let [setting app-manifest/graphics-setting-windows
         sdk-libs ["d3d12.lib" "dxgi.lib" "d3dcompiler.lib"]
@@ -735,18 +842,41 @@
                                              :symbols ["GraphicsAdapterDX12"]}}}}
             normalized (app-manifest/set-setting-value manifest setting :open-gl-dx12)
             cleared (app-manifest/set-setting-value manifest setting :open-gl)]
-        (is (= :open-gl-dx12 (app-manifest/get-setting-value manifest setting)))
-        (is (= (into #{"custom" "graphics_dx12"} sdk-libs)
+        (is (= :dx12 (app-manifest/get-setting-value manifest setting)))
+        (is (= #{"custom" "graphics"}
                (set (get-in normalized [:platforms :x86_64-win32 :context :libs]))))
-        (is (= ["custom"] (get-in cleared [:platforms :x86_64-win32 :context :libs])))))))
+        (is (= #{"custom" "graphics"}
+               (set (get-in cleared [:platforms :x86_64-win32 :context :libs]))))))))
 
-;; Verifies existing manifests retain their Windows backend selection and all new choices
+;; Preserve Vulkan-only choices while retaining explicitly enabled DX12.
+(deftest windows-vulkan-selection-migration-test
+  (let [legacy
+        {:platforms {:x86_64-win32
+                     {:context {:libs ["graphics_vulkan.lib"]
+                                :excludeLibs ["graphics"]
+                                :symbols ["GraphicsAdapterVulkan"]
+                                :excludeSymbols ["GraphicsAdapterOpenGL"]}}}}
+
+        migrated
+        (#'app-manifest/migrate-windows-vulkan-selection legacy)
+
+        explicit-dx12
+        (update-in legacy [:platforms :x86_64-win32 :context :symbols]
+                   conj "GraphicsAdapterDX12")]
+    (is (= ["graphics" "graphics_dx12"]
+           (get-in migrated [:platforms :x86_64-win32 :context :excludeLibs])))
+    (is (= migrated (#'app-manifest/migrate-windows-vulkan-selection migrated)))
+    (is (= explicit-dx12
+           (#'app-manifest/migrate-windows-vulkan-selection explicit-dx12)))
+    (is (= {} (#'app-manifest/migrate-windows-vulkan-selection {})))))
+
+;; Verifies existing manifests pick up Windows defaults and all new choices
 ;; survive serialization, guarding against editor load/save compatibility regressions.
 (deftest windows-graphics-compatibility-test
   (test-util/with-loaded-project
-    (doseq [[filename selection] [["default.appmanifest" :open-gl]
+    (doseq [[filename selection] [["default.appmanifest" :dx12]
                                   ["vulkan.appmanifest" :vulkan]
-                                  ["vulkan_and_opengl.appmanifest" :open-gl-vulkan]]]
+                                  ["vulkan_and_opengl.appmanifest" :vulkan-dx12]]]
       (let [node (test-util/resource-node project (str "/app_manifest/" filename))]
         (is (= selection (g/node-value node :graphics-windows)))))
 
@@ -990,7 +1120,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
@@ -1007,7 +1137,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1022,7 +1152,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1037,7 +1167,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1052,7 +1182,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1067,7 +1197,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1082,7 +1212,7 @@
         (is (= true (g/node-value manifest :exclude-liveupdate)))
         (is (= true (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1129,7 +1259,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :open-gl (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1144,7 +1274,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :open-gl-vulkan (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1165,7 +1295,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gpu (g/node-value manifest :graphics-web)))))
@@ -1180,7 +1310,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :both (g/node-value manifest :graphics-web)))))
@@ -1195,10 +1325,39 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= true (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))))
+
+;; The editor checkbox must replace the datastore on every platform, survive
+;; save/reload, and remove the replacement when the feature is enabled again.
+(deftest exclude-datastore-test
+  (let [content
+        (test-util/with-loaded-project
+          (let [node (test-util/resource-node project "/app_manifest/default.appmanifest")]
+            (is (false? (g/node-value node :exclude-datastore)))
+            (g/set-property! node :exclude-datastore true)
+            (is (true? (g/node-value node :exclude-datastore)))
+            (let [manifest (g/node-value node :manifest)
+                  content (resource-node/save-data-content (g/node-value node :save-data))]
+              (doseq [platform app-manifest/all-platforms]
+                (is (= ["datastore"] (get-in manifest [:platforms platform :context :excludeLibs])))
+                (is (= ["datastore_null"] (get-in manifest [:platforms platform :context :libs]))))
+              (is (= manifest (yaml/load content keyword)))
+              (g/set-property! node :exclude-datastore false)
+              (is (false? (g/node-value node :exclude-datastore)))
+              (doseq [platform app-manifest/all-platforms]
+                (is (= [] (get-in (g/node-value node :manifest) [:platforms platform :context :excludeLibs])))
+                (is (= [] (get-in (g/node-value node :manifest) [:platforms platform :context :libs]))))
+              content)))]
+    (test-util/with-temp-project-content
+      {"/datastore.appmanifest" (data/string->lines content)}
+      (let [node (test-util/resource-node project "/datastore.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (true? (g/node-value node :exclude-datastore)))
+        (is (false? (:dirty save-data)))
+        (is (= content (resource-node/save-data-content save-data)))))))
 
 (deftest modification-test
   (test-util/with-loaded-project

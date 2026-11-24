@@ -46,15 +46,17 @@
     (let [jsonrpc (lsp.jsonrpc/make jsonrpc-request-handlers source sink)]
       jsonrpc)))
 
+;; Allow asynchronous responses time on busy CI runners; only the slow request
+;; tests the short timeout.
 (deftest requests-test
   (let [jsonrpc (make-jsonrpc-with-test-server {} {"initialize" fn/constantly-true
                                                    "initialize_slow" (fn [_] (Thread/sleep 1000))
                                                    "initialize_broken" (fn [_] (throw (Exception. "BROKEN")))})]
-    (is (= {:result true} (async-support/eventually (lsp.jsonrpc/request! jsonrpc "initialize" 100))))
+    (is (= {:result true} (async-support/eventually (lsp.jsonrpc/request! jsonrpc "initialize" 5000))))
     (is (thrown-with-msg? Throwable #"timeout"
                           (lsp.jsonrpc/unwrap-response
                             (async-support/eventually
                               (lsp.jsonrpc/request! jsonrpc "initialize_slow" 100)))))
     (is (thrown-with-msg? Throwable #"BROKEN"
                           (lsp.jsonrpc/unwrap-response
-                            (async-support/eventually (lsp.jsonrpc/request! jsonrpc "initialize_broken" 100)))))))
+                            (async-support/eventually (lsp.jsonrpc/request! jsonrpc "initialize_broken" 5000)))))))

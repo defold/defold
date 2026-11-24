@@ -30,6 +30,15 @@
 
 namespace dmRender
 {
+    // Immutable block data supplied by a render object. Resolved against the effective draw material.
+    struct UniformBufferBinding
+    {
+        dmhash_t                        m_NameHash;
+        dmGraphics::HUniformBuffer      m_Buffer;
+        dmGraphics::UniformBufferLayout m_Layout;
+        uint32_t                        m_Size;
+    };
+
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -273,8 +282,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
-    // per-frame renderer state such as submitted light instances.
+    // Begin inline frame preparation by setting recording/execution time and delta-time
+    // (in seconds) and resetting per-frame renderer state such as submitted lights.
     void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
@@ -443,7 +452,7 @@ namespace dmRender
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
-    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer, const RenderObject* render_object);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
 
     HPredicate                      NewPredicate();

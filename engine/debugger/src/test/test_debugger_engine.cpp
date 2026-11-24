@@ -173,6 +173,9 @@ int main(int argc, char** argv)
     dmLogRegisterListener(LogListener);
     ExtensionParamsInitialize(&g_Params);
     LuaDebugger();
+    dmExtension::AppParams app_params;
+    ExtensionAppParamsInitialize(&app_params);
+    Check(dmExtension::AppInitialize(&app_params) == dmExtension::RESULT_OK, "Extension application initialization failed");
 
     if (!startup_port && !startup_address)
     {
@@ -222,6 +225,8 @@ int main(int argc, char** argv)
     for (int i = 1; i < argc; ++i)
         Destroy(contexts[i - 1]);
     Check(dmLogGetLevel() == minimum_log_level, "Debugger changed the minimum log level");
+    dmExtension::AppFinalize(&app_params);
+    ExtensionAppParamsFinalize(&app_params);
     dmConfigFile::Delete(config);
     ExtensionParamsFinalize(&g_Params);
     dmLog::LogFinalize();

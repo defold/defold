@@ -17,6 +17,7 @@
 
 #include "window.hpp"
 #include "platform_window_constants.h"
+#include "platform_window_glfw3.h"
 #include "platform_window_glfw3_private.h"
 #include "platform_window_opengl.h"
 
@@ -212,6 +213,11 @@ namespace dmPlatform
         glfwTerminate();
     }
 
+    GLFWwindow* GetGLFWWindow(HWindow window)
+    {
+        return window->m_Window;
+    }
+
     int32_t OpenGLGetDefaultFramebufferId()
     {
         return 0;
@@ -378,6 +384,11 @@ namespace dmPlatform
             case WINDOW_GRAPHICS_API_WEBGPU:
                 res = OpenWindowNoApi(window, params);
                 break;
+            case WINDOW_GRAPHICS_API_NULL:
+            {
+                // The null adapter requires the headless window backend.
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
             default: assert(0);
         }
 
@@ -466,10 +477,20 @@ namespace dmPlatform
     {
         UpdateWindowPlacement(window, true);
         DeleteWindowPlacement(window);
-        UninstallWindowCloseHandlerNative(window);
-        glfwDestroyWindow(window->m_Window);
+        if (window->m_Window)
+        {
+            UninstallWindowCloseHandlerNative(window);
+            glfwDestroyWindow(window->m_Window);
+        }
+
         if (window->m_AuxWindow)
+        {
             glfwDestroyWindow(window->m_AuxWindow);
+        }
+
+        window->m_Window = 0;
+        window->m_AuxWindow = 0;
+        window->m_WindowOpened = 0;
     }
 
     void PollEvents(HWindow window)
@@ -506,6 +527,22 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
+    }
+
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!window->m_WindowOpened)
+        {
+            return false;
+        }
+        *width = (uint32_t) window->m_WidthScreen;
+        *height = (uint32_t) window->m_HeightScreen;
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow window)
+    {
+        return window->m_WindowOpened && !window->m_FullscreenWindowed && glfwGetWindowMonitor(window->m_Window) == 0;
     }
 
     static void SetSafeAreaFull(HWindow window, WindowSafeArea* out)

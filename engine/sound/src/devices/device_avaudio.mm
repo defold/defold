@@ -16,7 +16,6 @@
 
 #include <dlib/array.h>
 #include <dlib/log.h>
-#include <dlib/time.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include "sound.h"
@@ -24,6 +23,7 @@
 
 #import <TargetConditionals.h>
 #import <AVFoundation/AVFoundation.h>
+#import <dispatch/dispatch.h>
 
 namespace dmDeviceAVAudio
 {
@@ -45,6 +45,8 @@ namespace dmDeviceAVAudio
         id                          m_SessionRouteObserver;
 #endif
         bool                        m_PendingReconfigure;
+        AVAudioPCMBuffer*           m_DrainBuffer;
+        bool                        m_HasQueuedAudio;
 
         AVAudioDevice()
         : m_Engine(nil)
@@ -58,6 +60,8 @@ namespace dmDeviceAVAudio
         , m_Mutex(0)
         , m_EngineConfigObserver(nil)
         , m_PendingReconfigure(false)
+        , m_DrainBuffer(nil)
+        , m_HasQueuedAudio(false)
         {
 #if TARGET_OS_IPHONE
             m_SessionRouteObserver = nil;
@@ -163,6 +167,7 @@ namespace dmDeviceAVAudio
         [device->m_Player stop];
         [device->m_Player reset];
         [device->m_Engine stop];
+        device->m_HasQueuedAudio = false;
 
         //GetSystemSampleRate();
 
@@ -288,6 +293,11 @@ namespace dmDeviceAVAudio
             device->m_FreeBuffers.Push(buf);
         }
 
+        device->m_DrainBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:device->m_Format frameCapacity:1];
+        device->m_DrainBuffer.frameLength = 1;
+        device->m_DrainBuffer.floatChannelData[0][0] = 0.0f;
+        device->m_DrainBuffer.floatChannelData[1][0] = 0.0f;
+
         *out_device = device;
         return dmSound::RESULT_OK;
     }
@@ -316,6 +326,7 @@ namespace dmDeviceAVAudio
         device->m_FreeBuffers.SetSize(0);
 
         [device->m_Player release];
+        [device->m_DrainBuffer release];
         [device->m_Engine release];
         [device->m_Format release];
 
@@ -385,6 +396,7 @@ namespace dmDeviceAVAudio
         };
 
         [device->m_Player scheduleBuffer:buffer completionHandler:handler];
+        device->m_HasQueuedAudio = true;
 
         return dmSound::RESULT_OK;
     }
@@ -458,20 +470,30 @@ namespace dmDeviceAVAudio
         AVAudioDevice* device = (AVAudioDevice*)_device;
         if (device->m_Started)
         {
-            // Allow queued audio to finish similar to OpenAL stop behavior
-            int iter = 0;
-            while ([device->m_Player isPlaying] && iter < 20)
+            // isPlaying stays true after the queue empties. Wait for playback of
+            // a silent marker instead; DataConsumed only means a buffer can be reused.
+            if (device->m_HasQueuedAudio && [device->m_Engine isRunning] && [device->m_Player isPlaying])
             {
-                ++iter;
-                dmTime::Sleep(10 * 1000); // 10 ms
+                dispatch_semaphore_t drained = dispatch_semaphore_create(0);
+                [device->m_Player scheduleBuffer:device->m_DrainBuffer
+                 completionCallbackType:AVAudioPlayerNodeCompletionDataPlayedBack
+                 completionHandler:^(AVAudioPlayerNodeCompletionCallbackType type) {
+                     // The copied block retains the semaphore, so a late callback
+                     // after timeout/reset is safe and never touches the device.
+                     dispatch_semaphore_signal(drained);
+                 }];
+                // Keep the previous drain limit if the device cannot finish playback.
+                dispatch_semaphore_wait(drained, dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC));
+                dispatch_release(drained);
             }
 
             [device->m_Player stop];
             [device->m_Player reset];
             [device->m_Engine stop];
             device->m_Started = false;
+            device->m_HasQueuedAudio = false;
 
-            // After reset, callbacks won't fire; restore pool to full
+            // Restore the pool after discarding any remaining queued audio.
             DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
             device->m_FreeBuffers.SetSize(0);
             for (uint32_t i = 0; i < device->m_AllBuffers.Size(); ++i)

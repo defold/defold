@@ -1,53 +1,17 @@
+## Update Remotery
 
-## Update the library
+The engine sources (`Remotery.c`, `Remotery.h` and `RemoteryMetal.mm`) live in [lib](lib/). The editor serves the profiler from [editor/resources/engine-profiler/remotery/vis](../../../../editor/resources/engine-profiler/remotery/vis/).
 
-See [](./update.sh) for an copying the files
+When importing an upstream update, merge the corresponding library and viewer files into those directories. Compare the result with the checked-in versions to preserve Defold's changes, including the displayed property names (the `rmtp_` prefix is stripped), the viewer font rule in `Styles/Remotery.css`, and the editor resource paths in `patched.index.html`. Keep `index.html` usable as the standalone viewer.
 
-Copy the C file to engine:
+The [old update script](update_remotery.sh) and [native patch](defold.patch) refer to the previous `engine/dlib` layout. They need updated paths before they can automate an import. The viewer changes are recorded in [defoldvis.patch](defoldvis.patch) and [issue-8146.patch](issue-8146.patch).
 
-    cp -v ~/notwork/Remotery/lib/*.c engine/dlib/src/remotery/
+## Test the standalone viewer
 
-Copy the header file to engine:
+From the repository root:
 
-    cp -v ~/notwork/Remotery/lib/*.h engine/dlib/src/dmsdk/external/remotery/Remotery.h
+```sh
+python3 -m http.server --bind 127.0.0.1 --directory editor/resources/engine-profiler/remotery/vis
+```
 
-
-Copy the HTML files to the editor:
-
-    cp -v -r ~/notwork/Remotery/vis/ editor/resources/engine-profiler/remotery/vis
-
-Remove the font(s)
-
-    rm -rf editor/resources/engine-profiler/remotery/vis/Styles/Fonts
-
-
-## Manually update the code
-
-Looking at the current code, we do a Defold fixup to modify the property name strings.
-We do this in order to be able to have a prefix (`rmtp_`), but also to avoid displaying this prefix
-when presented in the engine and in the HTML profile page.
-
-Manually edit the `Remotery.css` with a web link:
-
-    @font-face
-    {
-        font-family: "LocalFiraCode";
-        src:url("https://cdnjs.cloudflare.com/ajax/libs/firacode/5.2.0/ttf/FiraCode-Regular.ttf") format('truetype');
-    }
-
-#### Create the patch
-
-You can update the patch by making your changes to a "vanilla" version of the Remotery source code
-
-    git diff engine/dlib/src/remotery/lib/Remotery.* > engine/dlib/src/remotery/defold.patch
-
-Then, you can apply these changes
-
-    git apply ./engine/dlib/src/remotery/defold.patch
-
-## Test the web page
-
-You can start the server locally:
-
-    (cd editor/resources/engine-profiler/remotery/vis && python -m SimpleHTTPServer)
-
+Open `http://127.0.0.1:8000/` in a browser.

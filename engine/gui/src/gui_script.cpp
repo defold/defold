@@ -1495,7 +1495,7 @@ namespace dmGui
      * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:gui.EASING|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
-     *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
+     *      [type:vector] with a custom curve. See the <a href="/manuals/property-animation/#easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:fun(self:script_instance, node:node)] function to call when the
@@ -4193,12 +4193,12 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
         int order = luaL_checkinteger(L, 1);
+        int clamped_order = dmMath::Clamp(order, 0, 15);
         // NOTE: The range reflects the current bits allocated in RenderKey for order
-        if (order < 0 || order > 15) {
-            dmLogWarning("Render must be in range [0,15]");
+        if (order != clamped_order) {
+            dmLogWarning("GUI render order %d is outside [0, 15]; clamping to %d.", order, clamped_order);
         }
-        order = dmMath::Clamp(order, 0, 15);
-        scene->m_RenderOrder = (uint16_t) order;
+        scene->m_RenderOrder = (uint16_t) clamped_order;
         return 0;
     }
 

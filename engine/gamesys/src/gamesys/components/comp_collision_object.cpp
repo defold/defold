@@ -22,10 +22,22 @@
 
 #include <dlib/profile.h>
 #include <gameobject/gameobject_ddf.h>
+#include <dmsdk/extension/extension.hpp>
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/physics/physics_event.hpp>
 
 namespace dmGameSystem
 {
+    void BroadcastPhysicsPostStepEvent(HContextRegistry registry, const void* world, float dt)
+    {
+        if (!world || dt <= 0.0f)
+        {
+            return;
+        }
+        dmPhysics::Event event = { world, dt };
+        dmExtension::BroadcastEvent(registry, dmPhysics::EVENT_POST_STEP, &event, sizeof(event));
+    }
+
     /// Config key to use for tweaking maximum number of collision objects
     const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
     /// Config key to use for tweaking maximum number of collisions reported
@@ -485,7 +497,7 @@ namespace dmGameSystem
         dmGameObject::Result r = dmGameObject::GetComponentId(instance, component_index, &sender.m_Fragment);
         if (r != dmGameObject::RESULT_OK)
         {
-            dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
+            dmLogError("Could not retrieve sender component when reporting %s: %s", DDFMessage::m_DDFDescriptor->m_Name, dmGameObject::GetResultLiteral(r));
         }
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size, 0);
         if (result != dmMessage::RESULT_OK)
@@ -536,7 +548,7 @@ namespace dmGameSystem
         free(request.m_UserData);
         if (message_result != dmGameObject::RESULT_OK)
         {
-            dmLogError("Error when sending ray cast response: %d", message_result);
+            dmLogError("Error when sending ray cast response: %s", dmGameObject::GetResultLiteral(message_result));
         }
     }
 

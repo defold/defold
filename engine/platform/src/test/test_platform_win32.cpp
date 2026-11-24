@@ -17,6 +17,61 @@
 
 #include "../platform_window_win32.h"
 
+// Cleanup before a native window exists must not query a null GLFW handle.
+TEST(dmPlatform, WindowsCloseUnopenedWindow)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow) 0, window);
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+    dmPlatform::DeleteWindow(window);
+}
+
+// A failed window attempt must be safe to close before graphics fallback reuses the window wrapper.
+TEST(dmPlatform, WindowsCloseFailedWindow)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow) 0, window);
+
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_FocusOnShow = false;
+    params.m_Width = 0;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+
+    params.m_Width = 640;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
+// Failed graphics startup and engine teardown may both close the window; reopening must still work afterwards.
+TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow) 0, window);
+
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_FocusOnShow = false;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    ASSERT_EQ(1u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+    dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
