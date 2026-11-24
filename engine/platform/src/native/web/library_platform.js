@@ -269,18 +269,6 @@ var LibraryDefoldPlatform = {
         if (DefoldPlatform.keyFunc) {
           {{{ makeDynCall('vii', 'DefoldPlatform.keyFunc') }}}(key, status);
         }
-        // Work around a missing Shift keyup reported in Chrome 78 on Windows 10:
-        // https://bugzilla.cendio.com/show_bug.cgi?id=7416#c4
-        // When shiftKey is false, release the other Shift key if it is still marked down.
-        if (status === 0 && event.shiftKey === false && (key === 287 || key === 288)) {
-          var other = key === 287 ? 288 : 287;
-          if (DefoldPlatform.keys[other]) {
-            DefoldPlatform.keys[other] = 0;
-            if (DefoldPlatform.keyFunc) {
-              {{{ makeDynCall('vii', 'DefoldPlatform.keyFunc') }}}(other, 0);
-            }
-          }
-        }
       }
     },
 

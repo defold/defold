@@ -230,7 +230,7 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
-// Verify modifier presses and releases keep both sides independent, including overlapping holds (#13745).
+// Verify modifier presses, repeats and releases keep both sides independent, including overlapping holds (#13745).
 function testModifierKeyEvents() {
     // Both sides share a DOM keyCode, but must produce distinct native key values.
     for (const [name, keyCode, left, right] of [
@@ -245,14 +245,10 @@ function testModifierKeyEvents() {
             context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
             const keys = [left, right];
             const codes = [name + "Left", name + "Right"];
-            const pressed = [false, false];
-            const dispatch = (type, side) => {
-                pressed[side] = type === "keydown";
-                context.window.dispatchEvent({
-                    type, keyCode, key: name, code: codes[side], location: side + 1,
-                    shiftKey: name === "Shift" && pressed.some(Boolean), target: context.Module.canvas
-                });
-            };
+            const dispatch = (type, side, repeat = false) => context.window.dispatchEvent({
+                type, keyCode, key: name, code: codes[side], location: side + 1, repeat,
+                shiftKey: name === "Shift" && type === "keydown", target: context.Module.canvas
+            });
             const keyStates = () => keys.map(key => library.dmNativeGetKey(key) || 0);
             const second = 1 - first;
 
@@ -260,47 +256,21 @@ function testModifierKeyEvents() {
             assert.deepStrictEqual(keyStates(), first === 0 ? [1, 0] : [0, 1]);
             dispatch("keydown", second);
             assert.deepStrictEqual(keyStates(), [1, 1]);
-            // Releasing one side must leave the other side pressed.
+            // Additional keydowns remain presses, whether or not the browser marks them as repeats.
+            dispatch("keydown", first, true);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Release only the named side, even if the aggregate shiftKey flag is false.
             dispatch("keyup", first);
             assert.deepStrictEqual(keyStates(), first === 0 ? [0, 1] : [1, 0]);
             dispatch("keyup", second);
             assert.deepStrictEqual(keyStates(), [0, 0]);
             // Callbacks must report the same distinct keys as the polled state.
             assert.deepStrictEqual(events, [
-                [keys[first], 1], [keys[second], 1], [keys[first], 0], [keys[second], 0]
+                [keys[first], 1], [keys[second], 1], [keys[first], 1], [keys[second], 1],
+                [keys[first], 0], [keys[second], 0]
             ]);
-        }
-    }
-}
-
-// Verify a final Shift release clears both sides when Windows omits the other keyup event.
-function testMissingShiftRelease() {
-    for (const first of [0, 1]) {
-        for (const withCallback of [false, true]) {
-            const context = loadEnvironment();
-            const library = context.LibraryDefoldPlatform;
-            const events = [];
-            context.Module.canvas = {};
-            if (withCallback) context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
-            const keys = [287, 288];
-            const codes = ["ShiftLeft", "ShiftRight"];
-            const second = 1 - first;
-            const dispatch = (type, side, shiftKey) => context.window.dispatchEvent({
-                type, key: "Shift", keyCode: 16, code: codes[side], location: side + 1,
-                shiftKey, target: context.Module.canvas
-            });
-
-            dispatch("keydown", first, true);
-            dispatch("keydown", second, true);
-            assert.deepStrictEqual(keys.map(key => library.dmNativeGetKey(key)), [1, 1]);
-            // The first side's keyup is missing; the final event says no Shift is held.
-            dispatch("keyup", second, false);
-            assert.deepStrictEqual(keys.map(key => library.dmNativeGetKey(key)), [0, 0]);
-            if (withCallback) {
-                assert.deepStrictEqual(events, [
-                    [keys[first], 1], [keys[second], 1], [keys[second], 0], [keys[first], 0]
-                ]);
-            }
         }
     }
 }
@@ -3074,7 +3044,7 @@ async function runTests() {
     for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testGraphicsFallbackCanvasListeners,
                        testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
-                       testMissingShiftRelease, testRemappedModifierKeys,
+                       testRemappedModifierKeys,
                        testPunctuationPhysicalKeyCodes,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
