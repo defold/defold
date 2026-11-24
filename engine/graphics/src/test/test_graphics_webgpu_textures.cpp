@@ -25,6 +25,9 @@ static uint32_t g_ReleasedPipelineLayoutCount;
 static uint32_t g_GroupCount;
 static uint32_t g_PipelineCount;
 static bool g_NativeDevice;
+#if defined(DM_GRAPHICS_DAWN)
+static bool g_RejectStencilClearPipeline;
+#endif
 
 static WGPUBindGroupLayout CaptureBindGroupLayout(WGPUDevice device, const WGPUBindGroupLayoutDescriptor* desc)
 {
@@ -102,6 +105,24 @@ static WGPURenderPipeline CaptureRenderPipeline(WGPUDevice device, const WGPURen
     return (WGPURenderPipeline)(uintptr_t)g_PipelineCount;
 }
 
+#if defined(DM_GRAPHICS_DAWN)
+static WGPUFuture CaptureRenderPipelineAsync(WGPUDevice device, const WGPURenderPipelineDescriptor* desc, WGPUCreateRenderPipelineAsyncCallbackInfo callback)
+{
+    ++g_PipelineCount;
+    if (g_RejectStencilClearPipeline)
+    {
+        WGPURenderPipelineDescriptor invalid_desc = *desc;
+        invalid_desc.vertex.entryPoint.data = "missing";
+        invalid_desc.vertex.entryPoint.length = 7;
+        return wgpuDeviceCreateRenderPipelineAsync(device, &invalid_desc, callback);
+    }
+
+    return wgpuDeviceCreateRenderPipelineAsync(device, desc, callback);
+}
+
+#define wgpuDeviceCreateRenderPipelineAsync CaptureRenderPipelineAsync
+#endif
+
 // Capture the production descriptors without exposing an engine test API.
 // The native test forwards layout, bind-group and pipeline creation to the real device.
 #define wgpuDeviceCreateBindGroupLayout CaptureBindGroupLayout
@@ -119,11 +140,7 @@ static WGPURenderPipeline CaptureRenderPipeline(WGPUDevice device, const WGPURen
 #undef wgpuDeviceCreateBindGroup
 #undef wgpuBindGroupRelease
 #undef wgpuDeviceCreateRenderPipeline
-
-static void ReleaseNativeRenderPipeline(void*, const uint64_t*, WGPURenderPipeline* pipeline)
-{
-    wgpuRenderPipelineRelease(*pipeline);
-}
+#undef wgpuDeviceCreateRenderPipelineAsync
 
 struct WebGPUTextureLayoutTest : jc_test_base_class
 {
@@ -149,6 +166,9 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
         g_ReleasedPipelineLayoutCount = 0;
         g_GroupCount = 0;
         g_PipelineCount = 0;
+#if defined(DM_GRAPHICS_DAWN)
+        g_RejectStencilClearPipeline = false;
+#endif
         memset(g_Bindings, 0, sizeof(g_Bindings));
         m_Context = new dmGraphics::WebGPUContext();
         g_WebGPUContext = m_Context;
@@ -191,7 +211,14 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
         delete m_Context->m_BindGroupPool;
         if (g_NativeDevice)
         {
-            m_Context->m_RenderPipelineCache.Iterate(ReleaseNativeRenderPipeline, (void*)0);
+            WebGPUDetachStencilClearPipelineRequest(m_Context);
+            WebGPUEndRenderPass(m_Context);
+            if (m_Context->m_CommandEncoder)
+            {
+                wgpuCommandEncoderRelease(m_Context->m_CommandEncoder);
+            }
+
+            m_Context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, m_Context);
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Textures); ++i)
             {
                 if (m_Textures[i].m_TextureView)
@@ -562,6 +589,39 @@ static void CaptureValidation(WGPUPopErrorScopeStatus status, WGPUErrorType type
     }
 }
 
+static void ReadNativePixels(WebGPUTextureLayoutTest* fixture, WGPUCommandEncoder encoder, WGPUTexture texture,
+                             WGPUTextureAspect aspect, uint32_t width, uint8_t* pixels, uint32_t size)
+{
+    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    source.texture = texture;
+    source.aspect = aspect;
+    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    destination.buffer = fixture->m_ReadbackBuffer;
+    destination.layout.bytesPerRow = 256;
+    destination.layout.rowsPerImage = 1;
+    WGPUExtent3D extent = { width, 1, 1 };
+    wgpuCommandEncoderCopyTextureToBuffer(encoder, &source, &destination, &extent);
+    WGPUCommandBufferDescriptor command_desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
+    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &command_desc);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuQueueSubmit(fixture->m_Context->m_Queue, 1, &command);
+    wgpuCommandBufferRelease(command);
+
+    WebGPUReadback readback = {};
+    WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_WaitAnyOnly;
+    callback.callback = WebGPUReadbackMapped;
+    callback.userdata1 = &readback;
+    WGPUFutureWaitInfo wait = {};
+    wait.future = wgpuBufferMapAsync(fixture->m_ReadbackBuffer, WGPUMapMode_Read, 0, 256, callback);
+    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
+    ASSERT_TRUE(readback.m_Success);
+    const void* mapped = wgpuBufferGetConstMappedRange(fixture->m_ReadbackBuffer, 0, 256);
+    ASSERT_NE((const void*)0, mapped);
+    memcpy(pixels, mapped, size);
+    wgpuBufferUnmap(fixture->m_ReadbackBuffer);
+}
+
 static void DrawNativePixel(WebGPUTextureLayoutTest* fixture, WGPURenderPipeline pipeline, uint8_t pixel[4])
 {
     WGPUCommandEncoderDescriptor encoder_desc = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
@@ -584,74 +644,90 @@ static void DrawNativePixel(WebGPUTextureLayoutTest* fixture, WGPURenderPipeline
     wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
     wgpuRenderPassEncoderEnd(pass);
     wgpuRenderPassEncoderRelease(pass);
-
-    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-    source.texture = fixture->m_Textures[3].m_Texture;
-    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-    destination.buffer = fixture->m_ReadbackBuffer;
-    destination.layout.bytesPerRow = 256;
-    destination.layout.rowsPerImage = 1;
-    WGPUExtent3D extent = { 1, 1, 1 };
-    wgpuCommandEncoderCopyTextureToBuffer(encoder, &source, &destination, &extent);
-    WGPUCommandBufferDescriptor command_desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
-    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &command_desc);
-    wgpuCommandEncoderRelease(encoder);
-    wgpuQueueSubmit(fixture->m_Context->m_Queue, 1, &command);
-    wgpuCommandBufferRelease(command);
-
-    WebGPUReadback readback = {};
-    WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-    callback.mode = WGPUCallbackMode_WaitAnyOnly;
-    callback.callback = WebGPUReadbackMapped;
-    callback.userdata1 = &readback;
-    WGPUFutureWaitInfo wait = {};
-    wait.future = wgpuBufferMapAsync(fixture->m_ReadbackBuffer, WGPUMapMode_Read, 0, 256, callback);
-    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
-    ASSERT_TRUE(readback.m_Success);
-    memcpy(pixel, wgpuBufferGetConstMappedRange(fixture->m_ReadbackBuffer, 0, 4), 4);
-    wgpuBufferUnmap(fixture->m_ReadbackBuffer);
+    ReadNativePixels(fixture, encoder, fixture->m_Textures[3].m_Texture, WGPUTextureAspect_All, 1, pixel, 4);
 }
 
-// Real vertex float32 sampling and linear color filtering must draw correctly and reuse pipelines across layout switches.
-TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
+static void InitializeNativeDevice(WebGPUTextureLayoutTest* fixture)
 {
     WGPUInstanceDescriptor instance_desc = WGPU_INSTANCE_DESCRIPTOR_INIT;
     WGPUInstanceFeatureName instance_feature = WGPUInstanceFeatureName_TimedWaitAny;
     instance_desc.requiredFeatures = &instance_feature;
     instance_desc.requiredFeatureCount = 1;
-    m_Instance = wgpuCreateInstance(&instance_desc);
-    ASSERT_NE((WGPUInstance)0, m_Instance);
+    fixture->m_Instance = wgpuCreateInstance(&instance_desc);
+    ASSERT_NE((WGPUInstance)0, fixture->m_Instance);
     WGPURequestAdapterCallbackInfo adapter_callback = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
     adapter_callback.mode = WGPUCallbackMode_WaitAnyOnly;
     adapter_callback.callback = CaptureAdapter;
-    adapter_callback.userdata1 = &m_Adapter;
+    adapter_callback.userdata1 = &fixture->m_Adapter;
     WGPUFutureWaitInfo wait = {};
-    wait.future = wgpuInstanceRequestAdapter(m_Instance, 0, adapter_callback);
-    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(m_Instance, 1, &wait, UINT64_MAX));
-    if (!m_Adapter)
+    wait.future = wgpuInstanceRequestAdapter(fixture->m_Instance, 0, adapter_callback);
+    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
+    if (!fixture->m_Adapter)
     {
-        SKIP();
+        return;
     }
 
     WGPUDeviceDescriptor device_desc = WGPU_DEVICE_DESCRIPTOR_INIT;
     WGPURequestDeviceCallbackInfo device_callback = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
     device_callback.mode = WGPUCallbackMode_WaitAnyOnly;
     device_callback.callback = CaptureDevice;
-    device_callback.userdata1 = &m_Context->m_Device;
-    wait.future = wgpuAdapterRequestDevice(m_Adapter, &device_desc, device_callback);
-    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(m_Instance, 1, &wait, UINT64_MAX));
-    ASSERT_NE((WGPUDevice)0, m_Context->m_Device);
-    ASSERT_FALSE(wgpuDeviceHasFeature(m_Context->m_Device, WGPUFeatureName_Float32Filterable));
+    dmGraphics::WebGPUContext* context = fixture->m_Context;
+    context->m_Instance = fixture->m_Instance;
+    device_callback.userdata1 = &context->m_Device;
+    wait.future = wgpuAdapterRequestDevice(fixture->m_Adapter, &device_desc, device_callback);
+    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
+    ASSERT_NE((WGPUDevice)0, context->m_Device);
 
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Textures); ++i)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(fixture->m_Textures); ++i)
     {
-        m_Textures[i].m_TextureView = 0;
-        m_Textures[i].m_Sampler = 0;
+        fixture->m_Textures[i].m_TextureView = 0;
+        fixture->m_Textures[i].m_Sampler = 0;
     }
 
     g_NativeDevice = true;
-    m_Context->m_Queue = wgpuDeviceGetQueue(m_Context->m_Device);
-    wgpuDevicePushErrorScope(m_Context->m_Device, WGPUErrorFilter_Validation);
+    context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
+    wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+    WGPUBufferDescriptor buffer_desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+    buffer_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    buffer_desc.size = 256;
+    fixture->m_ReadbackBuffer = wgpuDeviceCreateBuffer(context->m_Device, &buffer_desc);
+}
+
+static void AssertNoNativeValidationErrors(WebGPUTextureLayoutTest* fixture)
+{
+    ValidationResult result = {};
+    WGPUPopErrorScopeCallbackInfo callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_WaitAnyOnly;
+    callback.callback = CaptureValidation;
+    callback.userdata1 = &result;
+    WGPUFutureWaitInfo wait = {};
+    wait.future = wgpuDevicePopErrorScope(fixture->m_Context->m_Device, callback);
+    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
+    ASSERT_EQ(WGPUPopErrorScopeStatus_Success, result.m_Status);
+    ASSERT_EQ(WGPUErrorType_NoError, result.m_Type);
+}
+
+static WGPUShaderModule CreateNativeShader(WGPUDevice device, const char* source)
+{
+    WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgsl.code.data = source;
+    wgsl.code.length = strlen(source);
+    WGPUShaderModuleDescriptor desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    desc.nextInChain = &wgsl.chain;
+    return wgpuDeviceCreateShaderModule(device, &desc);
+}
+
+// Real vertex float32 sampling and linear color filtering must draw correctly and reuse pipelines across layout switches.
+TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    ASSERT_FALSE(wgpuDeviceHasFeature(m_Context->m_Device, WGPUFeatureName_Float32Filterable));
+
     const float float_bone[] = { 0.25f, 1.0f, 1.0f, 1.0f };
     const uint8_t normalized_bone[] = { 128, 255, 255, 255 };
     const uint8_t colors[] = { 0, 0, 0, 255, 255, 0, 0, 255 };
@@ -700,18 +776,8 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
         "@fragment fn main(@location(0) bone: vec4<f32>) -> @location(0) vec4<f32> {\n"
         "  return bone * textureSampleLevel(color, color_sampler, vec2<f32>(0.5), 0.0);\n"
         "}\n";
-    const char* sources[] = { vertex_source, fragment_source };
-    dmGraphics::WebGPUShaderModule* modules[] = { &m_Vertex, &m_Fragment };
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(modules); ++i)
-    {
-        WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
-        wgsl.code.data = sources[i];
-        wgsl.code.length = strlen(sources[i]);
-        WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
-        shader_desc.nextInChain = &wgsl.chain;
-        modules[i]->m_Module = wgpuDeviceCreateShaderModule(m_Context->m_Device, &shader_desc);
-    }
-
+    m_Vertex.m_Module = CreateNativeShader(m_Context->m_Device, vertex_source);
+    m_Fragment.m_Module = CreateNativeShader(m_Context->m_Device, fragment_source);
     m_Program.m_VertexModule = &m_Vertex;
     m_Program.m_FragmentModule = &m_Fragment;
 
@@ -731,11 +797,6 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
     m_Context->m_CurrentRenderPass.m_Target = &m_Target;
     m_Context->m_CurrentPipelineState = dmGraphics::GetDefaultPipelineState();
     m_Context->m_CurrentPipelineState.m_PrimtiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-    WGPUBufferDescriptor buffer_desc = WGPU_BUFFER_DESCRIPTOR_INIT;
-    buffer_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
-    buffer_desc.size = 256;
-    m_ReadbackBuffer = wgpuDeviceCreateBuffer(m_Context->m_Device, &buffer_desc);
-
     uint8_t pixels[3][4];
     WGPURenderPipeline pipelines[3];
     for (uint32_t i = 0; i < 3; ++i)
@@ -746,15 +807,7 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
         DrawNativePixel(this, pipelines[i], pixels[i]);
     }
 
-    ValidationResult result = {};
-    WGPUPopErrorScopeCallbackInfo error_callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
-    error_callback.mode = WGPUCallbackMode_WaitAnyOnly;
-    error_callback.callback = CaptureValidation;
-    error_callback.userdata1 = &result;
-    wait.future = wgpuDevicePopErrorScope(m_Context->m_Device, error_callback);
-    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(m_Instance, 1, &wait, UINT64_MAX));
-    ASSERT_EQ(WGPUPopErrorScopeStatus_Success, result.m_Status);
-    ASSERT_EQ(WGPUErrorType_NoError, result.m_Type);
+    AssertNoNativeValidationErrors(this);
     for (uint32_t i = 0; i < 3; ++i)
     {
         ASSERT_NEAR(i == 1 ? 32 : 64, pixels[i][0], 1);
@@ -766,6 +819,286 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
     ASSERT_NE(pipelines[0], pipelines[1]);
     ASSERT_EQ(pipelines[0], pipelines[2]);
     ASSERT_EQ(2u, g_PipelineCount);
+}
+
+static dmGraphics::HContext BeginNativeBackbuffer(WebGPUTextureLayoutTest* fixture, uint32_t width, uint8_t sample_count)
+{
+    dmGraphics::WebGPUContext* context = fixture->m_Context;
+    const WGPUTextureFormat formats[] = { WGPUTextureFormat_RGBA8Unorm, WGPUTextureFormat_Depth24PlusStencil8, WGPUTextureFormat_RGBA8Unorm };
+    const uint32_t texture_count = sample_count > 1 ? 3 : 2;
+    for (uint32_t i = 0; i < texture_count; ++i)
+    {
+        WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
+        desc.format = formats[i];
+        desc.size = { width, 1, 1 };
+        desc.sampleCount = i < 2 ? sample_count : 1;
+        desc.usage = WGPUTextureUsage_RenderAttachment;
+        if (desc.sampleCount == 1)
+        {
+            desc.usage |= WGPUTextureUsage_CopySrc;
+        }
+
+        dmGraphics::WebGPUTexture& texture = fixture->m_Textures[i];
+        texture.m_Format = desc.format;
+        texture.m_Texture = wgpuDeviceCreateTexture(context->m_Device, &desc);
+        texture.m_TextureView = wgpuTextureCreateView(texture.m_Texture, 0);
+    }
+
+    const uint32_t attachments = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::WebGPURenderTarget& target = fixture->m_Target;
+    target.m_Base.m_Id = dmGraphics::DM_RENDERTARGET_BACKBUFFER_ID;
+    target.m_Base.m_ColorAttachmentCount = 1;
+    target.m_Base.m_SampleCount = sample_count;
+    target.m_BufferTypeFlags = attachments;
+    target.m_Multisample = sample_count;
+    target.m_Width = width;
+    target.m_Height = 1;
+    target.m_ColorBufferTypes[0] = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+    target.m_TextureColor[0] = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[0], dmGraphics::ASSET_TYPE_TEXTURE);
+    target.m_TextureDepthStencil = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[1], dmGraphics::ASSET_TYPE_TEXTURE);
+    if (sample_count > 1)
+    {
+        target.m_TextureResolve[0] = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[2], dmGraphics::ASSET_TYPE_TEXTURE);
+    }
+
+    context->m_Format = formats[0];
+    context->m_MainRenderTarget = &target;
+    context->m_CurrentRenderTarget = &target;
+    context->m_ApplyRenderTargetLoadOps = 1;
+    context->m_CurrentPipelineState = dmGraphics::GetDefaultPipelineState();
+    dmGraphics::HContext graphics_context = &context->m_BaseContext;
+    WebGPUSetViewport(graphics_context, 0, 0, width, 1);
+    WebGPUClear(graphics_context, attachments, 16, 32, 64, 255, 0.75f, 3);
+    return graphics_context;
+}
+
+static void InitializeNativeDrawProgram(WebGPUTextureLayoutTest* fixture, const char* fragment_source)
+{
+    static const char vertex_source[] =
+        "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
+        "  let positions = array<vec2<f32>, 3>(vec2<f32>(-1, -1), vec2<f32>(3, -1), vec2<f32>(-1, 3));\n"
+        "  return vec4<f32>(positions[index], 0.5, 1.0);\n"
+        "}\n";
+    fixture->m_Vertex.m_Module = CreateNativeShader(fixture->m_Context->m_Device, vertex_source);
+    fixture->m_Fragment.m_Module = CreateNativeShader(fixture->m_Context->m_Device, fragment_source);
+    fixture->m_Program.m_VertexModule = &fixture->m_Vertex;
+    fixture->m_Program.m_FragmentModule = &fixture->m_Fragment;
+    fixture->Initialize();
+}
+
+static bool WaitForStencilClearPipeline(dmGraphics::WebGPUContext* context)
+{
+    WGPUFutureWaitInfo wait = { context->m_StencilClearPipelineRequest->m_Future, 0 };
+    return wgpuInstanceWaitAny(context->m_Instance, 1, &wait, UINT64_MAX) == WGPUWaitStatus_Success && wait.completed;
+}
+
+static WGPUCommandEncoder EndNativeBackbuffer(dmGraphics::WebGPUContext* context)
+{
+    WebGPUEndRenderPass(context);
+    WGPUCommandEncoder encoder = context->m_CommandEncoder;
+    context->m_CommandEncoder = 0;
+    return encoder;
+}
+
+// Verify full-target stencil replacement and that the next draw restores its state in the same pass.
+TEST_F(WebGPUTextureLayoutTest, StencilOnlyClearReusesBackbufferPass)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 4, 1);
+    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
+    ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+    ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
+    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
+
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
+    // The viewport and scissor overlap only on the second pixel.
+    WebGPUSetViewport(context, 0, 0, 2, 1);
+    m_Target.m_Scissor[0] = 1;
+    m_Target.m_Scissor[2] = 2;
+    WebGPUEnableState(context, dmGraphics::STATE_STENCIL_TEST);
+    WebGPUSetStencilFunc(context, dmGraphics::COMPARE_FUNC_NOTEQUAL, 3, 0xff);
+    WebGPUSetStencilMask(context, 0);
+    WebGPUEnableState(context, dmGraphics::STATE_DEPTH_TEST);
+    WebGPUSetDepthMask(context, false);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+    const WGPURenderPassEncoder pass = m_Context->m_CurrentRenderPass.m_Encoder;
+    const WGPURenderPipeline draw_pipeline = m_Context->m_CurrentRenderPass.m_Pipeline;
+    const uint32_t pass_count = m_Context->m_RenderPasses;
+    ASSERT_NE((WGPURenderPassEncoder)0, pass);
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 19);
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 0x19d);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ASSERT_EQ(pass, m_Context->m_CurrentRenderPass.m_Encoder);
+    ASSERT_EQ(pass_count, m_Context->m_RenderPasses);
+    ASSERT_EQ(draw_pipeline, m_Context->m_CurrentRenderPass.m_Pipeline);
+    ASSERT_EQ(2u, g_PipelineCount);
+
+    uint8_t pixels[16] = {};
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[0].m_Texture, WGPUTextureAspect_All, 4, pixels, sizeof(pixels));
+    uint8_t stencil[4] = {};
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(m_Context->m_Device, 0);
+    ReadNativePixels(this, encoder, m_Textures[1].m_Texture, WGPUTextureAspect_StencilOnly, 4, stencil, sizeof(stencil));
+    AssertNoNativeValidationErrors(this);
+    const uint8_t expected_color[] = { 16, 32, 64, 255, 255, 0, 0, 255, 16, 32, 64, 255, 16, 32, 64, 255 };
+    const uint8_t expected_stencil[] = { 157, 157, 157, 157 };
+    ASSERT_EQ(0, memcmp(expected_color, pixels, sizeof(expected_color)));
+    ASSERT_EQ(0, memcmp(expected_stencil, stencil, sizeof(expected_stencil)));
+}
+
+// Verify MSAA clears all four stencil samples in the same pass with a separate cached pipeline.
+TEST_F(WebGPUTextureLayoutTest, StencilOnlyClearReusesMultisampledBackbufferPass)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 2, 4);
+    const uint32_t sample_counts[] = { 1, 4 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sample_counts); ++i)
+    {
+        const uint32_t sample_count = sample_counts[i];
+        ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, sample_count));
+        ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+        ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
+        ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, sample_count));
+    }
+
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
+    WebGPUSetViewport(context, 1, 0, 1, 1);
+    WebGPUEnableState(context, dmGraphics::STATE_STENCIL_TEST);
+    WebGPUSetStencilFunc(context, dmGraphics::COMPARE_FUNC_EQUAL, 23, 0xff);
+    WebGPUSetStencilMask(context, 0);
+    WebGPUEnableState(context, dmGraphics::STATE_DEPTH_TEST);
+    WebGPUSetDepthMask(context, false);
+
+    const WGPURenderPassEncoder pass = m_Context->m_CurrentRenderPass.m_Encoder;
+    const uint32_t pass_count = m_Context->m_RenderPasses;
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 23);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ASSERT_EQ(pass, m_Context->m_CurrentRenderPass.m_Encoder);
+    ASSERT_EQ(pass_count, m_Context->m_RenderPasses);
+    ASSERT_EQ(3u, g_PipelineCount);
+
+    // The resolve is solid red only if every sample in the second pixel passed.
+    uint8_t pixels[8] = {};
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[2].m_Texture, WGPUTextureAspect_All, 2, pixels, sizeof(pixels));
+    AssertNoNativeValidationErrors(this);
+    const uint8_t expected_color[] = { 16, 32, 64, 255, 255, 0, 0, 255 };
+    ASSERT_EQ(0, memcmp(expected_color, pixels, sizeof(expected_color)));
+}
+
+// A storage-capable texture can be sampled before the clear and bound for writing afterward.
+TEST_F(WebGPUTextureLayoutTest, StencilClearSeparatesStorageTextureUsages)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1, 1);
+    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
+    ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+    ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
+    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
+
+    dmGraphics::WebGPUTexture& texture = m_Textures[2];
+    WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    desc.format = WGPUTextureFormat_RGBA32Float;
+    desc.size = { 1, 1, 1 };
+    desc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding;
+    texture.m_Format = desc.format;
+    texture.m_UsageFlags = desc.usage;
+    texture.m_Texture = wgpuDeviceCreateTexture(m_Context->m_Device, &desc);
+    texture.m_TextureView = wgpuTextureCreateView(texture.m_Texture, 0);
+
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    m_Program.m_BaseProgram.m_ShaderMeta.m_Textures.SetCapacity(1);
+    AddTexture("source", dmGraphics::ShaderDesc::SHADER_TYPE_TEXTURE2D, 0, 0, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT, 0);
+    m_Context->m_CurrentTextureUnits[0] = &texture;
+    InitializeNativeDrawProgram(this, "@group(0) @binding(0) var source: texture_2d<f32>;\n"
+                                "@fragment fn main() -> @location(0) vec4<f32> { return textureLoad(source, vec2<i32>(0), 0); }");
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    const uint32_t pass_count = m_Context->m_RenderPasses;
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 11);
+
+    // WebGPU tracks the storage usage of bindings even without a draw using them.
+    WGPUBindGroupLayoutEntry layout_entry = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
+    layout_entry.visibility = WGPUShaderStage_Fragment;
+    layout_entry.storageTexture.access = WGPUStorageTextureAccess_WriteOnly;
+    layout_entry.storageTexture.format = desc.format;
+    layout_entry.storageTexture.viewDimension = WGPUTextureViewDimension_2D;
+    WGPUBindGroupLayoutDescriptor layout_desc = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
+    layout_desc.entryCount = 1;
+    layout_desc.entries = &layout_entry;
+    WGPUBindGroupLayout layout = wgpuDeviceCreateBindGroupLayout(m_Context->m_Device, &layout_desc);
+    WGPUBindGroupEntry entry = WGPU_BIND_GROUP_ENTRY_INIT;
+    entry.textureView = texture.m_TextureView;
+    WGPUBindGroupDescriptor group_desc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
+    group_desc.layout = layout;
+    group_desc.entryCount = 1;
+    group_desc.entries = &entry;
+    WGPUBindGroup group = wgpuDeviceCreateBindGroup(m_Context->m_Device, &group_desc);
+    wgpuRenderPassEncoderSetBindGroup(m_Context->m_CurrentRenderPass.m_Encoder, 0, group, 0, 0);
+    wgpuBindGroupRelease(group);
+    wgpuBindGroupLayoutRelease(layout);
+
+    uint8_t stencil = 0;
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[1].m_Texture, WGPUTextureAspect_StencilOnly, 1, &stencil, sizeof(stencil));
+    AssertNoNativeValidationErrors(this);
+    ASSERT_EQ(pass_count + 1, m_Context->m_RenderPasses);
+    ASSERT_EQ(11u, stencil);
+}
+
+// Verify both fallback clears write stencil and the rejection is cached.
+TEST_F(WebGPUTextureLayoutTest, StencilClearFallsBackWhenPipelineCreationFails)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1, 1);
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
+    g_RejectStencilClearPipeline = true;
+    const uint32_t pass_count = m_Context->m_RenderPasses;
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 17);
+    ASSERT_EQ(pass_count + 1, m_Context->m_RenderPasses);
+    ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+
+    // Keep the first clear observable in color while leaving the restarted pass active.
+    WebGPUEnableState(context, dmGraphics::STATE_STENCIL_TEST);
+    WebGPUSetStencilFunc(context, dmGraphics::COMPARE_FUNC_EQUAL, 17, 0xff);
+    WebGPUSetStencilMask(context, 0);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+    ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 23);
+
+    uint8_t color[4] = {};
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[0].m_Texture, WGPUTextureAspect_All, 1, color, sizeof(color));
+    const uint8_t expected_color[] = { 255, 0, 0, 255 };
+    ASSERT_EQ(0, memcmp(expected_color, color, sizeof(expected_color)));
+
+    uint8_t stencil = 0;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(m_Context->m_Device, 0);
+    ReadNativePixels(this, encoder, m_Textures[1].m_Texture, WGPUTextureAspect_StencilOnly, 1, &stencil, sizeof(stencil));
+    AssertNoNativeValidationErrors(this);
+    ASSERT_EQ(pass_count + 2, m_Context->m_RenderPasses);
+    ASSERT_EQ(2u, g_PipelineCount);
+    ASSERT_EQ(23u, stencil);
 }
 #endif
 

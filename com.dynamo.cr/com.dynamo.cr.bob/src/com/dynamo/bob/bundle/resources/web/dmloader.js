@@ -1347,6 +1347,29 @@ var Module = {
         return Module.canvas;
     },
 
+    onCanvasContextLost: function(event) {
+        event.preventDefault();
+        dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
+    },
+
+    onCanvasContextRestored: function(event) {
+        dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
+    },
+
+    onCanvasContextMenu: function(event) {
+        event.preventDefault();
+    },
+
+    // The native browser backend rebinds these when graphics fallback replaces the canvas.
+    setCanvasEventListeners: function(canvas, enabled) {
+        var method = enabled ? 'addEventListener' : 'removeEventListener';
+        canvas[method]("webglcontextlost", Module.onCanvasContextLost, false);
+        canvas[method]("webglcontextrestored", Module.onCanvasContextRestored, false);
+        if (CUSTOM_PARAMETERS["disable_context_menu"]) {
+            canvas.oncontextmenu = enabled ? Module.onCanvasContextMenu : null;
+        }
+    },
+
 
     /**
     * Module.runApp - Starts the application given a canvas element id
@@ -1372,20 +1395,7 @@ var Module = {
             if (Module.hasWebGLSupport(){{#DEFOLD_HAS_WEBGPU}} || Module.hasWebGPUSupport(){{/DEFOLD_HAS_WEBGPU}}) {
                 Module.canvas.focus();
 
-                Module.canvas.addEventListener("webglcontextlost", function(event) {
-                    event.preventDefault();
-                    dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
-                }, false);
-                Module.canvas.addEventListener("webglcontextrestored", function(event) {
-                    dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
-                }, false);
-                // Add context menu hide-handler if requested
-                if (CUSTOM_PARAMETERS["disable_context_menu"])
-                {
-                    Module.canvas.oncontextmenu = function(e) {
-                        e.preventDefault();
-                    };
-                }
+                Module.setCanvasEventListeners(Module.canvas, true);
                 if (session) session.runtime.resolve();
             } else {
                 // "Unable to start game, WebGL not supported"

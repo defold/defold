@@ -978,24 +978,6 @@ namespace dmEngine
         }
     }
 
-    static WindowsGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
-    {
-        switch(family)
-        {
-            case dmGraphics::ADAPTER_FAMILY_NULL:     return WINDOW_GRAPHICS_API_NULL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return WINDOW_GRAPHICS_API_OPENGL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return WINDOW_GRAPHICS_API_OPENGLES;
-            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return WINDOW_GRAPHICS_API_VULKAN;
-            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
-            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
-            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
-            case dmGraphics::ADAPTER_FAMILY_METAL:    return WINDOW_GRAPHICS_API_METAL;
-            default:break;
-        }
-        assert(0);
-        return (WindowsGraphicsApi) -1;
-    }
-
     // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
     // Probably need to allow access to HConfigFile first
     bool SetupStreamingResourceTypes(dmResource::HFactory factory, dmConfigFile::HConfig config)
@@ -1075,7 +1057,7 @@ namespace dmEngine
       the project if not overridden in project-file
       (resource.uri)
     */
-    bool Init(HEngine engine, int argc, char* argv[])
+    bool Init(HEngine engine, int argc, char* argv[], bool allow_graphics_fallback)
     {
         engine->m_Ready = false;
         if (engine->m_EngineService)
@@ -1422,14 +1404,13 @@ namespace dmEngine
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
-        window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
         window_params.m_ContextAlphabits        = dmConfigFile::GetInt(engine->m_Config, "html5.transparent_graphics_context", 0) == 0 ? 0 : 8;
 #else
         window_params.m_ContextAlphabits        = 8;
 #endif
 
-        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_OPENGL))
         {
             window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
@@ -1440,20 +1421,6 @@ namespace dmEngine
 #endif
 
         engine->m_Window = dmPlatform::NewWindow();
-
-        WindowResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
-        if (platform_result != WINDOW_RESULT_OK)
-        {
-            dmLogFatal("Could not open window (%d).", platform_result);
-            return false;
-        }
-
-#if defined(DM_PLATFORM_IOS)
-        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
-        // Reset the rate a previous engine instance may have requested before a reboot
-        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
-        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
-#endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
@@ -1475,18 +1442,25 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
-        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_VULKAN))
         {
             graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
-        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        engine->m_GraphicsContext = InitializeGraphics(engine->m_Window, window_params, graphics_context_params, allow_graphics_fallback);
         if (engine->m_GraphicsContext == 0x0)
         {
             dmLogFatal("Unable to create the graphics context.");
             return false;
         }
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+        // Reset the rate a previous engine instance may have requested before a reboot
+        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
+#endif
 
         SetSwapInterval(engine, swap_interval);
 
@@ -2834,7 +2808,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
     }
 
     dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
-    bool initialized = dmEngine::Init(engine, argc, argv);
+    bool initialized = dmEngine::Init(engine, argc, argv, arg_adapter_name == 0);
 
     if (!initialized)
     {

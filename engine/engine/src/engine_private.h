@@ -28,6 +28,8 @@
 
 #include <resource/resource.h>
 
+#include <graphics/graphics.h>
+#include <platform/window.hpp>
 #include <render/render.h>
 
 #include <hid/hid.h>
@@ -179,12 +181,21 @@ namespace dmEngine
     HEngine New(dmEngineService::HEngineService engine_service);
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
-    bool Init(HEngine engine, int argc, char *argv[]);
+    bool Init(HEngine engine, int argc, char *argv[], bool allow_graphics_fallback);
     // Returns false only when streaming is enabled and no supported sound formats are registered.
     bool SetupStreamingResourceTypes(dmResource::HFactory factory, dmConfigFile::HConfig config);
     void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
     void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);
+
+    // Check whether an adapter is registered, regardless of runtime support or current selection.
+    bool IsGraphicsAdapterInstalled(WindowsGraphicsApi graphics_api);
+
+    // Open the window and create its context using the installed adapter. Automatic
+    // selection retries the remaining registered adapters in priority order.
+    // Window params carry the OpenGL hints, and context params carry the Vulkan hints.
+    dmGraphics::HContext InitializeGraphics(HWindow window, const WindowCreateParams& window_params,
+                                            const dmGraphics::ContextParams& context_params, bool allow_fallback);
 
     void ReloadResources(HEngine engine, const char* extension);
     bool LoadBootstrapContent(HEngine engine, HConfigFile config);
