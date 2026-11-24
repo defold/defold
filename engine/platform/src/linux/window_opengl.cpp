@@ -115,24 +115,10 @@ namespace dmPlatform
         GLX_FUNCTIONS(LOAD)
 #undef LOAD
         int count = 0;
-        int attrs[] = { GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT | GLX_PBUFFER_BIT, GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_DOUBLEBUFFER, True,
-                        GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, (int)w->m_Params.m_ContextAlphabits,
-                        GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, GLX_SAMPLES, (int)(w->m_Params.m_Samples > 1 ? w->m_Params.m_Samples : 0), None };
+        const int attrs[] = { GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT, GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_DOUBLEBUFFER, True,
+                              GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, (int)w->m_Params.m_ContextAlphabits,
+                              GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, None };
         GLXFBConfig* configs = g->m_glXChooseFBConfig(w->m_Display, DefaultScreen(w->m_Display), attrs, &count);
-        if (!count)
-        {
-            XFree(configs);
-            attrs[sizeof(attrs) / sizeof(*attrs) - 3] = None;
-            configs = g->m_glXChooseFBConfig(w->m_Display, DefaultScreen(w->m_Display), attrs, &count);
-        }
-
-        if (!count)
-        {
-            XFree(configs);
-            attrs[1] = GLX_WINDOW_BIT;
-            configs = g->m_glXChooseFBConfig(w->m_Display, DefaultScreen(w->m_Display), attrs, &count);
-        }
-
         if (!configs || !count)
         {
             XFree(configs);
@@ -140,6 +126,32 @@ namespace dmPlatform
         }
 
         g->m_XConfig = configs[0];
+        uint32_t best_error = UINT32_MAX;
+        bool best_pbuffer = false;
+        for (int i = 0; i < count; ++i)
+        {
+            int samples, types = 0;
+            if (g->m_glXGetFBConfigAttrib(w->m_Display, configs[i], GLX_SAMPLES, &samples) != Success)
+            {
+                samples = 0;
+            }
+
+            g->m_glXGetFBConfigAttrib(w->m_Display, configs[i], GLX_DRAWABLE_TYPE, &types);
+            uint32_t error = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
+            bool pbuffer = (types & GLX_PBUFFER_BIT) != 0;
+            // For equally good sample counts prefer a format that can also host the shared upload context.
+            if (error < best_error || (error == best_error && pbuffer && !best_pbuffer))
+            {
+                g->m_XConfig = configs[i];
+                best_error = error;
+                best_pbuffer = pbuffer;
+                if (!error && pbuffer)
+                {
+                    break;
+                }
+            }
+        }
+
         XFree(configs);
         XVisualInfo* vi = g->m_glXGetVisualFromFBConfig(w->m_Display, g->m_XConfig);
         if (!vi)

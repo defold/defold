@@ -1128,28 +1128,53 @@ static void* UploadTexture(void* data)
     return 0;
 }
 
-// An EGL sample request above the driver's maximum must retain the available multisampling.
+static void CheckMultisampleFallback(HWindow w, WindowsGraphicsApi api)
+{
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = api;
+    p.m_Hidden = true;
+    const unsigned requests[] = { 4, 1, 1024 };
+    GLint samples[3] = {};
+    for (unsigned i = 0; i < 3; ++i)
+    {
+        p.m_Samples = requests[i];
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        __typeof__(&::glGetIntegerv) get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
+        ASSERT_TRUE(get_integer);
+        get_integer(GL_SAMPLES, &samples[i]);
+        dmPlatform::CloseWindow(w);
+    }
+
+    if (samples[0] > 0)
+    {
+        EXPECT_GT(samples[1], 0);
+        EXPECT_LE(samples[1], samples[0]);
+    }
+
+    EXPECT_GE(samples[2], samples[0]);
+}
+
+// EGL must retain available multisampling for requests outside the driver's sample range.
 TEST(LinuxWindow, EGLMultisampleFallback)
 {
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w);
-    WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
-    p.m_Hidden = true;
-    p.m_Samples = 4;
-    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
-    GLint supported = 0;
-    __typeof__(&::glGetIntegerv) get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
-    ASSERT_TRUE(get_integer);
-    get_integer(GL_SAMPLES, &supported);
-    dmPlatform::CloseWindow(w);
-    p.m_Samples = 1024;
-    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
-    GLint selected = 0;
-    get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
-    ASSERT_TRUE(get_integer);
-    get_integer(GL_SAMPLES, &selected);
-    EXPECT_GE(selected, supported);
+    CheckMultisampleFallback(w, WINDOW_GRAPHICS_API_OPENGLES);
+    dmPlatform::DeleteWindow(w);
+}
+
+// GLX must retain available multisampling for requests outside the driver's sample range.
+TEST(LinuxWindow, GLXMultisampleFallback)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_X11)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    CheckMultisampleFallback(w, WINDOW_GRAPHICS_API_OPENGL);
     dmPlatform::DeleteWindow(w);
 }
 
