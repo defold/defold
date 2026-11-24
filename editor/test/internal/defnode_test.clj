@@ -312,6 +312,39 @@
   (property zort g/Int
             (value (g/fnk [zort] zort))))
 
+(g/defnode OriginalPropertyGetterNode
+  (property original-value g/Str)
+  (property show-result g/Bool)
+  (property result g/Str
+            (value (g/fnk [original-value] original-value))
+            (dynamic visible (g/fnk [show-result] show-result)))
+  (output cached-result g/Str :cached (g/fnk [result] result)))
+
+(g/defnode ReplacedPropertyGetterNode
+  (inherits OriginalPropertyGetterNode)
+  (property replacement-value g/Str)
+  (property result g/Str
+            (value (g/fnk [replacement-value] replacement-value))))
+
+;; A replaced getter must drop its old dependencies so they do not evict cached
+;; consumers. Dependencies of inherited property dynamics still apply.
+(deftest replacing-inherited-property-getter-test
+  (with-clean-system
+    (let [node-id
+          (g/make-node! ReplacedPropertyGetterNode :replacement-value "first")
+
+          cached-result-endpoint (g/endpoint node-id :cached-result)]
+      (is (= #{(g/endpoint node-id :replacement-value)
+               (g/endpoint node-id :show-result)}
+             (set (g/immediate-predecessor-endpoints (g/now) node-id :result))))
+      (is (= "first" (g/node-value node-id :cached-result)))
+
+      (g/set-property! node-id :original-value "unused")
+      (is (contains? (cached-endpoints) cached-result-endpoint))
+
+      (g/set-property! node-id :replacement-value "second")
+      (is (= "second" (g/node-value node-id :cached-result))))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode :a-property nil)]

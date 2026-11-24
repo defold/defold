@@ -1239,13 +1239,12 @@
 
 (defn- merge-property-dependencies
   [tree]
-  (update tree :property
-          (fn [properties]
-            (reduce-kv
-              (fn [props pname pdef]
-                (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
-              properties
-              properties))))
+  (update tree :property coll/update-vals-kv
+          (fn [property-label property]
+            ;; Recompute from the property clauses that survived inheritance.
+            (let [clauses (dissoc property :dependencies)
+                  dependencies (all-subtree-dependencies clauses)]
+              (assoc property :dependencies (disj dependencies property-label))))))
 
 (defn- apply-property-dependencies-to-outputs
   [tree]
