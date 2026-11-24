@@ -29,6 +29,7 @@ static int g_DeviceFd = -1;
 static unsigned g_Connected, g_Disconnected;
 static bool g_HatOnly;
 static int g_StandaloneAxis = -1;
+static unsigned g_StandaloneAxisCount;
 static bool g_Accelerometer;
 
 // Only the device identity and capability ioctls are synthetic. Discovery,
@@ -119,7 +120,11 @@ extern "C"
             {
                 if (g_StandaloneAxis >= 0)
                 {
-                    SetBit(bits, g_StandaloneAxis);
+                    for (unsigned axis = 0; axis < g_StandaloneAxisCount; ++axis)
+                    {
+                        SetBit(bits, g_StandaloneAxis + axis);
+                    }
+
                     break;
                 }
                 SetBit(bits, g_HatOnly ? ABS_HAT0X : ABS_X);
@@ -138,6 +143,10 @@ extern "C"
             }
             case _IOC_NR(EVIOCGABS(ABS_X)):
             case _IOC_NR(EVIOCGABS(ABS_Y)):
+            case _IOC_NR(EVIOCGABS(ABS_Z)):
+            case _IOC_NR(EVIOCGABS(ABS_RX)):
+            case _IOC_NR(EVIOCGABS(ABS_RY)):
+            case _IOC_NR(EVIOCGABS(ABS_RZ)):
             case _IOC_NR(EVIOCGABS(ABS_WHEEL)):
             case _IOC_NR(EVIOCGABS(ABS_THROTTLE)):
             {
@@ -217,26 +226,39 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
     }
 
-    const int standalone[] = { ABS_WHEEL, ABS_THROTTLE, ABS_X };
+    // VRS DirectForce Pro pedals expose X/Y/Z and Heusinkveld Sim Pedals Ultimate expose RX/RY/RZ.
+    const struct
+    {
+        int      first;
+        unsigned count;
+    } standalone[] = {
+        { ABS_WHEEL, 1 }, { ABS_THROTTLE, 1 }, { ABS_X, 1 }, { ABS_X, 3 }, { ABS_RX, 3 }
+    };
     for (unsigned i = 0; i < sizeof(standalone) / sizeof(standalone[0]); ++i)
     {
-        g_StandaloneAxis = standalone[i];
+        g_StandaloneAxis = standalone[i].first;
+        g_StandaloneAxisCount = standalone[i].count;
         ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
         int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
         ASSERT_GE(writer, 0);
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(3u + i, g_Connected);
-        float axis;
+        float axes[3];
         uint8_t button;
         EXPECT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
-        ASSERT_EQ(1u, dmPlatform::GetJoystickAxes(0, 0, &axis, 1));
-        EXPECT_EQ(-1.0f, axis);
+        ASSERT_EQ(g_StandaloneAxisCount, dmPlatform::GetJoystickAxes(0, 0, axes, 3));
+        for (unsigned axis = 0; axis < g_StandaloneAxisCount; ++axis)
+        {
+            EXPECT_EQ(-1.0f, axes[axis]);
+        }
+
         close(writer);
         ASSERT_EQ(0, unlink(g_Fifo));
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(3u + i, g_Disconnected);
     }
     unsigned connected = g_Connected;
+    g_StandaloneAxis = ABS_X;
     g_Accelerometer = true;
     ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
     dmPlatform::LinuxPollJoysticks();

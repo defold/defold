@@ -57,24 +57,24 @@ namespace dmPlatform
 
         if (!has_keys)
         {
-            // Standalone handbrakes and pedals can expose a single generic position axis.
-            int axis = -1;
+            // Buttonless pedals can expose one generic position axis per pedal.
+            bool has_axis = false;
             for (unsigned code = 0; code < ABS_CNT; ++code)
             {
                 if (Bit(absolute, code))
                 {
-                    if (code > ABS_RZ || axis >= 0)
+                    if (code > ABS_RZ)
                     {
                         return false;
                     }
 
-                    axis = code;
+                    has_axis = true;
                 }
             }
 
             uint8_t properties[(INPUT_PROP_CNT + 7) / 8] = {};
             ioctl(fd, EVIOCGPROP(sizeof(properties)), properties);
-            return axis >= 0 && !Bit(properties, INPUT_PROP_ACCELEROMETER) &&
+            return has_axis && !Bit(properties, INPUT_PROP_ACCELEROMETER) &&
                    !Bit(properties, INPUT_PROP_DIRECT) && !Bit(properties, INPUT_PROP_POINTER);
         }
 
