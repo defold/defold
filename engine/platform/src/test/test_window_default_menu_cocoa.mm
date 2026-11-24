@@ -30,6 +30,21 @@ TEST(CocoaDefaultMenuTest, BundleDisplayName)
     }
 }
 
+// A game without a menu nib must still expose the standard About panel and AppKit's Services menu.
+TEST(CocoaDefaultMenuTest, AboutAndServices)
+{
+    @autoreleasepool
+    {
+        HWindow window = dmPlatform::NewWindow();
+        NSMenu* app = NSApp.mainMenu.itemArray.firstObject.submenu;
+        EXPECT_TRUE([app itemWithTitle:@"About Defold Menu Test"].action == @selector(orderFrontStandardAboutPanel:));
+        NSMenu* services = [app itemWithTitle:@"Services"].submenu;
+        EXPECT_TRUE(services != nil);
+        EXPECT_TRUE(services == NSApp.servicesMenu);
+        dmPlatform::DeleteWindow(window);
+    }
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);

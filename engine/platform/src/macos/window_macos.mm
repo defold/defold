@@ -204,6 +204,12 @@ namespace dmPlatform
         NSMenu* main = [[[NSMenu alloc] init] autorelease];
         NSMenu* app = [[[NSMenu alloc] initWithTitle:name] autorelease];
         [main addItemWithTitle:name action:nil keyEquivalent:@""].submenu = app;
+        [app addItemWithTitle:[@"About " stringByAppendingString:name] action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
+        [app addItem:[NSMenuItem separatorItem]];
+        NSMenu* services = [[[NSMenu alloc] initWithTitle:@"Services"] autorelease];
+        [app addItemWithTitle:@"Services" action:nil keyEquivalent:@""].submenu = services;
+        NSApp.servicesMenu = services;
+        [app addItem:[NSMenuItem separatorItem]];
         [app addItemWithTitle:[@"Hide " stringByAppendingString:name] action:@selector(hide:) keyEquivalent:@"h"];
         [app addItemWithTitle:@"Hide Others" action:@selector(hideOtherApplications:) keyEquivalent:@"h"].keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
         [app addItemWithTitle:@"Show All" action:@selector(unhideAllApplications:) keyEquivalent:@""];
