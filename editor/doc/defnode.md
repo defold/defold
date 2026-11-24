@@ -152,29 +152,19 @@ the `inherits` clauses of the node definition.
   like `produce-scene`, we need to resolve the symbol and then check
   it's meta `:arguments`. See `internal.util/inputs-needed` and
   `dynamo.graph/fnk` for details.
-* For each property, we "lift" the dependencies of all `dynamic`'s and
-  any `value` clause to the dependencies of the property.
-  * **I haven't looked into this properly but believe it's to make
-    sure the `_properties` gets transitively dependent on the
-    dependencies of dynamics**
-  * **We also copy the dependencies of the property to the auto
-    generated output with the same name. This I believe is too
-    pessimistic. Can't see why the output automatically should be
-    dependent on the property 'dynamic' dependencies for instance.
-    Also, an explicit output with the same name is not necessarily
-    dependent on the property at all. See
-    `internal.node/apply-property-dependencies-to-outputs`.**
-* Add a magic `:cached` output `_declared-properties` (used by the
-  intrinsic `_properties` output), that depends on all declared
-  properties.
+* The generated property output tracks its getter's arguments. An explicit
+  output that reads the same-named property also tracks the getter's
+  arguments. A `^:raw` argument reads the stored value directly.
+* Add the cached `_declared-properties` output. It builds the property map
+  from the declared property values and their dynamic attributes, so it
+  tracks the inputs to both. The default `_properties` output reads this
+  map. Changing an input used only by a `visible` dynamic refreshes the
+  property map while cached consumers of the property value stay valid.
 * Collect all the (transitive) dependencies of the output functions
   into a map dependency -> dependant output. This map (available
   through `g/input-dependencies`) is a key part of figuring out what
   (cached) outputs might have been invalidated by a change to the
-  graph (see `internal.graph/update-graph-successors`). **The
-  "lifting" of property dependencies to outputs with the same name
-  could make this map contain irrelevant entries - we could be
-  invalidating outputs unnecessarily.**
+  graph (see `internal.graph/successors`).
 * Generate function forms for what should happen ("behavior") when you
   do `g/node-value` on an input, property or output. We also generate
   special behavior for `_declared-properties`. We'll discuss behaviors

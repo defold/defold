@@ -1202,17 +1202,19 @@
 (defn- remove-annotations [description]
   (update-fn-maps description #(dissoc % :annotations)))
 
-(defn- prop+args [[pname pdef]]
-  (into #{pname} (:arguments pdef)))
-
 (defn- attach-declared-properties-output
   [description]
-  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) intrinsic-properties)]
+  (let [properties (apply dissoc (:property description) intrinsic-properties)
+        property-labels (coll/key-set properties)
+
+        dependencies
+        (coll/into-> (coll/vals properties) property-labels
+          (mapcat :dependencies))]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
                :flags #{:cached}
-               :arguments publics
-               :dependencies publics})))
+               :arguments property-labels
+               :dependencies dependencies})))
 
 (defn- attach-declared-properties-behavior
   [description]
@@ -1231,26 +1233,37 @@
                                    (remove intrinsic-properties))
                              property)))
 
-(defn- all-subtree-dependencies
-  [tree]
-  (into #{}
-        (mapcat :dependencies)
-        (tree-seq map? vals tree)))
-
 (defn- merge-property-dependencies
   [tree]
   (update tree :property coll/update-vals-kv
-          (fn [property-label property]
+          (fn [property-label {:keys [value dynamics] :as property}]
             ;; Recompute from the property clauses that survived inheritance.
-            (let [clauses (dissoc property :dependencies)
-                  dependencies (all-subtree-dependencies clauses)]
+            (let [getter-dependencies (or (:dependencies value) #{})
+
+                  dependencies
+                  (coll/into-> (coll/vals dynamics) getter-dependencies
+                    (mapcat :dependencies))]
               (assoc property :dependencies (disj dependencies property-label))))))
 
-(defn- apply-property-dependencies-to-outputs
+(defn- apply-property-getter-dependencies-to-outputs
   [tree]
   (reduce-kv
-    (fn [tree pname pdef]
-      (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
+    (fn [tree property-label property]
+      (let [output (get-in tree [:output property-label])
+            arguments (:arguments output)
+
+            ;; An explicit output can read its same-named property's getter.
+            ;; Dependency traversal resolves that label to the output itself,
+            ;; so include the getter's dependencies to invalidate the output
+            ;; when they change. A ^:raw argument bypasses the getter and
+            ;; depends only on the stored property value.
+            dependencies
+            (cond-> arguments
+              (and (explicit? output)
+                   (contains? arguments property-label)
+                   (not (get-in output [:annotations property-label :raw])))
+              (into (get-in property [:value :dependencies])))]
+        (assoc-in tree [:output property-label :dependencies] dependencies)))
     tree
     (:property tree)))
 
@@ -1265,7 +1278,7 @@
       defer-display-order-resolution
       extract-fn-arguments
       merge-property-dependencies
-      apply-property-dependencies-to-outputs
+      apply-property-getter-dependencies-to-outputs
       attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors
