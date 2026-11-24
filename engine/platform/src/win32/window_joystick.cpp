@@ -340,6 +340,13 @@ namespace dmPlatform
             {
                 Disconnect(slot, notify);
             }
+            else
+            {
+                // Input can be released while acquisition is lost. Keep the layout and report neutral controls until the next sample.
+                memset(device.m_Packet.m_Axes, 0, sizeof(device.m_Packet.m_Axes));
+                memset(device.m_Packet.m_Buttons, 0, sizeof(device.m_Packet.m_Buttons));
+                memset(device.m_Packet.m_Hats, 0, sizeof(device.m_Packet.m_Hats));
+            }
         }
         else
         {

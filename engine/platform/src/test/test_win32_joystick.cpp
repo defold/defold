@@ -162,7 +162,7 @@ TEST(Win32Joystick, RegisterWithConnectedGamepad)
     g_Connected[0] = false;
 }
 
-// A failed read must preserve an attached DirectInput device and release its slot once it is unplugged.
+// Failed reads must release held controls while preserving the device until it is unplugged.
 TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
 {
     IDirectInputDevice8WVtbl device = {};
@@ -172,7 +172,18 @@ TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
     device.SetCooperativeLevel = [](IDirectInputDevice8W*, HWND, DWORD) {
                                      return DI_OK;
                                  };
-    device.EnumObjects = [](IDirectInputDevice8W*, LPDIENUMDEVICEOBJECTSCALLBACKW, void*, DWORD) {
+    device.EnumObjects = [](IDirectInputDevice8W*, LPDIENUMDEVICEOBJECTSCALLBACKW callback, void* data, DWORD) {
+                             DIDEVICEOBJECTINSTANCEW control = {};
+                             control.dwType = DIDFT_ABSAXIS;
+                             control.guidType = GUID_XAxis;
+                             callback(&control, data);
+                             control.dwType = DIDFT_BUTTON;
+                             callback(&control, data);
+                             control.dwType = DIDFT_POV;
+                             callback(&control, data);
+                             return DI_OK;
+                         };
+    device.SetProperty = [](IDirectInputDevice8W*, REFGUID, LPCDIPROPHEADER) {
                              return DI_OK;
                          };
     device.Acquire = device.Unacquire = device.Poll = [](IDirectInputDevice8W*) {
@@ -183,6 +194,10 @@ TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
                      };
     device.GetDeviceState = [](IDirectInputDevice8W*, DWORD size, void* data) {
                                 memset(data, 0, size);
+                                DIJOYSTATE2* state = (DIJOYSTATE2*)data;
+                                state->lX = 32767;
+                                state->rgbButtons[0] = 0x80;
+                                state->rgdwPOV[0] = 9000;
                                 return g_DirectRead;
                             };
     g_DirectDevice.lpVtbl = &device;
@@ -221,9 +236,27 @@ TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
     dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
     EXPECT_EQ(1U, events.m_Connected[0]);
+    float axis = 0.0f;
+    uint8_t button = 0, hat = 0;
+    EXPECT_EQ(1U, dmPlatform::GetJoystickAxes(window, 0, &axis, 1));
+    EXPECT_EQ(1.0f, axis);
+    EXPECT_EQ(1U, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(1U, button);
+    EXPECT_EQ(1U, dmPlatform::GetJoystickHats(window, 0, &hat, 1));
+    EXPECT_EQ(2U, hat);
     g_DirectRead = DIERR_INPUTLOST;
     dmPlatform::PollEvents(window);
     EXPECT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ(1U, dmPlatform::GetJoystickAxes(window, 0, &axis, 1));
+    EXPECT_EQ(0.0f, axis);
+    EXPECT_EQ(1U, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(0U, button);
+    EXPECT_EQ(1U, dmPlatform::GetJoystickHats(window, 0, &hat, 1));
+    EXPECT_EQ(0U, hat);
+    g_DirectRead = DI_OK;
+    EXPECT_EQ(1U, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(1U, button);
+    g_DirectRead = DIERR_INPUTLOST;
     g_DirectStatus = DI_NOTATTACHED;
     EXPECT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
     dmPlatform::PollEvents(window);
