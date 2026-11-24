@@ -97,8 +97,9 @@ def run(args, directory):
         read_fd, write_fd = os.pipe()
         reader = stack.enter_context(os.fdopen(read_fd))
         with os.fdopen(write_fd, 'w') as writer:
+            # A key held until the app acknowledges it should produce a single press.
             stack.enter_context(server(['Xvfb', '-displayfd', str(writer.fileno()), '-screen', '0',
-                                        '1280x1024x24', '-noreset', '-nolisten', 'tcp'],
+                                        '1280x1024x24', '-r', '-noreset', '-nolisten', 'tcp'],
                                        clean, directory, pass_fds=(writer.fileno(),)))
         if not select.select([reader], [], [], 15)[0]:
             raise RuntimeError('Xvfb did not publish a display')
@@ -171,7 +172,8 @@ def run(args, directory):
             # XTest supplies real seat events to a nested compositor. The client only sees Wayland.
             nested = dict(clean, WAYLAND_DISPLAY='defold-input', DM_TEST_WINDOW_BACKEND='wayland')
             config = directory / 'weston-input.ini'
-            config.write_text('[keyboard]\nkeymap_layout=us\nkeymap_variant=intl\n')
+            # Wayland clients use the compositor's repeat settings for the same held keys.
+            config.write_text('[keyboard]\nkeymap_layout=us\nkeymap_variant=intl\nrepeat-rate=0\n')
             compositor = stack.enter_context(server(['weston', f'--config={config}', '--backend=x11-backend.so',
                                                      '--socket=defold-input', '--shell=kiosk-shell.so', '--idle-time=0'],
                                                     x11, directory))
