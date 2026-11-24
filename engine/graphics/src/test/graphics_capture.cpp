@@ -24,35 +24,7 @@
 #include <platform/window.hpp>
 #include "test_app_graphics.h"
 #include "read_pixels_tests.h"
-#include "graphics_capture.vp.h"
-#include "graphics_capture.fp.h"
-#include "graphics_capture.cube.fp.h"
-#include "graphics_capture.texture.fp.h"
-#include "graphics_capture.mrt.fp.h"
-#include "graphics_capture.vp.msl.h"
-#include "graphics_capture.fp.msl.h"
-#include "graphics_capture.cube.fp.msl.h"
-#include "graphics_capture.texture.fp.msl.h"
-#include "graphics_capture.mrt.fp.msl.h"
-#include "graphics_capture.vp.wgsl.h"
-#include "graphics_capture.fp.wgsl.h"
-#include "graphics_capture.cube.fp.wgsl.h"
-#include "graphics_capture.texture.fp.wgsl.h"
-#include "graphics_capture.mrt.fp.wgsl.h"
-#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
-#include <ddf/ddf.h>
-#include "graphics_capture.color.spc.h"
-#include "graphics_capture.cube.spc.h"
-#include "graphics_capture.texture.spc.h"
-#include "graphics_capture.mrt.spc.h"
-#endif
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-#include "graphics_capture.vert.spv.h"
-#include "graphics_capture.frag.spv.h"
-#include "graphics_capture.cube.frag.spv.h"
-#include "graphics_capture.texture.frag.spv.h"
-#include "graphics_capture.mrt.frag.spv.h"
-#endif
+#include "graphics_capture_shaders.h"
 
 #define STB_IMAGE_WRITE_STATIC
 #define STBIWDEF static inline
@@ -481,89 +453,58 @@ enum CaptureProgram
     CAPTURE_PROGRAM_CUBEMAP,
     CAPTURE_PROGRAM_TEXTURE_2D,
     CAPTURE_PROGRAM_MRT,
+    CAPTURE_PROGRAM_COUNT,
 };
+
+struct CaptureShaderSource
+{
+    uint8_t* m_Data;
+    uint32_t m_Size;
+};
+
+struct CaptureShaderSet
+{
+    ShaderDesc::Language m_Language;
+    CaptureShaderSource  m_Vertex;
+    CaptureShaderSource  m_Fragments[CAPTURE_PROGRAM_COUNT];
+};
+
+#define CAPTURE_SOURCE(name) { name, name##_SIZE }
+static const CaptureShaderSet CAPTURE_SHADER_SETS[] = {
+    { ShaderDesc::LANGUAGE_GLSL_SM330, CAPTURE_SOURCE(capture_vp),
+      { CAPTURE_SOURCE(capture_fp), CAPTURE_SOURCE(capture_cube_fp), CAPTURE_SOURCE(capture_texture_fp), CAPTURE_SOURCE(capture_mrt_fp) } },
+    { ShaderDesc::LANGUAGE_MSL_22, CAPTURE_SOURCE(capture_vp_msl),
+      { CAPTURE_SOURCE(capture_fp_msl), CAPTURE_SOURCE(capture_cube_fp_msl), CAPTURE_SOURCE(capture_texture_fp_msl), CAPTURE_SOURCE(capture_mrt_fp_msl) } },
+    { ShaderDesc::LANGUAGE_WGSL, CAPTURE_SOURCE(capture_vp_wgsl),
+      { CAPTURE_SOURCE(capture_fp_wgsl), CAPTURE_SOURCE(capture_cube_fp_wgsl), CAPTURE_SOURCE(capture_texture_fp_wgsl), CAPTURE_SOURCE(capture_mrt_fp_wgsl) } },
+#if defined(DM_TEST_APP_GRAPHICS_HAS_SPIRV)
+    {
+        ShaderDesc::LANGUAGE_SPIRV, CAPTURE_SOURCE(capture_vert_spv),
+        { CAPTURE_SOURCE(capture_frag_spv), CAPTURE_SOURCE(capture_cube_frag_spv), CAPTURE_SOURCE(capture_texture_frag_spv), CAPTURE_SOURCE(capture_mrt_frag_spv) }
+    },
+#endif
+};
+#undef CAPTURE_SOURCE
 
 static HProgram NewCaptureProgram(HContext context, AdapterFamily family, CaptureProgram type)
 {
     char error[1024] = {};
-#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
-    if (family == ADAPTER_FAMILY_DIRECTX)
-    {
-        // Bob packages DXIL, the root signature and reflection together.
-        const struct
-        {
-            const uint8_t* m_Data;
-            uint32_t       m_Size;
-        } programs[] = {
-            { capture_color_spc, capture_color_spc_SIZE },
-            { capture_cube_spc, capture_cube_spc_SIZE },
-            { capture_texture_spc, capture_texture_spc_SIZE },
-            { capture_mrt_spc, capture_mrt_spc_SIZE },
-        };
-        ShaderDesc* desc = 0;
-        if (dmDDF::LoadMessage(programs[type].m_Data, programs[type].m_Size, &desc) != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to load the DX12 capture shader");
-            return 0;
-        }
-
-        HProgram program = NewProgram(context, desc, error, sizeof(error));
-        dmDDF::FreeMessage(desc);
-        if (!program)
-        {
-            dmLogError("Capture program creation failed: %s", error);
-        }
-
-        return program;
-    }
-
-#endif
-    bool cubemap = type == CAPTURE_PROGRAM_CUBEMAP;
-    bool texture_2d = type == CAPTURE_PROGRAM_TEXTURE_2D;
     ShaderDesc desc = {};
-    AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
-    AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_msl, capture_vp_msl_SIZE);
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-    AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_VERTEX, capture_vert_spv, capture_vert_spv_SIZE);
-#endif
-    AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_wgsl, capture_vp_wgsl_SIZE);
-    if (type == CAPTURE_PROGRAM_MRT)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(CAPTURE_SHADER_SETS); ++i)
     {
-        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp, capture_mrt_fp_SIZE);
-        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_msl, capture_mrt_fp_msl_SIZE);
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_frag_spv, capture_mrt_frag_spv_SIZE);
-#endif
-        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_wgsl, capture_mrt_fp_wgsl_SIZE);
-    }
-    else if (texture_2d)
-    {
-        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp, capture_texture_fp_SIZE);
-        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_msl, capture_texture_fp_msl_SIZE);
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_frag_spv, capture_texture_frag_spv_SIZE);
-#endif
-        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_wgsl, capture_texture_fp_wgsl_SIZE);
-    }
-    else if (cubemap)
-    {
-        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_fp, capture_cube_fp_SIZE);
-        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_fp_msl, capture_cube_fp_msl_SIZE);
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_frag_spv, capture_cube_frag_spv_SIZE);
-#endif
-        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_cube_fp_wgsl, capture_cube_fp_wgsl_SIZE);
-    }
-    else
-    {
-        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_fp, capture_fp_SIZE);
-        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_fp_msl, capture_fp_msl_SIZE);
-#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
-        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_frag_spv, capture_frag_spv_SIZE);
-#endif
-        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_fp_wgsl, capture_fp_wgsl_SIZE);
+        const CaptureShaderSet& shaders = CAPTURE_SHADER_SETS[i];
+        if (family == ADAPTER_FAMILY_DIRECTX && shaders.m_Language != ShaderDesc::LANGUAGE_SPIRV)
+        {
+            continue;
+        }
+
+        const CaptureShaderSource& fragment = shaders.m_Fragments[type];
+        AddShader(&desc, shaders.m_Language, ShaderDesc::SHADER_TYPE_VERTEX, shaders.m_Vertex.m_Data, shaders.m_Vertex.m_Size);
+        AddShader(&desc, shaders.m_Language, ShaderDesc::SHADER_TYPE_FRAGMENT, fragment.m_Data, fragment.m_Size);
     }
 
+    const bool cubemap = type == CAPTURE_PROGRAM_CUBEMAP;
+    const bool texture_2d = type == CAPTURE_PROGRAM_TEXTURE_2D;
     // NewProgram copies these borrowed mappings before this function returns.
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
     if (cubemap || texture_2d)
@@ -601,7 +542,17 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, Captur
 
     AddShaderResource(&desc, "position", ShaderDesc::SHADER_TYPE_VEC3, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     AddShaderResource(&desc, "color", ShaderDesc::SHADER_TYPE_VEC3, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
-    HProgram program = NewProgram(context, &desc, error, sizeof(error));
+    HProgram program;
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+    if (family == ADAPTER_FAMILY_DIRECTX)
+    {
+        program = NewDX12CaptureProgram(context, desc, error, sizeof(error));
+    }
+    else
+#endif
+    {
+        program = NewProgram(context, &desc, error, sizeof(error));
+    }
     if (!program)
     {
         dmLogError("Capture program creation failed: %s", error);

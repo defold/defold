@@ -18,6 +18,10 @@
 #include "../graphics.h"
 #include "../graphics_private.h"
 
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+dmGraphics::HProgram NewDX12CaptureProgram(dmGraphics::HContext context, const dmGraphics::ShaderDesc& spirv, char* error, uint32_t error_size);
+#endif
+
 enum BindingType
 {
     BINDING_TYPE_INPUT,

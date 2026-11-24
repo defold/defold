@@ -61,10 +61,10 @@ probe images are retained as `<case>.png.<probe>-expected.png` and
 
 Shader sources are local to the test. CMake regenerates their embedded data
 when the sources change, using the same aligned embedding helper as the font
-viewer. Builds with Vulkan compile SPIR-V with the SDK's `glslang` (or
-`glslangValidator` from PATH). CMake keeps the generated files in the build directory.
-Windows DX12 builds use Bob to compile the same GLSL sources into shader
-programs containing DXIL, root signatures and resource bindings.
+viewer. Vulkan and DX12 builds embed SPIR-V compiled with the SDK's `glslang`
+(or `glslangValidator` from PATH). On DX12 the capture executable uses Defold's
+native `shaderc` library to compile the selected vertex and fragment stages to
+DXIL and merge their root signatures before creating the graphics program.
 The vertex shaders follow production compiler
 conventions: MSL negates Y, SPIR-V leaves Y unchanged, and OpenGL maps the
 test's [0, 1] depth to [-1, 1]. WGSL supplies the marked Y-flipped offscreen
@@ -146,8 +146,8 @@ checked-in GLSL, MSL and WGSL variants. `shaderc_standalone` cross-compiles the
 SPIR-V produced by `glslang` to GLSL 330 and MSL 2.2 using the engine's compiler
 options, including Metal's vertex Y flip and argument buffers. Tint produces
 WGSL, then the generator invokes Bob's shared `WgslShader.java` helper using
-the host Java runtime to add the offscreen entry point. Vulkan continues
-to compile SPIR-V from these sources during the CMake build.
+the host Java runtime to add the offscreen entry point. CMake compiles the
+SPIR-V for Vulkan and DX12 directly from these sources.
 
 Build the **host** `shaderc_standalone` target first (include `shaderc` in
 `DEFOLD_SELECTED_ENGINE_LIBS` if using a focused build). For example, from the
