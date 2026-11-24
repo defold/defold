@@ -25,7 +25,7 @@
 
 extern "C"
 {
-#include "internal.h"
+#include "window_mobile_private.h"
 }
 
 // CMake links this test with --wrap=<symbol>, redirecting calls from the real
