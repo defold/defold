@@ -292,7 +292,9 @@ public class ResourceCacheKeyTest {
 			}
 			Collections.sort(allOptions);
 
-			List<String> existentParameters = new ArrayList<>(List.of("architectures",
+			// Package selection changes which tasks run, not their compiled output signatures.
+			List<String> existentParameters = new ArrayList<>(List.of("all-packages",
+                    "architectures",
                     "archive",
                     "archive-resource-padding",
                     "auth",
@@ -307,6 +309,7 @@ public class ResourceCacheKeyTest {
                     "build-server-header",
                     "bundle-format",
                     "bundle-output",
+                    "bundle-report-html",
                     "certificate",
                     "debug",
                     "debug-ne-upload",
@@ -334,6 +337,7 @@ public class ResourceCacheKeyTest {
                     "ne-build-dir",
                     "ne-output-name",
                     "output",
+                    "package",
                     "platform",
                     "private-key",
                     "resource-cache-local",

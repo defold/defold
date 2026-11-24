@@ -1,0 +1,11 @@
+output_directory: "build/packages"
+base_file_compression_preset: "LZ4 hc9"
+container_presets { name: "Zip" }
+container_presets { name: "Folder" provider: "folder" }
+file_compression_presets { name: "None" file_compression: NONE }
+file_compression_presets { name: "LZ4 hc9" }
+packages {
+  name: "package1"
+  container_preset: "Zip"
+  file_compression_preset: "LZ4 hc9"
+}

@@ -1,0 +1,3 @@
+function init(self)
+    self.episode = 9
+end
