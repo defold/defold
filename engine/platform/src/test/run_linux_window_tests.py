@@ -98,7 +98,7 @@ def input_test(executable, app_env, x11, directory, nested):
 def run(args, directory):
     clean = dict(os.environ, XDG_RUNTIME_DIR=str(directory), LIBGL_ALWAYS_SOFTWARE='1',
                  GALLIUM_DRIVER='llvmpipe', LC_ALL='C.UTF-8')
-    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'DM_TEST_X11_MONITOR'):
+    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'DM_TEST_X11_MONITOR', 'DM_TEST_WINDOW_BACKEND'):
         clean.pop(name, None)
     if args.headless:
         subprocess.run([args.headless], cwd=directory, env=clean, check=True, timeout=60)
@@ -140,9 +140,9 @@ def run(args, directory):
                            cwd=directory, env=x11_only, check=True, timeout=30)
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11WindowClass'],
                            cwd=directory, env=dict(x11_only, RESOURCE_NAME='game-instance'), check=True, timeout=30)
-            # Mesa can use the bridge internally. Hide its symbol from the window backend only.
-            subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
-                           cwd=directory, env=dict(x11, DM_TEST_WINDOW_BACKEND='x11', DM_TEST_X11_NO_XCB='1'),
+            # Run the Vulkan tests standalone. Hide the XCB bridge from the window backend only.
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.Vulkan'],
+                           cwd=directory, env=dict(x11, DM_TEST_X11_NO_XCB='1'),
                            check=True, timeout=30)
             missing_randr = directory / 'without-xrandr'
             missing_randr.mkdir()

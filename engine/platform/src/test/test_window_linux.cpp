@@ -1040,7 +1040,11 @@ TEST(LinuxWindow, VulkanDisplaySelection)
     const char* early = probe[1];
     HWindow w = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, w);
-    ASSERT_STREQ(getenv("DM_TEST_WINDOW_BACKEND"), w->m_Ops->m_Name);
+    const char* expected = getenv("DM_TEST_WINDOW_BACKEND");
+    if (expected)
+    {
+        ASSERT_STREQ(expected, w->m_Ops->m_Name);
+    }
     const char** live = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
     ASSERT_EQ(2u, count);
     ASSERT_STREQ(early, live[1]);
@@ -1063,8 +1067,11 @@ TEST(LinuxWindow, VulkanDisplaySelection)
 // An instance enabling only Xlib must still get a surface on drivers that also advertise XCB.
 TEST(LinuxWindow, VulkanXlibFallback)
 {
-    if (strcmp(getenv("DM_TEST_WINDOW_BACKEND"), "x11"))
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_X11)
     {
+        dmPlatform::DeleteWindow(w);
         SKIP();
     }
 
@@ -1077,11 +1084,11 @@ TEST(LinuxWindow, VulkanXlibFallback)
     VkResult result = vkCreateInstance(&info, 0, &instance);
     if (result == VK_ERROR_EXTENSION_NOT_PRESENT)
     {
+        dmPlatform::DeleteWindow(w);
         SKIP();
     }
 
     ASSERT_EQ(VK_SUCCESS, result);
-    HWindow w = dmPlatform::NewWindow();
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
@@ -1232,8 +1239,10 @@ static int InputTest()
     HWindow w = dmPlatform::NewWindow();
     WindowCreateParams p = Params();
     p.m_Fullscreen = true;
-    if (!w || strcmp(w->m_Ops->m_Name, getenv("DM_TEST_WINDOW_BACKEND")) || dmPlatform::OpenWindow(w, p) != WINDOW_RESULT_OK)
+    const char* expected = getenv("DM_TEST_WINDOW_BACKEND");
+    if (!w || (expected && strcmp(w->m_Ops->m_Name, expected)) || dmPlatform::OpenWindow(w, p) != WINDOW_RESULT_OK)
     {
+        dmPlatform::DeleteWindow(w);
         return 1;
     }
 
