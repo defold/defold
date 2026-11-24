@@ -28,7 +28,9 @@
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.v-box :as fx.v-box]
@@ -1683,6 +1685,8 @@
                                                                 (remove (:ignored-completion-trigger-characters grammar #{})))
                                                               [completion-trigger-characters
                                                                (:completion-trigger-characters grammar)])))
+  (property signature-help-trigger-characters g/Any (default #{}) (dynamic visible (g/constantly false)))
+  (property signature-help g/Any (dynamic visible (g/constantly false)))
   (property document-symbols g/Any (default []) (dynamic visible (g/constantly false)))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -2063,6 +2067,22 @@
 (defn- hide-hover! [view-node]
   (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
 
+(defn- request-signature-help! [view-node]
+  (let [resource (g/node-value (get-property view-node :resource-node) :resource)
+        cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+        request [(get-property view-node :lines) cursor]]
+    (g/user-data! view-node :signature-help-request request)
+    (lsp/signature-help!
+      (lsp/get-lsp) resource cursor
+      (fn [result]
+        (ui/run-later
+          (when (identical? request (g/user-data view-node :signature-help-request))
+            (set-properties! view-node nil {:signature-help result})))))))
+
+(defn- hide-signature-help! [view-node]
+  (g/user-data! view-node :signature-help-request nil)
+  (set-properties! view-node nil {:signature-help nil}))
+
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
     (get-property view-node :completions-showing evaluation-context)))
@@ -2389,7 +2409,8 @@
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
        :on-mouse-clicked (fn [_]
-                           (accept-suggestion! view-node (code-completion/insertion completion)))})
+                           (accept-suggestion! view-node (code-completion/insertion completion))
+                           (request-signature-help! view-node))})
     {}))
 
 (defn- completion-popup-view
@@ -2723,6 +2744,10 @@
   (active? [editable] editable)
   (run [view-node] (show-suggestions! view-node :explicit true)))
 
+(handler/defhandler :code.show-signature-help :code-view
+  (active? [editable] editable)
+  (run [view-node] (request-signature-help! view-node)))
+
 ;; -----------------------------------------------------------------------------
 
 (defn- insert-text! [view-node prefs typed]
@@ -2788,7 +2813,12 @@
         (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
           (show-suggestions! view-node :typed typed)
-          (hide-suggestions! view-node))))))
+          (hide-suggestions! view-node))))
+    (when (or (and selected-suggestion
+                   (or (= "\r" typed)
+                       (contains? (:commit-characters selected-suggestion) typed)))
+              (contains? (get-property view-node :signature-help-trigger-characters) typed))
+      (request-signature-help! view-node))))
 
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
@@ -3878,6 +3908,9 @@
       (suggestions-visible? view-node)
       (hide-suggestions! view-node)
 
+      (get-property view-node :signature-help)
+      (hide-signature-help! view-node)
+
       (bar-ui-visible?)
       (do (set-bar-ui-type! :hidden)
           (focus-code-editor! view-node))
@@ -4086,6 +4119,43 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
+(defn- signature-help-popup-view [{:keys [canvas-repaint-info cursor signature-help font-name font-size view-node]}]
+  (let [{:keys [^Canvas canvas layout lines]} canvas-repaint-info
+        ^Rect r (data/cursor-rect layout lines (data/adjust-cursor lines cursor))
+        anchor (.localToScreen canvas (.x r) (.y r))
+        {:keys [label start end]} signature-help
+        text (fn [s fill bold]
+               {:fx/type fx.text/lifecycle
+                :text s
+                :fill fill
+                :font {:family font-name :size font-size :weight (if bold :bold :normal)}})]
+    {:fx/type fxui/with-popup-window
+     :desc {:fx/type ui/ext-value :value canvas}
+     :popup
+     {:fx/type fx.popup/lifecycle
+      :showing true
+      :anchor-x (.getX anchor)
+      :anchor-y (.getY anchor)
+      :anchor-location :window-bottom-left
+      :auto-hide true
+      :auto-fix true
+      :hide-on-escape false
+      :consume-auto-hiding-events false
+      :on-hidden (fn [_] (hide-signature-help! view-node))
+      :content
+      [{:fx/type fx.stack-pane/lifecycle
+        :stylesheets [(str (io/resource "editor.css"))]
+        :children
+        [{:fx/type fx.region/lifecycle
+          :style-class "hover-background"}
+         {:fx/type fx.text-flow/lifecycle
+          :padding 6
+          :children (if start
+                      [(text (subs label 0 start) "#a2b0be" false)
+                       (text (subs label start end) "#4cb1ff" true)
+                       (text (subs label end) "#a2b0be" false)]
+                      [(text label "#a2b0be" false)])}]}]}}))
+
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -4147,6 +4217,23 @@
                :window-x (some-> scene .getWindow .getX)
                :window-y (some-> scene .getWindow .getY)
                :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))))
+
+    (when editable
+      (let [signature-help (get-property view-node :signature-help)
+            cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
+        (when (and signature-help
+                   (not= [(get-property view-node :lines) cursor] (g/user-data view-node :signature-help-request)))
+          (request-signature-help! view-node))
+        (ui/advance-graph-user-data-component!
+          view-node :signature-help-popup
+          (when signature-help
+            {:fx/type signature-help-popup-view
+             :canvas-repaint-info canvas-repaint-info
+             :cursor cursor
+             :signature-help signature-help
+             :font-name (get-property view-node :font-name)
+             :font-size (get-property view-node :font-size)
+             :view-node view-node}))))
 
     ;; Repaint hovered regions
     (ui/advance-graph-user-data-component!

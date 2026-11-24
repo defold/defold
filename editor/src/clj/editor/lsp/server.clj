@@ -188,6 +188,7 @@
 (s/def ::resolve boolean?) ;; if completion item can be resolved to add e.g. documentation
 (s/def ::trigger-characters (s/coll-of string? :kind set?))
 (s/def ::completion (s/keys :req-un [::resolve ::trigger-characters]))
+(s/def ::signature-help (s/keys :req-un [::trigger-characters]))
 (s/def ::document-symbol boolean?)
 (s/def ::hover boolean?)
 (s/def ::rename boolean?)
@@ -202,7 +203,7 @@
                                        ::rename
                                        ::formatting
                                        ::range-formatting]
-                              :opt-un [::completion]))
+                              :opt-un [::completion ::signature-help]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -256,6 +257,7 @@
                                                       referencesProvider
                                                       documentSymbolProvider
                                                       completionProvider
+                                                      signatureHelpProvider
                                                       hoverProvider
                                                       renameProvider
                                                       documentFormattingProvider
@@ -301,7 +303,10 @@
                                (map? documentRangeFormattingProvider))}
     completionProvider
     (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
-                        :trigger-characters (set (:triggerCharacters completionProvider))})))
+                        :trigger-characters (set (:triggerCharacters completionProvider))})
+    signatureHelpProvider
+    (assoc :signature-help {:trigger-characters (into (set (:triggerCharacters signatureHelpProvider))
+                                                      (:retriggerCharacters signatureHelpProvider))})))
 
 (defn- lua-language-server-plugin-path []
   (str (path/of (system/defold-unpack-path)
@@ -447,7 +452,12 @@
                                                 :prepareSupport true
                                                 :honorsChangeAnnotations false}
                                        :formatting {:dynamicRegistration false}
-                                       :rangeFormatting {:dynamicRegistration false}}
+                                       :rangeFormatting {:dynamicRegistration false}
+                                       :signatureHelp {:dynamicRegistration false
+                                                       :signatureInformation {:documentationFormat ["plaintext"]
+                                                                              :parameterInformation {:labelOffsetSupport true}
+                                                                              :activeParameterSupport true}
+                                                       :contextSupport false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -846,6 +856,22 @@
                                :changed 2
                                :deleted 3)})
                     resource+change-types)}))
+
+(defn signature-help [resource cursor]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/signatureHelp"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    (bound-fn [result _]
+      (when-let [signatures (not-empty (:signatures result))]
+        (let [{:keys [label parameters activeParameter]} (get signatures (or (:activeSignature result) 0) (first signatures))
+              parameter-label (:label (get parameters (or activeParameter (:activeParameter result) 0)))
+              [start end] (if (string? parameter-label)
+                            (when-let [i (string/index-of label parameter-label)]
+                              [i (+ i (count parameter-label))])
+                            parameter-label)]
+          {:label label :start start :end end})))))
 
 (defn- hover-response->region [range content]
   (assoc range

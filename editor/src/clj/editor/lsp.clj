@@ -119,10 +119,21 @@
 
 (defn- set-view-node-completion-trigger-characters-tx [state resource view-node]
   {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
-  (g/set-property
-    view-node
-    :completion-trigger-characters
-    (combined-completion-trigger-characters state resource)))
+  (concat
+    (g/set-property
+      view-node
+      :completion-trigger-characters
+      (combined-completion-trigger-characters state resource))
+    (g/set-property
+      view-node
+      :signature-help-trigger-characters
+      (into #{}
+            (comp
+              (filter
+                (fn [[server {:keys [status]}]]
+                  (and (= :running status) (server-handles-resource? server resource))))
+              (mapcat #(-> % val :capabilities :signature-help :trigger-characters)))
+            (:server->server-state state)))))
 
 (s/def ::extension string?)
 (s/def ::extensions (s/coll-of ::extension :kind set? :min-count 1))
@@ -190,7 +201,7 @@
               :when (and (server-handles-resource? server resource)
                          (capability-open-close? capabilities))]
         (a/put! in (lsp.server/open-text-document resource lines)))
-      (when (:completion capabilities)
+      (when (or (:completion capabilities) (:signature-help capabilities))
         (ui/run-later
           (g/transact
             {:undoable false}
@@ -1196,6 +1207,19 @@
                :timeout-ms timeout-ms
                :requests [(lsp.server/hover resource cursor)]))))
     (do (result-callback []) nil)))
+
+(defn signature-help! [lsp resource cursor result-callback]
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :capabilities-pred :signature-help
+               :resource resource
+               :timeout-ms 1000
+               :requests [(lsp.server/signature-help resource cursor)]))))
+    (do (result-callback nil) nil)))
 
 (defn prepare-rename [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 1000}}]
