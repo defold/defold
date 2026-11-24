@@ -382,14 +382,26 @@
                                (open-selected!)))))
       (.add progress-indicator))))
 
-(defn make-search-results-view! [^AnchorPane search-results-container open-resource-fn]
-  (first
-    (g/tx-nodes-added
-      (g/transact
-        {:undoable false}
-        (g/make-node SearchResultsView
-          :open-resource-fn open-resource-fn
-          :search-results-container search-results-container)))))
+(defn make-search-results-view! [open-resource-fn]
+  (let [search-results-container
+        (doto (AnchorPane.)
+          (.setId "search-results-container")
+          (.setPrefSize 200.0 180.0)
+          (ui/add-style! "search-results-view"))
+
+        view-id
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node SearchResultsView
+                :open-resource-fn open-resource-fn
+                :search-results-container search-results-container))))]
+    [view-id
+     {:id :search-results
+      :title (localization/message "pane.search-results")
+      :location :bottom
+      :content (constantly {:fx/type ui/ext-value :value search-results-container})}]))
 
 (defn show-search-in-files-dialog! [search-results-view project prefs localization show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)

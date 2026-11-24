@@ -2057,9 +2057,6 @@
                            (when-not initialized
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
-                             (ui/on-closed! (:tab opts) (fn [_]
-                                                          (ui/kill-event-dispatch! this)
-                                                          (dispose-scene-view! view-id)))
                              (when (:camera opts)
                                (ui/user-data! image-view ::preserve-initial-camera true)))
                            (when-not (ui/user-data image-view ::suspended)
@@ -2098,14 +2095,19 @@
     (g/transact
       {:undoable false}
       (g/set-property view-id :image-view image-view))
-    pane))
+    [pane
+     (fn dispose-gl-pane! []
+       (ui/kill-event-dispatch! pane)
+       (dispose-scene-view! view-id))]))
 
 (defn- make-scene-view-pane [view-id opts]
-  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
-    (ui/fill-control scene-view-pane)
-    (let [gl-pane (make-gl-pane! view-id opts)]
-      (ui/fill-control gl-pane)
-      (.add (.getChildren scene-view-pane) 0 gl-pane))
+  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")
+        [gl-pane dispose-gl-pane!] (make-gl-pane! view-id opts)]
+    (ui/fill-control gl-pane)
+    (doto scene-view-pane
+      (ui/fill-control)
+      (-> .getChildren (.add 0 gl-pane)))
+    (ui/on-closed! (:tab opts) (fn dispose-scene-view-pane! [_] (dispose-gl-pane!)))
     (when (system/defold-dev?)
       (.setOnKeyPressed scene-view-pane (ui/event-handler event
                                           (let [key-event ^KeyEvent event]

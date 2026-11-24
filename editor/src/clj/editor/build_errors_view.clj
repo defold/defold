@@ -297,22 +297,30 @@
                                   :describe (fn/partial #'make-tree-cell localization-state)}}
             tree (assoc :root (make-tree-item tree)))})
 
-(defn make-build-errors-view [^TreeView errors-tree localization open-resource-fn]
-  (doto errors-tree
-    (ui/customize-tree-view! {:double-click-expand false})
-    (.setShowRoot false)
-    (-> .getProperties (.put ::localization localization))
-    (ui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})
-    (ui/on-double! (fn [_]
-                     (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
-                       (case type
-                         :resource (let [[resource selected-node-id opts] (:args open-info)]
-                                     (open-resource-fn resource [selected-node-id] opts))
-                         :file (ui/open-file (:file open-info))))))
-    (ui/register-context-menu ::build-errors-menu)
-    (ui/context! :build-errors-view
-                 {:build-errors-view errors-tree :localization localization}
-                 (ui/->selection-provider errors-tree))))
+(defn make-build-errors-view [localization open-resource-fn]
+  (let [errors-tree (TreeView.)]
+    [(doto errors-tree
+       (.setId "build-errors-tree")
+       (ui/customize-tree-view! {:double-click-expand false})
+       (.setShowRoot false)
+       (-> .getProperties (.put ::localization localization))
+       (ui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})
+       (ui/on-double!
+         (fn [_]
+           (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
+             (case type
+               :resource (let [[resource selected-node-id opts]
+                               (:args open-info)]
+                           (open-resource-fn resource [selected-node-id] opts))
+               :file (ui/open-file (:file open-info))))))
+       (ui/register-context-menu ::build-errors-menu)
+       (ui/context! :build-errors-view
+                    {:build-errors-view errors-tree :localization localization}
+                    (ui/->selection-provider errors-tree)))
+     {:id :build-errors
+      :title (localization/message "pane.build-errors")
+      :location :bottom
+      :content (constantly {:fx/type ui/ext-value :value errors-tree})}]))
 
 (defn update-build-errors [^TreeView errors-tree error-value]
   (ui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree :tree (build-resource-tree error-value)})

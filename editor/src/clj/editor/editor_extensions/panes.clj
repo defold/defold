@@ -32,7 +32,7 @@
   (coerce/hash-map
     :req {:id prefs-docs/serializable-keyword-coercer
           :title ui-docs/string-or-message-pattern-coercer
-          :location (coerce/enum :left :right :bottom)
+          :location (coerce/enum :left-top :left-bottom :right-top :right-bottom :bottom)
           :render coerce/function}
     :opt {:query (coerce/hash-map :opt commands/context-query-clauses :extra-keys false)}
     :extra-keys false))

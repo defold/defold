@@ -134,3 +134,54 @@
     }
 }
 
+
+.side-pane-tabs:top {
+    -fx-tab-min-height: 32px;
+    -fx-tab-max-height: 32px;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+
+    > .tab-header-area {
+        -fx-padding: 0;
+        -fx-background-color: -df-background;
+        > .tab-header-background {
+            -fx-background-color: -df-background;
+            -fx-background-insets: 0;
+        }
+        > .headers-region > .tab {
+            -fx-background-color: -df-background;
+            -fx-background-insets: 0;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-border-color: transparent;
+            -fx-border-width: 0;
+            -fx-border-insets: 0;
+            -fx-padding: 4px 10px;
+            &:selected {
+                -fx-background-color: -df-background-light;
+                -fx-border-color: transparent;
+            }
+            .tab-label {
+                -fx-text-fill: -df-text;
+                -fx-padding: 0;
+            }
+            .focus-indicator {
+                -fx-border-width: 0;
+                -fx-border-color: transparent;
+            }
+        }
+    }
+    > .tab-content-area {
+        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-padding: 0;
+    }
+    .tree-view, .tree-cell {
+        -fx-background-color: -df-background-light;
+    }
+    .tree-cell:selected {
+        -fx-background-color: -df-background-lighter;
+    }
+}

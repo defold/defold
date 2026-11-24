@@ -1605,29 +1605,19 @@
     (focus-code-editor! view-node)
     (.consume e)))
 
-(def ^:private structure-pane-message (localization/message "pane.structure"))
-
-(ui/defc structure-pane
-  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [document-symbols localization-state view-node]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state structure-pane-message)
-   :content {:fx/type fx.ext.tree-view/with-selection-props
-             :props {:on-selected-item-changed #(navigate-to-document-symbol-tree-item! view-node %)}
-             :desc {:fx/type fxui/tree-view
-                    :show-root false
-                    :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
-                    :on-mouse-clicked #(handle-structure-pane-mouse-clicked! view-node %)
-                    :cell-factory {:fx/cell-type fx.tree-cell/lifecycle
-                                   :describe describe-document-symbol}
-                    :root {:fx/type fx/ext-recreate-on-key-changed
-                           :key view-node
-                           :desc {:fx/type fx.tree-item/lifecycle
-                                  :children (document-symbol-items document-symbols)}}}}})
-
-(defn- has-visible-properties? [resource-properties]
-  (and (not (g/error-value? resource-properties))
-       (reduce-kv #(if (:visible %3 true) (reduced true) false) false (:properties resource-properties))))
+(defn structure-pane [{:keys [document-symbols view-node]}]
+  {:fx/type fx.ext.tree-view/with-selection-props
+   :props {:on-selected-item-changed #(navigate-to-document-symbol-tree-item! view-node %)}
+   :desc {:fx/type fxui/tree-view
+          :show-root false
+          :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
+          :on-mouse-clicked #(handle-structure-pane-mouse-clicked! view-node %)
+          :cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                         :describe describe-document-symbol}
+          :root {:fx/type fx/ext-recreate-on-key-changed
+                 :key view-node
+                 :desc {:fx/type fx.tree-item/lifecycle
+                        :children (document-symbol-items document-symbols)}}}})
 
 ;; endregion
 
@@ -1709,16 +1699,6 @@
   (property completions-lsp g/Any)
   (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
   (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
-
-  (output sidebar-panes g/Any :cached
-          (g/fnk [_node-id document-symbols localization ^:try resource-properties]
-            (cond-> [{:fx/type fxui/ext-dedupe-identical-desc
-                      :desc {:fx/type structure-pane
-                             :document-symbols document-symbols
-                             :localization localization
-                             :view-node _node-id}}]
-              (has-visible-properties? resource-properties)
-              (conj :properties-pane))))
 
   ;; the cursor position for which we show the hover.
   (property hover-showing-cursor g/Any (dynamic visible (g/constantly false)))
@@ -4885,3 +4865,14 @@
       :text-selection-fn non-empty-single-selection-text)))
 
 (register-fundamental-read-only-handlers! *ns* :code-view :code-view-tools)
+
+(defn structure-pane-definition []
+  {:id :structure
+   :title (localization/message "pane.structure")
+   :location :right-top
+   :content (fn describe-structure [{:keys [app-view evaluation-context]}]
+              (when-let [view-node (g/node-value app-view :active-view evaluation-context)]
+                (when (g/node-instance? (:basis evaluation-context) CodeEditorView view-node)
+                  {:fx/type structure-pane
+                   :view-node view-node
+                   :document-symbols (g/node-value view-node :document-symbols evaluation-context)})))})

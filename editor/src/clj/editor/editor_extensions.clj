@@ -32,7 +32,7 @@
             [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.image :as ext.image]
             [editor.editor-extensions.localization :as ext.localization]
-            [editor.editor-extensions.panes :as panes]
+            [editor.editor-extensions.panes :as ext.panes]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.tile-map :as tile-map]
@@ -139,7 +139,6 @@
   (Murmur3/hashUnordered library-reload-signatures))
 
 (g/defnode EditorExtensions
-  (property panes g/Any (default []))
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
   (input project-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
@@ -839,18 +838,28 @@
           (execute-all-top-level-functions state :get_commands {} evaluation-context))))
 
 (defn- extension-panes [project workspace localization {:keys [rt] :as state} evaluation-context]
-  (let [definitions
-        (coll/into-> (execute-all-top-level-functions state :get_panes {} evaluation-context) []
-          (mapcat (fn [[path ret]]
-                    (error-handling/try-with-extension-exceptions
-                      :rt rt :label (str "Reloading panes in " path) :catch []
-                      (mapv #(panes/compile-pane project workspace localization rt path %)
-                            (rt/->clj rt panes/definitions-coercer ret))))))
+  (coll/into-> (execute-all-top-level-functions state :get_panes {} evaluation-context) []
+    (mapcat (fn [[path ret]]
+              (error-handling/try-with-extension-exceptions
+                :rt rt :label (str "Reloading panes in " path) :catch []
+                (mapv #(vary-meta (ext.panes/compile-pane project workspace localization rt path %)
+                                  assoc :proj-path path)
+                      (rt/->clj rt ext.panes/definitions-coercer ret)))))))
 
-        id-counts (frequencies (mapv :id definitions))]
-    (doseq [[id n] id-counts :when (< 1 n)]
-      (.println (rt/stderr rt) (str "Duplicate editor pane id: " id)))
-    (filterv #(= 1 (id-counts (:id %))) definitions)))
+(defn- reload-panes! [{:keys [rt set-panes!]} definitions]
+  (run!
+    (fn [[id panes]]
+      (.println
+        (rt/stderr rt)
+        (str "Omitting conflicting editor pane " id " defined in "
+             (->> panes
+                  (keep (comp :proj-path meta))
+                  distinct
+                  sort
+                  (util/join-words ", " " and "))
+             (when (coll/any? #(not (:proj-path (meta %))) panes)
+               " (conflict with the editor's built-in panes)"))))
+    (coll/sort-by key (set-panes! definitions))))
 
 (defn- reload-commands! [command-handlers]
   (handler/register! ::commands :handlers command-handlers))
@@ -1083,6 +1092,9 @@
     :web-server           http server associated with the project
     :prefs                editor prefs
     :localization         the editor localization instance
+    :set-panes!           1-arg function applying all nonconflicting extension
+                          panes and returning a map from rejected IDs to their
+                          conflicting definitions for error reporting
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
                           complete exceptionally if reload fails)
@@ -1109,8 +1121,8 @@
                                                   editor.pipeline.bob/invoke!
                             commands              bob commands, vector of
                                                   strings"
-  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
-  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
+  [project kind & {:keys [web-server prefs localization set-panes! reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization set-panes! reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
@@ -1135,7 +1147,7 @@
                                   "can_set" (make-ext-can-set-fn project)
                                   "properties" (make-ext-properties-fn project)
                                   "command" commands/ext-command-fn
-                                  "pane" panes/ext-pane
+                                  "pane" ext.panes/ext-pane
                                   "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                   "create_resources" (make-ext-create-resources-fn project reload-resources!)
                                   "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
@@ -1200,13 +1212,16 @@
              prefs-schema (prefs-schema new-state evaluation-context)
              ext-language-servers (ext-language-servers new-state evaluation-context)
              command-handlers (command-handlers project new-state evaluation-context)
-             pane-definitions (extension-panes project workspace localization new-state evaluation-context)
+
+             pane-definitions
+             (extension-panes project workspace localization new-state evaluation-context)
+
              dynamic-routes (dynamic-routes new-state evaluation-context)]
     (g/user-data-swap! extensions :state (constantly new-state))
     (reload-prefs! project-path prefs-schema)
     (reload-language-servers! project prefs script-annotations ext-language-servers)
     (reload-commands! command-handlers)
-    (g/transact {:undoable false} (g/set-property extensions :panes pane-definitions))
+    (reload-panes! new-state pane-definitions)
     (reload-server-routes! new-state dynamic-routes)
     nil))
 

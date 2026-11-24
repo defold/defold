@@ -854,6 +854,7 @@ menu.file = Файл
 menu.project = Проект
 menu.edit = Правка
 menu.debug = Отладка
+menu.view.panes = Панели
 menu.view = Вид
 menu.help = Справка
 menu.dock.new-window = Новое окно

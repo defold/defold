@@ -51,9 +51,10 @@
            [java.util.concurrent ArrayBlockingQueue]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
+           [javafx.geometry Point2D]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
-           [javafx.scene.control Button Tab TextField]
+           [javafx.scene.control Button TextField]
            [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
@@ -239,11 +240,15 @@
 (defn- filter-console-view [^Node filter-console-button localization {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
         show-counter (and enabled (pos? active-filters-count))
-        anchor (.localToScreen filter-console-button
-                               -12.0 ;; shadow offset
-                               (- (.getMaxY (.getBoundsInLocal filter-console-button))
-                                  ;; shadow offset
-                                  4.0))]
+
+        anchor
+        (or (.localToScreen filter-console-button
+                            -12.0 ;; shadow offset
+                            (- (.getMaxY (.getBoundsInLocal filter-console-button))
+                               ;; shadow offset
+                               4.0))
+            ;; The button is not mounted yet during initialization.
+            Point2D/ZERO)]
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ext-with-button-props
             :desc {:fx/type ui/ext-value
@@ -755,8 +760,9 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
-  (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
+(defn make-console! [workspace ^Scene scene open-resource-fn prefs localization]
+  (let [^GridPane console-grid-pane (ui/load-fxml "console-view.fxml")
+        ^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
 
         [console-node view-node]
@@ -792,9 +798,13 @@
                                  0 nil
                                  1 (open-resource! (first resource-candidates))
                                  (ui/show-simple-context-menu-at-mouse! resource->menu-item open-resource! resource-candidates event)))))
-        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time _]
-                                                       (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
-                                                         (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
+
+        dispose-repainter
+        (ui/node-timer! console-grid-pane nil "repaint-console-view"
+                        (fn repaint-console [elapsed-time]
+                          (when-not (ui/ui-disabled?)
+                            (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
+
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")
                      :view-node view-node}]
@@ -834,21 +844,20 @@
       (.addListener find-term-property find-term-setter)
 
       ;; Ensure the focus-state property reflects the current input focus state.
-      (let [^Scene scene (.getScene console-grid-pane)
-            focus-owner-property (.focusOwnerProperty scene)
+      (let [focus-owner-property (.focusOwnerProperty scene)
             focus-change-listener (view/make-focus-change-listener view-node console-grid-pane canvas)]
         (.addListener focus-owner-property focus-change-listener)
 
-        ;; Remove callbacks if the console tab is closed.
-        (ui/on-closed! console-tab (fn [_]
-                                     (ui/timer-stop! repainter)
-                                     (dispose-tool-bar! tool-bar)
-                                     (.removeListener find-term-property find-term-setter)
-                                     (.removeListener focus-owner-property focus-change-listener)))))
-
-    ;; Start repaint timer.
-    (ui/timer-start! repainter)
-    view-node))
+        [view-node
+         {:id :console
+          :title (localization/message "pane.console")
+          :location :bottom
+          :content (constantly {:fx/type ui/ext-value :value console-grid-pane})}
+         (fn dispose-console! []
+           (dispose-repainter)
+           (dispose-tool-bar! tool-bar)
+           (.removeListener find-term-property find-term-setter)
+           (.removeListener focus-owner-property focus-change-listener))]))))
 
 (defn- stream-console-response []
   (http-server/response

@@ -31,8 +31,8 @@
             [service.log :as log])
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
-           [javafx.scene Parent]
-           [javafx.scene.control ListView SelectionMode]
+           [javafx.scene.control Button ListView ProgressIndicator SelectionMode ToolBar]
+           [javafx.scene.layout AnchorPane Priority StackPane VBox]
            [org.eclipse.jgit.api Git]))
 
 (set! *warn-on-reflection* true)
@@ -162,26 +162,66 @@
            :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
-(defn make-changes-view [workspace prefs localization ^Parent parent async-reload!]
+(defn make-changes-view [workspace prefs localization stage async-reload!]
   (assert (fn? async-reload!))
-  (let [^ListView list-view (.lookup parent "#changes")
-        diff-button (.lookup parent "#changes-diff")
-        revert-button (.lookup parent "#changes-revert")
-        progress-overlay (.lookup parent "#changes-progress-overlay")
+  (let [list-view
+        (doto (ListView.)
+          (.setId "changes")
+          (ui/add-style! "flat-list-view")
+          (ui/fill-control))
+
+        overlay
+        (doto (StackPane.)
+          (.setId "changes-progress-overlay")
+          (ui/children! [(doto (ProgressIndicator.)
+                           (.setPrefSize 128.0 128.0))])
+          (ui/fill-control))
+
+        list-container
+        (doto (AnchorPane.)
+          (ui/children! [list-view overlay])
+          (VBox/setVgrow Priority/ALWAYS))
+
+        diff-button
+        (doto (Button. "Diff")
+          (.setId "changes-diff")
+          (ui/add-style! "button-small"))
+
+        revert-button
+        (doto (Button. "Revert")
+          (.setId "changes-revert")
+          (ui/add-style! "button-small"))
+
+        toolbar
+        (doto (ToolBar. (ui/node-array [diff-button revert-button]))
+          (.setId "changes-toolbar")
+          (.setPrefSize 200.0 30.0))
+
+        parent
+        (doto (VBox.)
+          (.setId "changes-container")
+          (.setPrefSize 100.0 200.0)
+          (ui/children! [list-container toolbar]))
+
+        progress-overlay overlay
         git (try-open-git workspace)
-        view-id (first
-                  (g/tx-nodes-added
-                    (g/transact
-                      {:undoable false}
-                      (g/make-node ChangesView
-                        :list-view list-view
-                        :progress-overlay progress-overlay
-                        :git git
-                        :prefs prefs))))
-        disk-available-listener (reify ChangeListener
-                                  (changed [_this _observable _old _new]
-                                    (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
-                                      (ui/enable! revert-button can-revert))))]
+
+        view-id
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node ChangesView
+                :list-view list-view
+                :progress-overlay progress-overlay
+                :git git
+                :prefs prefs))))
+
+        disk-available-listener
+        (reify ChangeListener
+          (changed [_this _observable _old _new]
+            (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
+              (ui/enable! revert-button can-revert))))]
     (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
     (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
@@ -210,7 +250,7 @@
       (catch Exception e
         (log/error :exception e)))
     (.addListener disk-availability/available-property disk-available-listener)
-    (ui/on-closed! (.. parent getScene getWindow)
+    (ui/on-closed! stage
                    (fn [_]
                      (.removeListener disk-availability/available-property disk-available-listener)))
     (ui/observe-selection list-view
@@ -219,4 +259,8 @@
                                        can-revert (ui/bound-action-enabled? revert-button evaluation-context)]
                               (ui/enable! diff-button can-diff)
                               (ui/enable! revert-button can-revert))))
-    view-id))
+    [view-id
+     {:id :changed-files
+      :title (localization/message "pane.changed-files")
+      :location :left-bottom
+      :content (constantly {:fx/type ui/ext-value :value parent})}]))

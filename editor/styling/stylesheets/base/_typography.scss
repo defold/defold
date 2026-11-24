@@ -54,7 +54,7 @@ Label.emphasis {
   -fx-font-family: $default-font-italic;
 }
 
-#build-errors-container {
+#build-errors-tree {
     .tree-cell {
         -fx-font-family: $default-font-mono;
         -fx-font-size: 90%;

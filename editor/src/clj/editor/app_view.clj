@@ -13,13 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.app-view
-  (:require [cljfx.api :as fx]
-            [cljfx.fx.anchor-pane :as fx.anchor-pane]
-            [cljfx.fx.hyperlink :as fx.hyperlink]
+  (:require [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
-            [cljfx.fx.region :as fx.region]
-            [cljfx.fx.split-pane :as fx.split-pane]
-            [cljfx.fx.tab :as fx.tab]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -71,6 +66,7 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.os :as os]
+            [editor.panes :as panes]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -109,7 +105,6 @@
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob IProgress Platform]
-           [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime Year]
@@ -119,7 +114,7 @@
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
-           [javafx.geometry HPos Orientation Pos]
+           [javafx.geometry HPos Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Hyperlink Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
@@ -142,92 +137,16 @@
            :split-id "workbench-split"}
    :bottom {:index 1
             :pane-id "bottom-pane"
-            :split-id "center-split"}
-   :changed-files {:index 1
-                   :pane-id "changed-files-pane"
-                   :split-id "assets-split"}})
+            :split-id "center-split"}})
 
-(defn- pane-visible? [^Scene main-scene pane-kw]
-  (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
-    (some? (.lookup main-scene (str "#" split-id " #" pane-id)))))
-
-(defn- split-pane-length
-  ^double [^SplitPane split-pane]
-  (condp = (.getOrientation split-pane)
-    Orientation/HORIZONTAL (.getWidth split-pane)
-    Orientation/VERTICAL (.getHeight split-pane)))
-
-(defn- set-pane-visible! [^Scene main-scene pane-kw visible?]
-  (let [{:keys [index pane-id split-id]} (split-info-by-pane-kw pane-kw)
-        ^SplitPane split (.lookup main-scene (str "#" split-id))
-        ^Parent pane (.lookup split (str "#" pane-id))]
-    (cond
-      (and (nil? pane) visible?)
-      (let [user-data-key (keyword "hidden-pane" pane-id)
-            {:keys [pane size]} (ui/user-data split user-data-key)
-            divider-index (max 0 (dec index))
-            divider-position (max 0.0
-                                  (min (if (zero? index)
-                                         (/ size (split-pane-length split))
-                                         (- 1.0 (/ size (split-pane-length split))))
-                                       1.0))]
-        (ui/user-data! split user-data-key nil)
-        (.add (.getItems split) index pane)
-        (.setDividerPosition split divider-index divider-position)
-        (.layout split))
-
-      (and (some? pane) (not visible?))
-      (let [user-data-key (keyword "hidden-pane" pane-id)
-            divider-index (max 0 (dec index))
-            divider-position (get (.getDividerPositions split) divider-index)
-            size (if (zero? index)
-                   (Math/floor (* divider-position (split-pane-length split)))
-                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))
-            removing-focus-owner? (some? (when-some [focus-owner (.getFocusOwner main-scene)]
-                                           (ui/closest-node-where
-                                             (partial identical? pane)
-                                             focus-owner)))]
-
-        (ui/user-data! split user-data-key {:pane pane :size size})
-        (.remove (.getItems split) pane)
-        (.layout split)
-
-        ;; If this action causes the focus owner to be removed from the scene,
-        ;; move focus to the SplitPane. This ensures we have a valid UI context
-        ;; when refreshing the menus.
-        (when removing-focus-owner?
-          (.requestFocus split))))
-    nil))
-
-(defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
-  (let [tabs (.getTabs tool-tab-pane)
-        tab-index (first (keep-indexed (fn [i ^Tab tab] (when (= tab-id (.getId tab)) i)) tabs))]
-    (set-pane-visible! main-scene :bottom true)
-    (if (some? tab-index)
-      (.select (.getSelectionModel tool-tab-pane) ^long tab-index)
-      (throw (ex-info (str "Tab id not found: " tab-id)
-                      {:tab-id tab-id
-                       :tab-ids (mapv #(.getId ^Tab %) tabs)})))))
-
-(def show-console! (partial select-tool-tab! "console-tab"))
-(def show-curve-editor! (partial select-tool-tab! "curve-editor-tab"))
-(def show-build-errors! (partial select-tool-tab! "build-errors-tab"))
-(def show-search-results! (partial select-tool-tab! "search-results-tab"))
-
-(defn show-asset-browser! [main-scene]
-  (set-pane-visible! main-scene :left true))
-
-(defn- show-debugger! [main-scene tool-tab-pane]
-  ;; In addition to the controls in the console pane,
-  ;; the right pane is used to display locals.
-  (set-pane-visible! main-scene :right true)
-  (show-console! main-scene tool-tab-pane))
-
-(defn debugger-state-changed! [main-scene tool-tab-pane attention?]
-  (ui/invalidate-menubar-item! ::debug-view/debug)
-  (ui/user-data! main-scene ::ui/refresh-requested? true)
-  (when attention?
-    (show-debugger! main-scene tool-tab-pane)))
+(defn- region-visible? [^Scene scene region]
+  (let [{:keys [pane-id split-id]} (split-info-by-pane-kw region)
+        app-view (:app-view (:env (ui/context (.getRoot scene))))
+        controls (when app-view (g/node-value app-view :pane-controls))]
+    (boolean
+      (when controls
+        (.contains (.getItems ^SplitPane (get controls (keyword split-id)))
+                   (get controls (keyword pane-id)))))))
 
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
@@ -308,78 +227,82 @@
                                (-> .getStyleClass (.add "key-button")))
                              1 row)))))))))
 
-(def ^:private ext-with-split-pane-props
-  (fx/make-ext-with-props fx.split-pane/props))
+(def ^:const prefs-hidden-panes [:window :hidden-panes])
 
-(defn- split-pane-item [pane-desc]
-  {:fx/type fx.anchor-pane/lifecycle
-   :split-pane/resizable-with-parent false
-   :children [(assoc pane-desc
-                :anchor-pane/left 0.0
-                :anchor-pane/right 0.0
-                :anchor-pane/top 0.0
-                :anchor-pane/bottom 0.0)]})
+(defn- describe-pane-layout [app-view ^Scene scene evaluation-context]
+  (let [controls (g/node-value app-view :pane-controls evaluation-context)
+        localization (g/node-value app-view :localization evaluation-context)
 
-(defn- debuggable-resource?
-  [resource]
-  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
+        definitions (g/node-value app-view :pane-definitions evaluation-context)
+        built-ins (:built-in definitions)
+        scripts (:extension definitions)
+        root (.getRoot scene)
+        preferences (:prefs (:env (ui/context root)))
+        hidden-regions (prefs/get preferences prefs-hidden-panes)
+        hidden (prefs/get preferences [:window :hidden-pane-ids])
 
-(g/defnk produce-active-sidebar
-  [active-view active-resource open-sidebar-panes debugger-sidebar-panes outline-active ^:try properties-pane-desc]
-  (if (and debugger-sidebar-panes (debuggable-resource? active-resource))
-    debugger-sidebar-panes
-    (coll/into-> (get open-sidebar-panes active-view) []
-      (keep #(case %
-               :outline-pane (when outline-active {:fx/type fx/ext-get-ref :ref :outline-pane})
-               :properties-pane properties-pane-desc
-               %)))))
+        visible
+        (fn visible [{:keys [id location]}]
+          (and (not (contains? hidden id))
+               (not (contains? hidden-regions (get-in panes/locations [location :region])))))
 
-(g/defnk produce-outline-active [active-view open-sidebar-panes ^:try outline-pane-desc]
-  (and (not (g/error-value? outline-pane-desc))
-       (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
+        contexts
+        (coll/into-> scripts {}
+          (filter visible)
+          (map #(get-in panes/locations [(:location %) :scope]))
+          (distinct)
+          (coll/pair-map-by identity
+                            (fn scope-contexts [scope]
+                              (ui/node-contexts
+                                (case scope
+                                  :global root
+                                  :workbench (:workbench controls))
+                                true evaluation-context))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar right-extension-panes ^:try outline-pane-desc]
-  {:fx/type fxui/ext-dedupe-identical-desc
-   :desc {:fx/type fx/ext-let-refs
-          ;; We want to ensure that the outline stays mounted even if it's
-          ;; hidden, so it keeps its expansion state and stays up to date.
-          ;; This is necessary because the outline view defines commands on the
-          ;; :workbench context, which is available throughout the editor, and
-          ;; those commands expect the outline view to be up to date. We need
-          ;; to keep the `^:try` so that the broken outline does not fail this
-          ;; whole output
-          :refs (if (g/error-value? outline-pane-desc)
-                  {}
-                  {:outline-pane outline-pane-desc})
-          :desc {:fx/type ext-with-split-pane-props
-                 :desc {:fx/type ui/ext-value :value right-split}
-                 :props {:items (or (coll/not-empty
-                                      (into (coll/into-> active-sidebar []
-                                              (remove g/error-value?)
-                                              (map split-pane-item))
-                                            right-extension-panes))
-                                    [(split-pane-item {:fx/type fx.region/lifecycle})])}}}})
+        env
+        {:app-view app-view :evaluation-context evaluation-context :owner-window (.getWindow scene)}
+
+        materialize
+        (fn materialize [built-in {:keys [location content] :as definition}]
+          (assoc definition :content-desc
+                 (when (visible definition)
+                   (content (cond-> env
+                              (not built-in)
+                              (assoc :contexts (get contexts (get-in panes/locations [location :scope]))))))))]
+    {:fx/type panes/layout
+     :preferences preferences
+     :localization localization
+     :hidden-regions hidden-regions
+     :assets-split (:assets-split controls)
+     :right-split (:right-split controls)
+     :bottom-container (:bottom-pane controls)
+     :regions (coll/pair-map-by key
+                                (fn [[_ {:keys [pane-id split-id index]}]]
+                                  {:split (get controls (keyword split-id))
+                                   :content (get controls (keyword pane-id))
+                                   :index index})
+                                split-info-by-pane-kw)
+     :panes (coll/into-> scripts (mapv #(materialize true %) built-ins) (map #(materialize false %)))
+     :hidden hidden}))
 
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
   (property editor-tabs-split SplitPane)
-  (property right-split SplitPane)
-  (property right-extension-panes g/Any (default []))
-  (input extension-panes g/Any)
-  (output extension-panes g/Any (gu/passthrough extension-panes))
+  (property pane-controls g/Any)
+  (property pane-definitions g/Any (default {:built-in [] :extension []}))
+  (output pane-definitions-by-id g/Any :cached
+          (g/fnk [pane-definitions]
+            (coll/into-> (into (:built-in pane-definitions) (:extension pane-definitions)) {}
+              (map (juxt :id identity)))))
   (property active-tab Tab)
-  (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
   (property keymap g/Any)
   (property localization g/Any)
 
-  (input outline-pane-desc g/Any)
-  (input properties-pane-desc g/Any)
   (input properties-view g/NodeID)
-  (input open-sidebar-panes g/Any :array :substitute gu/array-subst-remove-errors)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -392,11 +315,9 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
-  (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
   (input scene-visibility g/NodeID)
 
-  (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output scene-view-ids g/Any :cached (gu/passthrough scene-view-ids))
@@ -414,10 +335,6 @@
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
-  (output outline-active g/Bool :cached produce-outline-active)
-
-  (output active-sidebar g/Any :cached produce-active-sidebar)
-  (output right-split-desc g/Any :cached produce-right-split-desc)
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource-node+type g/Any :cached
@@ -450,6 +367,29 @@
                                                       :when resource]
                                                 (ui/text! tab (tab-title resource (contains? open-dirty-views view)))))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
+
+(defn- refresh-pane-layout! [app-view scene evaluation-context]
+  (ui/advance-ui-user-data-component! scene ::ui
+                                      (describe-pane-layout app-view scene evaluation-context)))
+
+(defn- set-region-enabled! [^Scene scene region enabled]
+  (let [{:keys [app-view prefs]} (:env (ui/context (.getRoot scene)))]
+    (prefs/update! prefs prefs-hidden-panes (if enabled disj conj) region)
+    (g/with-auto-evaluation-context evaluation-context
+      (refresh-pane-layout! app-view scene evaluation-context))))
+
+(defn show-pane! [^Scene scene id]
+  (let [{:keys [app-view prefs]} (:env (ui/context (.getRoot scene)))]
+    (when (and app-view (g/node-value app-view :pane-controls))
+      (when-let [{:keys [location]} (get (g/node-value app-view :pane-definitions-by-id) id)]
+        (prefs/set! prefs [:window :hidden-pane-ids]
+                    (disj (prefs/get prefs [:window :hidden-pane-ids]) id))
+        (prefs/set! prefs [:window :pane-selections]
+                    (assoc (prefs/get prefs [:window :pane-selections]) location id))
+        (prefs/update! prefs prefs-hidden-panes disj
+                       (get-in panes/locations [location :region]))
+        (g/with-auto-evaluation-context evaluation-context
+          (refresh-pane-layout! app-view scene evaluation-context))))))
 
 (defn- selection->openable-resources [selection evaluation-context]
   (when-let [resources (handler/adapt-every selection resource/Resource evaluation-context)]
@@ -664,14 +604,13 @@
 
 (def ^:const prefs-window-dimensions [:window :dimensions])
 (def ^:const prefs-split-positions [:window :split-positions])
-(def ^:const prefs-hidden-panes [:window :hidden-panes])
 
 (handler/defhandler :app.quit :global
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
-(defn store-window-dimensions [^Stage stage prefs]
+(defn store-window-dimensions! [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
                  :y           (.getY stage)
                  :width       (.getWidth stage)
@@ -706,55 +645,18 @@
                           "assets-split"])
 
 (defn- existing-split-panes [^Scene scene]
-  (into {}
-        (keep (fn [split-id]
-                (when-some [control (.lookup scene (str "#" split-id))]
-                  [(keyword split-id) control])))
-        split-ids))
-
-(defn- stored-split-positions [prefs]
-  (prefs/get prefs prefs-split-positions))
-
-(defn store-split-positions! [^Scene scene prefs]
-  ;; Preserve trailing stored divider positions when this split currently has
-  ;; fewer dividers, e.g. when the sidebar temporarily shows a single pane
-  (let [split-positions (coll/reduce-kv-> (existing-split-panes scene) (stored-split-positions prefs)
-                          (fn [acc id ^SplitPane split-pane]
-                            (let [current-positions (vec (.getDividerPositions split-pane))
-                                  old-positions (get acc id)
-                                  persisted-positions (if (< (count current-positions) (count old-positions))
-                                                        (into current-positions (drop (count current-positions)) old-positions)
-                                                        current-positions)]
-                              (assoc acc id persisted-positions))))]
-    (prefs/set! prefs prefs-split-positions split-positions)))
+  (let [app-view (:app-view (:env (ui/context (.getRoot scene))))]
+    (select-keys (g/node-value app-view :pane-controls) (mapv keyword split-ids))))
 
 (defn restore-split-positions! [^Scene scene prefs]
-  (let [split-positions (stored-split-positions prefs)
+  (.applyCss (.getRoot scene))
+  (.layout (.getRoot scene))
+  (let [split-positions (prefs/get prefs prefs-split-positions)
         split-panes (existing-split-panes scene)]
     (doseq [[id positions] split-positions]
       (when-some [^SplitPane split-pane (get split-panes id)]
         (.setDividerPositions split-pane (double-array positions))
         (.layout split-pane)))))
-
-(defn stored-hidden-panes [prefs]
-  (prefs/get prefs prefs-hidden-panes))
-
-(defn store-hidden-panes! [^Scene scene prefs]
-  (let [hidden-panes (into #{}
-                           (remove (partial pane-visible? scene))
-                           (keys split-info-by-pane-kw))]
-    (prefs/set! prefs prefs-hidden-panes hidden-panes)))
-
-(defn store-window-state! [^Stage stage prefs]
-  (let [scene (.getScene stage)]
-    (store-window-dimensions stage prefs)
-    (store-split-positions! scene prefs)
-    (store-hidden-panes! scene prefs)))
-
-(defn restore-hidden-panes! [^Scene scene prefs]
-  (let [hidden-panes (stored-hidden-panes prefs)]
-    (doseq [pane-kw hidden-panes]
-      (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
   (run [workspace prefs app-view project localization]
@@ -778,10 +680,10 @@
   (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)]
     (.getTabs tab-pane)))
 
-(defn- make-render-build-error [main-scene tool-tab-pane build-errors-view]
+(defn- make-render-build-error [main-scene build-errors-view]
   (fn [error-value]
     (build-errors-view/update-build-errors build-errors-view error-value)
-    (show-build-errors! main-scene tool-tab-pane)))
+    (show-pane! main-scene :build-errors)))
 
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
@@ -1523,10 +1425,12 @@
 (defn- exception->target-error [error]
   (g/map->error {:severity :fatal :message (or (ex-message error) (.getName (class error)))}))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch focus]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage launch focus]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+
+        render-build-error!
+        (make-render-build-error main-scene build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
     (build-errors-view/clear-build-errors build-errors-view)
@@ -1544,7 +1448,7 @@
                  launch
                  (or engine skip-engine))
           (do
-            (show-console! main-scene tool-tab-pane)
+            (show-pane! main-scene :console)
             (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server false focus)]
               (cond-> build-results
                 error (assoc :error (exception->target-error error))
@@ -1553,14 +1457,14 @@
 
 (handler/defhandler :project.compile :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false true)))
+  (run [project workspace prefs web-server build-errors-view main-stage]
+    (build-handler project workspace prefs web-server build-errors-view main-stage false true)))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane user-data]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage user-data]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true (get user-data :focus true))))
+    (build-handler project workspace prefs web-server build-errors-view main-stage true (get user-data :focus true))))
 
 (handler/defhandler :run.set-instance-count :global
   (options [prefs user-data]
@@ -1631,9 +1535,11 @@
   (active? [debug-view evaluation-context]
     (not (debug-view/debugging? debug-view evaluation-context)))
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
+  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage]
     (let [main-scene (.getScene ^Stage main-stage)
-          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+
+          render-build-error!
+          (make-render-build-error main-scene build-errors-view)]
       (build-errors-view/clear-build-errors build-errors-view)
       (try
         (if (debug-view/can-attach? prefs)
@@ -1655,12 +1561,12 @@
 
 (handler/defhandler :project.clean-build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization user-data]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage localization user-data]
     (when (or (:skip-confirmation user-data)
               (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
-      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true true))))
+      (build-handler project workspace prefs web-server build-errors-view main-stage true true))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
@@ -1680,8 +1586,9 @@
                       (not (contains? options "build-server-header"))
                       (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
             main-scene (g/node-value app-view :scene evaluation-context)
-            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+
+            render-build-error!
+            (make-render-build-error main-scene build-errors-view)
             render-reload-progress! (make-render-task-progress :resource-sync)
             render-save-progress! (make-render-task-progress :save-all)
             [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
@@ -1735,12 +1642,14 @@
          (not (debug-view/suspended? debug-view evaluation-context))
          (not (build-in-progress?)))))
 
-(defn- hot-reload! [project prefs localization build-errors-view main-stage tool-tab-pane]
+(defn- hot-reload! [project prefs localization build-errors-view main-stage]
   (let [main-scene (.getScene ^Stage main-stage)
         target (targets/selected-target prefs)
         workspace (project/workspace project)
         old-etags (workspace/etags workspace)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+
+        render-build-error!
+        (make-render-build-error main-scene build-errors-view)
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
@@ -1791,8 +1700,8 @@
 (handler/defhandler :run.hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
     (can-hot-reload? debug-view prefs evaluation-context))
-  (run [project app-view prefs localization build-errors-view selection main-stage tool-tab-pane]
-    (hot-reload! project prefs localization build-errors-view main-stage tool-tab-pane)))
+  (run [project app-view prefs localization build-errors-view selection main-stage]
+    (hot-reload! project prefs localization build-errors-view main-stage)))
 
 (handler/defhandler :window.tab.close :global
   (enabled? [app-view evaluation-context]
@@ -2086,6 +1995,8 @@
                 :command :window.toggle-bottom-pane}
                {:label (localization/message "command.window.toggle-right-pane")
                 :command :window.toggle-right-pane}
+               {:label (localization/message "menu.view.panes")
+                :command :window.toggle-pane}
                menu-items/separator
                {:label (localization/message "command.window.show-console")
                 :command :window.show-console}
@@ -2351,104 +2262,61 @@
   (when-some [editor-tab-pane (editor-tab-pane new-focus-owner)]
     ;; The new focus owner is or belongs to an editor TabPane.
     (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane) true)))
+(defn set-built-in-panes!
+  "Initialize built-in pane definitions before loading extensions."
+  [app-view definitions]
+  (g/transact {:undoable false}
+    (g/update-property app-view :pane-definitions assoc :built-in definitions)))
 
-(defn- refresh-extension-items! [host ^ObservableList items descs]
-  ;; FXML owns the built-in prefix. Reconcile only the contributed suffix so
-  ;; adding a tab preserves the selected tool and its focus.
-  (let [old-items (some-> (ui/user-data host ::extension-panes) fx/instance)]
-    (ui/advance-ui-user-data-component! host ::extension-panes
-                                        (when (coll/not-empty descs)
-                                          {:fx/type fx/ext-many :desc descs}))
-    (let [new-items (some-> (ui/user-data host ::extension-panes) fx/instance)]
-      (when (not= old-items new-items)
-        (let [offset (- (.size items) (count old-items))
-              removed (coll/into-> old-items [] (remove (set new-items)))]
-          (.removeAll items ^Collection removed)
-          (doseq [[i item] (map-indexed vector new-items)]
-            (let [index (+ offset i)]
-              (when-not (and (< index (.size items)) (identical? item (.get items index)))
-                (.remove items ^Object item)
-                (.add items index item)))))))))
+(defn set-extension-panes!
+  "Replace extension panes with the nonconflicting definitions.
 
-(ui/defc extension-pane
-  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [location title content localization-state]}]
-  (let [text (localization-state title)]
-    (if (= :bottom location)
-      {:fx/type fx.tab/lifecycle :closable false :text text :content content}
-      {:fx/type fxui/titled-pane
-       :style {:-fx-background-color :-df-background-light}
-       :title text
-       :content content})))
+  Returns a map from rejected IDs to their conflicting definitions after
+  applying the replacement. Built-in panes take priority."
+  [app-view definitions]
+  (ui/run-now
+    (let [{:keys [built-in]} (g/node-value app-view :pane-definitions)
 
-(defn- refresh-right-split! [app-view]
-  (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
-             right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
-    (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+          conflicts
+          (coll/into-> (group-by :id (into built-in definitions)) {}
+            (filter (fn [[_ panes]] (< 1 (count panes)))))]
+      (g/transact {:undoable false}
+        (g/set-property app-view :pane-definitions
+          {:built-in built-in
+           :extension (filterv #(not (contains? conflicts (:id %))) definitions)}))
+      conflicts)))
 
-(defn- refresh-extension-panes! [app-view ^Stage stage ^SplitPane assets-split ^TabPane tool-tabs localization evaluation-context]
-  (let [scene (.getScene stage)
-        definitions (g/node-value app-view :extension-panes evaluation-context)
-        previous (ui/user-data scene ::extension-panes)]
-    (when (or (coll/not-empty definitions) previous)
-      (let [active-view (g/node-value app-view :active-view evaluation-context)
-            right-split (g/node-value app-view :right-split evaluation-context)
+(defn initialize-panes! [app-view ^Scene scene preferences localization]
+  (let [root (.getRoot scene)
+        hidden (prefs/get preferences prefs-hidden-panes)
 
-            hosts
-            {:left assets-split
-             :bottom (.getParent tool-tabs)
-             :right right-split}
+        controls
+        (ui/collect-controls root
+                             (into ["workbench" "left-pane" "right-pane" "bottom-pane"] split-ids))]
+    (when (contains? hidden :changed-files)
+      (prefs/set! preferences [:window :hidden-pane-ids]
+                  (conj (prefs/get preferences [:window :hidden-pane-ids]) :changed-files))
+      (prefs/set! preferences prefs-hidden-panes (disj hidden :changed-files)))
+    (doseq [[id ^SplitPane split] (select-keys controls (mapv keyword split-ids))]
+      (.addEventFilter split MouseEvent/MOUSE_RELEASED
+        (ui/event-handler event
+          (when (= MouseButton/PRIMARY (.getButton ^MouseEvent event))
+            (when-let [divider (ui/closest-node-with-style "split-pane-divider" (.getTarget event))]
+              (when (identical? split (ui/closest-node-of-type SplitPane divider))
+                (let [positions (vec (.getDividerPositions split))
+                      saved (prefs/get preferences prefs-split-positions)]
+                  (when (not= positions (get saved id))
+                    (prefs/set! preferences prefs-split-positions (assoc saved id positions))))))))))
+    (g/transact {:undoable false}
+      [(g/set-property app-view :pane-controls controls)
+       (g/set-property app-view :localization localization)])
+    (g/with-auto-evaluation-context evaluation-context
+      (refresh-pane-layout! app-view scene evaluation-context))))
 
-            locations
-            (reduce-kv
-              (fn refresh-location [locations location host]
-                (let [old-state (get previous location)]
-                  (if-not (NodeHelper/isTreeShowing host)
-                    (assoc locations location (assoc old-state :visible false))
-                    (let [panes
-                          (filterv #(= location (:location %)) definitions)
-
-                          contexts
-                          (ui/node-contexts host true evaluation-context)
-
-                          inputs [panes contexts active-view]]
-                      (if (and (:visible old-state)
-                               (= inputs (:inputs old-state))
-                               (not (ui/user-data scene ::ui/refresh-requested?)))
-                        (assoc locations location old-state)
-                        (let [env
-                              {:contexts contexts
-                               :app-view app-view
-                               :evaluation-context evaluation-context
-                               :owner-window stage}
-
-                              descs
-                              (coll/into-> panes []
-                                (keep
-                                  (fn describe-pane [{:keys [id title content]}]
-                                    (when-let [description (content env)]
-                                      {:fx/key id
-                                       :fx/type extension-pane
-                                       :location location
-                                       :title title
-                                       :localization localization
-                                       :content description}))))]
-                          (when (not= (:descs old-state []) descs)
-                            (case location
-                              :left (refresh-extension-items! assets-split (.getItems assets-split) descs)
-                              :bottom (refresh-extension-items! tool-tabs (.getTabs tool-tabs) descs)
-                              :right (g/transact {:undoable false} (g/set-property app-view :right-extension-panes descs))))
-                          (assoc locations location {:visible true :inputs inputs :descs descs})))))))
-              {}
-              hosts)]
-        (ui/user-data! scene ::extension-panes locations)))))
-
-(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split prefs localization]
   (let [app-scene (.getScene stage)
-        ^SplitPane assets-split (.lookup app-scene "#assets-split")
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
-    (ui/init-tab-pane! tool-tab-pane)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
@@ -2461,8 +2329,6 @@
                            :stage stage
                            :scene app-scene
                            :editor-tabs-split editor-tabs-split
-                           :right-split right-split
-                           :tool-tab-pane tool-tab-pane
                            :active-tool :move
                            :manip-space :world
                            :keymap keymap
@@ -2475,16 +2341,15 @@
 
       (ui/register-menubar app-scene menu-bar ::menubar)
       (ui/on-closed! stage (fn [_]
-                             (ui/advance-ui-user-data-component! assets-split ::extension-panes nil)
-                             (ui/advance-ui-user-data-component! tool-tab-pane ::extension-panes nil)
-                             (ui/advance-ui-user-data-component! right-split ::ui nil)
+                             (ui/advance-ui-user-data-component! app-scene ::ui nil)
+                             (g/transact {:undoable false} (g/set-property app-view :pane-controls nil))
                              (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
                                         scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
                                (doseq [view-id scene-view-ids]
                                  (try
                                    (when-let [resource (:resource (get open-views view-id))]
-                                     (save-scene-view-prefs! prefs view-id resource))
-                                   (scene/dispose-scene-view! view-id)
+                                     (save-scene-view-prefs! prefs view-id resource)
+                                     (scene/dispose-scene-view! view-id))
                                    (catch Throwable error
                                      (error-reporting/report-exception! error)))))
                              (scene-cache/drop-context! nil)))
@@ -2510,28 +2375,27 @@
                             "refresh-app-view"
                             (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
-                                (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                (when (ui/user-data app-scene ::ui/refresh-requested?)
+                                  (ui/user-data! app-scene ::ui/refresh-requested? false)
                                   (g/with-auto-evaluation-context evaluation-context
-                                    (refresh-extension-panes! app-view stage assets-split tool-tab-pane localization evaluation-context))
-                                  (when (NodeHelper/isTreeShowing right-split)
-                                    (refresh-right-split! app-view))
-                                  (when refresh-requested?
-                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
-                                    (g/with-auto-evaluation-context evaluation-context
-                                      (let [localization-bundle (-> project
-                                                                    (project/editor-localization-bundle evaluation-context)
-                                                                    (editor-localization-bundle/bundle evaluation-context))]
-                                        (when-not (identical? @prev-localization-bundle localization-bundle)
-                                          (vreset! prev-localization-bundle localization-bundle)
-                                          (localization/set-bundle! localization ::project localization-bundle)))
-                                      (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
-                                      (refresh-views! app-view evaluation-context)
-                                      (reload-editor-scripts-notification-updater evaluation-context)
-                                      (refresh-app-title! stage project evaluation-context)))
-                                  (ui/show-requested-context-menu!)
-                                  ;; Scene views are always refreshed, since they may play animations.
-                                  ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
-                                  (refresh-scene-views! app-view dt)))))]
+                                    (let [localization-bundle
+                                          (-> project
+                                              (project/editor-localization-bundle evaluation-context)
+                                              (editor-localization-bundle/bundle evaluation-context))]
+                                      (when-not (identical? @prev-localization-bundle localization-bundle)
+                                        (vreset! prev-localization-bundle localization-bundle)
+                                        (localization/set-bundle! localization ::project localization-bundle)))
+                                    (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
+                                    (refresh-views! app-view evaluation-context)
+                                    (reload-editor-scripts-notification-updater evaluation-context)
+                                    (refresh-app-title! stage project evaluation-context)
+                                    (refresh-pane-layout! app-view app-scene evaluation-context)))
+                                (ui/show-requested-context-menu!)
+                                ;; Scene views are always refreshed, since they
+                                ;; may play animations.
+                                ;; This performs graph mutations, so needs to
+                                ;; manage its own evaluation-contexts.
+                                (refresh-scene-views! app-view dt))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         [app-view refresh-timer]))))
 
@@ -2635,8 +2499,7 @@
           (connect-view-fn view))
         (g/connect app-view :selected-node-properties view :selected-node-properties)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty app-view :open-dirty-views)
-        (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
+        (g/connect view :view-dirty app-view :open-dirty-views)))
     (editor-tab/set-view-node-id! tab view)
 
     ;; Hidden tab content must not resize its scene viewport and GL surfaces.
@@ -3213,7 +3076,7 @@
              (throw error))))))))
 
 (defn- restart-defold! [^Stage stage prefs]
-  (store-window-state! stage prefs)
+  (store-window-dimensions! stage prefs)
   (ui/close! stage)
   (launcher/start!))
 
@@ -3420,9 +3283,8 @@
     localization           the Localization instance"
   [app-view search-results-view node-id properties localization]
   (g/with-auto-evaluation-context evaluation-context
-    (let [scene (g/node-value app-view :scene evaluation-context)
-          tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)]
-      (show-search-results! scene tool-tab-pane)
+    (let [scene (g/node-value app-view :scene evaluation-context)]
+      (show-pane! scene :search-results)
       (search-results-view/show-override-inspector! search-results-view node-id properties localization))))
 
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
@@ -3491,39 +3353,66 @@
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
+(defn- toggle-pane! [^Scene scene id]
+  (let [{:keys [app-view prefs]} (:env (ui/context (.getRoot scene)))
+        hidden (prefs/get prefs [:window :hidden-pane-ids])]
+    (if (contains? hidden id)
+      (show-pane! scene id)
+      (do
+        (prefs/set! prefs [:window :hidden-pane-ids] (conj hidden id))
+        (g/with-auto-evaluation-context evaluation-context
+          (refresh-pane-layout! app-view scene evaluation-context))))))
+
+(handler/defhandler :window.toggle-pane :global
+  (options [app-view user-data evaluation-context]
+    (when-not user-data
+      (let [{:keys [built-in extension]}
+            (g/node-value app-view :pane-definitions evaluation-context)]
+        (mapv (fn [{:keys [id title]}]
+                {:label title :command :window.toggle-pane :check true :user-data id})
+              (into built-in extension)))))
+  (state [prefs user-data]
+    (when user-data
+      (not (contains? (prefs/get prefs [:window :hidden-pane-ids]) user-data))))
+  (run [^Stage main-stage user-data]
+    (toggle-pane! (.getScene main-stage) user-data)))
+
+(defn- region-enabled? [^Scene scene region]
+  (let [prefs (:prefs (:env (ui/context (.getRoot scene))))]
+    (not (contains? (prefs/get prefs prefs-hidden-panes) region))))
+
 (handler/defhandler :window.toggle-left-pane :global
   (run [^Stage main-stage]
     (let [main-scene (.getScene main-stage)]
-      (set-pane-visible! main-scene :left (not (pane-visible? main-scene :left))))))
+      (set-region-enabled! main-scene :left (not (region-enabled? main-scene :left))))))
 
 (handler/defhandler :window.toggle-right-pane :global
   (run [^Stage main-stage]
     (let [main-scene (.getScene main-stage)]
-      (set-pane-visible! main-scene :right (not (pane-visible? main-scene :right))))))
+      (set-region-enabled! main-scene :right (not (region-enabled? main-scene :right))))))
 
 (handler/defhandler :window.toggle-bottom-pane :global
   (run [^Stage main-stage]
     (let [main-scene (.getScene main-stage)]
-      (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
+      (set-region-enabled! main-scene :bottom (not (region-enabled? main-scene :bottom))))))
 
 (handler/defhandler :window.toggle-changed-files-pane :global
   (enabled? [^Stage main-stage]
-    (pane-visible? (.getScene main-stage) :left))
+    (region-visible? (.getScene main-stage) :left))
   (run [^Stage main-stage]
-    (let [main-scene (.getScene main-stage)]
-      (set-pane-visible! main-scene :changed-files (not (pane-visible? main-scene :changed-files))))))
+    (toggle-pane! (.getScene main-stage) :changed-files)))
 
 (handler/defhandler :window.show-console :global
-  (run [^Stage main-stage tool-tab-pane] (show-console! (.getScene main-stage) tool-tab-pane)))
+  (run [^Stage main-stage] (show-pane! (.getScene main-stage) :console)))
 
 (handler/defhandler :window.show-curve-editor :global
-  (run [^Stage main-stage tool-tab-pane] (show-curve-editor! (.getScene main-stage) tool-tab-pane)))
+  (run [^Stage main-stage] (show-pane! (.getScene main-stage) :curve-editor)))
 
 (handler/defhandler :window.show-build-errors :global
-  (run [^Stage main-stage tool-tab-pane] (show-build-errors! (.getScene main-stage) tool-tab-pane)))
+  (run [^Stage main-stage] (show-pane! (.getScene main-stage) :build-errors)))
 
 (handler/defhandler :window.show-search-results :global
-  (run [^Stage main-stage tool-tab-pane] (show-search-results! (.getScene main-stage) tool-tab-pane)))
+  (run [^Stage main-stage] (show-pane! (.getScene main-stage) :search-results)))
 
 (defn- put-on-clipboard!
   [s]
@@ -3658,11 +3547,13 @@
         (query-and-open! workspace project app-view prefs localization term)))))
 
 (handler/defhandler :file.search :global
-  (run [project app-view prefs localization search-results-view main-stage tool-tab-pane]
+  (run [project app-view prefs localization search-results-view main-stage]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
       (search-results-view/set-search-term! prefs term))
     (let [main-scene (.getScene ^Stage main-stage)
-          show-search-results-tab! (partial show-search-results! main-scene tool-tab-pane)]
+
+          show-search-results-tab!
+          (fn show-results! [] (show-pane! main-scene :search-results))]
       (search-results-view/show-search-in-files-dialog! search-results-view project prefs localization show-search-results-tab!))))
 
 (handler/defhandler :project.bundle :global
@@ -3700,6 +3591,8 @@
     project kind
     :prefs prefs
     :localization localization
+    :set-panes! (fn set-panes! [definitions]
+                  (set-extension-panes! app-view definitions))
     :reload-resources! (fn reload-resources! []
                          (let [f (future/make)]
                            (disk/async-reload! (make-render-task-progress :resource-sync)

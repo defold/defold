@@ -875,6 +875,7 @@ menu.file = File
 menu.project = Project
 menu.edit = Edit
 menu.debug = Debug
+menu.view.panes = Panes
 menu.view = View
 menu.help = Help
 menu.dock.new-window = New Window

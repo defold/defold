@@ -669,7 +669,7 @@
   (run [active-resource asset-browser selection main-stage]
     (when-let [r (g/with-auto-evaluation-context evaluation-context
                    (selected-or-active-resource selection active-resource evaluation-context))]
-      (app-view/show-asset-browser! (.getScene ^Stage main-stage))
+      (app-view/show-pane! (.getScene ^Stage main-stage) :assets)
       (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- asset-group-or-resource->id [asset-group-or-resource]
@@ -966,12 +966,22 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [workspace tree-view prefs localization]
-  (let [asset-browser (first
-                        (g/tx-nodes-added
-                          (g/transact
-                            {:undoable false}
-                            (g/make-nodes [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
-                              (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
+(defn make-asset-browser [workspace prefs localization]
+  (let [tree-view
+        (doto (TreeView.)
+          (.setId "assets")
+          (.setPrefSize 200.0 200.0))
+
+        asset-browser
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
+                (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
     (setup-asset-browser asset-browser workspace tree-view localization)
-    asset-browser))
+    [asset-browser
+     {:id :assets
+      :title (localization/message "pane.assets")
+      :location :left-top
+      :content (constantly {:fx/type ui/ext-value :value tree-view})}]))
