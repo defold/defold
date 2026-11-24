@@ -67,6 +67,39 @@ TEST(Win32OpenGL, MinimumMultisampling)
     dmPlatform::DeleteWindow(window);
 }
 
+// A version-only request must select the same profile as asking the driver directly.
+TEST(Win32OpenGL, DriverDefaultProfile)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    typedef HGLRC (WINAPI* CreateContextFn)(HDC, HGLRC, const int*);
+    CreateContextFn create = (CreateContextFn)dmPlatform::GetProcAddress(window, "wglCreateContextAttribsARB");
+    HDC dc = wglGetCurrentDC();
+    const int version[] = { 0x2091, 3, 0x2092, 3, 0 }; // WGL_CONTEXT_{MAJOR,MINOR}_VERSION_ARB
+    HGLRC reference = create ? create(dc, 0, version) : 0;
+    if (reference)
+    {
+        ASSERT_TRUE(wglMakeCurrent(dc, reference));
+        GLint expected = 0;
+        glGetIntegerv(0x9126, &expected); // GL_CONTEXT_PROFILE_MASK
+        ASSERT_TRUE(wglMakeCurrent(dc, dmPlatform::GetWindowsHGLRC(window)));
+        EXPECT_TRUE(wglDeleteContext(reference));
+        dmPlatform::CloseWindow(window);
+        params.m_GraphicsApiVersionHint = 33;
+        params.m_OpenGLUseCoreProfileHint = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        GLint selected = 0;
+        glGetIntegerv(0x9126, &selected);
+        EXPECT_EQ(expected, selected);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies WGL shares real texture storage across threads and releases its context on close.
 TEST(Win32OpenGL, SharedWorkerUpload)
 {

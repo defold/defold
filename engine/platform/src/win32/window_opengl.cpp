@@ -37,8 +37,7 @@ namespace dmPlatform
         WGL_CONTEXT_FLAGS_ARB                     = 0x2094,
         WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB    = 0x0002,
         WGL_CONTEXT_PROFILE_MASK_ARB              = 0x9126,
-        WGL_CONTEXT_CORE_PROFILE_BIT_ARB          = 0x0001,
-        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB = 0x0002
+        WGL_CONTEXT_CORE_PROFILE_BIT_ARB          = 0x0001
     };
 
     struct WglFunctions
@@ -169,9 +168,15 @@ namespace dmPlatform
     {
         if (major)
         {
-            const int attributes[] = { WGL_CONTEXT_MAJOR_VERSION_ARB, (int)major, WGL_CONTEXT_MINOR_VERSION_ARB, (int)minor,
-                                       WGL_CONTEXT_PROFILE_MASK_ARB, core ? WGL_CONTEXT_CORE_PROFILE_BIT_ARB : WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                                       WGL_CONTEXT_FLAGS_ARB, core ? WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB : 0, 0 };
+            int attributes[] = { WGL_CONTEXT_MAJOR_VERSION_ARB, (int)major, WGL_CONTEXT_MINOR_VERSION_ARB, (int)minor,
+                                 WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+                                 WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB, 0 };
+            if (!core)
+            {
+                // A version hint alone leaves profile selection to the driver.
+                attributes[4] = 0;
+            }
+
             return wgl.m_CreateContext ? wgl.m_CreateContext(dc, share, attributes) : 0;
         }
 
