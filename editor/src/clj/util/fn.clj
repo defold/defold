@@ -18,7 +18,7 @@
                            or or*})
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq IPending MultiFn]
+  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq MultiFn]
            [com.github.benmanes.caffeine.cache Cache]
            [java.lang.reflect Method]))
 
@@ -250,113 +250,134 @@
     (.invalidateAll cache)
     (throw (IllegalArgumentException. "The function was not defined using defn-cached."))))
 
-(defn- as-late-bound-fn
-  [fn-or-promise timeout-ms]
-  (cond
-    (fn? fn-or-promise)
-    fn-or-promise
+(defn- make-late-bound-fn [lower-order-fn-promise cache-key]
+  (let [initializing-thread-id (.threadId (Thread/currentThread))]
+    (fn late-bound-fn [& lower-order-fn-args]
+      (when-not (realized? lower-order-fn-promise)
+        (let [calling-thread-id (.threadId (Thread/currentThread))]
+          (when (= initializing-thread-id calling-thread-id)
+            (throw
+              (ex-info
+                "Cannot invoke a late-bound function from its initializing thread before it is ready."
+                {:cache-key cache-key})))))
 
-    (instance? IPending fn-or-promise)
-    (fn late-fn [& args]
-      (let [fn (deref fn-or-promise timeout-ms ::unrealized)]
-        (if (not= ::unrealized fn)
-          (apply fn args)
-          (throw
-            (ex-info
-              "Calling late-bound function before its promise could be realized."
-              {:promise fn-or-promise})))))))
+      (let [lower-order-fn @lower-order-fn-promise]
+        (apply lower-order-fn lower-order-fn-args)))))
+
+(defn- replace-pending-entry [cache cache-key pending-entry replacement-entry]
+  ;; Eviction may have allowed a new initializer to install its own entry.
+  ;; That entry can contain our late-bound-fn, so compare the enclosing entries
+  ;; by identity before replacing or removing ours.
+  (if-not (identical? pending-entry (get cache cache-key))
+    cache
+    (if replacement-entry
+      (assoc cache cache-key replacement-entry)
+      (dissoc cache cache-key))))
 
 (defn memoize-late-bound
-  "Given a higher-order function that returns a function, return a memoized
-  version of the higher-order function that is able to call itself recursively
-  with the same arguments. An exception will be thrown if the returned
-  lower-order function is called before memoize-late-bound returns.
+  "Memoizes a higher-order function whose results can refer to one another.
 
-  Required opts:
-    :timeout-ms <integer>
-      The number of milliseconds to wait for the higher-order-fn to deliver the
-      lower-order function to callers of the late-bound lower-order function. If
-      the late-bound lower-order function is called from within the higher-order
-      function that is responsible for producing the lower-order function, it is
-      a programming error. However, in multithreaded scenarios, other threads
-      may wait for the promise to be fulfilled. With an infinite timeout, we
-      won't be able to detect the programming error in the single-threaded case."
-  [{:keys [timeout-ms] :as _opts} higher-order-fn]
-  {:pre [(nat-int? timeout-ms)]}
+  Concurrent lookups for the same arguments share one initialization unless
+  the cache entry is evicted. Looking up a result during initialization returns
+  a late-bound function.
+
+  If a failed attempt still owns its cache entry, it removes the entry so the
+  next lookup can retry immediately. If another attempt installed a replacement
+  after eviction, the next lookup uses that replacement. The failed attempt's
+  late-bound function continues to throw an exception with the original failure
+  as its cause.
+
+  Initializers can capture each other's pending functions for later use.
+  Invoking a pending function on its initializing thread throws immediately.
+  On any other thread the call waits for delivery. If two initializing threads
+  invoke each other's pending functions, both wait indefinitely."
+  [higher-order-fn]
   (let [cache-atom (atom {})
 
         memoized-fn
-        (fn memoized-fn [& args]
-          (let [cache-key (vec args)
-                cache-value (get @cache-atom cache-key)]
-            (or* (as-late-bound-fn cache-value timeout-ms)
-                 (let [lower-order-fn-promise (promise)
+        (fn memoized-fn [& higher-order-fn-args]
+          (let [cache-key (vec higher-order-fn-args)]
+            (if-let [[cached-fn] (get @cache-atom cache-key)]
+              ;; A hit returns immediately, even during initialization. A
+              ;; recursive lookup can capture the late-bound-fn for later use.
+              cached-fn
 
-                       cache-value
-                       (-> cache-atom
-                           (swap! update cache-key or-fn lower-order-fn-promise)
-                           (get cache-key))]
+              ;; On a miss, make a late-bound-fn that remembers this thread.
+              ;; If we install it, it rejects calls from this thread while the
+              ;; promise is pending. Calls on other threads wait for delivery.
+              (let [lower-order-fn-promise (promise)
 
-                   (if (identical? lower-order-fn-promise cache-value)
-                     ;; We just inserted our promise into the cache, so we're
-                     ;; responsible for delivering the result. In the event that
-                     ;; the higher-order-fn throws an exception when attempting
-                     ;; to produce the lower-order-fn, we deliver a lower-order
-                     ;; function that rethrows the exception when called to the
-                     ;; lower-order-fn-promise before rethrowing.
-                     (let [[lower-order-fn exception]
-                           (try
-                             (let [lower-order-fn (apply higher-order-fn args)]
-                               (assert (ifn? lower-order-fn) "The higher-order-fn must return a function.")
-                               (pair lower-order-fn nil))
-                             (catch Throwable exception
-                               ;; The higher-order-fn threw an exception before
-                               ;; it could return a lower-order-fn. Deliver a
-                               ;; lower-order function that throws a wrapped
-                               ;; version of the original exception to any
-                               ;; concurrent threads that managed to obtain the
-                               ;; lower-order-fn-promise since we inserted it
-                               ;; into the cache-atom above. We will rethrow
-                               ;; this exception below, so our own thread should
-                               ;; never see this throwing lower-order function.
-                               (letfn [(throwing-lower-order-fn [& _args]
-                                         (throw
-                                           (ex-info
-                                             "An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
-                                             {}
-                                             exception)))]
-                                 (pair throwing-lower-order-fn exception))))]
+                    ;; A replacement initializer may return our late-bound-fn.
+                    ;; Only the enclosing entry is private to this installation.
+                    pending-entry
+                    [(make-late-bound-fn lower-order-fn-promise cache-key)]
 
-                       ;; We always deliver *something* to this promise.
-                       (deliver lower-order-fn-promise lower-order-fn)
+                    ;; Another caller may also have seen a cache miss. Install
+                    ;; our pending entry only if the key is still absent.
+                    [cached-fn :as cached-entry]
+                    (-> cache-atom
+                        (swap! update cache-key or-fn pending-entry)
+                        (get cache-key))]
+                (if-not (identical? pending-entry cached-entry)
+                  ;; Another caller filled the entry after our initial lookup.
+                  ;; Return its lower-order-fn or the late-bound-fn that
+                  ;; dereferences its promise when called.
+                  cached-fn
 
-                       ;; Update the cache. If everything went well so far, we
-                       ;; replace the lower-order-fn-promise we inserted into
-                       ;; the cache with the actual lower-order-fn. Otherwise,
-                       ;; if the higher-order-fn threw an exception when
-                       ;; attempting to produce the lower-order-fn, we clear out
-                       ;; the lower-order-fn-promise from the cache so that
-                       ;; later calls to the memoized-fn can retry the process.
-                       (swap! cache-atom
-                              (fn [cache]
-                                (let [cache-value (get cache cache-key)]
-                                  (if-not (identical? lower-order-fn-promise cache-value)
-                                    cache
-                                    (if (nil? exception)
-                                      (assoc cache cache-key lower-order-fn)
-                                      (dissoc cache cache-key))))))
+                  ;; We just inserted our pending entry into the cache, so we're
+                  ;; responsible for delivering the result. We can now run the
+                  ;; higher-order-fn because recursive lookups can find our
+                  ;; entry. Even on failure, we must deliver a function.
+                  (let [lower-order-fn
+                        (try
+                          (let [lower-order-fn
+                                (apply higher-order-fn higher-order-fn-args)]
+                            (assert
+                              (ifn? lower-order-fn)
+                              "The higher-order-fn must return a function.")
+                            lower-order-fn)
+                          (catch Throwable exception
+                            ;; Callers may already hold our late-bound-fn.
+                            ;; Prepare a function that, when invoked, throws
+                            ;; an exception with the cache key and the original
+                            ;; failure as its cause.
+                            (letfn [(throwing-lower-order-fn [& _args]
+                                      (throw
+                                        (ex-info
+                                          "An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
+                                          {:cache-key cache-key}
+                                          exception)))]
+                              ;; If we still own the pending entry, remove it
+                              ;; before waking readers so they can retry as
+                              ;; soon as they catch the failure.
+                              (try
+                                (swap! cache-atom replace-pending-entry cache-key pending-entry nil)
+                                (finally
+                                  ;; Always deliver the throwing function to
+                                  ;; our promise. Callers may still hold our
+                                  ;; late-bound-fn after eviction, and they
+                                  ;; need the failure even if cleanup throws.
+                                  (deliver lower-order-fn-promise throwing-lower-order-fn))))
 
-                       ;; We've delivered the promise and updated the cache, so
-                       ;; all that remains is to return the lower-order-fn or
-                       ;; rethrow the exception.
-                       (if (nil? exception)
-                         lower-order-fn
-                         (throw exception)))
+                            ;; We've delivered the throwing function to those
+                            ;; readers. Rethrow the original exception on the
+                            ;; initializing thread.
+                            (throw exception)))]
 
-                     ;; Found an already-existing promise or function in the
-                     ;; cache. Return the function unaltered, or a function that
-                     ;; dereferences the promise when called.
-                     (as-late-bound-fn cache-value timeout-ms))))))]
+                    ;; Initialization succeeded. First deliver the result to our
+                    ;; promise so callers holding our late-bound-fn can use it,
+                    ;; even if our entry was evicted during initialization.
+                    (deliver lower-order-fn-promise lower-order-fn)
+
+                    ;; If we still own the pending entry, replace it with a
+                    ;; fresh entry containing the lower-order-fn so future
+                    ;; lookups return the function directly.
+                    (swap! cache-atom replace-pending-entry cache-key pending-entry [lower-order-fn])
+
+                    ;; We've delivered the promise and updated the cache if we
+                    ;; still owned the entry. Return the lower-order-fn to the
+                    ;; caller that started initialization.
+                    lower-order-fn))))))]
 
     (with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 
