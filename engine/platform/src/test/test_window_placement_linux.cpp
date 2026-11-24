@@ -60,7 +60,8 @@ namespace dmWindowTest
     int MonitorCount()
     {
         HWindow w = dmPlatform::LinuxActiveWindow();
-        if (!w->m_Xid)
+        // The test counts monitors after connecting to the display and before opening its first window.
+        if (!w->m_X11)
         {
             return 1;
         }
