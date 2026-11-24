@@ -14,13 +14,10 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
-import java.util.Locale;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -32,7 +29,6 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.font.BMFont;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
@@ -41,19 +37,14 @@ import com.dynamo.render.proto.Font.FontDesc;
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc", isCacheble = true)
 public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
 
-    private static String getBitmapPath(byte[] fontBytes) throws IOException, BMFontFormatException {
-        BMFont bmfont = new BMFont();
-        bmfont.parse(new ByteArrayInputStream(fontBytes));
-        return FilenameUtils.getName(bmfont.page.get(0));
-    }
-
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
 
         FontDesc.Builder builder = getSrcBuilder(input);
         FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
-        IResource inputFontFile = input.getResource(fontDesc.getFont());
-        fontDesc = FontBuilder.withInferredBitmapSize(fontDesc, inputFontFile);
+        IResource inputFontFile = BuilderUtil.checkResource(project, input, "font", fontDesc.getFont());
+        BMFont bitmapFont = FontBuilder.readBitmapFont(fontDesc, inputFontFile);
+        fontDesc = FontBuilder.withInferredBitmapSize(fontDesc, bitmapFont);
 
         File file = new File(fontDesc.getFont());
         String fileNameWithExtension = file.getName();
@@ -63,11 +54,19 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
         long fontDescHash = Fontc.FontDescToHash(fontDesc);
         IResource glyphBank = project.createGeneratedResource(fileNameWithoutExtension, fontDescHash, "glyph_bank");
 
-        Task.TaskBuilder task = Task. newBuilder(this)
+        Task.TaskBuilder task = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
+                .addInput(inputFontFile)
                 .addOutput(glyphBank.changeExt(params.outExt()));
-		return task.build();
+        if (bitmapFont != null) {
+            IResource bitmapResource = inputFontFile.getResource(FilenameUtils.getName(bitmapFont.page.get(0)));
+            if (!bitmapResource.exists()) {
+                throw new CompileExceptionError(inputFontFile, 0, "Could not find resource: " + bitmapResource.getPath());
+            }
+            task.addInput(bitmapResource);
+        }
+        return task.build();
     }
 
     @Override
@@ -75,26 +74,13 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
         FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
 
-        IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
-        fontDesc = FontBuilder.withInferredBitmapSize(fontDesc, inputFontFile);
-        byte[] fontBytes = inputFontFile.getContent();
-        String bitmapPath = null;
-        byte[] bitmapBytes = null;
-        if (fontDesc.getFont().toLowerCase(Locale.ROOT).endsWith(".fnt")) {
-            try {
-                bitmapPath = getBitmapPath(fontBytes);
-            } catch (BMFontFormatException e) {
-                throw new CompileExceptionError(task.input(0), 0, e.getMessage(), e);
-            }
-            IResource bitmapResource = inputFontFile.getResource(bitmapPath);
-            if (!bitmapResource.exists())
-                throw new FileNotFoundException("Could not find resource: " + bitmapResource.getPath());
-            bitmapBytes = bitmapResource.getContent();
-        }
+        IResource inputFontFile = task.input(1);
+        IResource bitmapResource = task.input(2);
+        String bitmapPath = bitmapResource == null ? null : bitmapResource.getPath();
         Fontc fontc = new Fontc();
 
-        try (InputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(fontBytes));
-             InputStream bitmapStream = bitmapBytes == null ? null : new BufferedInputStream(new ByteArrayInputStream(bitmapBytes))) {
+        try (InputStream fontStream = new ByteArrayInputStream(inputFontFile.getContent());
+             InputStream bitmapStream = bitmapResource == null ? null : new ByteArrayInputStream(bitmapResource.getContent())) {
             fontc.compile(fontStream, fontDesc, false, bitmapPath, bitmapStream);
 
             task.output(0).setContent(fontc.getGlyphBank().toByteArray());

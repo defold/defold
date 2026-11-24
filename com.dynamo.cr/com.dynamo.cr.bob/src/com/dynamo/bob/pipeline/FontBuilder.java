@@ -124,9 +124,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
     }
 
-    static FontDesc withInferredBitmapSize(FontDesc fontDesc, IResource fontResource) throws IOException, CompileExceptionError {
+    static BMFont readBitmapFont(FontDesc fontDesc, IResource fontResource) throws IOException, CompileExceptionError {
         if (!isBitmapFont(fontDesc)) {
-            return fontDesc;
+            return null;
         }
 
         BMFont bitmapFont = new BMFont();
@@ -136,11 +136,14 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             throw new CompileExceptionError(fontResource, 0, e.getMessage());
         }
 
-        int size = Math.round(bitmapFont.size);
-        if (size <= 0) {
+        if (Math.round(bitmapFont.size) <= 0) {
             throw new CompileExceptionError(fontResource, 0, "BMFont info.size must round to a non-zero pixel size");
         }
-        return fontDesc.toBuilder().setSize(size).build();
+        return bitmapFont;
+    }
+
+    static FontDesc withInferredBitmapSize(FontDesc fontDesc, BMFont bitmapFont) {
+        return bitmapFont == null ? fontDesc : fontDesc.toBuilder().setSize(Math.round(bitmapFont.size)).build();
     }
 
     @Override
@@ -151,7 +154,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             throw new CompileExceptionError(input, 0, "Vector fonts with outline or shadow effects require a positive Size in the .font resource.");
         }
         IResource fontResource = input.getResource(fontDesc.getFont());
-        fontDesc = withInferredBitmapSize(fontDesc, fontResource);
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addOutput(input.changeExt(params.outExt()));
@@ -189,7 +191,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
         FontDesc fontDesc = getEffectiveFontDesc(builder.build());
         IResource fontResource = task.firstInput().getResource(fontDesc.getFont());
-        fontDesc = withInferredBitmapSize(fontDesc, fontResource);
+        fontDesc = withInferredBitmapSize(fontDesc, readBitmapFont(fontDesc, fontResource));
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
