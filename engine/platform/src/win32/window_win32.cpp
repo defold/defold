@@ -371,6 +371,11 @@ namespace dmPlatform
         Win32OpenGLDestroy(window);
         SetWindowLongPtrW(window->m_Window, GWLP_USERDATA, 0);
         DestroyWindow(window->m_Window);
+        if (window->m_HiddenCursor)
+        {
+            DestroyCursor(window->m_HiddenCursor);
+        }
+
         Win32InputCallbacks callbacks = window->m_Callbacks;
         HWindow next = window->m_Next;
         *window = dmWindow();

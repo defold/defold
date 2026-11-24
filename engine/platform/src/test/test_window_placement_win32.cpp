@@ -180,7 +180,7 @@ TEST(Win32Desktop, FullscreenDisplayChange)
     dmPlatform::DeleteWindow(window);
 }
 
-// Unlocking after refocus must restore the pointer position from the most recent capture.
+// Capture must install an invisible cursor for Remote Desktop and restore the pointer on release.
 TEST(Win32Desktop, CursorRestoresAfterRefocus)
 {
     POINT original;
@@ -198,7 +198,15 @@ TEST(Win32Desktop, CursorRestoresAfterRefocus)
     ASSERT_TRUE(SetCursorPos(first.x, first.y));
     dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
     SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
+    HCURSOR hidden = GetCursor();
+    HCURSOR arrow = (HCURSOR)GetClassLongPtrW(hwnd, GCLP_HCURSOR);
+    EXPECT_NE((HCURSOR)0, hidden);
+    EXPECT_NE(arrow, hidden);
+    SetCursor(arrow);
+    SendMessageW(hwnd, WM_SETCURSOR, (WPARAM)hwnd, MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+    EXPECT_EQ(hidden, GetCursor());
     SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+    EXPECT_EQ(arrow, GetCursor());
     EXPECT_TRUE(SetCursorPos(second.x, second.y));
     SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
     dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);

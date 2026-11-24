@@ -275,6 +275,20 @@ namespace dmPlatform
         }
     }
 
+    static void SetHiddenCursor(HWindow window)
+    {
+        // Remote Desktop can keep drawing the client's pointer when SetCursor receives a null handle.
+        if (!window->m_HiddenCursor)
+        {
+            BYTE and_mask[32 * 32 / 8];
+            BYTE xor_mask[sizeof(and_mask)] = {};
+            memset(and_mask, 0xff, sizeof(and_mask));
+            window->m_HiddenCursor = CreateCursor(GetModuleHandleW(0), 0, 0, 32, 32, and_mask, xor_mask);
+        }
+
+        SetCursor(window->m_HiddenCursor);
+    }
+
     void Win32UpdateCursor(HWindow window, bool focused)
     {
         bool capture = focused && window->m_CursorLocked && !window->m_CaptionAction;
@@ -289,7 +303,7 @@ namespace dmPlatform
             window->m_LastCursor = CursorPosition(window->m_Window);
             window->m_SavedCursor = window->m_LastCursor;
             Win32CenterCursor(window);
-            SetCursor(0);
+            SetHiddenCursor(window);
         }
         else
         {
@@ -471,7 +485,7 @@ namespace dmPlatform
             {
                 if (window->m_CursorCaptured && LOWORD(lp) == HTCLIENT)
                 {
-                    SetCursor(0);
+                    SetHiddenCursor(window);
                     *result = TRUE;
                     return true;
                 }

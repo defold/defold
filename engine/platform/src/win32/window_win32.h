@@ -38,6 +38,7 @@ struct dmWindow
     HWND  m_AuxWindow;
     HDC   m_DC, m_AuxDC;
     HGLRC m_Context, m_AuxContext;
+    HCURSOR m_HiddenCursor;
     BOOL(WINAPI * m_SwapInterval)(int);
     WindowPlacement*    m_Placement;
     WindowCreateParams  m_Params;
