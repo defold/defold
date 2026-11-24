@@ -368,6 +368,11 @@ namespace dmPlatform
         return CGWarpMouseCursorPosition(CGPointMake(cocoa.x, NSMaxY([NSScreen screens].firstObject.frame) - cocoa.y));
     }
 
+    static NSPoint CursorPointToScreen(HWindow window, NSPoint point)
+    {
+        return [window->m_Window convertPointToScreen:[window->m_View convertPoint:point toView:nil]];
+    }
+
     void CenterLockedCursor(HWindow window)
     {
         if (!window->m_CursorDisabled)
@@ -376,8 +381,7 @@ namespace dmPlatform
         }
 
         NSRect bounds = window->m_View.bounds;
-        NSPoint center = [window->m_View convertPoint:NSMakePoint(floor(NSMidX(bounds)), floor(NSMidY(bounds))) toView:nil];
-        center = [window->m_Window convertPointToScreen:center];
+        NSPoint center = CursorPointToScreen(window, NSMakePoint(floor(NSMidX(bounds)), floor(NSMidY(bounds))));
         NSPoint previous = [NSEvent mouseLocation];
         if (!NSEqualPoints(center, previous) && WarpCursor(center) == kCGErrorSuccess)
         {
@@ -398,14 +402,17 @@ namespace dmPlatform
         window->m_CursorDisabled = disable;
         if (disable)
         {
-            window->m_SavedCursor = [NSEvent mouseLocation];
+            window->m_SavedCursor = CursorPosition(window);
             [NSCursor hide];
             CenterLockedCursor(window);
             CGAssociateMouseAndMouseCursorPosition(false);
         }
         else
         {
-            WarpCursor(window->m_SavedCursor);
+            // Window placement and height can both change while the cursor is locked.
+            NSPoint point = window->m_SavedCursor;
+            point.y = NSMaxY(window->m_View.bounds) - point.y;
+            WarpCursor(CursorPointToScreen(window, point));
             CGAssociateMouseAndMouseCursorPosition(true);
             window->m_WarpDelta = NSZeroPoint;
             [NSCursor unhide];

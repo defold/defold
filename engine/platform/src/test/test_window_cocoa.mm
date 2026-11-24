@@ -526,7 +526,7 @@ static NSPoint ContentCenter(NSWindow* window)
     return NSMakePoint(NSMidX(content), NSMidY(content));
 }
 
-// Moving and resizing a locked window must recenter the physical pointer without adding virtual movement.
+// Moving and resizing a locked window must preserve virtual motion and restore its original content-relative position.
 TEST_F(CocoaWindowTest, LockedCursorFollowsWindow)
 {
     @autoreleasepool
@@ -539,7 +539,11 @@ TEST_F(CocoaWindowTest, LockedCursorFollowsWindow)
         dmPlatform::ShowWindow(window);
         ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
         NSWindow* native = dmPlatform::GetOSXNSWindow(window);
-        NSPoint saved = [NSEvent mouseLocation];
+        NSPoint original = [NSEvent mouseLocation];
+        CGFloat screenTop = NSMaxY([NSScreen screens].firstObject.frame);
+        NSRect content = [native contentRectForFrameRect:native.frame];
+        NSPoint saved = NSMakePoint(NSMinX(content) + 40, NSMaxY(content) - 30);
+        ASSERT_EQ(kCGErrorSuccess, CGWarpMouseCursorPosition(CGPointMake(saved.x, screenTop - saved.y)));
         dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
         int32_t x0, y0, x1, y1;
         dmPlatform::GetMousePosition(window, &x0, &y0);
@@ -556,9 +560,11 @@ TEST_F(CocoaWindowTest, LockedCursorFollowsWindow)
         ASSERT_EQ(y0, y1);
         dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);
         NSPoint restored = [NSEvent mouseLocation];
+        CGWarpMouseCursorPosition(CGPointMake(original.x, screenTop - original.y));
+        content = [native contentRectForFrameRect:native.frame];
         // Quartz can round a fractional mouse location when warping it back.
-        ASSERT_NEAR(saved.x, restored.x, 1.0);
-        ASSERT_NEAR(saved.y, restored.y, 1.0);
+        ASSERT_NEAR(40.0, restored.x - NSMinX(content), 1.0);
+        ASSERT_NEAR(30.0, NSMaxY(content) - restored.y, 1.0);
     }
 }
 
