@@ -2119,7 +2119,11 @@ namespace dmGraphics
 
         // A full mip uses the entire footprint, including padding to whole compression blocks.
         const bool full_mip = params.m_Width == width && params.m_Height == height && depth == mip_depth;
-        D3D12_BOX box = { 0, 0, 0, params.m_Width, params.m_Height, depth };
+        D3D12_BOX box = {};
+        box.right = params.m_Width;
+        box.bottom = params.m_Height;
+        box.back = depth;
+
         TextureFormatCompressedBlockSize block;
         if (!full_mip && GetTextureFormatCompressedBlockSize(format, &block))
         {

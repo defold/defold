@@ -479,7 +479,7 @@ enum CaptureProgram
 {
     CAPTURE_PROGRAM_COLOR,
     CAPTURE_PROGRAM_CUBEMAP,
-    CAPTURE_PROGRAM_TEXTURE,
+    CAPTURE_PROGRAM_TEXTURE_2D,
     CAPTURE_PROGRAM_MRT,
 };
 
@@ -519,7 +519,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, Captur
 
 #endif
     bool cubemap = type == CAPTURE_PROGRAM_CUBEMAP;
-    bool texture = type == CAPTURE_PROGRAM_TEXTURE;
+    bool texture_2d = type == CAPTURE_PROGRAM_TEXTURE_2D;
     ShaderDesc desc = {};
     AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
     AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_msl, capture_vp_msl_SIZE);
@@ -536,7 +536,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, Captur
 #endif
         AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_wgsl, capture_mrt_fp_wgsl_SIZE);
     }
-    else if (texture)
+    else if (texture_2d)
     {
         AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp, capture_texture_fp_SIZE);
         AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_msl, capture_texture_fp_msl_SIZE);
@@ -566,7 +566,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, Captur
 
     // NewProgram copies these borrowed mappings before this function returns.
     ShaderDesc::MSLResourceMapping metal_bindings[2] = {};
-    if (cubemap || texture)
+    if (cubemap || texture_2d)
     {
         const char*                texture_name = GetCaptureTextureName(family, cubemap);
         const char*                sampler_name = cubemap ? "cube_sampler" : "test_sampler";
@@ -640,7 +640,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     CaptureProgram program_type = cubemap ? CAPTURE_PROGRAM_CUBEMAP : CAPTURE_PROGRAM_COLOR;
     if (texture)
     {
-        program_type = CAPTURE_PROGRAM_TEXTURE;
+        program_type = CAPTURE_PROGRAM_TEXTURE_2D;
     }
 
     resources->m_Program = NewCaptureProgram(context, family, program_type);
