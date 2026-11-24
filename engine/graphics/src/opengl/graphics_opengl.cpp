@@ -700,6 +700,25 @@ static inline bool IsNativeContextLost()
         return handle;
     }
 
+    // Uniform buffers have no resource to reload them from, so a regenerated buffer is filled
+    // with the content last written to it. Returns 0 while the context is still lost.
+    static GLuint EnsureGLUniformBuffer(OpenGLContext* context, OpenGLUniformBuffer* ubo)
+    {
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+        if (handle == 0)
+        {
+            glGenBuffers(1, &handle);
+            if (handle != 0)
+            {
+                SetGLHandle(context, ubo->m_Id, handle);
+                glBindBuffer(GL_UNIFORM_BUFFER, handle);
+                glBufferData(GL_UNIFORM_BUFFER, ubo->m_BaseUniformBuffer.m_Size, ubo->m_Data, GL_STATIC_DRAW);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+            }
+        }
+        return handle;
+    }
+
     static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture);
 
 #if defined(__EMSCRIPTEN__)
@@ -2396,14 +2415,11 @@ static inline bool IsNativeContextLost()
         ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+        ubo->m_Data                             = (uint8_t*) calloc(size, 1);
+        ubo->m_Id                               = AddNewGLHandle(context, 0);
 
-        GLuint buffer_handle = 0;
-        glGenBuffers(1, &buffer_handle);
-        ubo->m_Id = AddNewGLHandle(context, buffer_handle);
+        EnsureGLUniformBuffer(context, ubo);
         CHECK_GL_ERROR;
-
-        // Clear out UBO first
-        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, size, 0);
 
         return (HUniformBuffer) ubo;
     }
@@ -2414,17 +2430,31 @@ static inline bool IsNativeContextLost()
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
         assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
 
-        GLuint handle = GetGLHandle(context, ubo->m_Id);
+        if (data)
+        {
+            memcpy(ubo->m_Data + offset, data, size);
+        }
+        else
+        {
+            memset(ubo->m_Data + offset, 0, size);
+        }
 
-        glBindBuffer(GL_UNIFORM_BUFFER, handle);
+        // A regenerated buffer is filled with the whole content, this write included
+        if (GetGLHandle(context, ubo->m_Id) == 0)
+        {
+            EnsureGLUniformBuffer(context, ubo);
+            return;
+        }
+
+        glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle(context, ubo->m_Id));
         if (size < ubo->m_BaseUniformBuffer.m_Size)
         {
-            glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
+            glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, ubo->m_Data + offset);
             CHECK_GL_ERROR;
         }
         else
         {
-            glBufferData(GL_UNIFORM_BUFFER, size, data, GL_STATIC_DRAW);
+            glBufferData(GL_UNIFORM_BUFFER, size, ubo->m_Data, GL_STATIC_DRAW);
         }
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
@@ -2469,6 +2499,7 @@ static inline bool IsNativeContextLost()
         GLuint handle = GetGLHandle(context, ubo->m_Id);
         glDeleteBuffersARB(1, &handle);
         CleanupGLHandle(context, ubo->m_Id);
+        free(ubo->m_Data);
         delete ubo;
     }
 
@@ -3218,7 +3249,7 @@ static inline bool IsNativeContextLost()
 
                 if (bound_ubo)
                 {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, GetGLHandle(context, bound_ubo->m_Id));
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_BindPoint, EnsureGLUniformBuffer(context, bound_ubo));
                     CHECK_GL_ERROR;
                 }
                 else

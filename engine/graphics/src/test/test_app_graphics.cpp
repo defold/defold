@@ -1676,6 +1676,189 @@ struct BufferReplacementTest : ITest
     }
 };
 
+// Verify uniform buffers keep their content through a simulated context loss and restore, guarding
+// against draws binding an invalidated buffer: one buffer is never written again (as material
+// buffers), the other gets only a partial write after the restore (as the light buffer).
+struct UniformBufferRestoreTest : ITest
+{
+    dmGraphics::ShaderDesc         m_ShaderDesc;
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HUniformBuffer     m_Buffers[2];
+    uint32_t                       m_FrameIndex;
+    bool                           m_Restored;
+
+    UniformBufferRestoreTest()
+    : m_ShaderDesc(), m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_FrameIndex(0), m_Restored(false)
+    {
+        m_Buffers[0] = m_Buffers[1] = 0;
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            dmLogError("Uniform buffer restore test requires the OpenGL adapter");
+            engine->m_Failed = true;
+            return;
+        }
+
+        const char* vertex_source =
+            "#version 330\n"
+            "in vec2 pos;\n"
+            "void main() { gl_Position = vec4(pos, 0.0, 1.0); }\n";
+        const char* fragment_source =
+            "#version 330\n"
+            "layout(std140) uniform RestoreColors { vec4 color; vec4 tint; };\n"
+            "out vec4 out_color;\n"
+            "void main() { out_color = color + tint; }\n";
+        AddShaderWithType(&m_ShaderDesc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                          (uint8_t*) vertex_source, strlen(vertex_source));
+        AddShaderWithType(&m_ShaderDesc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                          (uint8_t*) fragment_source, strlen(fragment_source));
+        dmGraphics::ShaderDesc::ResourceTypeInfo* colors = AddShaderType(&m_ShaderDesc, "RestoreColors");
+        AddShaderTypeMember(&m_ShaderDesc, colors, "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, 0, 1);
+        AddShaderTypeMember(&m_ShaderDesc, colors, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, sizeof(dmVMath::Vector4), 1);
+        AddShaderResource(&m_ShaderDesc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResourceUniformBuffer(&m_ShaderDesc, "RestoreColors", 0, 0, 0, 2 * sizeof(dmVMath::Vector4));
+
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &m_ShaderDesc, error_buffer, sizeof(error_buffer));
+        if (!m_Program)
+        {
+            dmLogError("Uniform buffer restore test program creation failed: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmGraphics::ShaderResourceMember members[2] = {};
+        members[0].m_Name               = (char*) "color";
+        members[0].m_NameHash           = dmHashString64("color");
+        members[0].m_Type.m_ShaderType  = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        members[0].m_ElementCount       = 1;
+        members[0].m_Offset             = 0;
+        members[1]                      = members[0];
+        members[1].m_Name               = (char*) "tint";
+        members[1].m_NameHash           = dmHashString64("tint");
+        members[1].m_Offset             = sizeof(dmVMath::Vector4);
+        dmGraphics::ShaderResourceTypeInfo type = { (char*) "RestoreColors", dmHashString64("RestoreColors"), members, DM_ARRAY_SIZE(members) };
+        dmGraphics::UniformBufferLayout layout = dmGraphics::GetUniformBufferLayout(0, &type, 1);
+
+        const dmVMath::Vector4 contents[2][2] = {
+            { dmVMath::Vector4(1, 0, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+            { dmVMath::Vector4(0, 1, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+        };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Buffers); ++i)
+        {
+            m_Buffers[i] = dmGraphics::NewUniformBuffer(context, layout, sizeof(contents[i]));
+            dmGraphics::SetUniformBuffer(context, m_Buffers[i], 0, sizeof(contents[i]), contents[i]);
+        }
+
+        // The triangle covers the viewport
+        const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 2;
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+        for (uint32_t cell = 0; cell < DM_ARRAY_SIZE(m_Buffers); ++cell)
+        {
+            dmGraphics::SetViewport(context, cell * cell_width, 0, cell_width, dmGraphics::GetWindowHeight(context));
+            dmGraphics::EnableUniformBuffer(context, m_Buffers[cell], 0, 0);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+
+        // BGRA, as returned by ReadPixels()
+        const uint8_t expected[2][4] = { { 0, 0, 255, 255 }, { (uint8_t) (m_Restored ? 255 : 0), 255, 0, 255 } };
+        for (uint32_t cell = 0; cell < DM_ARRAY_SIZE(m_Buffers); ++cell)
+        {
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
+            if (memcmp(pixel, expected[cell], sizeof(pixel)) != 0)
+            {
+                dmLogError("Uniform buffer restore frame %u, cell %u%s: expected %u,%u,%u,%u, got %u,%u,%u,%u",
+                           m_FrameIndex, cell, m_Restored ? " after restore" : "",
+                           expected[cell][0], expected[cell][1], expected[cell][2], expected[cell][3], pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        ++m_FrameIndex;
+        if (m_FrameIndex == 2)
+        {
+            // The live desktop context keeps the old GL objects; only the handles are dropped, as on a WebGL loss
+            dmGraphics::InvalidateGraphicsHandles(context);
+            dmGraphics::RecreateGraphicsHandles(context);
+            char error_buffer[1024] = {};
+            if (!dmGraphics::ReloadProgram(context, m_Program, &m_ShaderDesc, error_buffer, sizeof(error_buffer)))
+            {
+                dmLogError("Uniform buffer restore test program reload failed: %s", error_buffer);
+                engine->m_Failed = true;
+            }
+            const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+            dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+            const dmVMath::Vector4 tint(0, 0, 1, 0);
+            dmGraphics::SetUniformBuffer(context, m_Buffers[1], sizeof(dmVMath::Vector4), sizeof(tint), &tint);
+            m_Restored = true;
+        }
+
+        if (engine->m_Failed || m_FrameIndex == 4)
+        {
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Uniform buffer restore: content preserved across a simulated context loss");
+            }
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Buffers); ++i)
+        {
+            if (m_Buffers[i])
+            {
+                dmGraphics::DeleteUniformBuffer(engine->m_GraphicsContext, m_Buffers[i]);
+            }
+        }
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+        DeleteShaderDesc(&m_ShaderDesc);
+    }
+};
+
 struct ReadPixelsTest : ITest
 {
     uint8_t m_Buffer[512 * 512 * 4];
@@ -2965,6 +3148,11 @@ static void* EngineCreate(int argc, char** argv)
         dmLogInfo("test_app_graphics: running BufferReplacementTest");
         engine->m_Test = new BufferReplacementTest();
     }
+    else if (HasArgument("uniform-buffer-restore"))
+    {
+        dmLogInfo("test_app_graphics: running UniformBufferRestoreTest");
+        engine->m_Test = new UniformBufferRestoreTest();
+    }
     else if (HasArgument("depth-only-render-target"))
     {
         dmLogInfo("test_app_graphics: running DepthOnlyRenderTargetTest");
@@ -3282,7 +3470,7 @@ int main(int argc, char **argv)
         return 1;
     jc_test_init(&argc, argv);
     int result = jc_test_run_all();
-    if (HasArgument("buffer-replacement"))
+    if (HasArgument("buffer-replacement") || HasArgument("uniform-buffer-restore"))
     {
         printf("GRAPHICS_BUFFER_REPLACEMENT_RESULT=%d\n", result);
         fflush(stdout);

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # Copyright 2020-2026 The Defold Foundation
 # Licensed under the Defold License version 1.0 (https://www.defold.com/license).
-"""Run buffer replacement regressions using the graphics CI platform policy."""
+"""Run buffer replacement and uniform buffer restore regressions using the graphics CI platform policy."""
 import argparse
 from contextlib import nullcontext
 from pathlib import Path
 import re
 import subprocess
 import sys
+
+MODES = (('buffer-replacement', ('metal', 'opengl')),
+         ('uniform-buffer-restore', ('opengl',)))
 
 
 def main(argv=None):
@@ -17,8 +20,8 @@ def main(argv=None):
     parser.add_argument('--available', nargs='*', default=[])
     parser.add_argument('--skip-all')
     args = parser.parse_args(argv)
-    backends = [backend for backend in ('metal', 'opengl') if backend in args.available]
-    if args.skip_all or not backends:
+    tests = [(mode, backend) for mode, backends in MODES for backend in backends if backend in args.available]
+    if args.skip_all or not tests:
         print('Buffer replacement: SKIP: ' + (args.skip_all or 'Metal/OpenGL not built'))
         return 0
     session = nullcontext()
@@ -27,8 +30,8 @@ def main(argv=None):
         session = simulator_capture(args.executable.resolve())
     failed = False
     with session as launcher:
-        for backend in backends:
-            command = [str(args.executable.resolve()), backend, 'buffer-replacement']
+        for mode, backend in tests:
+            command = [str(args.executable.resolve()), backend, mode]
             options = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            timeout=60, text=True, errors='replace')
             try:
@@ -45,7 +48,7 @@ def main(argv=None):
                     print(error.stdout.decode(errors='replace') if isinstance(error.stdout, bytes) else error.stdout)
                 print(error)
                 passed = False
-            print('Buffer replacement %s: %s' % (backend, 'PASS' if passed else 'FAIL'))
+            print('%s %s: %s' % (mode, backend, 'PASS' if passed else 'FAIL'))
             failed = failed or not passed
     return 1 if failed else 0
 

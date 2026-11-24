@@ -117,6 +117,7 @@ namespace dmGraphics
     struct OpenGLUniformBuffer
     {
         UniformBuffer m_BaseUniformBuffer;
+        uint8_t*      m_Data; // Written content, uploaded again after a lost context
         HOpenglID     m_Id;
     };
 

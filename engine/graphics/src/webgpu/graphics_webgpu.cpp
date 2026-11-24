@@ -3080,7 +3080,7 @@ static WGPUBuffer WebGPUCreateBuffer(WebGPUContext* context, uint64_t size, WGPU
     return wgpuDeviceCreateBuffer(context->m_Device, &desc);
 }
 
-// Buffers without a resource recreate path read as zeros until written again, as with OpenGL
+// Buffers without a resource recreate path read as zeros until written again
 static void WebGPUEnsureUniformBuffer(WebGPUContext* context, WebGPUUniformBuffer* ubo)
 {
     if (ubo->m_Buffer && !WebGPUIsStale(ubo->m_DeviceGeneration))
