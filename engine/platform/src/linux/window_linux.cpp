@@ -423,6 +423,14 @@ namespace dmPlatform
     {
         if (state == WINDOW_DEVICE_STATE_CURSOR && w->m_Locked == value)
         {
+            // X11 can move the window under a stationary pointer. Seed relative motion once, before locking.
+            int x, y;
+            if (!value && w->m_Xid && X11QueryPointer(w, &x, &y))
+            {
+                w->m_MouseX = x;
+                w->m_MouseY = y;
+            }
+
             w->m_Locked = !value;
             w->m_Ops->m_SetCursor(w);
         }

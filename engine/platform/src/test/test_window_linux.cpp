@@ -561,7 +561,7 @@ static void ExpectX11MousePosition(HWindow w, int expected_x, int expected_y)
     EXPECT_EQ(expected_y, y);
 }
 
-// Locked X11 motion follows processed pointer coordinates, including batched moves and engine recentering.
+// X11 cursor lock starts at the live pointer and preserves relative motion across batched moves and recentering.
 TEST(LinuxWindow, X11LockedCursorMotion)
 {
     if (!getenv("DISPLAY"))
@@ -588,10 +588,8 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     ASSERT_TRUE(w->m_Focused);
     const int cx = w->m_Width / 2, cy = w->m_Height / 2;
     const int start_x = cx - 30, start_y = cy + 20;
+    // Lock before the event loop has seen this motion.
     XWarpPointer(d, None, window, 0, 0, 0, 0, start_x, start_y);
-    ExpectX11MousePosition(w, start_x, start_y);
-    ASSERT_TRUE(w->m_Focused);
-
     dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
     ExpectX11MousePosition(w, start_x, start_y);
     XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 4, cy - 3);
@@ -616,7 +614,7 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     EXPECT_EQ(outside_x, live_x);
     EXPECT_EQ(cy, live_y);
     dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
-    ExpectX11MousePosition(w, start_x, start_y);
+    ExpectX11MousePosition(w, outside_x, cy);
     XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 7, cy + 4);
     dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, true);
     ExpectX11MousePosition(w, outside_x, cy);
