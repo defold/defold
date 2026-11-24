@@ -224,6 +224,18 @@ if(TARGET graphics_webgpu AND
   endforeach()
 endif()
 
+# Device loss is only triggered synchronously through Dawn.
+if(TARGET graphics_webgpu AND TARGET_PLATFORM STREQUAL "arm64-macos")
+  defold_add_executable(test_graphics_webgpu_device_loss "${GRAPHICS_TEST_SRC_DIR}/test_graphics_webgpu_device_loss.cpp")
+  target_include_directories(test_graphics_webgpu_device_loss PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_webgpu_device_loss "${TARGET_PLATFORM}"
+    testmain ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
+  defold_target_link_platform(test_graphics_webgpu_device_loss "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(test_graphics_webgpu_device_loss "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(test_graphics_webgpu_device_loss "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(test_graphics_webgpu_device_loss ON "${GRAPHICS_TEST_SRC_DIR}")
+endif()
+
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
   # These GPU tests select OpenGL on Windows and do not yet support DX12.
   set(_graphics_app_saved_opengl "${WITH_OPENGL}")

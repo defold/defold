@@ -3307,6 +3307,11 @@ namespace dmRender
     *
     * Rendering stays paused while the resources are being recreated and is automatically resumed once
     * the process has finished. The work is spread across frames so the application stays responsive.
+    * Calling it while the context is lost is an error. A context loss during the reload cancels it
+    * without invoking its callbacks, so call it again after the next restore.
+    *
+    * With WebGPU, a lost device is reported through the same events. The engine requests a new
+    * device on its own and sends `render.CONTEXT_EVENT_CONTEXT_RESTORED` once it is ready.
     *
     * Render targets are restored as well, including ones created at runtime with
     * [ref:render.render_target] — their contents are transient and are re-rendered by the next frame.
@@ -3356,6 +3361,11 @@ namespace dmRender
         if (progress_type != LUA_TNONE && progress_type != LUA_TNIL && progress_type != LUA_TFUNCTION)
         {
             return DM_LUA_ERROR("argument 2 to render.reload_resources() must be a function or nil (progress_callback)");
+        }
+
+        if (script_instance->m_RenderContext->m_IsContextLost)
+        {
+            return DM_LUA_ERROR("render.reload_resources() must be called after render.CONTEXT_EVENT_CONTEXT_RESTORED");
         }
 
         dmScript::LuaCallbackInfo* finish   = dmScript::CreateCallback(L, 1);

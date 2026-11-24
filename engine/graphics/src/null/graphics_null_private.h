@@ -162,6 +162,8 @@ namespace dmGraphics
         // testing: incremented by InvalidateGraphicsHandles to simulate WebGL context loss; an asset
         // is considered GPU-valid while its m_GpuGeneration equals this value.
         uint32_t                           m_GpuGeneration;
+        // testing: returned once by PollContextEvent, to simulate an adapter detected context event
+        ContextEvent                       m_PendingContextEvent;
         // Only use for testing
         uint32_t                           m_BeginFrameCount;
         uint32_t                           m_FlipCount;

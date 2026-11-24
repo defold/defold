@@ -585,6 +585,18 @@ namespace dmGraphics
     // GetInvalidationGeneration (bumped by InvalidateGraphicsHandles) is declared in the dmsdk
     // header: extensions use it the same way comp_model does for its custom attribute buffers.
 
+    enum ContextEvent
+    {
+        CONTEXT_EVENT_NONE     = 0,
+        CONTEXT_EVENT_LOST     = 1,
+        CONTEXT_EVENT_RESTORED = 2,
+    };
+
+    // Returns the next context loss or restore detected by the adapter itself (e.g. a lost WebGPU
+    // device), as opposed to the platform events delivered for a WebGL canvas. Polled once per frame,
+    // also while rendering is paused, since the adapter may advance its own recovery from here.
+    ContextEvent PollContextEvent(HContext context);
+
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded
      * @param format TextureImage::CompressionType

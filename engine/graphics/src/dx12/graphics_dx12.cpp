@@ -5469,6 +5469,11 @@ namespace dmGraphics
         // NOP
     }
 
+    static ContextEvent DX12PollContextEvent(HContext context)
+    {
+        return CONTEXT_EVENT_NONE;
+    }
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};

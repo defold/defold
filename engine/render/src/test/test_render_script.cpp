@@ -34,6 +34,7 @@
 #include "render/render_ddf.h"
 
 #include <graphics/test_graphics_util.h>
+#include <graphics/null/graphics_null_private.h>
 
 using namespace dmVMath;
 
@@ -301,6 +302,51 @@ TEST_F(dmRenderScriptTest, ContextEventListenerDispatch)
     ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
     dmRender::SetRenderPause(m_Context, 0u);
     dmRender::SetRenderContextEventListener(m_Context, 0, 0);
+}
+
+// Context events detected by the graphics adapter (a lost WebGPU device) reach the same handling as
+// the WebGL canvas events, and render.reload_resources() is refused until the restore. Guards against
+// an adapter-side loss not pausing rendering, and against recreating resources into a lost context.
+TEST_F(dmRenderScriptTest, AdapterContextEventsAreForwarded)
+{
+    const char* script =
+        "function update(self)\n"
+        "    local ok, err = pcall(render.reload_resources, function() end)\n"
+        "    assert(not ok)\n"
+        "    assert(string.find(err, \"CONTEXT_RESTORED\"))\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    int counters[2] = { 0, 0 };
+    dmRender::SetRenderContextEventListener(m_Context, TestRenderContextEventListener, counters);
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(0, counters[0]);
+    ASSERT_FALSE(dmRender::IsRenderPaused(m_Context));
+
+    null_context->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_LOST;
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(1, counters[0]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+    ASSERT_FALSE(dmRender::StartResourceReload(m_Context, 0, 0));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(1, counters[0]);
+
+    // The native listener is told about the restore by the reload, once the context is usable
+    null_context->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_RESTORED;
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(0u, m_Context->m_IsContextLost);
+    ASSERT_EQ(0, counters[1]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+
+    dmRender::SetRenderPause(m_Context, 0u);
+    dmRender::SetRenderContextEventListener(m_Context, 0, 0);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
 TEST_F(dmRenderScriptTest, TestNewDeleteInstance)

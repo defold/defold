@@ -201,6 +201,7 @@ namespace dmRender
         context->m_MultiBufferingRequired = 0;
 
         context->m_IsRenderPaused = 0;
+        context->m_IsContextLost = 0;
 
         // TODO: This should be a "context property" or something similar.
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
@@ -254,26 +255,36 @@ namespace dmRender
         dmResource::HFactory        m_Factory;
     };
 
+    static void CancelResourceReload(HRenderContext render_context)
+    {
+        ResourceReloadState* state = render_context->m_ResourceReload;
+        if (state == 0x0)
+        {
+            return;
+        }
+
+        if (state->m_FinishCallback)
+        {
+            dmScript::DestroyCallback(state->m_FinishCallback);
+        }
+
+        if (state->m_ProgressCallback)
+        {
+            dmScript::DestroyCallback(state->m_ProgressCallback);
+        }
+
+        delete state;
+        render_context->m_ResourceReload = 0x0;
+    }
+
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
         if (render_context == 0x0)
         {
             return RESULT_INVALID_CONTEXT;
         }
-        if (render_context->m_ResourceReload != 0x0)
-        {
-            ResourceReloadState* state = render_context->m_ResourceReload;
-            if (state->m_FinishCallback)
-            {
-                dmScript::DestroyCallback(state->m_FinishCallback);
-            }
-            if (state->m_ProgressCallback)
-            {
-                dmScript::DestroyCallback(state->m_ProgressCallback);
-            }
-            delete state;
-            render_context->m_ResourceReload = 0x0;
-        }
+
+        CancelResourceReload(render_context);
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
         {
@@ -2161,7 +2172,8 @@ namespace dmRender
 
     bool StartResourceReload(HRenderContext context, dmScript::LuaCallbackInfo* finish_callback, dmScript::LuaCallbackInfo* progress_callback)
     {
-        if (context->m_ResourceReload != 0)
+        // Objects recreated before the restore would belong to the lost context.
+        if (context->m_ResourceReload != 0 || context->m_IsContextLost)
         {
             return false;
         }
@@ -2275,6 +2287,9 @@ namespace dmRender
         RenderContext* render_context = (RenderContext*)context;
         if (event_type == dmRender::CONTEXT_LOST)
         {
+            render_context->m_IsContextLost = 1;
+            // A reload in flight recreates into the lost context; the restore starts a new one.
+            CancelResourceReload(render_context);
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
             if (render_context->m_ContextEventListener)
@@ -2283,6 +2298,10 @@ namespace dmRender
             }
             // NOTE: the matching CONTEXT_RESTORED is dispatched from StartResourceReload once the
             // context is actually safe to use again, not at the raw platform restore event.
+        }
+        else if (event_type == dmRender::CONTEXT_RESTORED)
+        {
+            render_context->m_IsContextLost = 0;
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
@@ -2305,6 +2324,27 @@ namespace dmRender
             int ret = dmScript::PCall(L, 2, 0);
             (void)ret;
             dmScript::TeardownCallback(cbk);
+        }
+    }
+
+    void UpdateContextEvents(HRenderContext context)
+    {
+        switch (dmGraphics::PollContextEvent(context->m_GraphicsContext))
+        {
+            case dmGraphics::CONTEXT_EVENT_LOST:
+            {
+                OnContextEvent(context, CONTEXT_LOST);
+                break;
+            }
+            case dmGraphics::CONTEXT_EVENT_RESTORED:
+            {
+                OnContextEvent(context, CONTEXT_RESTORED);
+                break;
+            }
+            default:
+            {
+                break;
+            }
         }
     }
 

@@ -51,6 +51,7 @@ namespace dmGraphics
         WGPUBuffer                 m_Buffer = NULL;
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
+        uint32_t                   m_DeviceGeneration = 0;
     };
 
     struct WebGPUScratchUniformBuffer
@@ -69,6 +70,7 @@ namespace dmGraphics
     {
         UniformBuffer m_BaseUniformBuffer;
         WGPUBuffer    m_Buffer;
+        uint32_t      m_DeviceGeneration;
     };
 
     struct WebGPUStorageBuffer
@@ -76,6 +78,7 @@ namespace dmGraphics
         StorageBuffer m_Base;
         WGPUBuffer    m_Buffer;
         uint64_t      m_LastRenderPass = 0;
+        uint32_t      m_DeviceGeneration = 0;
         uint8_t       m_RenderPassAccess = 0;
     };
 
@@ -129,6 +132,7 @@ namespace dmGraphics
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
 
+        uint32_t               m_DeviceGeneration;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
         uint16_t               m_StorageBufferCount;
@@ -166,6 +170,7 @@ namespace dmGraphics
 #else
         WGPUTextureUsageFlags   m_UsageFlags;
 #endif
+        uint32_t                m_DeviceGeneration;
         uint16_t                m_TextureSamplerIndex;
         uint8_t                 m_Destroyed : 1;
     };
@@ -236,6 +241,18 @@ namespace dmGraphics
 #endif
     };
 
+    struct WebGPUDeviceRequest
+    {
+        // NULL once the context is destroyed while the request is in flight
+        WebGPUContext* m_Context;
+        WGPUAdapter    m_Adapter;
+        WGPUDevice     m_Device;
+        uint32_t       m_DeviceGeneration;
+        uint8_t        m_Float32Filterable : 1;
+        uint8_t        m_DeviceLost : 1;
+        uint8_t        m_Done : 1;
+    };
+
     struct WebGPUContext
     {
         GraphicsContext                    m_BaseContext;
@@ -282,6 +299,10 @@ namespace dmGraphics
         WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
         WebGPUStencilClearPipelineRequest* m_StencilClearPipelineRequest;
+        WebGPUDeviceRequest*               m_DeviceRequest;
+        // Stamped on the native objects; a mismatch means they belong to a lost device
+        uint32_t                           m_DeviceGeneration;
+        uint32_t                           m_DeviceRequestDelay;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
 
@@ -299,12 +320,13 @@ namespace dmGraphics
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_ApplyRenderTargetLoadOps : 1;
         uint32_t            m_HasValidationError : 1;
-        uint32_t            m_InitComplete : 1;
         uint32_t            m_OpaqueSurface : 1;
         uint32_t            m_InitializeOpaqueSurface : 1;
         uint32_t            m_ImmediatePresentModeSupported : 1;
-        uint32_t            m_SwapIntervalChanged : 1;
+        uint32_t            m_ReconfigureSurface : 1;
         uint32_t            m_Float32Filterable : 1;
+        uint32_t            m_DeviceLost : 1;
+        uint32_t            m_DeviceLostReported : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

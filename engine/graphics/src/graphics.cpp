@@ -3543,6 +3543,11 @@ namespace dmGraphics
         g_functions.m_RecreateGraphicsHandles(context);
     }
 
+    ContextEvent PollContextEvent(HContext context)
+    {
+        return g_functions.m_PollContextEvent(context);
+    }
+
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         g_functions.m_GetViewport(context, x, y, width, height);

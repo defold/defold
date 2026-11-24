@@ -319,7 +319,9 @@ namespace dmRender
      *   - finish_callback(self) is invoked once when all resources have been recreated.
      *   - progress_callback(self, done, total) is invoked each frame with the running progress (optional, may be 0).
      * Rendering stays paused until the reload completes, at which point it is automatically un-paused.
-     * @return true if the reload was started, false if one is already in flight.
+     * A context loss cancels a reload in flight without invoking its callbacks.
+     * @return true if the reload was started, false if one is already in flight or the context is
+     * lost and not yet restored.
      */
     bool StartResourceReload(HRenderContext context, dmScript::LuaCallbackInfo* finish_callback, dmScript::LuaCallbackInfo* progress_callback);
 
@@ -329,6 +331,12 @@ namespace dmRender
      * even while rendering is paused (i.e. from the main loop, outside the normal render update).
      */
     void UpdateResourceReload(HRenderContext context, float dt);
+
+    /**
+     * Forwards a context loss or restore detected by the graphics adapter itself (e.g. a lost WebGPU
+     * device) like the platform context events. Must be called every frame, also while paused.
+     */
+    void UpdateContextEvents(HRenderContext context);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

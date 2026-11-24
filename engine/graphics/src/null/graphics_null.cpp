@@ -2130,6 +2130,14 @@ namespace dmGraphics
         }
     }
 
+    static ContextEvent NullPollContextEvent(HContext context)
+    {
+        NullContext* ctx = (NullContext*) context;
+        ContextEvent event = ctx->m_PendingContextEvent;
+        ctx->m_PendingContextEvent = CONTEXT_EVENT_NONE;
+        return event;
+    }
+
     static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         assert(context);

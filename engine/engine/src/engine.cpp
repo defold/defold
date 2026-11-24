@@ -2021,8 +2021,10 @@ bail:
         {
             DM_PROFILE("Frame");
 
-            // Drive any in-flight render.reload_resources() recreation. This must run every frame even
-            // while rendering is paused (it is what eventually un-pauses rendering once finished).
+            // Forward context events detected by the graphics adapter and drive any in-flight
+            // render.reload_resources() recreation. Both must run every frame even while rendering is
+            // paused (a WebGPU device is restored from here, and the reload un-pauses rendering).
+            dmRender::UpdateContextEvents(engine->m_RenderContext);
             dmRender::UpdateResourceReload(engine->m_RenderContext, dt);
 
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);

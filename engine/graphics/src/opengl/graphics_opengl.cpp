@@ -6576,6 +6576,12 @@ static inline bool IsNativeContextLost()
         OpenGLRestoreRenderTargets(context);
     }
 
+    // WebGL context events reach the render layer from the canvas event handlers instead.
+    static ContextEvent OpenGLPollContextEvent(HContext context)
+    {
+        return CONTEXT_EVENT_NONE;
+    }
+
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         OpenGLContext* context = (OpenGLContext*) _context;

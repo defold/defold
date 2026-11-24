@@ -5934,6 +5934,11 @@ namespace dmGraphics
         // NOP
     }
 
+    static ContextEvent MetalPollContextEvent(HContext _context)
+    {
+        return CONTEXT_EVENT_NONE;
+    }
+
     static void MetalSetSwapInterval(HContext _context, uint32_t swap_interval)
     {
         MetalContext* context = (MetalContext*)_context;
