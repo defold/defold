@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_ANDROID_STATE_H
-#define DM_PLATFORM_ANDROID_STATE_H
+#ifndef DM_WINDOW_ANDROID_H
+#define DM_WINDOW_ANDROID_H
 
 #include <pthread.h>
 #include <unistd.h>

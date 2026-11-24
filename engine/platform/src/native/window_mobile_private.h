@@ -21,9 +21,9 @@
 #include <string.h>
 #include "native.h"
 #if defined(ANDROID)
-#include "android/platform.h"
+#include "android/window_android.h"
 #elif defined(DM_PLATFORM_IOS)
-#include "ios/platform.h"
+#include "ios/window_ios.h"
 #endif
 
 typedef struct
