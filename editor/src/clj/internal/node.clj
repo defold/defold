@@ -1207,8 +1207,11 @@
   (let [properties (apply dissoc (:property description) intrinsic-properties)
         property-labels (coll/key-set properties)
 
+        ;; Use the getter and dynamics that survived property inheritance.
         dependencies
         (coll/into-> (coll/vals properties) property-labels
+          (mapcat (fn [{:keys [value dynamics]}]
+                    (into [value] (coll/vals dynamics))))
           (mapcat :dependencies))]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
@@ -1232,18 +1235,6 @@
                              (comp (map key)
                                    (remove intrinsic-properties))
                              property)))
-
-(defn- merge-property-dependencies
-  [tree]
-  (update tree :property coll/update-vals-kv
-          (fn [property-label {:keys [value dynamics] :as property}]
-            ;; Recompute from the property clauses that survived inheritance.
-            (let [getter-dependencies (or (:dependencies value) #{})
-
-                  dependencies
-                  (coll/into-> (coll/vals dynamics) getter-dependencies
-                    (mapcat :dependencies))]
-              (assoc property :dependencies (disj dependencies property-label))))))
 
 (defn- apply-property-getter-dependencies-to-outputs
   [tree]
@@ -1277,7 +1268,6 @@
       wrap-constant-fns
       defer-display-order-resolution
       extract-fn-arguments
-      merge-property-dependencies
       apply-property-getter-dependencies-to-outputs
       attach-declared-properties-output
       attach-input-dependencies
