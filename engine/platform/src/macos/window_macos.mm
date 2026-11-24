@@ -342,6 +342,11 @@ namespace dmPlatform
                 return WINDOW_RESULT_WINDOW_ALREADY_OPENED;
             }
 
+            if (!params.m_Fullscreen && (params.m_Width == 0 || params.m_Height == 0))
+            {
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
+
             if (params.m_GraphicsApi != WINDOW_GRAPHICS_API_OPENGL && params.m_GraphicsApi != WINDOW_GRAPHICS_API_METAL &&
                 params.m_GraphicsApi != WINDOW_GRAPHICS_API_VULKAN && params.m_GraphicsApi != WINDOW_GRAPHICS_API_WEBGPU)
             {

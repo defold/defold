@@ -144,6 +144,11 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_ALREADY_OPENED;
         }
 
+        if (!params.m_Fullscreen && (params.m_Width == 0 || params.m_Height == 0))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
         w->m_Params = params;
         w->m_Width = params.m_Width;
         w->m_Height = params.m_Height;

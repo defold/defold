@@ -148,6 +148,24 @@ TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)
 }
 #endif
 
+// A windowed drawable needs both dimensions. Failed opens must leave the handle usable for a retry.
+TEST_F(WindowPlacementTest, RejectsZeroWindowedDimensions)
+{
+    m_Params.m_Width = 0;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(m_Window, m_Params));
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+    dmPlatform::CloseWindow(m_Window);
+
+    m_Params.m_Width = 400;
+    m_Params.m_Height = 0;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(m_Window, m_Params));
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+    dmPlatform::CloseWindow(m_Window);
+
+    m_Params.m_Height = 300;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+}
+
 // Native IDs are stable while the window exists and unavailable before opening or after closing it.
 TEST_F(WindowPlacementTest, NativeWindowIdentity)
 {
