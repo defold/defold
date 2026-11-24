@@ -798,8 +798,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_HLSL_60 } },
-            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
-            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
@@ -876,6 +876,85 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
+    // Compute shaders need SPIR-V on both Linux targets and desktop GLSL only on x86-64.
+    @Test
+    public void testLinuxDefaultComputeShaderLanguages() throws Exception {
+        String source = "layout(local_size_x = 1) in;\nvoid main() {}";
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            String path = "/compute_" + platform.getPair();
+            ShaderDesc shader = addAndBuildShaderDesc(path + ".cp", source, path + ".shbundle");
+            if (platform == Platform.X86_64Linux) {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+            }
+        }
+    }
+
+    // A single-adapter Linux manifest should only compile shaders its engine can use.
+    @Test
+    public void testLinuxManifestShaderLanguages() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            String vulkan = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, vulkan, "manifest_vulkan_" + platform.getPair()),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+
+            String gl = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, gl, "manifest_gl_" + platform.getPair()),
+                arm ? new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 }
+                    : new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 });
+        }
+    }
+
+    // Linux symbol exclusions must match the registered adapter, including in shared platform settings.
+    @Test
+    public void testLinuxOpenGLSymbolExclusionsPreserveOtherAdapterShaders() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "linux.appmanifest");
+            for (String section : List.of("linux", platform.getPair())) {
+                for (String symbol : List.of("GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES")) {
+                    addFile("/linux.appmanifest", "platforms:\n  " + section + ":\n    context:\n"
+                            + "      excludeSymbols: [" + symbol + "]\n");
+                    getProject().configurePreBuildProjectOptions();
+                    String adapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+                    boolean excludesFallback = symbol.equals(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL");
+                    assertEquals(excludesFallback ? "vulkan" : arm ? "vulkan,opengles" : "vulkan,opengl", adapters);
+                    ShaderDesc shader = compileShaderForPlatform(platform, adapters,
+                            "manifest_" + platform.getPair() + "_" + section + "_" + symbol);
+                    if (excludesFallback) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+                    } else if (arm) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    } else {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                    }
+                }
+            }
+        }
+    }
+
+    // The Linux symbol distinction must preserve the legacy OpenGL alias on mobile and web.
+    @Test
+    public void testMobileAndWebOpenGLSymbolAlias() throws Exception {
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.Armv7Android, Platform.Arm64Android,
+                Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            assertEquals(platform == Platform.Armv7Android || platform == Platform.Arm64Android ? "vulkan" : "", Project.getShaderAdaptersOption(platform,
+                    List.of(platformSettings("excludeSymbols", List.of("GraphicsAdapterOpenGL")))));
+        }
+    }
+
     // Windows defaults to DX12, but manifests can replace it or add fallback adapters.
     @Test
     public void testWindowsShaderAdapters() throws Exception {
@@ -893,7 +972,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
     }
 
-    // Legacy Vulkan-only choices stay Vulkan-only; unrelated exclusions retain GLES.
+    // Legacy Windows Vulkan-only choices stay Vulkan-only; unrelated Linux exclusions retain the defaults.
     @Test
     public void testLegacyWindowsVulkanAndLinuxGraphicsExclusion() throws Exception {
         String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
@@ -908,9 +987,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("dx12,vulkan", adapters);
         adapters = Project.getShaderAdaptersOption(Platform.Arm64Linux, List.of(
                 platformSettings("excludeLibs", List.of("graphics"))));
-        assertEquals("opengles", adapters);
-        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.Arm64Linux, adapters, "linux_gles"),
-                ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        assertEquals("vulkan,opengles", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.Arm64Linux, adapters, "linux_defaults"),
+                ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
         for (Platform platform : List.of(Platform.Arm64Ios, Platform.WasmWeb)) {
             assertEquals("", Project.getShaderAdaptersOption(platform, List.of(
                     platformSettings("excludeLibs", List.of("graphics")))));
@@ -1043,12 +1122,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
+    // Debug SPIR-V output adds a language without replacing the default Windows DX12 shaders.
     @Test
     public void testShaderLanguageOverrides() throws Exception {
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "default_windows"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60);
+
         getProject().setOption("debug-output-spirv", "true");
         checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.X86_64Linux.getPair(), Platform.X86_64Linux.getPair(), "debug_spirv_linux"),
-            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "debug_spirv_windows"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 

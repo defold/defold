@@ -105,12 +105,12 @@ Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
 adapters. `--with-dx12` remains accepted for compatibility. App manifest
 graphics selections control bundled adapters and shader formats; DX12 uses HLSL 6.0 / DXIL.
 
-Linux CMake builds use OpenGL on x86-64 and OpenGL ES on ARM64 by default.
-Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to include Vulkan as an additional
-adapter. Vulkan-enabled Linux engines load `libvulkan.so.1` at runtime, so
-automatic adapter selection can still choose OpenGL when the Vulkan loader is absent
-or Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails if
-Vulkan is unavailable or unsupported.
+Linux builds include Vulkan by default, with OpenGL on x86-64 and OpenGL ES
+on ARM64 as fallbacks. Vulkan loads `libvulkan.so.1` at runtime, so automatic
+adapter selection can still choose OpenGL when the Vulkan loader is absent or
+Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails
+if Vulkan is unavailable or unsupported. For an OpenGL-only engine,
+configure CMake with `-DWITH_VULKAN=OFF` or select OpenGL in the Linux app manifest.
 
 On all platforms, automatic graphics selection tries registered adapters in priority
 order, skipping unsupported adapters. If window or graphics-context creation fails,

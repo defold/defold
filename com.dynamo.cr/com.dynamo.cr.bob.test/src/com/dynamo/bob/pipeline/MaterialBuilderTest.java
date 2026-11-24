@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -126,6 +127,20 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    private static void assertVertexAndFragmentShaders(Graphics.ShaderDesc shaderDesc) {
+        var vertexLanguages = EnumSet.noneOf(Graphics.ShaderDesc.Language.class);
+        var fragmentLanguages = EnumSet.noneOf(Graphics.ShaderDesc.Language.class);
+        for (var shader : shaderDesc.getShadersList()) {
+            switch (shader.getShaderType()) {
+                case SHADER_TYPE_VERTEX -> assertTrue(vertexLanguages.add(shader.getLanguage()));
+                case SHADER_TYPE_FRAGMENT -> assertTrue(fragmentLanguages.add(shader.getLanguage()));
+                default -> throw new AssertionError(shader.getShaderType());
+            }
+        }
+        assertFalse(vertexLanguages.isEmpty());
+        assertEquals(vertexLanguages, fragmentLanguages);
+    }
+
     @Test
     public void testCombinedShader() throws Exception {
         String srcShaderStr = """
@@ -135,7 +150,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 new String[]{"/test_combined.vp", "/test_combined.fp"},
                 new String[]{srcShaderStr, srcShaderStr},
                 "/test_combined.shbundle");
-        assertEquals(2, shaderDesc.getShadersCount());
+        assertVertexAndFragmentShaders(shaderDesc);
 
         String src = """
                 name: "test_combined"
@@ -220,7 +235,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 void main() {}
                 """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_migrate_vx_attributes.vp", "/test_migrate_vx_attributes.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test_migrate_vx_attributes.shbundle");
-        assertEquals(2, shaderDesc.getShadersCount());
+        assertVertexAndFragmentShaders(shaderDesc);
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
@@ -307,7 +322,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 void main() {}
                 """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
-        assertEquals(2, shaderDesc.getShadersCount());
+        assertVertexAndFragmentShaders(shaderDesc);
 
         String src = "name: \"test_material\"\n" +
                 "vertex_program: \"/test_vp.vp\"\n" +
@@ -496,7 +511,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 new String[]{"/test_pbr_parameters.vp", "/test_pbr_parameters.fp"},
                 new String[]{vsShaderStr, fsShaderStr},
                 "/test_pbr_parameters_bundle.shbundle");
-        assertEquals(2, shaderDesc.getShadersCount());
+        assertVertexAndFragmentShaders(shaderDesc);
 
         String src = """
                 name: "test_pbr_parameters"

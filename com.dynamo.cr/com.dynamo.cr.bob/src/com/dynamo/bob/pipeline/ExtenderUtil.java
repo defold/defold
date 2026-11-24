@@ -462,6 +462,38 @@ public class ExtenderUtil {
     }
 
     @SuppressWarnings("unchecked")
+    private static boolean migrateLinuxVulkanLibraries(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean includesVulkan = false;
+        for (String key : List.of("libs", "engineLibs", "symbols")) {
+            if (context.get(key) instanceof List<?> entries) {
+                includesVulkan |= entries.contains("graphics_vulkan") || entries.contains("platform_vulkan")
+                        || entries.contains("GraphicsAdapterVulkan");
+            }
+        }
+        if (!includesVulkan) {
+            return false;
+        }
+
+        // Both libraries are now optional runtime dependencies. Keep the adapter selection
+        // and custom libraries, but remove the links added by legacy Vulkan manifests.
+        boolean modified = false;
+        for (String key : List.of("libs", "engineLibs", "dynamicLibs")) {
+            if (context.get(key) instanceof List<?> libraries) {
+                List<Object> migrated = new ArrayList<>(libraries);
+                if (migrated.removeIf(library -> "vulkan".equals(library) || "X11-xcb".equals(library))) {
+                    context.put(key, migrated);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
+    @SuppressWarnings("unchecked")
     private static boolean migrateSimulatorGraphics(Object contextValue) {
         if (!(contextValue instanceof Map<?, ?>)) {
             return false;
@@ -642,6 +674,9 @@ public class ExtenderUtil {
                     }
                     if ("arm64_sim-ios".equals(platform.getKey())) {
                         modified |= migrateSimulatorGraphics(context);
+                    }
+                    if (List.of("linux", "x86_64-linux", "arm64-linux").contains(platform.getKey())) {
+                        modified |= migrateLinuxVulkanLibraries(context);
                     }
                     if ("osx".equals(platform.getKey())
                             || "arm64-osx".equals(platform.getKey())
