@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ddf/ddf.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -477,27 +478,58 @@ static const CaptureShaderSet CAPTURE_SHADER_SETS[] = {
       { CAPTURE_SOURCE(capture_fp_msl), CAPTURE_SOURCE(capture_cube_fp_msl), CAPTURE_SOURCE(capture_texture_fp_msl), CAPTURE_SOURCE(capture_mrt_fp_msl) } },
     { ShaderDesc::LANGUAGE_WGSL, CAPTURE_SOURCE(capture_vp_wgsl),
       { CAPTURE_SOURCE(capture_fp_wgsl), CAPTURE_SOURCE(capture_cube_fp_wgsl), CAPTURE_SOURCE(capture_texture_fp_wgsl), CAPTURE_SOURCE(capture_mrt_fp_wgsl) } },
-#if defined(DM_TEST_APP_GRAPHICS_HAS_SPIRV)
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
     {
         ShaderDesc::LANGUAGE_SPIRV, CAPTURE_SOURCE(capture_vert_spv),
         { CAPTURE_SOURCE(capture_frag_spv), CAPTURE_SOURCE(capture_cube_frag_spv), CAPTURE_SOURCE(capture_texture_frag_spv), CAPTURE_SOURCE(capture_mrt_frag_spv) }
     },
 #endif
 };
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+static const CaptureShaderSource CAPTURE_DX12_PROGRAMS[CAPTURE_PROGRAM_COUNT] = {
+    CAPTURE_SOURCE(capture_color_spc), CAPTURE_SOURCE(capture_cube_spc),
+    CAPTURE_SOURCE(capture_texture_spc), CAPTURE_SOURCE(capture_mrt_spc)
+};
+#endif
 #undef CAPTURE_SOURCE
+
+static HProgram NewCaptureProgramFromDesc(HContext context, ShaderDesc* desc)
+{
+    char error[1024] = {};
+    HProgram program = NewProgram(context, desc, error, sizeof(error));
+    if (!program)
+    {
+        dmLogError("Capture program creation failed: %s", error);
+    }
+
+    return program;
+}
 
 static HProgram NewCaptureProgram(HContext context, AdapterFamily family, CaptureProgram type)
 {
-    char error[1024] = {};
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+    if (family == ADAPTER_FAMILY_DIRECTX)
+    {
+        const CaptureShaderSource& source = CAPTURE_DX12_PROGRAMS[type];
+        ShaderDesc* desc = 0;
+        dmDDF::Result result = dmDDF::LoadMessage(source.m_Data, source.m_Size, &desc);
+        if (result != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to decode DX12 capture program %d (DDF result %d).", type, result);
+            return 0;
+        }
+
+        HProgram program = NewCaptureProgramFromDesc(context, desc);
+        dmDDF::FreeMessage(desc);
+        return program;
+    }
+
+#endif
+
     ShaderDesc desc = {};
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(CAPTURE_SHADER_SETS); ++i)
     {
         const CaptureShaderSet& shaders = CAPTURE_SHADER_SETS[i];
-        if (family == ADAPTER_FAMILY_DIRECTX && shaders.m_Language != ShaderDesc::LANGUAGE_SPIRV)
-        {
-            continue;
-        }
-
         const CaptureShaderSource& fragment = shaders.m_Fragments[type];
         AddShader(&desc, shaders.m_Language, ShaderDesc::SHADER_TYPE_VERTEX, shaders.m_Vertex.m_Data, shaders.m_Vertex.m_Size);
         AddShader(&desc, shaders.m_Language, ShaderDesc::SHADER_TYPE_FRAGMENT, fragment.m_Data, fragment.m_Size);
@@ -542,21 +574,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, Captur
 
     AddShaderResource(&desc, "position", ShaderDesc::SHADER_TYPE_VEC3, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     AddShaderResource(&desc, "color", ShaderDesc::SHADER_TYPE_VEC3, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
-    HProgram program;
-#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
-    if (family == ADAPTER_FAMILY_DIRECTX)
-    {
-        program = NewDX12CaptureProgram(context, desc, error, sizeof(error));
-    }
-    else
-#endif
-    {
-        program = NewProgram(context, &desc, error, sizeof(error));
-    }
-    if (!program)
-    {
-        dmLogError("Capture program creation failed: %s", error);
-    }
+    HProgram program = NewCaptureProgramFromDesc(context, &desc);
     DeleteShaderDesc(&desc);
 
     return program;
