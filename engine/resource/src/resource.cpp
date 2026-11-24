@@ -467,7 +467,7 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
         {
             // HTTP batches own their DDF allocation through the queued message.
             // Continue accepting inline messages from existing callers.
-            void* payload = message->m_DataSize ? (void*)message->m_Data : (void*)message->m_UserData1;
+            void* payload = message->m_DataSize ? (void*)dmMessage::GetData(message) : (void*)message->m_UserData1;
             dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*)payload;
             uint32_t count = reload_resources->m_Resources.m_Count;
             // DDF stores pointer-sized offsets relative to its allocation.

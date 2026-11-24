@@ -53,8 +53,8 @@ TEST_F(ScriptSysTest, TestSys)
 static void CheckRebootArguments(dmMessage::Message* message, void* user_data)
 {
     ASSERT_EQ((uintptr_t)dmSystemDDF::Reboot::m_DDFDescriptor, message->m_Descriptor);
-    dmDDF::ResolvePointers(dmSystemDDF::Reboot::m_DDFDescriptor, message->m_Data);
-    dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*)message->m_Data;
+    dmDDF::ResolvePointers(dmSystemDDF::Reboot::m_DDFDescriptor, dmMessage::GetData(message));
+    dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*)dmMessage::GetData(message);
     ASSERT_STREQ("one", reboot->m_Arg1);
     ASSERT_STREQ("two", reboot->m_Arg2);
     ASSERT_STREQ("three", reboot->m_Arg3);

@@ -217,8 +217,8 @@ namespace dmGameSystem
         message->m_Id = Message::m_DDFDescriptor->m_NameHash;
         message->m_Descriptor = (uintptr_t)Message::m_DDFDescriptor;
         message->m_DataSize = data_size;
-        Message* message_data = (Message*)message->m_Data;
-        char* src_value = (char*)message->m_Data + sizeof(Message);
+        Message* message_data = (Message*)dmMessage::GetData(message);
+        char* src_value = (char*)(message_data + 1);
 
         if (src)
         {
@@ -228,7 +228,7 @@ namespace dmGameSystem
         src_value[src_length] = 0;
         message_data->m_Id = object->m_Id;
         message_data->m_Type = object->m_Tag;
-        message_data->m_Src = (const char*)((uintptr_t)src_value - (uintptr_t)message->m_Data);
+        message_data->m_Src = (const char*)((uintptr_t)src_value - (uintptr_t)message_data);
         dmGui::DispatchMessage(component->m_Scene, message);
     }
 
@@ -1046,7 +1046,7 @@ namespace dmGameSystem
         message->m_Id = dmHashString64("layout_changed");
         message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
         message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
-        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)dmMessage::GetData(message);
         message_data->m_Id = layout_id;
         message_data->m_PreviousId = previous_layout_id;
         DispatchMessage(scene, message);

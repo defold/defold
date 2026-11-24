@@ -369,12 +369,20 @@ TEST(dmMessage, ThreadTest2)
 
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    dmhash_t hash = dmHashBuffer64(message_object->m_Data, message_object->m_DataSize);
-    assert(hash == message_object->m_Id);
+    const dmMessage::Message* message = message_object;
+    const uint8_t* data = dmMessage::GetData(message);
+    ASSERT_EQ(data, dmMessage::GetData(message_object));
+    ASSERT_EQ(sizeof(*message), (uintptr_t)data - (uintptr_t)message);
+    ASSERT_EQ(0u, (uintptr_t)data % 16);
+    ASSERT_EQ(message->m_Id, dmHashBuffer64(data, message->m_DataSize));
 }
 
 TEST(dmMessage, Integrity)
 {
+    // Native extensions built with the old SDK access the payload at this offset.
+    ASSERT_EQ(sizeof(void*) == 8 ? 128u : 96u, sizeof(dmMessage::Message));
+    ASSERT_EQ(16u, alignof(dmMessage::Message));
+
     dmMessage::URL receiver;
     dmMessage::ResetURL(&receiver);
     dmMessage::Result r;
@@ -382,7 +390,7 @@ TEST(dmMessage, Integrity)
     ASSERT_EQ(dmMessage::RESULT_OK, r);
 
     const uint32_t MESSAGE_SIZES[] = {
-        1, 2, 4, 7, 9, 31, 32, 33, 511, 512, 513,
+        0, 1, 2, 4, 7, 9, 31, 32, 33, 511, 512, 513,
         dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3 - 1,
         dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3,
         dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3 + 1,

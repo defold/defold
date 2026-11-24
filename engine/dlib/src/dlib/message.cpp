@@ -484,7 +484,7 @@ namespace dmMessage
         new_message->m_Next = 0;
         new_message->m_DestroyCallback = destroy_callback;
         if (message_data_size)
-            memcpy(&new_message->m_Data[0], message_data, message_data_size);
+            memcpy(GetData(new_message), message_data, message_data_size);
 
         bool is_first_message = !s->m_Header;
 

@@ -2989,7 +2989,7 @@ namespace dmGameSystem
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
+                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)dmMessage::GetData(params.m_Message);
                 if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;

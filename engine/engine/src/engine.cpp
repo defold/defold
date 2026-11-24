@@ -2546,16 +2546,16 @@ bail:
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
-            dmDDF::ResolvePointers(descriptor, message->m_Data);
+            dmDDF::ResolvePointers(descriptor, dmMessage::GetData(message));
 
             if (descriptor == dmSystemDDF::Exit::m_DDFDescriptor)
             {
-                dmSystemDDF::Exit* ddf = (dmSystemDDF::Exit*) message->m_Data;
+                dmSystemDDF::Exit* ddf = (dmSystemDDF::Exit*) dmMessage::GetData(message);
                 dmEngine::Exit(self, ddf->m_Code);
             }
             else if (descriptor == dmSystemDDF::Reboot::m_DDFDescriptor)
             {
-                dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) message->m_Data;
+                dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) dmMessage::GetData(message);
                 dmEngine::Reboot(self, reboot);
             }
             else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor) // "toogle_profile"
@@ -2572,7 +2572,7 @@ bail:
             }
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"
             {
-                dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
+                dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) dmMessage::GetData(message);
                 SetUpdateFrequency(self, m->m_Frequency);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor) // "hide_app"
@@ -2581,12 +2581,12 @@ bail:
             }
             else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor) // "set_vsync"
             {
-                dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) message->m_Data;
+                dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) dmMessage::GetData(message);
                 SetSwapInterval(self, m->m_SwapInterval);
             }
             else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor) // "run_script"
             {
-                dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
+                dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) dmMessage::GetData(message);
 
                 dmResource::HFactory factory = self->m_Factory;
                 dmGameObject::LuaLoad(factory, self->m_ScriptContext, &run_script->m_Module);

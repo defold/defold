@@ -2126,7 +2126,7 @@ static void Dispatch2(dmMessage::Message* message, void* user_ptr)
     assert(message->m_Receiver.m_Fragment == dmHashString64("component"));
     assert((dmDDF::Descriptor*)message->m_Descriptor == dmTestGuiDDF::AMessage::m_DDFDescriptor);
 
-    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) message->m_Data;
+    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) dmMessage::GetData(message);
     dmTestGuiDDF::AMessage* amessage_out = (dmTestGuiDDF::AMessage*) user_ptr;
 
     *amessage_out = *amessage;
@@ -2246,7 +2246,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     message->m_DataSize = sizeof(dmTestGuiDDF::AMessage);
     message->m_UserData1 = 0;
     message->m_UserData2 = 0;
-    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
+    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)dmMessage::GetData(message);
     amessage->m_A = 123;
     amessage->m_B = 0;
     r = dmGui::DispatchMessage(m_Scene, message);
@@ -2317,7 +2317,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     lua_pushstring(L, "a");
     lua_pushinteger(L, 456);
     lua_settable(L, -3);
-    message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
+    message->m_DataSize = dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1);
     ASSERT_GT(message->m_DataSize, 0U);
     ASSERT_LE(message->m_DataSize, 256u);
 
@@ -2588,7 +2588,7 @@ TEST_F(dmGuiTest, Bug352)
     lua_pushinteger(L, 123);
     lua_settable(L, -3);
 
-    message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
+    message->m_DataSize = dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1);
     ASSERT_GT(message->m_DataSize, 0U);
     ASSERT_LE(message->m_DataSize, 256u);
 
@@ -2855,7 +2855,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     message->m_Next = 0;
     message->m_UserData1 = 0;
     message->m_UserData2 = 0;
-    dmTestGuiDDF::AMessage* data = (dmTestGuiDDF::AMessage*)message->m_Data;
+    dmTestGuiDDF::AMessage* data = (dmTestGuiDDF::AMessage*)dmMessage::GetData(message);
     data->m_A = 0;
     data->m_B = 0;
     r = dmGui::DispatchMessage(m_Scene, message);

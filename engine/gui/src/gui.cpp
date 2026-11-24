@@ -2214,7 +2214,7 @@ namespace dmGui
                     if (message->m_Descriptor)
                     {
                         message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
-                        dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
+                        dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) dmMessage::GetData(message), true);
                     }
                     else
                     {
@@ -2225,7 +2225,7 @@ namespace dmGui
                         }
                         if (message->m_DataSize > 0)
                         {
-                            dmScript::PushTable(L, (const char*) message->m_Data, message->m_DataSize);
+                            dmScript::PushTable(L, (const char*) dmMessage::GetData(message), message->m_DataSize);
                         }
                         else
                         {

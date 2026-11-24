@@ -511,7 +511,7 @@ namespace dmGameSystem
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
         {
-            dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
+            dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)dmMessage::GetData(message);
 
             dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
 
@@ -768,7 +768,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
         {
-            dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
+            dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) dmMessage::GetData(params.m_Message);
             dmPhysics::ApplyForce2D(physics_context->m_Context, component->m_Object2D, af->m_Force, af->m_Position);
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_NameHash)
@@ -794,7 +794,7 @@ namespace dmGameSystem
                 dmLogError("Hulls can only be set for collision objects with tile grids as shape.");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            dmPhysicsDDF::SetGridShapeHull* ddf = (dmPhysicsDDF::SetGridShapeHull*) params.m_Message->m_Data;
+            dmPhysicsDDF::SetGridShapeHull* ddf = (dmPhysicsDDF::SetGridShapeHull*) dmMessage::GetData(params.m_Message);
             uint32_t column = ddf->m_Column;
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
@@ -841,7 +841,7 @@ namespace dmGameSystem
                 dmLogError("Layer visibility can only be set on tile grids");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            dmPhysicsDDF::EnableGridShapeLayer* ddf = (dmPhysicsDDF::EnableGridShapeLayer*) params.m_Message->m_Data;
+            dmPhysicsDDF::EnableGridShapeLayer* ddf = (dmPhysicsDDF::EnableGridShapeLayer*) dmMessage::GetData(params.m_Message);
             dmPhysics::SetGridShapeEnable(component->m_Object2D, ddf->m_Shape, ddf->m_Enable);
         }
         return dmGameObject::UPDATE_RESULT_OK;

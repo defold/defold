@@ -365,7 +365,7 @@ namespace dmGameSystem
         {
             if (world->m_EntryIndices.Remaining() > 0)
             {
-                dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
+                dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)dmMessage::GetData(params.m_Message);
                 Sound* sound = component->m_Resource;
                 SoundDataResource* sound_data_resource = GetSoundDataResource(component);
                 dmSound::HSoundData sound_data = ResSoundDataGetSoundData(sound_data_resource);
@@ -446,7 +446,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
         {
-            dmGameSystemDDF::StopSound* stop_sound = (dmGameSystemDDF::StopSound*)params.m_Message->m_Data;
+            dmGameSystemDDF::StopSound* stop_sound = (dmGameSystemDDF::StopSound*)dmMessage::GetData(params.m_Message);
             uint32_t play_id = stop_sound->m_PlayId;
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
@@ -468,7 +468,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor)
         {
             SoundWorld* world = (SoundWorld*)params.m_World;
-            dmGameSystemDDF::PauseSound* pause_sound = (dmGameSystemDDF::PauseSound*)params.m_Message->m_Data;
+            dmGameSystemDDF::PauseSound* pause_sound = (dmGameSystemDDF::PauseSound*)dmMessage::GetData(params.m_Message);
             uint32_t pause = (uint32_t)pause_sound->m_Pause;
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
@@ -482,7 +482,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor)
         {
-            dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)dmMessage::GetData(params.m_Message);
 
             if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_GAIN, set_gain->m_Gain, set_gain->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {
@@ -492,7 +492,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor)
         {
-            dmGameSystemDDF::SetPan* set_pan = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetPan* set_pan = (dmGameSystemDDF::SetPan*)dmMessage::GetData(params.m_Message);
 
             if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_PAN, set_pan->m_Pan, set_pan->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {

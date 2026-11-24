@@ -731,7 +731,7 @@ namespace dmHttpService
         if (message->m_Descriptor == GetRequestMessageDescriptor())
         {
             RequestMessage request_message;
-            memcpy(&request_message, &message->m_Data[0], sizeof(request_message));
+            memcpy(&request_message, dmMessage::GetData(message), sizeof(request_message));
 
             if (request_message.m_Type == REQUEST_MESSAGE_TYPE_HTTP_REQUEST)
             {
@@ -788,7 +788,7 @@ namespace dmHttpService
                             message->m_UserData1,
                             message->m_UserData2,
                             message->m_Descriptor,
-                            message->m_Data,
+                            dmMessage::GetData(message),
                             message->m_DataSize,
                             0);
             service->m_LoadBalanceCount++;

@@ -372,7 +372,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     dmLogServer* server = g_dmLogServer;
 
     bool* run = (bool*) user_ptr;
-    LogMessage* log_message = (LogMessage*) &message->m_Data[0];
+    LogMessage* log_message = (LogMessage*) dmMessage::GetData(message);
     if (log_message->m_Type == LogMessage::SHUTDOWN)
     {
         *run = false;

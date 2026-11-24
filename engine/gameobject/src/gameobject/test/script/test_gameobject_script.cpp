@@ -144,7 +144,7 @@ TEST_F(ScriptTest, WorldStorageUsesConfiguredCapacity)
 
 void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 {
-    TestGameObjectDDF::Factory* f = (TestGameObjectDDF::Factory*) message->m_Data;
+    TestGameObjectDDF::Factory* f = (TestGameObjectDDF::Factory*) dmMessage::GetData(message);
     // NOTE: We relocate the string here (from offset to pointer)
     f->m_Prototype = (const char*) ((uintptr_t) f->m_Prototype + (uintptr_t) f);
     TestScript01Context* context = (TestScript01Context*)user_ptr;

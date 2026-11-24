@@ -344,7 +344,7 @@ namespace dmGameObject
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
             message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
-            dmScript::PushDDF(L, (const dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
+            dmScript::PushDDF(L, (const dmDDF::Descriptor*)message->m_Descriptor, (const char*) dmMessage::GetData(message), true);
         }
         else
         {
@@ -354,7 +354,7 @@ namespace dmGameObject
                 message_name = (const char*)dmHashReverse64(message->m_Id, 0);
             }
             if (message->m_DataSize > 0)
-                dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+                dmScript::PushTable(L, (const char*)dmMessage::GetData(message), message->m_DataSize);
             else
                 lua_newtable(L);
         }
@@ -398,7 +398,7 @@ namespace dmGameObject
         {
             if (params.m_Message->m_Id == dmGameObjectDDF::ScriptMessage::m_DDFDescriptor->m_NameHash)
             {
-                dmGameObjectDDF::ScriptMessage* script_message = (dmGameObjectDDF::ScriptMessage*)params.m_Message->m_Data;
+                dmGameObjectDDF::ScriptMessage* script_message = (dmGameObjectDDF::ScriptMessage*)dmMessage::GetData(params.m_Message);
                 uint32_t payload_message_size = 0;
 
                 const dmDDF::Descriptor* descriptor = dmDDF::GetDescriptorFromHash(script_message->m_DescriptorHash);
@@ -408,7 +408,7 @@ namespace dmGameObject
                     return UPDATE_RESULT_OK;
                 }
 
-                const uint8_t* packed_payload = ((uint8_t*)params.m_Message->m_Data) + sizeof(dmGameObjectDDF::ScriptMessage);
+                const uint8_t* packed_payload = dmMessage::GetData(params.m_Message) + sizeof(dmGameObjectDDF::ScriptMessage);
 
                 dmDDF::Result ddf_result = dmDDF::LoadMessage(packed_payload, script_message->m_PayloadSize, descriptor, &payload_message, dmDDF::OPTION_OFFSET_POINTERS, &payload_message_size);
                 if (ddf_result != dmDDF::RESULT_OK)
@@ -429,7 +429,7 @@ namespace dmGameObject
                 message->m_UserData2    = 0; // deprecated (the Lua function reference)
                 message->m_Next         = 0;
 
-                memcpy(&message->m_Data[0], payload_message, payload_message_size);
+                memcpy(dmMessage::GetData(message), payload_message, payload_message_size);
 
                 if (script_message->m_Function)
                 {
@@ -446,7 +446,7 @@ namespace dmGameObject
             }
             else if (params.m_Message->m_Id == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
             {
-                dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) params.m_Message->m_Data;
+                dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) dmMessage::GetData(params.m_Message);
                 return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + LUA_NOREF);
             }
         }

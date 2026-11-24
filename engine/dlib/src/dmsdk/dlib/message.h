@@ -208,6 +208,8 @@ namespace dmMessage
     /*#
      * Message data desc used at dispatch callback. When a message is posted,
      * the actual object is copied into the sockets internal buffer.
+     * Use dmMessage::GetData() to access the m_DataSize bytes of payload.
+     * The payload is aligned to 16 bytes and is valid for the lifetime of the message.
      * @struct
      * @name Message
      * @member m_Sender [type: dmMessage::URL] Sender uri
@@ -219,9 +221,8 @@ namespace dmMessage
      * @member m_DataSize [type: uint32_t] Size of message data in bytes
      * @member m_Next [type: dmMessage::Message*] Ptr to next message (or 0 if last)
      * @member m_DestroyCallback [type: dmMessage::MessageDestroyCallback] If set, will be called after each dispatch
-     * @member m_Data [type: uint8_t*] Payload
      */
-    struct Message
+    struct DM_ALIGNED(16) Message
     {
         URL                    m_Sender;            //! Sender uri
         URL                    m_Receiver;          //! Receiver uri
@@ -232,8 +233,29 @@ namespace dmMessage
         uint32_t               m_DataSize;          //! Size of message data in bytes
         struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
         MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
-        uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
     };
+
+    /*#
+     * Get the message payload.
+     * @name GetData
+     * @param message [type: dmMessage::Message*] message
+     * @return data [type: uint8_t*] message payload
+     */
+    inline uint8_t* GetData(Message* message)
+    {
+        return (uint8_t*)(message + 1);
+    }
+
+    /*#
+     * Get read-only access to the message payload.
+     * @name GetData
+     * @param message [type: const dmMessage::Message*] message
+     * @return data [type: const uint8_t*] message payload
+     */
+    inline const uint8_t* GetData(const Message* message)
+    {
+        return (const uint8_t*)(message + 1);
+    }
 
     /**
      * Post an message to a socket
