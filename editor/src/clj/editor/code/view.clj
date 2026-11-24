@@ -1339,16 +1339,11 @@
                         :invalidated-row
                         (g/update-property resource-node :invalidated-rows conj value)
 
-                        ;; The :indent-type output in the resource node is
-                        ;; cached, but reads from disk unless a value exists
-                        ;; for the :modified-indent-type property.
+                        ;; Views share the resource's text and indent type.
+                        ;; The initial indent type comes from the loaded lines.
                         :indent-type
                         (g/set-property resource-node :modified-indent-type value)
 
-                        ;; The :lines output in the resource node is uncached.
-                        ;; It reads from disk unless a value exists for the
-                        ;; :modified-lines property. This means only modified
-                        ;; or currently open files are kept in memory.
                         :lines
                         (g/set-property resource-node :modified-lines value)
 
@@ -3954,19 +3949,10 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node app-view lsp]
-  ;; Grab the unmodified lines or io error before opening the
-  ;; file. Otherwise, this will happen on the first edit. If a
-  ;; background process has modified (or even deleted) the file
-  ;; without the editor knowing, the "original" unmodified lines
-  ;; reached after a series of undo's could be something else entirely
-  ;; than what the user saw.
   (let [resource (resource-node/resource resource-node)
         resource-type (resource/resource-type resource)
         resource-node-type (:node-type resource-type)
         is-code-resource-type (r/code-resource-type? resource-type)]
-    (when is-code-resource-type
-      (g/with-auto-evaluation-context evaluation-context
-        (r/ensure-loaded! resource-node evaluation-context)))
     (g/transact
       {:undoable false}
       (concat
@@ -3982,6 +3968,9 @@
     (g/transact
       {:undoable false}
       (g/with-auto-evaluation-context evaluation-context
+        ;; Reading a code resource's :lines on open captures its text or read
+        ;; error. Undoing the first edit must restore what the user saw even if
+        ;; another process changed or deleted the file before the edit.
         (update-document-width evaluation-context view-node)))
     (when (and is-code-resource-type
                (resource/file-resource? resource))

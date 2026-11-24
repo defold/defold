@@ -1946,8 +1946,8 @@
       (let [basis (g/now)
             workspace (resource/workspace resource)
             read-opts (workspace/make-read-opts basis workspace)
-            disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
-            save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+            disk-value (read-fn read-opts resource resource)
+            save-value (:save-value save-data)]
         (value-diff-message disk-value save-value))
 
       ;; Compare text.
@@ -1969,8 +1969,8 @@
           (let [basis (g/now)
                 workspace (resource/workspace resource)
                 read-opts (workspace/make-read-opts basis workspace)
-                disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
-                save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+                disk-value (read-fn read-opts resource resource)
+                save-value (:save-value save-data)]
             ;; We have a read-fn, compare data.
             (check-value-equivalence! disk-value save-value message)))]
 

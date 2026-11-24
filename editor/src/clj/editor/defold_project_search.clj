@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
@@ -31,6 +32,37 @@
 (defn- search-data-sort-key [entry]
   (some-> entry :resource resource/proj-path))
 
+(defn search-value
+  "Returns searchable content without materializing a shell.
+
+  Shells read and cache their source. Loaded resources use the current save
+  value, falling back to the retained source on a save error."
+  [node-id resource {:keys [basis-ref] :as evaluation-context}]
+  (let [workspace (resource/workspace resource)
+
+        read-opts
+        (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
+
+        save-value
+        (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
+    (if (and (g/error-value? save-value)
+             (not (g/shell-node? (g/node-by-id @basis-ref node-id))))
+      (g/node-value node-id :source-value evaluation-context)
+      save-value)))
+
+(defn- search-data-entry [[node-id resource] search-resource? evaluation-context]
+  (thread-util/throw-if-interrupted!)
+  (when (and (resource/loaded? resource)
+             (not (resource/internal? resource))
+             (= :file (resource/source-type resource))
+             (search-resource? resource))
+    (let [{:keys [textual? search-fn]} (resource/resource-type resource)]
+      (when (and textual? search-fn (resource/exists? resource))
+        (when-some [value (search-value node-id resource evaluation-context)]
+          (when-not (g/error? value)
+            {:resource resource
+             :search-value value}))))))
+
 (defn make-search-data-future
   "Returns a future yielding search data for every project resource that passes
   search-resource?, each with its :search-value built and ready to match against."
@@ -38,26 +70,14 @@
   (future
     (let [evaluation-context (g/make-evaluation-context)]
       (try
-        (let [search-data
-              (->> (g/node-value project :node-id+resources evaluation-context)
-                   (into []
-                         (keep (fn [[node-id resource]]
-                                 (thread-util/throw-if-interrupted!)
-                                 (when (and (resource/loaded? resource)
-                                            (not (resource/internal? resource))
-                                            (= :file (resource/source-type resource))
-                                            (search-resource? resource))
-                                   (let [resource-type (resource/resource-type resource)
-                                         search-value-fn (when (:search-fn resource-type)
-                                                           (:search-value-fn resource-type))]
-                                     (when (and search-value-fn
-                                                (resource/exists? resource)
-                                                (resource/textual? resource))
-                                       (let [search-value (search-value-fn node-id resource evaluation-context)]
-                                         (when-not (g/error? search-value)
-                                           {:resource resource
-                                            :search-value search-value}))))))))
-                   (sort-by search-data-sort-key))]
+        (let [node-id+resources
+              (g/node-value project :node-id+resources evaluation-context)
+
+              search-data
+              (sort-by
+                search-data-sort-key
+                (coll/into-> node-id+resources []
+                  (keep #(search-data-entry % search-resource? evaluation-context))))]
           (ui/run-later
             (project/update-system-cache-save-data! evaluation-context)
             (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
@@ -117,18 +137,29 @@
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn produce-fn]
   (future
     (try
-      (let [xform (keep (fn [entry]
-                          (thread-util/throw-if-interrupted!)
-                          (let [resource (:resource entry)
-                                resource-type (resource/resource-type resource)
-                                matches-fn (resource-type->matches-fn resource-type)
-                                matches (when matches-fn
-                                          (matches-fn (:search-value entry)))]
-                            (when-not (coll/empty? matches)
-                              {:resource resource
-                               :matches matches}))))]
-        (run! produce-fn (sequence xform (deref search-data-future)))
-        (produce-fn ::done))
+      (let [first-match-error (volatile! nil)
+
+            match-entry
+            (fn match-entry [{:keys [resource search-value]}]
+              (thread-util/throw-if-interrupted!)
+              (when-let [matches-fn (resource-type->matches-fn (resource/resource-type resource))]
+                (try
+                  (when-let [matches (coll/not-empty (vec (matches-fn search-value)))]
+                    {:resource resource :matches matches})
+                  (catch InterruptedException interrupted
+                    (throw interrupted))
+                  (catch CancellationException cancelled
+                    (throw cancelled))
+                  (catch Exception error
+                    (when-not @first-match-error
+                      (let [proj-path (resource/proj-path resource)]
+                        (vreset! first-match-error
+                                 (ex-info (str "Failed to search " proj-path) {:proj-path proj-path} error))))
+                    nil))))]
+        (run! produce-fn (eduction (keep match-entry) @search-data-future))
+        (produce-fn ::done)
+        (when-let [error @first-match-error]
+          (report-error! error)))
       (catch InterruptedException _
         ;; future-cancel was invoked from another thread.
         nil)

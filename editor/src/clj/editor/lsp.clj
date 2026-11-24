@@ -637,8 +637,7 @@
     (open-resource! state resource lines)))
 
 (defn- sync-modified-lines-of-existing-node! [state resource old-source-value new-lines]
-  (let [resource-type (resource/resource-type resource)
-        dirty (resource-node/dirty-save-value? new-lines old-source-value resource-type)]
+  (let [dirty (resource-node/dirty-save-value? new-lines old-source-value)]
     (if-not dirty
       (cond
         ;; viewed implies open

@@ -67,11 +67,8 @@
 (defn- keep-existing-node?
   "Check if we can safely keep the existing node in the graph. Every time a file
   has an updated timestamp it will be reported as changed, but if the contents
-  are unchanged we don't need to reload the node. The old node must have
-  registered a disk-sha256 using the resource-node/set-disk-sha256 function for the
-  existing node to potentially be kept. Resource nodes will typically call
-  resource-node/set-disk-sha256 from their load-fn, but lazy-loaded resource nodes
-  can use other methods."
+  are unchanged we can keep nodes whose disk-sha256 was recorded when their
+  contents were read or saved."
   [old-node new-resource old-node->old-disk-sha256]
   (if-some [old-disk-sha256 (old-node->old-disk-sha256 old-node)]
     (if-some [new-disk-sha256 (try

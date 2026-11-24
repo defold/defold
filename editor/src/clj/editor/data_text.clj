@@ -59,5 +59,4 @@
     :built-pb-class DataProto$Data
     :label (localization/message "resource.type.data")
     :icon "icons/32/Icons_11-Script-general.png"
-    :view-types [:code :default]
-    :lazy-loaded true))
+    :view-types [:code :default]))

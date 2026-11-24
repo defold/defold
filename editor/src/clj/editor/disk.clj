@@ -143,10 +143,7 @@
           (util/into-multiple
             [[] {} {}]
             [(map save-data-status-map-entry)
-             (map (fn [{:keys [node-id resource save-value]}]
-                    (let [resource-type (resource/resource-type resource)
-                          value (resource-node/save-value->source-value save-value resource-type)]
-                      (pair node-id value))))
+             (map (coll/pair-fn :node-id :save-value))
              (map-indexed (fn [index {:keys [node-id]}]
                             (let [disk-sha256 (written-disk-sha256s index)]
                               (pair node-id disk-sha256))))]

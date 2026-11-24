@@ -768,7 +768,6 @@
                          :built-pb-class script-compilation/built-pb-class
                          :dependencies-fn script-dependencies
                          :language "lua"
-                         :lazy-loaded false
                          :connect-fn (partial connect-fn (:annotations def) (:reference-completions def))
                          :additional-load-fn additional-load-fn
                          :view-types [:code :default]

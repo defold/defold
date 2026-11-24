@@ -41,10 +41,12 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
-            [util.id-vec :as iv])
+            [util.id-vec :as iv]
+            [util.text-util :as text-util])
   (:import [com.dynamo.particle.proto Particle$ModifierType]
            [editor.editor_extensions.tile_map Tiles]
            [editor.properties Curve CurveSpread]
+           [java.io IOException]
            [java.net URI URISyntaxException]
            [java.util ArrayDeque HashSet]
            [javax.vecmath Vector3d]
@@ -436,12 +438,25 @@
    (swap! property-resolver-types update :get coll/conj-set node-type-kw)
    (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
-(defn- textual-resource-node? [node-id evaluation-context]
-  (let [resource (g/node-value node-id :resource evaluation-context)]
-    (and (some? resource)
-         (-> resource
-             (resource/resource-type @(:basis-ref evaluation-context))
-             :textual?))))
+(defn- textual-resource-node? [node-id {:keys [basis-ref] :as evaluation-context}]
+  (let [basis @basis-ref
+        node (g/node-by-id basis node-id)]
+    (when-let [resource (resource/node-resource basis node)]
+      (let [resource-type (resource/resource-type resource basis)]
+        (cond
+          (not (resource/placeholder-resource-type? resource-type))
+          (:textual? resource-type)
+
+          (not (g/shell-node? node))
+          (vector? (g/node-value node-id :lines evaluation-context))
+
+          (g/raw-property-value* basis node :source-value)
+          true
+
+          :else
+          (try
+            (not (text-util/binary? resource))
+            (catch IOException _ false)))))))
 
 (register-property-getter!
   :editor.resource/ResourceNode
@@ -588,7 +603,9 @@
       (and (= "text" property) (g/node-instance*? resource/ResourceNode node))
       (case operation
         :get (when (textual-resource-node? node-id evaluation-context) {:kind :text})
-        :set (when (isa? (:k node-type) :editor.code.resource/CodeEditorResourceNode) {:kind :text})
+        :set (when (and (isa? (:k node-type) :editor.code.resource/CodeEditorResourceNode)
+                        (textual-resource-node? node-id evaluation-context))
+               {:kind :text})
         :reset nil)
 
       (not shell)
@@ -778,13 +795,14 @@
 
 (register-property-setter!
   :editor.code.resource/CodeEditorResourceNode
-  (fn CodeEditorResourceNode-setter [node-id property rt _ _]
+  (fn CodeEditorResourceNode-setter [node-id property rt _ evaluation-context]
     (case property
-      "text" (fn set-text [lua-value]
-               [(g/set-property node-id :modified-lines (code.util/split-lines (rt/->clj rt coerce/string lua-value)))
-                (g/update-property node-id :invalidated-rows conj 0)
-                (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
-                (g/set-property node-id :regions [])])
+      "text" (when (textual-resource-node? node-id evaluation-context)
+               (fn set-text [lua-value]
+                 [(g/set-property node-id :modified-lines (code.util/split-lines (rt/->clj rt coerce/string lua-value)))
+                  (g/update-property node-id :invalidated-rows conj 0)
+                  (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
+                  (g/set-property node-id :regions [])]))
       nil)))
 
 (def ^:private tile-collision-group-coercer

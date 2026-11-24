@@ -31,12 +31,10 @@ ordinary paths."
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.resource-io :as resource-io]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.util :as util]
             [internal.java :as java]
-            [internal.node :as in]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
@@ -243,17 +241,6 @@ ordinary paths."
 (def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
-(declare evaluation-context-read-opts!)
-
-(defn- default-search-value-fn
-  [node-id resource {:keys [basis-ref] :as evaluation-context}]
-  (let [read-opts (evaluation-context-read-opts! (resource/workspace resource) evaluation-context :tx-cache/reuse)
-        save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
-    (if (and (g/error-value? save-value)
-             (not (in/shell-node? (g/node-by-id @basis-ref node-id))))
-      (g/node-value node-id :source-value evaluation-context)
-      save-value)))
-
 (defn register-resource-type
   "Register new resource type to be handled by the editor
 
@@ -304,29 +291,20 @@ ordinary paths."
     :export-name-fn     a fn from a resource to a filename to use when exporting
                         an embedded resource for copy or drag-and-drop; defaults
                         to resource/resource-name.
-    :source-value-fn    a fn from a save-value to whatever you want to cache as
-                        the source-value for the resource type. When not
-                        specified, the save-value will be the source-value.
-                        Requires an explicit :search-value-fn.
-    :search-value-fn    a fn from node-id, resource and an evaluation-context to
-                        a search-value that can be accepted by the :search-fn in
-                        order to find a matching substring inside the resource.
-                        If not provided, unmaterialized nodes use :source-value,
-                        reading and caching it and :disk-sha256 without loading
-                        the node. Materialized nodes use :save-value, falling
-                        back to retained :source-value when :save-value produces
-                        an error. Required when a :source-value-fn is supplied.
     :search-fn          a multi-arity fn used to search the resource for a
                         matching substring. The first arity should accept a
                         search string and return a value that can be used by the
                         second arity to perform the search (typically a regex
-                        Pattern). The second arity should accept a search-value
-                        returned from the :search-value-fn and the value
-                        returned by the first arity, and return a sequence of
-                        match-infos. Each match-info should have a :match-type
+                        Pattern). The second arity takes the current save-value
+                        (or the read source-value) and the first arity's result.
+                        It returns match-infos. Each should have a :match-type
                         and details about the match unique to that :match-type.
                         This can be used to select the matching sub-region when
                         the match is opened in an editor view.
+                        On a shell, search reads and caches :source-value and
+                        :disk-sha256 without loading the node. On a materialized
+                        node, search falls back to the retained :source-value
+                        when :save-value produces an error.
     :icon               classpath path to an icon image or project resource path
                         string; default \"icons/32/Icons_29-AT-Unknown.png\"
     :icon-class         either :design, :script or :property, controls the
@@ -357,10 +335,6 @@ ordinary paths."
                         true, we can simply invalidate its outputs without
                         replacing the node in the graph. Defaults to true if
                         there is no :load-fn.
-    :lazy-loaded        whether or not we should defer loading of the node until
-                        it is opened in the editor. Currently only supported by
-                        code editor resource nodes, and only for file types that
-                        do not interact with any other nodes in the graph.
     :allow-unloaded-use Allow references to .defunload:ed resources of this type
                         from loaded resources. Basically, this is a declaration
                         that the associated :node-type is well-behaved when
@@ -370,9 +344,8 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn prerequisites-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn export-name-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
-  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))
-         (or (nil? source-value-fn) (ifn? search-value-fn))]}
+  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn prerequisites-fn dependencies-fn search-fn read-fn write-fn export-name-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? allow-unloaded-use auto-connect-save-data?]}]
+  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
@@ -389,8 +362,6 @@ ordinary paths."
                        :read-fn read-fn
                        :export-name-fn (or export-name-fn resource/resource-name)
                        :search-fn search-fn
-                       :search-value-fn (or search-value-fn default-search-value-fn)
-                       :source-value-fn source-value-fn
                        :icon icon
                        :icon-class icon-class
                        :category category
@@ -402,7 +373,6 @@ ordinary paths."
                        :test-info test-info
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
-                       :lazy-loaded (boolean lazy-loaded)
                        :allow-unloaded-use (boolean allow-unloaded-use)
                        :auto-connect-save-data? (and editable
                                                      (some? write-fn)

@@ -128,19 +128,13 @@
   (let [lines (if (g/shell-node? _this) source-value save-value)
 
         streams
-        (resource-io/with-error-translation resource _node-id :lines
+        (resource-io/with-error-translation resource _node-id :streams
           (with-open [^Reader reader (if lines
                                        (data/lines-reader lines)
                                        (io/reader resource))]
             (read-streams reader)))]
-    (cond
-      (= ::invalid-syntax streams)
+    (if (= ::invalid-syntax streams)
       (g/->error _node-id :lines :fatal nil (localization/message "error.buffer-syntax-error"))
-
-      (g/error-value? streams)
-      (g/error-aggregate [streams] :_node-id _node-id :_label :streams)
-
-      :else
       streams)))
 
 (g/defnk produce-stream-ids [streams]
@@ -163,5 +157,4 @@
     :category (localization/message "resource.category.resources")
     :view-types [:code :default]
     :view-opts {:code {:grammar lang.json/grammar}}
-    :node-type BufferNode
-    :lazy-loaded true))
+    :node-type BufferNode))

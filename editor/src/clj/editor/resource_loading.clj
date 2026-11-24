@@ -24,7 +24,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.node :as in]
-            [util.coll :as coll :refer [pair]]))
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -33,7 +33,7 @@
   (when (task-cancelled?)
     (throw (ex-info "Resource load process cancelled." {:ex-type :task-cancelled}))))
 
-(defn- read-resource-nodes! [project root-proj-paths required-endpoints render-load-progress! {:keys [basis-ref] :as evaluation-context}]
+(defn- read-resource-nodes! [project root-proj-paths required-endpoints resource-output-label render-load-progress! {:keys [basis-ref] :as evaluation-context}]
   (let [workspace (project/workspace project evaluation-context)
         nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
 
@@ -72,14 +72,38 @@
         required-node-ids (g/required-shell-node-ids @basis-ref required-endpoints)
         root-node-ids (into root-node-ids required-node-ids)
         node-ids (project/resource-node-load-order root-node-ids node-id->dependency-node-ids)
+        required-node-id? (set required-node-ids)
         basis @basis-ref]
 
     (coll/into-> node-ids []
-      (keep (fn [node-id]
-              (when (in/shell-node? (g/node-by-id basis node-id))
-                (let [resource (resource-node/resource basis node-id)
-                      proj-path (resource/proj-path resource)]
-                  (pair node-id proj-path))))))))
+      (filter (fn [node-id]
+                (let [node (g/node-by-id basis node-id)
+                      node-type (g/node-type node)]
+                  (and (in/shell-node? node)
+                       (or (nil? resource-output-label)
+                           (required-node-id? node-id)
+                           (and (g/has-output? node-type resource-output-label)
+                                (in/materializing-output? node-type resource-output-label))))))))))
+
+(defn- materialize-resource-nodes!
+  ^long [node-ids ^long completed-count report-progress!]
+  (let [node-count (count node-ids)
+        total-count (+ completed-count node-count)]
+    (dotimes [index node-count]
+      (let [node-id (node-ids index)
+            basis (g/now)]
+        (when-let [node (g/node-by-id basis node-id)]
+          (let [proj-path
+                (resource/proj-path (resource/node-resource basis node))
+
+                message
+                (localization/message "progress.loading-resource" {"resource" proj-path})]
+            (report-progress! (progress/make message total-count (+ completed-count index) true))
+            ;; Finish committing this resource even if cancellation arrived
+            ;; during its load process. A later request can reuse the work.
+            (ea/with-auto-evaluation-context! evaluation-context
+              (g/materialize-node! node-id evaluation-context))))))
+    total-count))
 
 (defn load-resources!
   "Reads and materializes dependencies of resource paths and graph endpoints.
@@ -101,9 +125,14 @@
   built resource does not reference them. Pass an empty collection when only
   the resource paths and their dependencies need to be prepared.
 
+  When :resource-output-label is supplied, preload serialized dependencies
+  that need to materialize to produce that output. Required endpoints also
+  follow connections installed during loading, including connections to other
+  output labels. Materialization prerequisites always take precedence.
+
   Run on a background thread; commits are handed off to the UI thread.
   The caller owns progress completion, allowing further preparation phases."
-  [project root-proj-paths required-endpoints render-load-progress! task-cancelled?]
+  [project root-proj-paths required-endpoints render-load-progress! task-cancelled? & {:keys [resource-output-label]}]
   (let [loading-message (localization/message "progress.loading")
 
         report-progress!
@@ -112,26 +141,21 @@
           (render-load-progress! progress))]
 
     (report-progress! (progress/make-cancellable-indeterminate loading-message))
-    (let [node-id+proj-path-pairs
-          (ea/with-auto-evaluation-context! evaluation-context
-            ;; Initialize shared settings and profiles before dependent
-            ;; resources cache their save values.
-            (doseq [label [:settings :display-profiles :texture-profiles :use-font-layout :use-rich-text]]
-              (g/node-value project label evaluation-context))
-            ;; Commit these source values for reuse during materialization.
-            (read-resource-nodes! project root-proj-paths required-endpoints report-progress! evaluation-context))
+    (loop [node-ids
+           (ea/with-auto-evaluation-context! evaluation-context
+             ;; Initialize shared settings and profiles before dependent
+             ;; resources cache their save values.
+             (doseq [label [:settings :display-profiles :texture-profiles :use-font-layout :use-rich-text]]
+               (g/node-value project label evaluation-context))
+             ;; Commit these source values for reuse during materialization.
+             (read-resource-nodes! project root-proj-paths required-endpoints resource-output-label report-progress! evaluation-context))
 
-          node-count (count node-id+proj-path-pairs)]
-
-      (dotimes [index node-count]
-        (let [[node-id proj-path] (node-id+proj-path-pairs index)
-              message (localization/message "progress.loading-resource" {"resource" proj-path})]
-          (report-progress! (progress/make message node-count index true))
-          ;; Finish committing this resource even if cancellation arrived
-          ;; during its load process. A later request can reuse the work.
-          (ea/with-auto-evaluation-context! evaluation-context
-            (g/materialize-node! node-id evaluation-context))))
-      (throw-if-task-cancelled! task-cancelled?))
+           completed-count 0]
+      (let [completed-count
+            (materialize-resource-nodes! node-ids completed-count report-progress!)]
+        (throw-if-task-cancelled! task-cancelled?)
+        (when (and (coll/not-empty node-ids) (coll/not-empty required-endpoints))
+          (recur (g/required-shell-node-ids (g/now) required-endpoints) completed-count))))
     nil))
 
 (defn load-and-evaluate-resource!
@@ -146,7 +170,8 @@
   result. Cancelling the load process discards unfinished evaluation, while
   resources already materialized remain available for subsequent requests."
   [project resource-node proj-path evaluated-output-label render-progress! task-cancelled?]
-  (load-resources! project [proj-path] [] render-progress! task-cancelled?)
+  (load-resources! project [proj-path] [(g/endpoint resource-node evaluated-output-label)]
+                   render-progress! task-cancelled? :resource-output-label evaluated-output-label)
   (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
     (let [message (localization/message "progress.working")
           steps (volatile! [])

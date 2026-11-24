@@ -139,6 +139,5 @@
   (for [def text-file-defs
         :let [args (assoc def
                      :node-type TextNode
-                     :view-types [:code :default]
-                     :lazy-loaded true)]]
+                     :view-types [:code :default])]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

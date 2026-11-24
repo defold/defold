@@ -282,24 +282,31 @@
     (or (seq (engine-extension-roots project evaluation-context))
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
-(defn- make-extender-resources [project platform evaluation-context]
+(defn- make-extender-resources [project platform {:keys [basis-ref] :as evaluation-context}]
   (let [global-resource-nodes (global-resource-nodes-by-upload-path project evaluation-context)
         app-manifest-resource-node (get global-resource-nodes app-manifest-upload-path)
         app-manifest-resource (make-app-manifest-resource app-manifest-resource-node evaluation-context)]
     (reduce-kv
-      (fn [^ArrayList acc upload-path resource-node]
-        (let [save-data (g/node-value resource-node :save-data evaluation-context)
-              content (some-> save-data resource-node/save-data-content)
-              resource (or (:resource save-data)
-                           (g/node-value resource-node :resource evaluation-context))
-              file (io/file resource)]
+      (fn [^ArrayList acc upload-path node-id]
+        (let [basis @basis-ref
+              node (g/node-by-id basis node-id)
+              resource (resource/node-resource basis node)
+              file (io/file resource)
+
+              save-data
+              (when-not (g/shell-node? node)
+                (g/node-value node-id :save-data evaluation-context))
+
+              content
+              (when (:dirty save-data)
+                (resource-node/save-data-content save-data))]
           (doto acc
             (.add (reify ExtenderResource
                     (getPath [_] upload-path)
                     (getContent [_]
                       (if content
                         (.getBytes ^String content StandardCharsets/UTF_8)
-                        (with-open [input-stream (io/input-stream file)]
+                        (with-open [input-stream (io/input-stream resource)]
                           (.readAllBytes input-stream))))
                     (getLastModified [_] (.lastModified file)))))))
       (doto (ArrayList.)

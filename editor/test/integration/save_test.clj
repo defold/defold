@@ -156,7 +156,7 @@
 
 (def ^:private delete-file! (comp fs/delete-file! workspace-file))
 
-(defn- check-eager-loaded-save-data! [project proj-path expected-save-text expected-save-value]
+(defn- check-loaded-save-data! [project proj-path expected-save-text expected-save-value]
   (let [workspace (project/workspace project)
         resource (workspace/find-resource workspace proj-path)
         node-id (project/get-resource-node project proj-path)]
@@ -176,37 +176,12 @@
                 (is (= expected-save-text (resource-node/save-data-content save-data)))))
          (is (resource-node/loaded? node-id)
              "Node has been registered as loaded.")
-         (is (= (resource-node/save-value->source-value expected-save-value (resource/resource-type resource))
+         (is (= expected-save-value
                 (g/node-value node-id :source-value))
              "Source value reflects expected state.")
          (is (= (digest/string->sha256-hex expected-save-text)
                 (g/node-value node-id :disk-sha256))
              "Disk SHA256 reflects expected state."))))
-
-(defn- check-lazy-loaded-save-data! [project proj-path expected-save-text]
-  (let [workspace (project/workspace project)
-        resource (workspace/find-resource workspace proj-path)
-        node-id (project/get-resource-node project resource)]
-    (and (is (= (if (resource/stateful? resource)
-                  (test-util/cacheable-save-data-outputs node-id)
-                  #{})
-                (test-util/cached-save-data-outputs node-id))
-             "Save data is cached.")
-         (is (nil? (g/node-value node-id :save-value))
-             "Save value has not been loaded yet.")
-         (is (= expected-save-text (slurp-file workspace proj-path))
-             "File contents are as expected.")
-         (let [save-data (g/node-value node-id :save-data)]
-           (and (is (false? (:dirty save-data)))
-                (is (= resource (:resource save-data)))
-                (is (nil? (:save-value save-data)))
-                (is (nil? (resource-node/save-data-content save-data)))))
-         (is (resource-node/loaded? node-id)
-             "Node has been registered as loaded (i.e. it is functional, even if lazy-loading happens later).")
-         (is (nil? (g/node-value node-id :source-value))
-             "Source value has not been loaded yet.")
-         (is (nil? (g/node-value node-id :disk-sha256))
-             "Disk SHA256 has not been loaded yet."))))
 
 (deftest async-reload-test
   (with-clean-system
@@ -244,7 +219,7 @@
                                                   (test-util/cached-save-data-outputs node-id)
                                                   :resource-node-not-found))]
                                         (is (= #{:save-data :save-value} (cached-save-data-outputs "/game_object/test.go")))
-                                        (is (= #{:save-data} (cached-save-data-outputs "/json/test.json"))) ; The save-value output is not :cached. Lazy loaded.
+                                        (is (= #{:save-data} (cached-save-data-outputs "/json/test.json"))) ; The save-value output is not :cached.
                                         (is (= #{:save-data} (cached-save-data-outputs "/script/test_module.lua"))) ; The save-value output is not :cached.
                                         (is (= #{:save-data} (cached-save-data-outputs "/markdown/test.md")))
                                         (is (= #{:save-data} (cached-save-data-outputs "/html/test.html")))))
@@ -266,11 +241,11 @@
                                       (let [external-game-object-pb-map (protobuf/read-map-without-defaults GameObject$PrototypeDesc (workspace/find-resource workspace "/game_object/test.go"))
                                             external-lua-lines (code.util/split-lines external-lua-text)
                                             external-markdown-lines (code.util/split-lines external-markdown-text)]
-                                        (is (check-eager-loaded-save-data! project "/game_object/test.go" external-game-object-text external-game-object-pb-map))
-                                        (is (check-lazy-loaded-save-data! project "/json/test.json" external-json-text))
-                                        (is (check-eager-loaded-save-data! project "/script/test_module.lua" external-lua-text external-lua-lines))
-                                        (is (check-eager-loaded-save-data! project "/markdown/test.md" external-markdown-text external-markdown-lines))
-                                        (is (check-eager-loaded-save-data! project "/html/test.html" external-markdown-text external-markdown-lines))))
+                                        (is (check-loaded-save-data! project "/game_object/test.go" external-game-object-text external-game-object-pb-map))
+                                        (is (check-loaded-save-data! project "/json/test.json" external-json-text (code.util/split-lines external-json-text)))
+                                        (is (check-loaded-save-data! project "/script/test_module.lua" external-lua-text external-lua-lines))
+                                        (is (check-loaded-save-data! project "/markdown/test.md" external-markdown-text external-markdown-lines))
+                                        (is (check-loaded-save-data! project "/html/test.html" external-markdown-text external-markdown-lines))))
 
                                     (testing "Save data unaffected."
                                       (is (= dirty-save-data-before (project/dirty-save-data project))))
@@ -348,7 +323,7 @@
                                 (testing "Expectations for our edited resource."
                                   (let [proj-path "/script/props.script"
                                         internal-edit-lines (code.util/split-lines internal-edit-text)]
-                                    (check-eager-loaded-save-data! project proj-path internal-edit-text internal-edit-lines)))
+                                    (check-loaded-save-data! project proj-path internal-edit-text internal-edit-lines)))
 
                                 (testing "No files are still in need of saving."
                                   (let [dirty-proj-paths (into #{} (map (comp resource/proj-path :resource)) (project/dirty-save-data project))]

@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.defold-project-search-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [clojure.test :refer :all]
@@ -171,27 +172,6 @@
         (is (= save-error (g/node-value node-id :save-value)))
         (is (g/error-value? (g/node-value node-id :save-data)))))))
 
-;; Transformed source values require explicit search handling so the default cannot expose hashes.
-(deftest transformed-source-requires-search-function-test
-  (test-util/with-loaded-project "test/resources/empty_project"
-    (doseq [invalid-search-value-fn [nil false 42]]
-      (is (thrown? AssertionError
-                   (workspace/register-resource-type workspace
-                     :ext "transformed"
-                     :node-type resource-node/ResourceNode
-                     :source-value-fn hash
-                     :search-value-fn invalid-search-value-fn))))
-    (let [search-value-fn (fn [node-id _resource evaluation-context]
-                            (g/node-value node-id :save-value evaluation-context))]
-      (g/transact
-        (workspace/register-resource-type workspace
-          :ext "transformed"
-          :node-type resource-node/ResourceNode
-          :source-value-fn hash
-          :search-value-fn search-value-fn))
-      (is (identical? search-value-fn
-                      (:search-value-fn (get (workspace/get-resource-type-map workspace) "transformed")))))))
-
 ;; Propagated save errors must fall back to saved content without changing the resource's unsaved edits.
 (deftest search-falls-back-after-dependency-error-test
   (test-util/with-temp-project-content
@@ -200,10 +180,9 @@
      "/child.collection" {:name "child"}}
     (let [parent (project/get-resource-node project "/parent.collection")
           resource (g/node-value parent :resource)
-          search-value-fn (:search-value-fn (resource/resource-type resource))
           search-value! (fn []
                           (g/with-auto-evaluation-context evaluation-context
-                            (search-value-fn parent resource evaluation-context)))]
+                            (project-search/search-value parent resource evaluation-context)))]
       (is (= "saved-name" (:name (search-value!))))
       (g/set-property! parent :name "unsaved-name")
       (is (= "unsaved-name" (:name (search-value!))))
@@ -214,6 +193,52 @@
       (is (= (g/node-value parent :source-value) (search-value!)))
       (is (= "saved-name" (:name (search-value!))))
       (is (= "unsaved-name" (g/node-value parent :name))))))
+
+(g/defnode PluginSearchResource
+  (inherits resource-node/ResourceNode)
+  (property value g/Any)
+  (output save-value g/Any (g/fnk [value] value)))
+
+;; A plugin matcher receives its registered reader's value. A bad value in one
+;; file must leave matches from other files and the completion signal intact.
+(deftest plugin-search-matcher-error-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (g/transact
+      (workspace/register-resource-type workspace
+        :ext "pluginsearch"
+        :node-type PluginSearchResource
+        :textual? true
+        :read-fn (fn read-plugin-value [_read-opts _resource input] (edn/read-string (slurp input)))
+        :write-fn pr-str
+        :load-fn (fn load-plugin-value [_load-opts {:keys [node-id source-value]}]
+                   (g/set-property node-id :value source-value))
+        :search-fn (fn search-plugin-value
+                     ([query] (re-pattern query))
+                     ([value pattern]
+                      (when (re-find pattern (:text value))
+                        [{:match-type :match-type-text :text (:text value)}])))))
+    (test-util/write-file-resource! workspace "/a.pluginsearch" {:text 42})
+    (test-util/write-file-resource! workspace "/b.pluginsearch" {:text "needle"})
+    (test-util/write-file-resource! workspace "/c.lua" "return 'needle'")
+    (workspace/resource-sync! workspace)
+    (g/set-property! (test-util/resource-node project "/b.pluginsearch") :value {:text "unsaved needle"})
+    (let [consumer (promise)
+          reported-error (promise)
+
+          {:keys [start-search! abort-search!]}
+          (project-search/make-file-searcher
+            workspace project #(deliver consumer %) fn/constantly-nil #(deliver reported-error %))]
+      (try
+        (start-search! "needle" "pluginsearch,lua" false)
+        (let [error (deref reported-error 10000 nil)
+              poll-results! (deref consumer 10000 nil)
+              results (when poll-results! (vec (poll-results!)))]
+          (is (= "/a.pluginsearch" (:proj-path (ex-data error))))
+          (is (= ::project-search/done (peek results)))
+          (is (= [["/b.pluginsearch" ["unsaved needle"]] ["/c.lua" ["return 'needle'"]]]
+                 (matched-text-by-proj-path (filterv map? results)))))
+        (finally
+          (abort-search!))))))
 
 (deftest file-searcher-test
   (test-util/with-loaded-project search-project-path

@@ -178,5 +178,4 @@
     :node-type ScriptApiNode
     :connect-fn connect-fn
     :textual? true
-    :lazy-loaded true
     :language "yaml"))

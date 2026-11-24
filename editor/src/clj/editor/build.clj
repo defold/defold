@@ -176,13 +176,16 @@
     (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)))
 
 (defn load-build-resources!
-  "Initializes project settings, reads the dependencies of the build roots and
-  project validation resources, then materializes their shells in dependency
-  order."
+  "Prepares the resources needed to evaluate build targets and project errors.
+
+  Initializes project settings, reads the dependencies of the build roots and
+  project validation resources, then materializes the required shells in
+  dependency order."
   [project root-proj-paths render-load-progress! task-cancelled?]
   (try
     (let [required-endpoints [(g/endpoint project :build-errors)]]
-      (resource-loading/load-resources! project root-proj-paths required-endpoints render-load-progress! task-cancelled?))
+      (resource-loading/load-resources! project root-proj-paths required-endpoints render-load-progress! task-cancelled?
+                                        :resource-output-label :build-targets))
     (catch ExceptionInfo error
       (if (= :task-cancelled (:ex-type (ex-data error)))
         (throw-build-cancelled-exception!)

@@ -16,8 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.localization :as localization]
-            [editor.resource :as resource]
-            [util.text-util :as text-util]))
+            [editor.resource :as resource]))
 
 (g/defnk produce-build-targets [_node-id resource]
   (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource))))
@@ -26,11 +25,8 @@
   (inherits r/CodeEditorResourceNode)
   (output build-targets g/Any produce-build-targets))
 
-(defn- additional-load-fn [{:keys [project]} {:keys [node-id resource]}]
-  (when (and (resource/save-tracked? resource)
-             (resource/exists? resource)
-             (not (resource/folder? resource))
-             (not (text-util/binary? resource)))
+(defn- additional-load-fn [{:keys [project]} {:keys [node-id resource source-value]}]
+  (when (and source-value (resource/save-tracked? resource))
     (g/connect node-id :save-data project :save-data)))
 
 (defn register-resource-types [workspace]
@@ -40,6 +36,5 @@
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :node-type PlaceholderResourceNode
     :view-types [:code :default]
-    :lazy-loaded true
     :auto-connect-save-data? false
     :additional-load-fn additional-load-fn))

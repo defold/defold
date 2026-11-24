@@ -1245,5 +1245,4 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :additional-load-fn load-app-manifest
-    :lazy-loaded false))
+    :additional-load-fn load-app-manifest))

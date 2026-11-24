@@ -18,7 +18,8 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [internal.node :as in]
-            [util.path :as path])
+            [util.path :as path]
+            [util.text-util :as text-util])
   (:import [java.io FileNotFoundException]))
 
 (set! *warn-on-reflection* true)
@@ -64,6 +65,16 @@
     source-value
     (file-not-found-error node-id :source-value :fatal resource)))
 
+(defn read-source-value+sha256-hex
+  "Returns the registered reader's source value and disk digest.
+
+  Returns nil for binary placeholders and resources without a reader."
+  [read-opts resource resource-type]
+  (when-let [read-fn (:read-fn resource-type)]
+    (when (or (not (resource/placeholder-resource-type? resource-type))
+              (not (text-util/binary? resource)))
+      (resource/read-source-value+sha256-hex resource #(read-fn read-opts resource %)))))
+
 (defn read-source-value!
   "Returns an unmaterialized resource node's cached source-value, or reads it
   and initializes source-value and disk-sha256 on the ShellNode. Read failures
@@ -74,16 +85,13 @@
   (with-error-translation resource node-id :source-value
     (let [{:keys [basis-ref]} evaluation-context
           source-value (g/raw-property-value @basis-ref node-id :source-value)]
-      (or (guarded-source-value node-id resource source-value)
-          (let [{:keys [editable->type-ext->resource-type]} read-opts
-                {:keys [read-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
-            (when read-fn
-              (let [read-stream-fn #(read-fn read-opts resource %)
-                    [source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-stream-fn)
-                    shell-node-properties {:source-value source-value
-                                           :disk-sha256 disk-sha256}]
-                (g/initialize-shell-properties! node-id shell-node-properties evaluation-context)
-                source-value)))))))
+      (if-some [cached-value (guarded-source-value node-id resource source-value)]
+        cached-value
+        (let [resource-type
+              (resource/lookup-resource-type resource (:editable->type-ext->resource-type read-opts))]
+          (when-let [[source-value disk-sha256] (read-source-value+sha256-hex read-opts resource resource-type)]
+            (g/initialize-shell-properties! node-id {:source-value source-value :disk-sha256 disk-sha256} evaluation-context)
+            source-value))))))
 
 (defn evaluate-or-read-save-value!
   "Returns the node's current save-value if it is materialized, or reads its

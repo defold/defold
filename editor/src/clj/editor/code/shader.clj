@@ -194,6 +194,5 @@
          :let [args (assoc def
                       :node-type ShaderNode
                       :built-pb-class shader-compilation/built-pb-class
-                      :dependencies-fn shader-dependencies
-                      :lazy-loaded false)]]
+                      :dependencies-fn shader-dependencies)]]
      (apply r/register-code-resource-type workspace (mapcat identity args)))])

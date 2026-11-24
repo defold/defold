@@ -106,31 +106,17 @@
      :reloaded reloaded-proj-paths
      :invalidated (resource-node-ids->proj-paths stateless-resource-node-ids)}))
 
-(def ^:private lazy-loaded-editable-file-proj-paths
-  ["/.gitattributes"
-   "/.gitignore"
-   "/editable/json.json"
-   "/editable/script_api.script_api"
-   "/editable/xml.xml"])
-
-(def ^:private lazy-loaded-non-editable-file-proj-paths
-  ["/non-editable/json.json"
-   "/non-editable/script_api.script_api"
-   "/non-editable/xml.xml"])
-
-(def ^:private lazy-loaded-file-proj-paths
-  (-> (into lazy-loaded-editable-file-proj-paths
-            lazy-loaded-non-editable-file-proj-paths)
-      (sort)
-      (vec)))
+(def ^:private unread-proj-paths ["/editable/json.json" "/non-editable/json.json"])
 
 (defn- make-resource-change-plans-atom! [project]
   ;; These tests compare disk state recorded when a resource was materialized.
-  ;; Keep code resources with their separate lazy disk state unread.
-  (g/with-auto-evaluation-context evaluation-context
-    (doseq [[node-id resource] (g/node-value project :node-id+resources evaluation-context)
-            :when (not (:lazy-loaded (resource/resource-type resource)))]
-      (g/materialize-node! node-id evaluation-context)))
+  ;; Leave one editable and one non-editable file unread to also cover shells
+  ;; that have no recorded disk hash.
+  (let [unread-proj-path? (set unread-proj-paths)]
+    (g/with-auto-evaluation-context evaluation-context
+      (doseq [[node-id resource] (g/node-value project :node-id+resources evaluation-context)
+              :when (not (unread-proj-path? (resource/proj-path resource)))]
+        (g/materialize-node! node-id evaluation-context))))
   ;; Add a resource listener to the workspace, so we can get the resulting
   ;; resource change plans. We need to be the first listener in the list so that
   ;; we get the resulting resource change plan before it is executed.
@@ -211,10 +197,9 @@
 
           ;; Ensure we have no significant changes in the resource change plan.
           (when (is (= 1 (count @resource-change-plans-atom)))
-            ;; We expect all lazy-loaded files to be reloaded, since they will
-            ;; not have been loaded and thus have no on-disk state to compare
-            ;; against.
-            (is (= (expect-reloaded project touched-resources lazy-loaded-file-proj-paths)
+            ;; We expect both unread files to be reloaded, since their shells
+            ;; have no disk hash to compare against.
+            (is (= (expect-reloaded project touched-resources unread-proj-paths)
                    (resource-changes (@resource-change-plans-atom 0)))))))
 
       (testing "Only nodes whose file contents have changed on disk lose unsaved edits."
@@ -227,11 +212,10 @@
 
           ;; Ensure we have no significant changes in the resource change plan.
           (when (is (= 2 (count @resource-change-plans-atom)))
-            ;; We expect the non-editable lazy-loaded files to be reloaded, as
-            ;; they have no on-disk state to compare against. But the editable
-            ;; lazy-loaded files will have been loaded as a result of the edit,
-            ;; so we do not expect them to be reloaded here.
-            (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+            ;; The edit setup materialized both editable and non-editable files.
+            ;; Their disk hashes still match, so the editable nodes keep their
+            ;; unsaved changes.
+            (is (= (expect-reloaded project touched-resources [])
                    (resource-changes (@resource-change-plans-atom 1))))))))))
 
 (deftest keep-existing-nodes-touch-after-save-test
@@ -253,11 +237,9 @@
 
         ;; Ensure we have no significant changes in the resource change plan.
         (when (is (= 1 (count @resource-change-plans-atom)))
-          ;; We expect the non-editable lazy-loaded files to be reloaded, as
-          ;; they have no on-disk state to compare against. But the editable
-          ;; lazy-loaded files will have been loaded as a result of the edit, so
-          ;; we do not expect them to be reloaded here.
-          (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+          ;; Edited files have the hash from the save. Non-editable files still
+          ;; have the hash from materialization. Touching either keeps the node.
+          (is (= (expect-reloaded project touched-resources [])
                  (resource-changes (@resource-change-plans-atom 0)))))))))
 
 (deftest keep-existing-nodes-undo-after-save-test
@@ -267,11 +249,9 @@
       ;; Perform edits on all editable files in the project.
       (perform-edits-to-all-editable-files! project)
 
-      ;; Touch all files except the lazy-loaded non-editable ones. We don't want
-      ;; to trigger a reload of these files for this test, as it will cause the
-      ;; undo to be cleared due to the necessary node replacements.
-      (let [touch-resource? (comp (complement (set lazy-loaded-non-editable-file-proj-paths)) resource/proj-path)
-            touched-resources (filterv touch-resource? (all-file-resources workspace))]
+      ;; Replacing a node on reload clears undo history. With disk hashes for
+      ;; editable and non-editable files, touching them all must preserve it.
+      (let [touched-resources (all-file-resources workspace)]
         (touch-and-resource-sync! touched-resources)
 
         ;; Ensure we have no significant changes in the resource change plan.
@@ -306,9 +286,7 @@
 
         ;; Ensure we have no significant changes in the resource change plan.
         (when (is (= 2 (count @resource-change-plans-atom)))
-          ;; We expect the non-editable lazy-loaded files to be reloaded, as
-          ;; they have no on-disk state to compare against. But the editable
-          ;; lazy-loaded files will have been loaded as a result of the edit, so
-          ;; we do not expect them to be reloaded here.
-          (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+          ;; Undo restored the original property values. The disk hashes still
+          ;; describe the saved files, so this touch must keep the dirty nodes.
+          (is (= (expect-reloaded project touched-resources [])
                  (resource-changes (@resource-change-plans-atom 1)))))))))

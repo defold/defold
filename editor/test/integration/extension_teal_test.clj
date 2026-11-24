@@ -15,7 +15,6 @@
 (ns integration.extension-teal-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.code.resource :as code.resource]
             [integration.test-util :as test-util]))
 
 (set! *warn-on-reflection* true)
@@ -48,9 +47,6 @@
           (is (empty? (:children node-outline)))))
 
       (testing "save-value"
-        ;; TODO: No need to call ensure-loaded! soon.
-        (g/with-auto-evaluation-context evaluation-context
-          (code.resource/ensure-loaded! node-id evaluation-context))
         (is (= ["local Vector = require('modules.vector')"
                 ""
                 "local m = {}"

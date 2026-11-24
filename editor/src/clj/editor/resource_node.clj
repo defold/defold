@@ -68,23 +68,13 @@
             (resource-io/with-error-translation resource node-id :sha256
               (resource/resource->sha256-hex resource)))))))
 
-(defn save-value->source-value [save-value resource-type]
-  (if (or (nil? save-value)
-          (g/error-value? save-value))
-    save-value
-    (if-some [source-value-fn (:source-value-fn resource-type)]
-      (source-value-fn save-value)
-      save-value)))
-
-(defn dirty-save-value? [save-value source-value resource-type]
+(defn dirty-save-value? [save-value source-value]
   (and (some? source-value)
        (some? save-value)
-       (not= source-value (save-value->source-value save-value resource-type))))
+       (not= source-value save-value)))
 
 (g/defnk produce-save-data [_node-id resource save-value source-value]
-  (let [resource-type (resource/resource-type resource)
-        dirty (dirty-save-value? save-value source-value resource-type)]
-    (make-save-data _node-id resource save-value dirty)))
+  (make-save-data _node-id resource save-value (dirty-save-value? save-value source-value)))
 
 (defn merge-source-values [node-id+source-value-pairs]
   (g/non-undoable
@@ -131,7 +121,7 @@
             (dynamic visible (g/constantly false)))
 
   ;; Shells retain successful reads in their original representation. Loading
-  ;; converts source-value to the resource type's disk-state representation.
+  ;; reuses that value, and dirty checking compares it with :save-value.
   ;; Disk state is updated non-undoably when reading, loading or saving.
   (property disk-sha256 g/Str :non-materializing :unjammable
             (dynamic visible (g/constantly false)))

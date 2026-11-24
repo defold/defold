@@ -2075,6 +2075,41 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
             (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
             (is (instance? ShellNode (g/node-by-id @basis-ref parent-node-id)))))))))
 
+;; Editor scripts can read and edit empty text files with an unknown extension.
+;; Binary files of the same type must never advertise or accept text access.
+(deftest placeholder-text-property-test
+  (test-util/with-temp-project-content
+    {"/empty.unknown" ""
+     "/binary.unknown" (byte-array [0 0 1 2 3])}
+    (reload-editor-scripts! project)
+    (doseq [materialize [false true]
+            [proj-path expected-text] [["/empty.unknown" ""] ["/binary.unknown" nil]]]
+      (testing (str proj-path " materialized=" materialize)
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (let [node-id
+                (project/get-resource-node project proj-path evaluation-context)
+
+                rt (:rt (extensions/ext-state project evaluation-context))
+
+                query
+                (fn query [expression]
+                  (let [chunk
+                        (rt/bind rt (rt/read (str "local node = ...; return " expression)))]
+                    (rt/->clj rt
+                              (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                     chunk (rt/->lua proj-path)))))]
+            (when materialize
+              (g/materialize-node! node-id evaluation-context))
+            (is (= (if expected-text [true true ["path" "text"]] [false false ["path"]])
+                   (query "{editor.can_get(node, 'text'), editor.can_set(node, 'text'), editor.properties(node)}")))
+            (is (= (not materialize) (g/shell-node? (g/node-by-id @(:basis-ref evaluation-context) node-id))))
+            (if expected-text
+              (is (= expected-text (query "editor.get(node, 'text')")))
+              (do
+                (is (thrown-with-msg? LuaError #"has no .* property" (query "editor.get(node, 'text')")))
+                (is (thrown-with-msg? LuaError #"Can't set property" (query "editor.tx.set(node, 'text', 'replacement')")))
+                (is (= (not materialize) (g/shell-node? (g/node-by-id @(:basis-ref evaluation-context) node-id))))))))))))
+
 ;; Rejected reads and transaction steps must not materialize even transiently.
 ;; Check the caller's evaluation-context basis: failures do not commit it.
 (deftest unavailable-resource-shell-operation-test

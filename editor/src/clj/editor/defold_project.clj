@@ -296,7 +296,8 @@
 
   :source-value (optional)
     When the resource-type specifies a :read-fn, this will be its return value
-    after we successfully call it.
+    after we successfully call it. Binary files with unknown extensions have
+    no textual source value.
 
   :disk-sha256 (optional)
     When the resource-type specifies a :read-fn, this will be a hex string hash
@@ -316,7 +317,8 @@
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
-        {:keys [lazy-loaded read-fn] :as resource-type}
+
+        {:keys [read-fn] :as resource-type}
         (resource/lookup-resource-type resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
@@ -326,11 +328,10 @@
         ;; is pointing to exists. Although unlikely, it is also possible the
         ;; resource was deleted in the time that passed since we got the list.
         read-result
-        (if (and read-fn
-                 (not lazy-loaded))
+        (if read-fn
           (try
             (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
-              (resource/read-source-value+sha256-hex resource #(read-fn read-opts resource %)))
+              (resource-io/read-source-value+sha256-hex read-opts resource resource-type))
             (catch FileNotFoundException _
               (make-file-not-found-error node-id resource))
             (catch Exception exception
@@ -356,7 +357,7 @@
   (let [node (g/node-by-id basis node-id)
         source-value (when (in/shell-node? node)
                        (:source-value node))]
-    (if-not source-value
+    (if (nil? source-value)
       (read-node-load-info read-opts node-id resource)
       (let [{:keys [editable->type-ext->resource-type]} read-opts
             resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)
@@ -401,7 +402,7 @@
       (g/set-property node-id :loaded true)
       (g/expand-ec
         (fn apply-resource-load-tx-data [evaluation-context]
-          ;; Connection, reading, or source-value conversion may have failed.
+          ;; Connection or reading may have failed.
           ;; Keep that error and avoid applying load or save connections.
           (when-not (g/defective? @(:basis-ref evaluation-context) node-id)
             load-tx-data))))))
@@ -560,25 +561,11 @@
         ;; Editable resources retain source-value for dirty checking.
         ;; Non-editable resources release it after successful loading.
         ;; Failed loads retain it for search when save-value is an error.
-        ;; Types whose source-value is a hash must supply their own
-        ;; :search-value-fn.
-        (when-let [source-value (or source-value read-error)]
-          (let [resource-type (resource/resource-type resource)
-
-                stored-source-value
-                (try
-                  (resource-node/save-value->source-value source-value resource-type)
-                  (catch ArityException exception
-                    (log/warn :msg (format "Unable to convert source value for resource '%s'"
-                                           (resource/proj-path resource))
-                              :exception exception)
-                    (resource-load-error node-id resource exception)))]
-
-            (e/concat
-              (g/set-property node-id :source-value stored-source-value)
-              (when (g/error-value? stored-source-value)
-                (let [node-type (resource-type->node-type resource-type)]
-                  (g/mark-defective node-id node-type stored-source-value))))))))))
+        (when-some [disk-value (if (some? source-value) source-value read-error)]
+          (e/concat
+            (g/set-property node-id :source-value disk-value)
+            (when (g/error-value? disk-value)
+              (g/mark-defective node-id (resource-node-type resource) disk-value))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.

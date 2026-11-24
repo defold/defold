@@ -53,7 +53,6 @@
     :view-types [:code :default]
     :view-opts script/lua-code-opts
     :node-type EditorScript
-    :lazy-loaded false
     :connect-fn
     (fn [project self resource]
       (let [extensions (g/node-value project :editor-extensions)]

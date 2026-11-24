@@ -31,13 +31,15 @@
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]
             [util.fn :as fn]
             [util.repo :as repo])
   (:import [clojure.lang ExceptionInfo]
            [com.defold.extender.client ExtenderClientCache ExtenderResource]
            [com.dynamo.bob IProgress Platform]
            [com.dynamo.bob.archive EngineVersion]
-           [java.nio.charset StandardCharsets]))
+           [java.nio.charset StandardCharsets]
+           [java.util Base64]))
 
 (defn fix-engine-sha1 [f]
   (let [engine-sha1 (or (repo/detect-engine-sha1) EngineVersion/sha1)]
@@ -109,8 +111,9 @@
                    "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "arm64-ios"))))))))
 
-(defn- extender-resource [resources path]
-  (some #(when (= path (.getPath ^ExtenderResource %)) %) resources))
+(defn- extender-resource
+  ^ExtenderResource [resources path]
+  (coll/first-where #(= path (.getPath ^ExtenderResource %)) resources))
 
 (defn- extender-resources [resources path]
   (filter #(= path (.getPath ^ExtenderResource %)) resources))
@@ -157,9 +160,40 @@
         (with-open [output-stream (io/output-stream (io/file project-path "extension/lib/common/native.a"))]
           (.write output-stream (byte-array [4 5 6])))
         (is (= [4 5 6]
-               (vec (.getContent ^ExtenderResource (extender-resource extender-resources "extension/lib/common/native.a")))))
+               (vec (.getContent (extender-resource extender-resources "extension/lib/common/native.a")))))
         (doseq [^ExtenderResource resource extender-resources]
           (is (pos? (.getLastModified resource))))))))
+
+;; Clean native extension inputs keep their original bytes, including binary
+;; plists registered as text and the default manifest stored in builtins.zip.
+(deftest engine-archive-preserves-clean-resource-bytes-test
+  (let [plist-bytes
+        (.decode (Base64/getDecoder) "YnBsaXN0MDDRAQJcQ0ZCdW5kbGVOYW1lVEdhbWUICxgAAAAAAAABAQAAAAAAAAADAAAAAAAAAAAAAAAAAAAAHQ==")
+
+        upload-path "extension/lib/ios/Sample.framework/Info.plist"
+        proj-path (str "/" upload-path)]
+    (test-util/with-temp-project-content
+      {"/extension/ext.manifest" ["name: test_extension"]
+       "/extension/src/main.cpp" ""
+       proj-path plist-bytes}
+      (let [node-id (test-util/resource-node project proj-path)
+
+            default-manifest
+            (workspace/find-resource workspace "/builtins/manifests/ios/Info.plist")]
+        (doseq [materialize [false true]]
+          (g/with-auto-evaluation-context evaluation-context
+            (when materialize
+              (g/materialize-node! node-id evaluation-context))
+            (let [{:keys [extender-resources]}
+                  (native-extensions/make-engine-archive-request
+                    project "arm64-ios" (test-util/make-test-prefs) evaluation-context)]
+              (is (= (vec plist-bytes)
+                     (vec (.getContent (extender-resource extender-resources upload-path)))))
+              (with-open [input-stream (io/input-stream default-manifest)]
+                (is (= (vec (.readAllBytes input-stream))
+                       (vec (.getContent (extender-resource extender-resources "Info.plist"))))))
+              (is (= (not materialize)
+                     (g/shell-node? (g/node-by-id @(:basis-ref evaluation-context) node-id)))))))))))
 
 ;; Engine requests must preserve their cache key when their snapshot closes,
 ;; so cached engine archives can be reused without contacting the server.

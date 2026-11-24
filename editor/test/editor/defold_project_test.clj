@@ -408,8 +408,7 @@
            :dependencies-fn
            :load-fn
            :prerequisites-fn
-           :read-fn
-           :source-value-fn]
+           :read-fn]
 
           [failure exception-type invalid-fn]
           [[:too-few
@@ -443,8 +442,6 @@
                                              (e/concat
                                                (g/callback swap! applied-load-tx-counter inc)
                                                (g/set-property node-id :value (:value source-value))))
-                                  :search-value-fn (fn search-value [node-id _resource evaluation-context]
-                                                     (g/node-value node-id :save-value evaluation-context))
                                   :write-fn pr-str}
                             function-key invalid-fn))))
                     (workspace/resource-sync! workspace)
@@ -470,8 +467,7 @@
 
         (cond
           (and (= :illegal-argument failure)
-               (or (= :connect-fn function-key)
-                   (= :source-value-fn function-key)))
+               (= :connect-fn function-key))
           ;; Not caught.
           (is (thrown-with-msg?
                 IllegalArgumentException
@@ -728,8 +724,7 @@
           (is (false? (g/node-value node-id :dirty))))))))
 
 ;; Verifies that a batch's disk state is initialized before any resource load
-;; operation invokes setters, including source-value conversion, without
-;; materializing other nodes.
+;; operation invokes setters, without materializing other nodes.
 (deftest loading-initializes-disk-state-before-setters
   (with-clean-system
     (test-util/with-ui-run-later-rebound
@@ -741,9 +736,6 @@
              :node-type BNode
              :read-fn (fn [_read-opts _resource readable] (slurp readable))
              :write-fn identity
-             :source-value-fn hash
-             :search-value-fn (fn [node-id _resource evaluation-context]
-                                (g/node-value node-id :save-value evaluation-context))
              :load-fn (fn [{:keys [project]} {:keys [node-id source-value]}]
                         [(g/set-property node-id :value source-value)
                          (g/callback-ec
@@ -751,7 +743,7 @@
                              (doseq [proj-path ["/a1.type_a" "/a2.type_a"]]
                                (let [node-id (project/get-resource-node project proj-path evaluation-context)
                                      resource (resource-node/resource @basis-ref node-id)]
-                                 (is (= (hash (slurp resource)) (g/node-value node-id :source-value evaluation-context)))
+                                 (is (= (slurp resource) (g/node-value node-id :source-value evaluation-context)))
                                  (is (= (resource/resource->sha256-hex resource) (g/node-value node-id :disk-sha256 evaluation-context)))))))]))])
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)

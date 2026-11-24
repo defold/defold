@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.code.resource :as code.resource]
             [editor.defold-project :as project]
+            [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -51,12 +52,14 @@
          (sort-by resource/proj-path)
          (vec))))
 
-(deftest lazy-loaded-resources-tracked-after-materialization
+;; Save tracking starts when an editable code resource materializes.
+(deftest code-resources-tracked-after-materialization
   (test-util/with-loaded-project "test/resources/reload_unchanged_project"
-    (let [editable-lazy-loaded-file-proj-paths
+    (let [editable-code-proj-paths
           (coll/into-> (all-file-resources workspace) (sorted-set)
             (filter resource/editable?)
-            (filter #(:lazy-loaded (resource/resource-type %)))
+            (filter #(code.resource/code-resource-type? (resource/resource-type %)))
+            (filter resource/textual?)
             (map resource/proj-path))
 
           tracked-proj-paths
@@ -65,15 +68,15 @@
               (map resource/proj-path)))]
 
       (g/node-value project :save-data)
-      (is (coll/empty? (set/intersection editable-lazy-loaded-file-proj-paths (tracked-proj-paths))))
-      (doseq [proj-path editable-lazy-loaded-file-proj-paths]
+      (is (coll/empty? (set/intersection editable-code-proj-paths (tracked-proj-paths))))
+      (doseq [proj-path editable-code-proj-paths]
         (let [node-id (test-util/resource-node project proj-path)]
           (is (not (resource-node/loaded? (g/now) node-id)))
           (g/with-auto-evaluation-context evaluation-context
             (g/materialize-node! node-id evaluation-context))
           (is (contains? (tracked-proj-paths) proj-path))))
-      (is (= editable-lazy-loaded-file-proj-paths
-             (set/intersection editable-lazy-loaded-file-proj-paths (tracked-proj-paths)))))))
+      (is (= editable-code-proj-paths
+             (set/intersection editable-code-proj-paths (tracked-proj-paths)))))))
 
 (defn- set-code-resource-node-lines! [lines-by-code-resource-node-id]
   (g/transact
@@ -127,40 +130,13 @@
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))
 
-;; Verifies that initializing lazy disk state materializes an untouched shell
-;; before reading its properties, without creating an undo entry.
-(deftest lazy-disk-state-materializes-shell-test
-  (with-clean-system
-    (test-util/with-ui-run-later-rebound
-      (let [workspace (test-util/setup-workspace! "test/resources/reload_unchanged_project")
-            project (test-util/setup-project! workspace)
-            node-id (project/get-resource-node project "/editable/json.json")
-            resource (resource-node/resource node-id)
-            lines (code.resource/read-fn {} resource resource)
-            disk-sha256 (resource/resource->sha256-hex resource)
-            initial-basis (g/now)]
-        (is (not (resource-node/loaded? node-id)))
-        (g/reset-undo! :undo/global)
-        (g/with-auto-evaluation-context evaluation-context
-          (code.resource/ensure-loaded! node-id evaluation-context))
-        (is (resource-node/loaded? node-id))
-        (is (= lines (g/node-value node-id :unmodified-lines)))
-        (is (= lines (g/node-value node-id :save-value)))
-        (is (= (hash lines) (g/node-value node-id :source-value)))
-        (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
-        (is (false? (g/node-value node-id :dirty)))
-        (is (zero? (g/undo-stack-count :undo/global)))
-        (is (not (resource-node/loaded? initial-basis node-id)))
-        (is (nil? (g/raw-property-value initial-basis node-id :source-value)))
-        (is (nil? (g/raw-property-value initial-basis node-id :disk-sha256)))))))
-
 ;; Code search retains raw lines and disk-sha256 on shells without materializing
-;; them. Searches, loading, opening, and edits reuse the read. Saving keeps
-;; the unmodified lines needed to undo the first edit.
+;; them, including for library files. Searches, loading, opening, and edits
+;; reuse the read. Loading adds no undo entry, and saving preserves the
+;; original text needed to undo the first edit.
 (deftest code-search-caches-shell-reads-test
-  (doseq [editable [false true]
-          lazy-loaded [false true]]
-    (testing (str "editable: " editable ", lazy-loaded: " lazy-loaded)
+  (doseq [editable [false true]]
+    (testing (str "editable: " editable)
       (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
         (with-open [_ (test-util/make-directory-deleter project-path)]
           (when-not editable
@@ -173,37 +149,36 @@
                 (code.resource/register-code-resource-type workspace
                   :ext "codecache"
                   :editable editable
-                  :node-type code.resource/CodeEditorResourceNode
-                  :lazy-loaded lazy-loaded))
+                  :node-type code.resource/CodeEditorResourceNode))
               (test-util/write-file-resource! workspace proj-path lines)
               (workspace/resource-sync! workspace)
               (let [project (test-util/setup-project! workspace)
                     node-id (test-util/resource-node project proj-path)
                     resource (resource-node/resource node-id)
                     disk-sha256 (resource/resource->sha256-hex resource)
-                    {:keys [search-value-fn search-fn]} (resource/resource-type resource)
+                    search-fn (:search-fn (resource/resource-type resource))
                     file (io/file project-path (subs proj-path 1))]
                 (g/reset-undo! :undo/global)
                 (testing "Failed reads leave the shell available for another attempt"
                   (io/delete-file file)
                   (g/with-auto-evaluation-context evaluation-context
-                    (is (g/error-value? (search-value-fn node-id resource evaluation-context))))
+                    (is (g/error-value? (project-search/search-value node-id resource evaluation-context))))
                   (let [node (g/node-by-id (g/now) node-id)]
                     (is (instance? ShellNode node))
                     (is (not (contains? node :source-value)))
                     (is (not (contains? node :disk-sha256)))))
                 (test-util/write-file-resource! workspace proj-path lines)
                 (let [search-value (g/with-auto-evaluation-context evaluation-context
-                                     (search-value-fn node-id resource evaluation-context))
+                                     (project-search/search-value node-id resource evaluation-context))
                       node (g/node-by-id (g/now) node-id)]
-                  (is (= {:resource resource :loaded-lines lines} search-value))
+                  (is (= lines search-value))
                   (is (instance? ShellNode node))
                   (is (= lines (:source-value node)))
                   (is (= disk-sha256 (:disk-sha256 node)))
                   ;; Removing the file exposes redundant disk reads.
                   (io/delete-file file)
                   (g/with-auto-evaluation-context evaluation-context
-                    (is (= search-value (search-value-fn node-id resource evaluation-context))))
+                    (is (= search-value (project-search/search-value node-id resource evaluation-context))))
                   (doseq [search-string ["needle" "print"]]
                     (is (= ["    print('needle')"]
                            (mapv :text (search-fn search-value (search-fn search-string)))))))
@@ -211,13 +186,10 @@
                 (g/with-auto-evaluation-context evaluation-context
                   (g/materialize-node! node-id evaluation-context))
                 (is (instance? NodeImpl (g/node-by-id (g/now) node-id)))
-                (is (= lines (g/node-value node-id :unmodified-lines)))
                 (is (= lines (g/node-value node-id :lines)))
                 (is (= :four-spaces (g/node-value node-id :indent-type)))
-                (is (= (when editable (hash lines)) (g/node-value node-id :source-value)))
+                (is (= (when editable lines) (g/node-value node-id :source-value)))
                 (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
-                (g/with-auto-evaluation-context evaluation-context
-                  (code.resource/ensure-loaded! node-id evaluation-context))
                 (is (= lines (g/node-value node-id :save-value)))
                 (is (false? (g/node-value node-id :dirty)))
                 (is (zero? (g/undo-stack-count :undo/global)))
@@ -226,108 +198,93 @@
                     (test-util/set-code-editor-lines! node-id edited-lines)
                     (is (true? (g/node-value node-id :dirty)))
                     (g/with-auto-evaluation-context evaluation-context
-                      (is (= edited-lines (:loaded-lines (search-value-fn node-id resource evaluation-context)))))
+                      (is (= edited-lines (project-search/search-value node-id resource evaluation-context))))
                     (test-util/write-file-resource! workspace proj-path lines)
                     (test-util/save-project! project)
                     (is (false? (g/node-value node-id :dirty)))
                     (is (= 1 (g/undo-stack-count :undo/global)))
                     (g/undo! :undo/global)
                     (is (= lines (g/node-value node-id :save-value)))
-                    (is (= lines (g/node-value node-id :unmodified-lines)))
-                    (is (= (hash edited-lines) (g/node-value node-id :source-value)))
+                    (is (= edited-lines (g/node-value node-id :source-value)))
                     (is (true? (g/node-value node-id :dirty)))
                     (g/redo! :undo/global)
                     (is (= edited-lines (g/node-value node-id :save-value)))
                     (is (false? (g/node-value node-id :dirty)))))))))))))
 
-(deftest lazy-disk-state-transaction-test
-  ;; Verifies that lazy disk baselines are transactional, guarding against dry
-  ;; runs and failed edits changing the live resource or previously captured
-  ;; graph state.
-  (test-util/with-loaded-project "test/resources/reload_unchanged_project"
-    (let [node-id (test-util/resource-node project "/editable/json.json")
-          original-lines (test-util/code-editor-lines node-id)
-          edited-lines (conj original-lines "")
+;; A tentative first edit reads its baseline within the transaction. Discarding
+;; or aborting the transaction must leave the live resource as an unread shell.
+;; Committing an edit must also preserve the shell in previously captured bases.
+(deftest first-code-edit-is-transactional-test
+  (test-util/with-temp-project-content {"/example.json" "[]"}
+    (let [node-id (test-util/resource-node project "/example.json")
           resource (resource-node/resource node-id)
           disk-sha256 (resource/resource->sha256-hex resource)
-          evaluation-context (g/make-evaluation-context)
-          original-save-data (g/node-value node-id :save-data evaluation-context)]
+          initial-basis (g/now)
+          edit (g/set-property node-id :modified-lines ["[1]"])]
+      (let [{:keys [basis]} (g/transact {:dry-run true} edit)]
+        (is (= ["[]"] (g/raw-property-value basis node-id :source-value)))
+        (is (= disk-sha256 (g/raw-property-value basis node-id :disk-sha256)))
+        (is (= ["[1]"] (g/raw-property-value basis node-id :modified-lines)))
+        (is (g/shell-node? (g/node-by-id node-id))))
+      (is (thrown-with-msg? ExceptionInfo #"Abort first edit"
+                            (g/transact
+                              [edit
+                               (g/callback (fn abort-edit [] (throw (ex-info "Abort first edit" {}))))])))
+      (is (g/shell-node? (g/node-by-id node-id)))
+      (is (nil? (g/node-value node-id :source-value)))
+      (g/transact edit)
+      (is (= ["[]"] (g/node-value node-id :source-value)))
+      (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
+      (is (= ["[1]"] (:save-value (g/node-value node-id :save-data))))
+      (is (true? (g/node-value node-id :dirty)))
+      (is (g/shell-node? (g/node-by-id initial-basis node-id)))
+      (is (nil? (g/raw-property-value initial-basis node-id :source-value))))))
 
-      (testing "Generating and dry-running the first edit leaves the live baseline unset."
-        (let [{:keys [basis]}
-              (g/transact {:dry-run true}
-                (test-util/set-code-editor-lines node-id edited-lines))]
-          (is (= original-lines (g/raw-property-value basis node-id :unmodified-lines)))
-          (is (= (hash original-lines) (g/raw-property-value basis node-id :source-value)))
-          (is (= disk-sha256 (g/raw-property-value basis node-id :disk-sha256)))
-          (is (nil? (g/node-value node-id :unmodified-lines)))
-          (is (nil? (g/node-value node-id :source-value)))
-          (is (nil? (g/node-value node-id :disk-sha256)))
-          (is (= original-save-data (g/node-value node-id :save-data)))))
-
-      (testing "A failed edit does not initialize the live disk baseline."
-        (is (thrown-with-msg?
-              ExceptionInfo #"Abort disk-state test"
-              (g/transact
-                [(test-util/set-code-editor-lines node-id edited-lines)
-                 (g/update-property
-                   node-id :modified-lines
-                   (fn [_lines]
-                     (throw (ex-info "Abort disk-state test" {}))))])))
-        (is (nil? (g/node-value node-id :unmodified-lines)))
-        (is (nil? (g/node-value node-id :source-value)))
-        (is (nil? (g/node-value node-id :disk-sha256))))
-
-      (testing "Committing the edit initializes the baseline and invalidates cached save data."
-        (g/transact
-          (test-util/set-code-editor-lines node-id edited-lines))
-        (is (= original-lines (g/node-value node-id :unmodified-lines)))
-        (is (= (hash original-lines) (g/node-value node-id :source-value)))
-        (is (= disk-sha256 (g/node-value node-id :disk-sha256)))
-        (is (= edited-lines (:save-value (g/node-value node-id :save-data))))
-        (is (true? (g/node-value node-id :dirty))))
-
-      (testing "The earlier evaluation context still observes the uninitialized baseline."
-        (is (nil? (g/node-value node-id :unmodified-lines evaluation-context)))
-        (is (nil? (g/node-value node-id :source-value evaluation-context)))
-        (is (nil? (g/node-value node-id :disk-sha256 evaluation-context)))
-        (is (= original-save-data (g/node-value node-id :save-data evaluation-context)))))))
-
-(deftest lazy-disk-state-save-and-undo-test
-  ;; Verifies that loading invalidates cached save data without adding undo
-  ;; entries, and saving preserves the original text needed to undo the first
-  ;; edit.
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/editable/json.json")
-          original-lines (test-util/code-editor-lines node-id)
-          edited-lines (conj original-lines "")]
-      (is (nil? (:save-value (g/node-value node-id :save-data))))
+;; Equal hashes for different lines must still produce a dirty edit. Saving
+;; advances the disk baseline independently of undoing and redoing that edit.
+(deftest code-save-and-undo-with-colliding-line-hashes-test
+  (test-util/with-temp-project-content {"/example.cpp" "Aa"}
+    (let [node-id (test-util/resource-node project "/example.cpp")
+          resource (resource-node/resource node-id)]
+      (is (= (hash ["Aa"]) (hash ["BB"])))
       (g/reset-undo! :undo/global)
-      (g/with-auto-evaluation-context evaluation-context
-        (code.resource/ensure-loaded! node-id evaluation-context))
-      (is (zero? (g/undo-stack-count :undo/global)))
-      (is (= original-lines (:save-value (g/node-value node-id :save-data))))
-      (test-util/set-code-editor-lines! node-id edited-lines)
+      (g/set-property! node-id :modified-lines ["BB"])
+      (is (true? (g/node-value node-id :dirty)))
       (test-util/save-project! project)
+      (is (= "BB" (slurp resource)))
+      (is (false? (g/node-value node-id :dirty)))
+      (is (= 1 (g/undo-stack-count :undo/global)))
+      (g/undo! :undo/global)
+      (is (= ["Aa"] (g/node-value node-id :lines)))
+      (is (= ["BB"] (g/node-value node-id :source-value)))
+      (is (= (resource/resource->sha256-hex resource) (g/node-value node-id :disk-sha256)))
+      (is (true? (g/node-value node-id :dirty)))
+      (g/redo! :undo/global)
+      (is (= ["BB"] (g/node-value node-id :lines)))
+      (is (false? (g/node-value node-id :dirty))))))
 
-      (let [saved-disk-sha256 (resource/resource->sha256-hex (resource-node/resource node-id))]
-        (is (= 1 (g/undo-stack-count :undo/global)))
-        (is (= original-lines (g/node-value node-id :unmodified-lines)))
-        (is (= (hash edited-lines) (g/node-value node-id :source-value)))
-        (is (= saved-disk-sha256 (g/node-value node-id :disk-sha256)))
-        (is (false? (g/node-value node-id :dirty)))
+;; Project search reads unknown text files from their shells. Only text
+;; placeholders acquire editor lines and enter save tracking on materialization.
+(deftest placeholder-code-content-test
+  (test-util/with-temp-project-content {"/text.unknown" "text" "/binary.unknown" (byte-array 2048)}
+    (let [text-node (test-util/resource-node project "/text.unknown")
+          binary-node (test-util/resource-node project "/binary.unknown")
 
-        (g/undo! :undo/global)
-        (is (= original-lines (test-util/code-editor-lines node-id)))
-        (is (= (hash edited-lines) (g/node-value node-id :source-value)))
-        (is (= saved-disk-sha256 (g/node-value node-id :disk-sha256)))
-        (is (true? (g/node-value node-id :dirty)))
-
-        (g/redo! :undo/global)
-        (is (= edited-lines (test-util/code-editor-lines node-id)))
-        (is (false? (g/node-value node-id :dirty)))))))
+          search-data
+          (test-util/with-ui-run-later-rebound
+            @(project-search/make-search-data-future
+               #(throw %)
+               project
+               #(= "unknown" (resource/type-ext %))))]
+      (is (= [{:resource (resource-node/resource text-node) :search-value ["text"]}] search-data))
+      (is (g/shell-node? (g/node-by-id text-node)))
+      (is (g/shell-node? (g/node-by-id binary-node)))
+      (is (= ["text"] (g/node-value text-node :save-value)))
+      (is (nil? (g/node-value binary-node :save-value)))
+      (is (nil? (g/node-value binary-node :source-value)))
+      (is (nil? (g/node-value binary-node :disk-sha256)))
+      (is (g/connected? (g/now) text-node :save-data project :save-data))
+      (is (not (g/connected? (g/now) binary-node :save-data project :save-data))))))
 
 (deftest resource-disk-baseline-properties-test
   ;; Verifies hash invalidation and snapshot isolation for resources without a
