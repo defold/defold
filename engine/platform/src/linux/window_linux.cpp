@@ -84,11 +84,17 @@ namespace dmPlatform
             return;
         }
 
+        const bool update_cursor = w->m_Wayland && w->m_Scale != scale;
         w->m_Width = width;
         w->m_Height = height;
         w->m_PixelWidth = pixels_x;
         w->m_PixelHeight = pixels_y;
         w->m_Scale = scale;
+        if (update_cursor)
+        {
+            w->m_Ops->m_SetCursor(w);
+        }
+
         LinuxResizeGL(w);
         WindowPlacementChanged(w);
         if (w->m_Open && w->m_Params.m_ResizeCallback)

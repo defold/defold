@@ -79,6 +79,8 @@ struct LinuxWayland
     wl_pointer*                m_Pointer;
     wl_surface*                m_PointerSurface;
     wl_cursor_theme*           m_CursorTheme;
+    wl_cursor_theme*           m_ScaledCursorTheme;
+    uint32_t                   m_CursorThemeScale;
     wl_surface*                m_CursorSurface;
     uint32_t                   m_EnterSerial;
     double                     m_Axis;

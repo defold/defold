@@ -274,6 +274,31 @@ namespace dmPlatform
         wl->m_Relative = 0;
     }
 
+    static wl_cursor_theme* LoadCursorTheme(wl_shm* shm, uint32_t scale)
+    {
+        int size = 24;
+        const char* setting = getenv("XCURSOR_SIZE");
+        if (setting)
+        {
+            char* end;
+            long pixels = strtol(setting, &end, 10);
+            if (*end == '\0' && pixels > 0 && pixels <= INT_MAX / 4 / pixels)
+            {
+                size = (int)pixels;
+            }
+        }
+
+        // The initial ARGB cursor buffer must fit in a Wayland shared memory pool.
+        int64_t pixels = (int64_t)size * scale;
+        return pixels <= INT_MAX / 4 / pixels ? g_WaylandClient.wl_cursor_theme_load_(getenv("XCURSOR_THEME"), (int)pixels, shm) : 0;
+    }
+
+    static wl_cursor_image* CursorImage(wl_cursor_theme* theme, const char* name)
+    {
+        wl_cursor* cursor = theme ? g_WaylandClient.wl_cursor_theme_get_cursor_(theme, name) : 0;
+        return cursor && cursor->image_count ? cursor->images[0] : 0;
+    }
+
     void WaylandSetCursor(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -307,45 +332,59 @@ namespace dmPlatform
             return;
         }
 
-        if (!wl->m_CursorTheme && wl->m_Shm && g_WaylandClient.wl_cursor_theme_load_)
-        {
-            int size = 24;
-            const char* setting = getenv("XCURSOR_SIZE");
-            if (setting)
-            {
-                char* end;
-                long pixels = strtol(setting, &end, 10);
-                // The initial ARGB cursor buffer size must fit in a wl_shm pool.
-                if (*end == '\0' && pixels > 0 && pixels <= INT_MAX / 4 / pixels)
-                {
-                    size = (int)pixels;
-                }
-            }
-
-            wl->m_CursorTheme = g_WaylandClient.wl_cursor_theme_load_(getenv("XCURSOR_THEME"), size, wl->m_Shm);
-        }
-
-        if (!wl->m_CursorTheme)
+        if (!wl->m_Shm || !g_WaylandClient.wl_cursor_theme_load_)
         {
             return;
         }
 
         const char* name = frame_cursor ? frame_cursor : (w->m_LinkCursor ? "hand2" : "left_ptr");
-        wl_cursor* cursor = g_WaylandClient.wl_cursor_theme_get_cursor_(wl->m_CursorTheme, name);
-        if (!cursor || !cursor->image_count)
+        uint32_t scale = (uint32_t)ceilf(dmMath::Max(w->m_Scale, 1.0f));
+        wl_cursor_image* img = 0;
+        if (scale > 1 && wl_surface_get_version(w->m_Surface) >= WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
         {
-            return;
+            if (wl->m_CursorThemeScale != scale)
+            {
+                if (wl->m_ScaledCursorTheme)
+                {
+                    g_WaylandClient.wl_cursor_theme_destroy_(wl->m_ScaledCursorTheme);
+                }
+                wl->m_ScaledCursorTheme = LoadCursorTheme(wl->m_Shm, scale);
+                wl->m_CursorThemeScale = scale;
+            }
+
+            img = CursorImage(wl->m_ScaledCursorTheme, name);
         }
 
-        wl_cursor_image* img = cursor->images[0];
+        // A theme may return the nearest available size. Wayland requires both
+        // buffer dimensions to be exact multiples of the surface's integer scale.
+        if (!img || img->width % scale || img->height % scale)
+        {
+            scale = 1;
+            if (!wl->m_CursorTheme)
+            {
+                wl->m_CursorTheme = LoadCursorTheme(wl->m_Shm, scale);
+            }
+
+            img = CursorImage(wl->m_CursorTheme, name);
+            if (!img)
+            {
+                return;
+            }
+        }
+
         if (!wl->m_CursorSurface)
         {
             wl->m_CursorSurface = wl_compositor_create_surface(wl->m_Compositor);
         }
 
-        wl_pointer_set_cursor(wl->m_Pointer, wl->m_EnterSerial, wl->m_CursorSurface, img->hotspot_x, img->hotspot_y);
+        if (wl_surface_get_version(wl->m_CursorSurface) >= WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
+        {
+            wl_surface_set_buffer_scale(wl->m_CursorSurface, scale);
+        }
+
+        wl_pointer_set_cursor(wl->m_Pointer, wl->m_EnterSerial, wl->m_CursorSurface, img->hotspot_x / scale, img->hotspot_y / scale);
         wl_surface_attach(wl->m_CursorSurface, g_WaylandClient.wl_cursor_image_get_buffer_(img), 0, 0);
-        wl_surface_damage(wl->m_CursorSurface, 0, 0, img->width, img->height);
+        wl_surface_damage(wl->m_CursorSurface, 0, 0, img->width / scale, img->height / scale);
         wl_surface_commit(wl->m_CursorSurface);
     }
 

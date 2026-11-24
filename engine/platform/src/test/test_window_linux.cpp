@@ -894,15 +894,16 @@ TEST(LinuxWindow, WaylandDecorationPointerEvents)
     EXPECT_EQ(-1.0, w.m_Wheel);
 }
 
-static int g_CursorSize;
+static int g_PreviousCursorSize, g_CursorSize;
 static wl_cursor_theme* ReadCursorTheme(const char* name, int size, wl_shm*)
 {
     EXPECT_STREQ("Defold test cursor", name);
+    g_PreviousCursorSize = g_CursorSize;
     g_CursorSize = size;
     return 0;
 }
 
-// A cursor must use the player's theme and size, with a usable default for an invalid size.
+// A cursor must follow the player's theme and the current output scale, with a usable fallback.
 TEST(LinuxWindow, WaylandCursorThemeSettings)
 {
     char* old_theme = getenv("XCURSOR_THEME") ? strdup(getenv("XCURSOR_THEME")) : 0;
@@ -911,19 +912,30 @@ TEST(LinuxWindow, WaylandCursorThemeSettings)
     setenv("XCURSOR_SIZE", "64", 1);
     dmWindow w = {};
     LinuxWayland wl = {};
+    LinuxWindowOps ops = {};
+    ops.m_SetCursor = dmPlatform::WaylandSetCursor;
+    w.m_Ops = &ops;
+    w.m_Scale = 1.0f;
     w.m_Wayland = &wl;
     w.m_Surface = wl.m_PointerSurface = (wl_surface*)&w;
     wl.m_Pointer = (wl_pointer*)&wl;
     wl.m_Shm = (wl_shm*)&wl;
     wl.m_EnterSerial = 1;
-    __typeof__(g_WaylandClient.wl_cursor_theme_load_) load = g_WaylandClient.wl_cursor_theme_load_;
+    WaylandClient client = g_WaylandClient;
     g_WaylandClient.wl_cursor_theme_load_ = ReadCursorTheme;
+    g_WaylandClient.wl_proxy_get_version_ = [](wl_proxy*) -> uint32_t {
+                                                return 3;
+                                            };
     dmPlatform::WaylandSetCursor(&w);
     EXPECT_EQ(64, g_CursorSize);
+    // The pointer stays on the window as it moves to a fractional-scale output.
+    dmPlatform::LinuxUpdateSize(&w, 320, 240, 1.5f);
+    EXPECT_EQ(128, g_PreviousCursorSize);
+    EXPECT_EQ(64, g_CursorSize);
     setenv("XCURSOR_SIZE", "12px", 1);
-    dmPlatform::WaylandSetCursor(&w);
+    dmPlatform::LinuxUpdateSize(&w, 320, 240, 1.0f);
     EXPECT_EQ(24, g_CursorSize);
-    g_WaylandClient.wl_cursor_theme_load_ = load;
+    g_WaylandClient = client;
     if (old_theme)
     {
         setenv("XCURSOR_THEME", old_theme, 1);

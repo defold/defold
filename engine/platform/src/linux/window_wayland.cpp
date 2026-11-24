@@ -713,6 +713,7 @@ namespace dmPlatform
         LinuxWayland* wl = w->m_Wayland;
         WaylandReleaseSeat(w);
         DROP(m_CursorSurface, wl_surface_destroy)
+        DROP(m_ScaledCursorTheme, g_WaylandClient.wl_cursor_theme_destroy_)
         DROP(m_CursorTheme, g_WaylandClient.wl_cursor_theme_destroy_)
         DROP(m_Decor, g_Decor.libdecor_unref_)
         for (uint32_t i = 0; i < wl->m_FrameBuffers.Size(); ++i)
