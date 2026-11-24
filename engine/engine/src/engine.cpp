@@ -516,8 +516,111 @@ namespace dmEngine
 
     HEngine New(dmEngineService::HEngineService engine_service)
     {
+#if !defined(DM_RELEASE)
+        ProfileResetPropertyPeaks();
+#endif
         return new Engine(engine_service);
     }
+
+#if !defined(DM_RELEASE)
+    static FILE* OpenProfileReport(HEngine engine, char* path, uint32_t path_size)
+    {
+        char file_name[64] = "profile.txt";
+        int instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
+        if (instance_index > 0)
+            dmSnPrintf(file_name, sizeof(file_name), "instance_%d_profile.txt", instance_index);
+
+        // Use the same locations and fallback order as log.txt.
+        const char* log_dir = dmConfigFile::GetString(engine->m_Config, "project.log_dir", 0);
+        if (log_dir)
+        {
+            dmPath::Concat(log_dir, file_name, path, path_size);
+            FILE* file = fopen(path, "w");
+            if (file)
+                return file;
+        }
+
+        char directory[DMPATH_MAX_PATH];
+        if (dmSys::GetLogPath(directory, sizeof(directory)) == dmSys::RESULT_OK)
+        {
+            dmPath::Concat(directory, file_name, path, path_size);
+            FILE* file = fopen(path, "w");
+            if (file)
+                return file;
+        }
+
+        const char* application = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
+        if (dmSys::GetApplicationSupportPath(application, directory, sizeof(directory)) == dmSys::RESULT_OK)
+        {
+            dmPath::Concat(directory, file_name, path, path_size);
+            return fopen(path, "w");
+        }
+        return 0;
+    }
+
+    static void WriteProfileReport(HEngine engine)
+    {
+        if (!dLib::IsDebugMode() || engine->m_ConnectionAppMode)
+            return;
+
+        ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+        uint32_t count = ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks));
+        if (count == 0)
+            return;
+
+        char path[DMPATH_MAX_PATH] = {};
+        FILE* file = OpenProfileReport(engine, path, sizeof(path));
+        dmLogInfo("Profile property peaks:");
+        const char* header = "Property                                         Peak  Description";
+        dmLogInfo("%s", header);
+        if (file)
+            fprintf(file, "Profile property peaks:\n%s\n", header);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const ProfilePropertyPeak* peak = &peaks[i];
+            char value[64];
+            switch (peak->m_Type)
+            {
+                case PROFILE_PROPERTY_TYPE_BOOL: dmSnPrintf(value, sizeof(value), "%s", peak->m_Value.m_Bool ? "true" : "false"); break;
+                case PROFILE_PROPERTY_TYPE_S32: dmSnPrintf(value, sizeof(value), "%d", peak->m_Value.m_S32); break;
+                case PROFILE_PROPERTY_TYPE_U32: dmSnPrintf(value, sizeof(value), "%u", peak->m_Value.m_U32); break;
+                case PROFILE_PROPERTY_TYPE_F32: dmSnPrintf(value, sizeof(value), "%.9g", peak->m_Value.m_F32); break;
+                case PROFILE_PROPERTY_TYPE_S64: dmSnPrintf(value, sizeof(value), "%lld", (long long)peak->m_Value.m_S64); break;
+                case PROFILE_PROPERTY_TYPE_U64: dmSnPrintf(value, sizeof(value), "%llu", (unsigned long long)peak->m_Value.m_U64); break;
+                case PROFILE_PROPERTY_TYPE_F64: dmSnPrintf(value, sizeof(value), "%.17g", peak->m_Value.m_F64); break;
+                default: continue;
+            }
+
+            const char* name = peak->m_Name;
+            if (strncmp(name, "rmtp_", 5) == 0)
+                name += 5;
+            const char* desc = peak->m_Desc ? peak->m_Desc : "";
+            dmLogInfo("%-32s %20s  %s", name, value, desc);
+            if (file)
+                fprintf(file, "%-32s %20s  %s\n", name, value, desc);
+        }
+
+        if (file)
+        {
+            bool failed = ferror(file) != 0;
+            if (fclose(file) != 0)
+                failed = true;
+            if (failed)
+            {
+                dmLogWarning("Failed to write profile report to '%s'", path);
+            }
+            else
+            {
+                dmLogInfo("Wrote profile report to '%s'", path);
+            }
+        }
+        else
+        {
+            dmLogWarning("Could not open a file for the profile report");
+        }
+    }
+#endif
 
     static dmGameObject::HCollection GetMainCollection(HEngine engine)
     {
@@ -700,6 +803,9 @@ namespace dmEngine
 
         if (engine->m_Config)
         {
+#if !defined(DM_RELEASE)
+            WriteProfileReport(engine);
+#endif
             dmConfigFile::Delete(engine->m_Config);
         }
 

@@ -17,4 +17,21 @@
 
 #include <dmsdk/dlib/profile.h>
 
+// Snapshot of a property's metadata and highest value reached during the reporting period.
+struct ProfilePropertyPeak
+{
+    const char*          m_Name;
+    const char*          m_Desc;
+    ProfilePropertyType  m_Type;
+    ProfilePropertyValue m_Value;
+};
+
+// Copy a consistent snapshot of all non-group properties, including unused properties.
+// Returns the number copied (at most capacity).
+// Names and descriptions reference the original registered strings; no copies are allocated.
+uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity);
+
+// Start a new reporting period, using each property's current value as its initial peak.
+void ProfileResetPropertyPeaks();
+
 #endif

@@ -14,6 +14,15 @@
 
 #include "profile.h"
 
+uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity)
+{
+    return 0;
+}
+
+void ProfileResetPropertyPeaks()
+{
+}
+
 void ProfileInitialize()
 {
 }

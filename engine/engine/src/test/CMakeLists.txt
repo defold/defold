@@ -318,3 +318,16 @@ defold_register_test_target(test_engine_api ON "${ENGINE_TEST_ENGINE_ROOT}"
 if(DEFOLD_MSVC_IDE_SOLUTION)
   add_dependencies(run_test_engine_api engine_test_content)
 endif()
+
+# Exercise shutdown reporting with the real shared property registry and null graphics.
+defold_add_executable(test_profile_report
+  "${ENGINE_TEST_ROOT}/test_profile_report.cpp"
+  "${ENGINE_TEST_EXPORTS_CPP}")
+add_dependencies(test_profile_report engine_test_content)
+target_include_directories(test_profile_report PRIVATE "${ENGINE_SRC_DIR}" "${ENGINE_PROTO_DIR}")
+target_compile_definitions(test_profile_report PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
+defold_target_link_libraries(test_profile_report "${TARGET_PLATFORM}" testmain)
+engine_configure_executable(test_profile_report test engine engine_service null "profile;profilerext_null" "ProfilerExt")
+defold_register_test_target(test_profile_report ON "${ENGINE_TEST_ENGINE_ROOT}"
+  STAGE_FILES
+    "build/src/test" "build/src/test")

@@ -180,6 +180,8 @@ const uint32_t PROFILE_PROPERTY_INVALID_IDX = 0xFFFFFFFF;
     DM_PROPERTY_TYPE(U64, uint64_t);
     DM_PROPERTY_TYPE(F64, double);
     #undef DM_PROPERTY_TYPE
+
+    void ProfilePropertyReset(ProfileIdx idx);
     // End private
     // ****************************************************************************************
 

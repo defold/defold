@@ -27,6 +27,8 @@ struct ProfileProperty
     const char*             m_Name;
     const char*             m_Desc;
     ProfilePropertyValue    m_DefaultValue;
+    ProfilePropertyValue    m_Value;
+    ProfilePropertyValue    m_PeakValue;
     uint64_t                m_NameHash;
     ProfileIdx              m_Idx;
     ProfileIdx              m_ParentIdx;
@@ -35,6 +37,44 @@ struct ProfileProperty
     uint32_t                m_Flags;
     ProfilePropertyType     m_Type;
 };
+
+static void ResetPropertyValue(ProfileProperty* prop)
+{
+    prop->m_Value = prop->m_DefaultValue;
+    // A reset can raise the current value back to a nonzero default.
+    switch (prop->m_Type)
+    {
+        case PROFILE_PROPERTY_TYPE_BOOL:
+            if (prop->m_Value.m_Bool > prop->m_PeakValue.m_Bool)
+                prop->m_PeakValue.m_Bool = prop->m_Value.m_Bool;
+            break;
+        case PROFILE_PROPERTY_TYPE_S32:
+            if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
+                prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
+            break;
+        case PROFILE_PROPERTY_TYPE_U32:
+            if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
+                prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
+            break;
+        case PROFILE_PROPERTY_TYPE_F32:
+            if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
+                prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
+            break;
+        case PROFILE_PROPERTY_TYPE_S64:
+            if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
+                prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
+            break;
+        case PROFILE_PROPERTY_TYPE_U64:
+            if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
+                prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
+            break;
+        case PROFILE_PROPERTY_TYPE_F64:
+            if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
+                prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
+            break;
+        default: break;
+    }
+}
 
 // *************************************************************************************************
 // State
@@ -252,6 +292,13 @@ void ProfileInitialize()
 
     PropertyInitialize();
 
+    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+    {
+        ProfileProperty* prop = &g_ProfileProperties[i];
+        prop->m_Value = prop->m_DefaultValue;
+        prop->m_PeakValue = prop->m_DefaultValue;
+    }
+
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {
         CreateListener(p);
@@ -293,11 +340,21 @@ HProfile ProfileFrameBegin()
 
 ProfileResult ProfileFrameEnd(HProfile profile)
 {
+    if (!IsProfileInitialized())
+        return profile ? PROFILE_RESULT_NOT_INITIALIZED : PROFILE_RESULT_OK;
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    // Keep the shared counters in step with the backend frame resets, even if no
+    // backend is registered. Peaks are captured on mutation, before any reset.
+    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+    {
+        ProfileProperty* prop = &g_ProfileProperties[i];
+        if (prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET)
+            ResetPropertyValue(prop);
+    }
+
     if (!profile)
         return PROFILE_RESULT_OK;
-
-    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
-    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
     DO_LOOP_NOARGS_RETVAL(FrameEnd);
 }
@@ -419,7 +476,6 @@ static ProfileProperty* GetPropertyFromIdx(ProfileIdx idx)
 
 static ProfileProperty* AllocateProperty(ProfileIdx* idx)
 {
-    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
     if (g_ProfilePropertyCount >= PROFILER_MAX_NUM_PROPERTIES)
         return 0;
     *idx = g_ProfilePropertyCount++;
@@ -455,6 +511,7 @@ static void RegisterProperty(ProfileProperty* prop, ProfileIdx idx, const char* 
 #define ALLOC_PROP_AND_CHECK(_PARENTFN)                     \
     PropertyInitialize();                                   \
     ProfileIdx parentidx = (_PARENTFN) ? *(_PARENTFN)() : 0;\
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock); \
     ProfileIdx idx; \
     ProfileProperty* prop = AllocateProperty(&idx); \
     if (!prop) \
@@ -476,6 +533,8 @@ ProfileIdx ProfileRegisterPropertyBool(const char* name, const char* desc, int v
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_Bool = (bool)value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_BOOL;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -487,6 +546,8 @@ ProfileIdx ProfileRegisterPropertyS32(const char* name, const char* desc, int32_
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S32 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_S32;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -498,6 +559,8 @@ ProfileIdx ProfileRegisterPropertyU32(const char* name, const char* desc, uint32
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U32 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_U32;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -509,6 +572,8 @@ ProfileIdx ProfileRegisterPropertyF32(const char* name, const char* desc, float 
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F32 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_F32;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -520,6 +585,8 @@ ProfileIdx ProfileRegisterPropertyS64(const char* name, const char* desc, int64_
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S64 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_S64;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -531,6 +598,8 @@ ProfileIdx ProfileRegisterPropertyU64(const char* name, const char* desc, uint64
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U64 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_U64;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -542,6 +611,8 @@ ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double
     ALLOC_PROP_AND_CHECK(parentfn);
     RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F64 = value;
+    prop->m_Value = prop->m_DefaultValue;
+    prop->m_PeakValue = prop->m_DefaultValue;
     prop->m_Type = PROFILE_PROPERTY_TYPE_F64;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -552,89 +623,162 @@ ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double
     if (!IsProfileInitialized()) \
         return; \
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock); \
+    if ((IDX) >= g_ProfilePropertyCount) \
+        return; \
     ProfileProperty* prop = &g_ProfileProperties[(IDX)]; \
     assert(prop->m_Idx == (IDX));
 
 void ProfilePropertySetBool(ProfileIdx idx, int v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_Bool = (bool)v;
+    if (prop->m_Value.m_Bool > prop->m_PeakValue.m_Bool)
+        prop->m_PeakValue.m_Bool = prop->m_Value.m_Bool;
     DO_LOOP(PropertySetBool, idx, v);
 }
 
 void ProfilePropertySetS32(ProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_S32 = v;
+    if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
+        prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
     DO_LOOP(PropertySetS32, idx, v);
 }
 
 void ProfilePropertySetU32(ProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_U32 = v;
+    if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
+        prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
     DO_LOOP(PropertySetU32, idx, v);
 }
 
 void ProfilePropertySetF32(ProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_F32 = v;
+    if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
+        prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
     DO_LOOP(PropertySetF32, idx, v);
 }
 
 void ProfilePropertySetS64(ProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_S64 = v;
+    if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
+        prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
     DO_LOOP(PropertySetS64, idx, v);
 }
 
 void ProfilePropertySetU64(ProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_U64 = v;
+    if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
+        prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
     DO_LOOP(PropertySetU64, idx, v);
 }
 
 void ProfilePropertySetF64(ProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_F64 = v;
+    if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
+        prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
     DO_LOOP(PropertySetF64, idx, v);
 }
 
 void ProfilePropertyAddS32(ProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_S32 += v;
+    if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
+        prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
     DO_LOOP(PropertyAddS32, idx, v);
 }
 
 void ProfilePropertyAddU32(ProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_U32 += v;
+    if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
+        prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
     DO_LOOP(PropertyAddU32, idx, v);
 }
 
 void ProfilePropertyAddF32(ProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_F32 += v;
+    if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
+        prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
     DO_LOOP(PropertyAddF32, idx, v);
 }
 
 void ProfilePropertyAddS64(ProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_S64 += v;
+    if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
+        prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
     DO_LOOP(PropertyAddS64, idx, v);
 }
 
 void ProfilePropertyAddU64(ProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_U64 += v;
+    if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
+        prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
     DO_LOOP(PropertyAddU64, idx, v);
 }
 
 void ProfilePropertyAddF64(ProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
+    prop->m_Value.m_F64 += v;
+    if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
+        prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
     DO_LOOP(PropertyAddF64, idx, v);
 }
 
 void ProfilePropertyReset(ProfileIdx idx)
 {
     GET_PROP_AND_CHECK(idx);
+    ResetPropertyValue(prop);
     DO_LOOP(PropertyReset, idx);
+}
+
+// Copy non-group property peaks under the lock so reporting can safely use the snapshot afterwards.
+uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity)
+{
+    CHECK_INITIALIZED_RETVAL(0);
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < g_ProfilePropertyCount && count < capacity; ++i)
+    {
+        const ProfileProperty* prop = &g_ProfileProperties[i];
+        if (prop->m_Type == PROFILE_PROPERTY_TYPE_GROUP)
+            continue;
+        ProfilePropertyPeak* peak = &peaks[count++];
+        peak->m_Name = prop->m_Name;
+        peak->m_Desc = prop->m_Desc;
+        peak->m_Type = prop->m_Type;
+        peak->m_Value = prop->m_PeakValue;
+    }
+    return count;
+}
+
+// Begin a new reporting period with current values as peaks, leaving the counters unchanged.
+void ProfileResetPropertyPeaks()
+{
+    CHECK_INITIALIZED_RETVAL();
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+        g_ProfileProperties[i].m_PeakValue = g_ProfileProperties[i].m_Value;
 }

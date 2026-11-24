@@ -17,6 +17,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
+#include "dlib/array.h"
 #include "dlib/hash.h"
 #include "dlib/log.h"
 #include "dlib/mutex.h"
@@ -475,6 +476,166 @@ TEST(dmProfile, DynamicScope)
     DummyProfilerUnregister();
 }
 
+
+DM_PROPERTY_S32(prop_PeakNegative, -100, PROFILE_PROPERTY_FRAME_RESET, "negative default", 0);
+DM_PROPERTY_U32(prop_PeakDefault, 10, PROFILE_PROPERTY_FRAME_RESET, "nonzero default", 0);
+
+class ProfilePeakTest : public jc_test_base_class
+{
+protected:
+    void SetUp() { ProfileInitialize(); }
+    void TearDown() { ProfileFinalize(); }
+
+    ProfilePropertyValue GetPeak(const char* name)
+    {
+        ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+        uint32_t count = ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks));
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (strcmp(name, peaks[i].m_Name) == 0)
+                return peaks[i].m_Value;
+        }
+        EXPECT_TRUE(false && "Property not found in peak snapshot");
+        ProfilePropertyValue value = {};
+        return value;
+    }
+};
+
+TEST_F(ProfilePeakTest, SetAddAndReset)
+{
+    // No backend is needed, and a peak between frame boundaries must not be lost.
+    HProfile frame = ProfileFrameBegin();
+    DM_PROPERTY_SET_U32(prop_TestU32, 40);
+    DM_PROPERTY_ADD_U32(prop_TestU32, 12);
+    DM_PROPERTY_SET_U32(prop_TestU32, 2);
+    DM_PROPERTY_RESET(prop_TestU32);
+    ASSERT_EQ(52U, GetPeak("prop_TestU32").m_U32);
+    ProfileFrameEnd(frame);
+
+    frame = ProfileFrameBegin();
+    DM_PROPERTY_ADD_U32(prop_TestU32, 30);
+    ProfileFrameEnd(frame);
+    ASSERT_EQ(52U, GetPeak("prop_TestU32").m_U32);
+
+    frame = ProfileFrameBegin();
+    DM_PROPERTY_ADD_U32(prop_TestU32, 60);
+    ProfileFrameEnd(frame);
+    ASSERT_EQ(60U, GetPeak("prop_TestU32").m_U32);
+}
+
+TEST_F(ProfilePeakTest, AllTypes)
+{
+    DM_PROPERTY_SET_BOOL(prop_TestBOOL, 1);
+    DM_PROPERTY_SET_BOOL(prop_TestBOOL, 0);
+    DM_PROPERTY_SET_S32(prop_TestS32, 10);
+    DM_PROPERTY_ADD_S32(prop_TestS32, 5);
+    DM_PROPERTY_ADD_S32(prop_TestS32, -20);
+    DM_PROPERTY_SET_F32(prop_TestF32, 1.25f);
+    DM_PROPERTY_ADD_F32(prop_TestF32, 0.5f);
+    DM_PROPERTY_SET_F32(prop_TestF32, -2.0f);
+    const int64_t signed_value = (int64_t)1 << 60;
+    DM_PROPERTY_SET_S64(prop_TestS64, signed_value);
+    DM_PROPERTY_ADD_S64(prop_TestS64, 7);
+    DM_PROPERTY_SET_S64(prop_TestS64, -1);
+    const uint64_t unsigned_value = (uint64_t)1 << 63;
+    DM_PROPERTY_SET_U64(prop_TestU64, unsigned_value);
+    DM_PROPERTY_ADD_U64(prop_TestU64, 7);
+    DM_PROPERTY_SET_U64(prop_TestU64, 0);
+    DM_PROPERTY_SET_F64(prop_TestF64, 2.5);
+    DM_PROPERTY_ADD_F64(prop_TestF64, 0.25);
+    DM_PROPERTY_ADD_F64(prop_TestF64, -1.0);
+
+    ASSERT_TRUE(GetPeak("prop_TestBOOL").m_Bool);
+    ASSERT_EQ(15, GetPeak("prop_TestS32").m_S32);
+    ASSERT_EQ(1.75f, GetPeak("prop_TestF32").m_F32);
+    ASSERT_EQ(signed_value + 7, GetPeak("prop_TestS64").m_S64);
+    ASSERT_EQ(unsigned_value + 7, GetPeak("prop_TestU64").m_U64);
+    ASSERT_EQ(2.75, GetPeak("prop_TestF64").m_F64);
+}
+
+TEST_F(ProfilePeakTest, DefaultsAndReportingPeriods)
+{
+    ASSERT_EQ(-100, GetPeak("prop_PeakNegative").m_S32);
+    ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
+    ASSERT_EQ(0U, GetPeak("prop_TestU32").m_U32);
+    DM_PROPERTY_ADD_S32(prop_PeakNegative, 20);
+    DM_PROPERTY_ADD_S32(prop_PeakNegative, -40);
+    ASSERT_EQ(-80, GetPeak("prop_PeakNegative").m_S32);
+
+    DM_PROPERTY_SET_U32(prop_PeakDefault, 2);
+    ProfileResetPropertyPeaks();
+    ASSERT_EQ(2U, GetPeak("prop_PeakDefault").m_U32);
+    DM_PROPERTY_RESET(prop_PeakDefault);
+    ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
+
+    DM_PROPERTY_SET_U32(prop_PeakDefault, 2);
+    ProfileResetPropertyPeaks();
+    ProfileFrameEnd(ProfileFrameBegin());
+    ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
+    DM_PROPERTY_ADD_U32(prop_PeakDefault, 5);
+    ASSERT_EQ(15U, GetPeak("prop_PeakDefault").m_U32);
+
+    ProfileFinalize();
+    ProfileInitialize();
+    ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
+    ASSERT_EQ(-100, GetPeak("prop_PeakNegative").m_S32);
+}
+
+TEST_F(ProfilePeakTest, PersistentAndDynamicProperties)
+{
+    ProfileIdx dynamic = ProfileRegisterPropertyU32("dynamic_peak", "registered at runtime", 7, PROFILE_PROPERTY_NONE, 0);
+    ProfilePropertyAddU32(dynamic, 5);
+    ASSERT_EQ(12U, GetPeak("dynamic_peak").m_U32);
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        HProfile frame = ProfileFrameBegin();
+        DM_PROPERTY_ADD_U32(prop_FrameCounter, 5);
+        ProfileFrameEnd(frame);
+    }
+    ASSERT_EQ(15U, GetPeak("prop_FrameCounter").m_U32);
+
+    ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+    uint32_t count = ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks));
+    ASSERT_GT(count, 0U);
+    for (uint32_t i = 0; i < count; ++i)
+        ASSERT_NE(PROFILE_PROPERTY_TYPE_GROUP, peaks[i].m_Type);
+    ASSERT_EQ(1U, ProfileGetPropertyPeaks(peaks, 1));
+    ASSERT_EQ(0U, ProfileGetPropertyPeaks(0, 0));
+}
+
+static void AddPropertyOnThread(void*)
+{
+    for (uint32_t i = 0; i < 1000; ++i)
+        DM_PROPERTY_ADD_U32(prop_FrameCounter, 1);
+}
+
+TEST_F(ProfilePeakTest, ConcurrentUpdates)
+{
+    dmThread::Thread threads[4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(threads); ++i)
+        threads[i] = dmThread::New(AddPropertyOnThread, 0x80000, 0, "profile_peaks");
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(threads); ++i)
+        dmThread::Join(threads[i]);
+    ASSERT_EQ(4000U, GetPeak("prop_FrameCounter").m_U32);
+}
+
+TEST_F(ProfilePeakTest, BackendStillReceivesPropertyUpdates)
+{
+    DummyProfilerRegister();
+    DM_PROPERTY_SET_U32(prop_TestU32, 30);
+    DM_PROPERTY_ADD_U32(prop_TestU32, 22);
+    DM_PROPERTY_SET_U32(prop_TestU32, 3);
+    ASSERT_EQ(52U, GetPeak("prop_TestU32").m_U32);
+    ASSERT_EQ(3U, DummyProfilerGetContext()->m_Properties[*prop_TestU32()].m_Value.m_U32);
+    DM_PROPERTY_RESET(prop_TestU32);
+    ASSERT_EQ(52U, GetPeak("prop_TestU32").m_U32);
+    ASSERT_EQ(0U, DummyProfilerGetContext()->m_Properties[*prop_TestU32()].m_Value.m_U32);
+    // Finalize before unregistering so the listener context is destroyed.
+    ProfileFinalize();
+    DummyProfilerUnregister();
+    ProfileInitialize();
+}
 
 int main(int argc, char **argv)
 {

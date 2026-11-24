@@ -32,3 +32,42 @@ resource is unloaded. Callback times include nested dependency loads, so totals
 across resources must not be added together. Capturing the table does not enable
 profiling retroactively; launch with `resource.profile=1` to measure startup loads.
 
+
+# Profile property peak report
+
+Debug engines track the highest value reached by every numeric and boolean
+`DM_PROPERTY_*` property. Existing `DM_PROPERTY_SET_*`, `DM_PROPERTY_ADD_*`, and
+`DM_PROPERTY_RESET` calls participate automatically, including properties
+registered by extensions. Groups are omitted from the report.
+
+Peaks are captured on each update, so a value that falls again before the end of
+a frame is still included. Frame resets restore the current value to its declared
+default without clearing its peak. Defaults are included even when a property
+was never updated. Each new engine instance starts a reporting period from the
+current property values, including after `sys.reboot()`.
+
+When a game engine instance is deleted, it prints the property names, peaks, and
+descriptions to the log and writes the same rows to `profile.txt`. The file is
+overwritten on each shutdown. Multiple editor instances use
+`instance_<index>_profile.txt`, matching the log filename convention.
+
+The engine tries these locations in order:
+
+1. `project.log_dir`, when set.
+2. The platform log directory (the working directory on desktop).
+3. The application's support directory, as for `log.txt`.
+
+The report is written independently of `project.write_log_file`. Its destination
+is logged on success; file failures leave the console report available. Release
+engines and the built-in connection app do not write reports. Browser builds use
+the platform's virtual filesystem and require an orderly shutdown to report.
+
+Collection lives in `dlib/profile`, independently of the on-screen or remote
+profiler backend. `ProfileGetPropertyPeaks()` copies a consistent, typed snapshot
+under the existing profiler lock. Formatting and file/log output happen after
+the lock is released. Properties do not currently carry `game.project` limit
+metadata, so this report contains measured peaks without limit comparisons.
+
+Tests: `test_profile` covers collection and backend dispatch;
+`test_profile_report` covers engine shutdown, file/log output, reboot, and debug
+mode suppression with null graphics.
