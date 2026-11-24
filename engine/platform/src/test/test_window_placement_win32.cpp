@@ -129,6 +129,27 @@ TEST(Win32Desktop, DpiResizeCallback)
     }
 }
 
+// Showing without focus must preserve the maximized or minimized placement across a hide.
+TEST(Win32Desktop, ShowWithoutFocusPreservesPlacement)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusOnShow = false;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    ::ShowWindow(hwnd, SW_MAXIMIZE);
+    dmPlatform::HideWindow(window);
+    dmPlatform::ShowWindow(window);
+    EXPECT_TRUE(IsZoomed(hwnd));
+    ::ShowWindow(hwnd, SW_MINIMIZE);
+    dmPlatform::HideWindow(window);
+    dmPlatform::ShowWindow(window);
+    EXPECT_TRUE(IsIconic(hwnd));
+    dmPlatform::DeleteWindow(window);
+}
+
 // Borderless fullscreen must keep its system menu and cover its monitor again after a display change.
 TEST(Win32Desktop, FullscreenDisplayChange)
 {

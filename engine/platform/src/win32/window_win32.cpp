@@ -268,7 +268,8 @@ namespace dmPlatform
 
     static void ShowNativeWindow(HWindow window)
     {
-        ::ShowWindow(window->m_Window, window->m_Params.m_FocusOnShow ? SW_SHOW : SW_SHOWNOACTIVATE);
+        // SW_SHOWNA keeps a minimized or maximized window in its current state.
+        ::ShowWindow(window->m_Window, window->m_Params.m_FocusOnShow ? SW_SHOW : SW_SHOWNA);
         if (window->m_Params.m_FocusOnShow)
         {
             SetForegroundWindow(window->m_Window);
