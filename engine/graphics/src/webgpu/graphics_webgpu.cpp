@@ -3080,12 +3080,13 @@ static WGPUBuffer WebGPUCreateBuffer(WebGPUContext* context, uint64_t size, WGPU
     return wgpuDeviceCreateBuffer(context->m_Device, &desc);
 }
 
-// Buffers without a resource recreate path read as zeros until written again
-static void WebGPUEnsureUniformBuffer(WebGPUContext* context, WebGPUUniformBuffer* ubo)
+// Uniform buffers have no resource to reload them from, so a buffer recreated on a new device is
+// filled with the content last written to it. Returns true if the buffer was (re)created.
+static bool WebGPUEnsureUniformBuffer(WebGPUContext* context, WebGPUUniformBuffer* ubo)
 {
     if (ubo->m_Buffer && !WebGPUIsStale(ubo->m_DeviceGeneration))
     {
-        return;
+        return false;
     }
 
     if (ubo->m_Buffer)
@@ -3094,6 +3095,8 @@ static void WebGPUEnsureUniformBuffer(WebGPUContext* context, WebGPUUniformBuffe
     }
 
     ubo->m_Buffer = WebGPUCreateBuffer(context, ubo->m_BaseUniformBuffer.m_Size, WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst, &ubo->m_DeviceGeneration);
+    wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, 0, ubo->m_Data, ubo->m_BaseUniformBuffer.m_Size);
+    return true;
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
@@ -3105,6 +3108,7 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLay
     ubo->m_BaseUniformBuffer.m_Size = size;
     ubo->m_BaseUniformBuffer.m_BoundSet = UNUSED_BINDING_OR_SET;
     ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
+    ubo->m_Data = (uint8_t*) calloc(size, 1);
     WebGPUEnsureUniformBuffer(context, ubo);
     return (HUniformBuffer) ubo;
 }
@@ -3114,8 +3118,20 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
     assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
-    WebGPUEnsureUniformBuffer(context, ubo);
-    wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
+    if (data)
+    {
+        memcpy(ubo->m_Data + offset, data, size);
+    }
+    else
+    {
+        memset(ubo->m_Data + offset, 0, size);
+    }
+
+    // A recreated buffer is filled with the whole content, this write included
+    if (!WebGPUEnsureUniformBuffer(context, ubo))
+    {
+        wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, ubo->m_Data + offset, size);
+    }
 }
 
 static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
@@ -3169,6 +3185,7 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
     WebGPUInvalidateBindGroups((WebGPUContext*)_context);
 
     wgpuBufferRelease(ubo->m_Buffer);
+    free(ubo->m_Data);
     delete ubo;
 }
 

@@ -31,6 +31,13 @@ static const char* FRAGMENT_SOURCE =
     "  return textureLoad(color, vec2<i32>(0, 0), 0);\n"
     "}\n";
 
+static const char* UNIFORM_FRAGMENT_SOURCE =
+    "struct Colors { color: vec4<f32>, tint: vec4<f32>, };\n"
+    "@group(0) @binding(0) var<uniform> colors: Colors;\n"
+    "@fragment fn main() -> @location(0) vec4<f32> {\n"
+    "  return colors.color + colors.tint;\n"
+    "}\n";
+
 struct ValidationResult
 {
     WGPUPopErrorScopeStatus m_Status;
@@ -207,6 +214,17 @@ struct WebGPUDeviceLossTest : jc_test_base_class
         WebGPUDraw(m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         WebGPUReadPixels(m_GraphicsContext, 0, 0, 1, 1, bgra, 4);
     }
+
+    void DrawUniformPixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program, dmGraphics::HUniformBuffer buffer, uint8_t bgra[4])
+    {
+        dmGraphics::RenderTargetBindingParams binding = {};
+        WebGPUSetRenderTarget(m_GraphicsContext, rt, binding);
+        WebGPUSetViewport(m_GraphicsContext, 0, 0, 1, 1);
+        WebGPUEnableProgram(m_GraphicsContext, program);
+        WebGPUEnableUniformBuffer(m_GraphicsContext, buffer, 0, 0);
+        WebGPUDraw(m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        WebGPUReadPixels(m_GraphicsContext, 0, 0, 1, 1, bgra, 4);
+    }
 };
 
 static dmGraphics::WebGPUTexture* GetTexture(dmGraphics::WebGPUContext* context, dmGraphics::HTexture texture)
@@ -341,6 +359,106 @@ TEST_F(WebGPUDeviceLossTest, BuffersAreRecreatedOnWrite)
     WebGPUDeleteStorageBuffer(m_GraphicsContext, storage_buffer);
     WebGPUDeleteUniformBuffer(m_GraphicsContext, uniform_buffer);
     WebGPUDeleteVertexBuffer(vertex_buffer);
+}
+
+// Uniform buffers recreated on the new device keep the content written before the loss: one is
+// never written again (as material buffers), the other gets only a partial write (as the light
+// buffer). Guards against restored draws reading zeros from uniform buffers.
+TEST_F(WebGPUDeviceLossTest, UniformBuffersKeepContent)
+{
+    if (!m_HasDevice)
+    {
+        SKIP();
+    }
+
+    dmGraphics::ShaderDesc::ResourceMember members[2];
+    memset(members, 0, sizeof(members));
+    const char* member_names[] = { "color", "tint" };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        members[i].m_Name                     = member_names[i];
+        members[i].m_NameHash                 = dmHashString64(member_names[i]);
+        members[i].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        members[i].m_ElementCount             = 1;
+        members[i].m_Offset                   = i * sizeof(dmVMath::Vector4);
+    }
+
+    dmGraphics::ShaderDesc::ResourceTypeInfo type;
+    memset(&type, 0, sizeof(type));
+    type.m_Name            = "Colors";
+    type.m_NameHash        = dmHashString64("Colors");
+    type.m_Members.m_Data  = members;
+    type.m_Members.m_Count = 2;
+    dmGraphics::ShaderDesc::ResourceBinding colors;
+    memset(&colors, 0, sizeof(colors));
+    colors.m_Name                    = "colors";
+    colors.m_NameHash                = dmHashString64("colors");
+    colors.m_Type.m_Type.m_TypeIndex = 0;
+    colors.m_Type.m_UseTypeIndex     = 1;
+    colors.m_StageFlags              = dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
+    colors.m_Bindinginfo.m_BlockSize = 2 * sizeof(dmVMath::Vector4);
+    dmGraphics::ShaderDesc::Shader shaders[2];
+    memcpy(shaders, m_Shaders, sizeof(shaders));
+    shaders[1].m_Source.m_Data  = (uint8_t*) UNIFORM_FRAGMENT_SOURCE;
+    shaders[1].m_Source.m_Count = strlen(UNIFORM_FRAGMENT_SOURCE);
+    dmGraphics::ShaderDesc desc;
+    memset(&desc, 0, sizeof(desc));
+    desc.m_Shaders.m_Data                       = shaders;
+    desc.m_Shaders.m_Count                      = 2;
+    desc.m_Reflection.m_UniformBuffers.m_Data   = &colors;
+    desc.m_Reflection.m_UniformBuffers.m_Count  = 1;
+    desc.m_Reflection.m_Types.m_Data            = &type;
+    desc.m_Reflection.m_Types.m_Count           = 1;
+
+    dmGraphics::HRenderTarget rt = NewRenderTarget();
+    dmGraphics::HProgram program = WebGPUNewProgram(m_GraphicsContext, &desc, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+    dmGraphics::WebGPUProgram* webgpu_program = (dmGraphics::WebGPUProgram*) program;
+    const dmGraphics::UniformBufferLayout layout = *(dmGraphics::UniformBufferLayout*) webgpu_program->m_BaseProgram.m_ResourceBindings[0][0].m_BindingUserData;
+    const dmVMath::Vector4 contents[2][2] = {
+        { dmVMath::Vector4(1, 0, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+        { dmVMath::Vector4(0, 1, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+    };
+    dmGraphics::HUniformBuffer buffers[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        buffers[i] = WebGPUNewUniformBuffer(m_GraphicsContext, layout, sizeof(contents[i]));
+        WebGPUSetUniformBuffer(m_GraphicsContext, buffers[i], 0, sizeof(contents[i]), contents[i]);
+    }
+
+    // BGRA, as returned by ReadPixels()
+    const uint8_t before[2][4] = { { 0, 0, 255, 255 }, { 0, 255, 0, 255 } };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint8_t bgra[4] = {};
+        DrawUniformPixel(rt, program, buffers[i], bgra);
+        ASSERT_EQ(0, memcmp(before[i], bgra, sizeof(bgra)));
+    }
+
+    LoseAndRestoreDevice();
+    PushValidationScope();
+    WebGPURecreateGraphicsHandles(m_GraphicsContext);
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, &desc, 0, 0));
+    const dmVMath::Vector4 tint(0, 0, 1, 0);
+    WebGPUSetUniformBuffer(m_GraphicsContext, buffers[1], sizeof(dmVMath::Vector4), sizeof(tint), &tint);
+
+    const uint8_t after[2][4] = { { 0, 0, 255, 255 }, { 255, 255, 0, 255 } };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint8_t bgra[4] = {};
+        DrawUniformPixel(rt, program, buffers[i], bgra);
+        ASSERT_EQ(0, memcmp(after[i], bgra, sizeof(bgra)));
+    }
+
+    AssertNoValidationErrors();
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        WebGPUDeleteUniformBuffer(m_GraphicsContext, buffers[i]);
+    }
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    DeleteRenderTarget(rt);
 }
 
 int main(int argc, char** argv)

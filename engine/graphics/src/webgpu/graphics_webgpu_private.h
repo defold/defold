@@ -70,6 +70,7 @@ namespace dmGraphics
     {
         UniformBuffer m_BaseUniformBuffer;
         WGPUBuffer    m_Buffer;
+        uint8_t*      m_Data; // Written content, uploaded again after a lost device
         uint32_t      m_DeviceGeneration;
     };
 
