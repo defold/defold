@@ -174,6 +174,8 @@ namespace dmPlatform
             return false;
         }
 
+        // Peeking updates the thread's message time even when the message stays queued.
+        DWORD time = (DWORD)GetMessageTime();
         MSG next;
         if (!PeekMessageW(&next, 0, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE))
         {
@@ -183,7 +185,7 @@ namespace dmPlatform
         bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
         bool matching = down ? next.message == WM_KEYDOWN || next.message == WM_SYSKEYDOWN
                              : next.message == WM_KEYUP || next.message == WM_SYSKEYUP;
-        return matching && next.wParam == VK_MENU && (next.lParam & (1 << 24)) && next.time == (DWORD)GetMessageTime();
+        return matching && next.wParam == VK_MENU && (next.lParam & (1 << 24)) && next.time == time;
     }
 
     static void Character(HWindow window, uint32_t code)

@@ -201,6 +201,40 @@ TEST(dmPlatform, WindowsInputMessages)
     dmPlatform::DeleteWindow(window);
 }
 
+// Independent Left Ctrl and Right Alt transitions queued before one poll must not be filtered as AltGr.
+TEST(dmPlatform, WindowsSeparateCtrlAndRightAlt)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Hidden = true;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    for (int pressed = 1; pressed >= 0; --pressed)
+    {
+        UINT message = pressed ? WM_KEYDOWN : WM_KEYUP;
+        LPARAM released = pressed ? 0 : (LPARAM)0xc0000000;
+        ASSERT_TRUE(PostMessageW(hwnd, message, VK_CONTROL, released | 0x001d0001));
+        MSG ctrl, tick;
+        ASSERT_TRUE(PeekMessageW(&ctrl, hwnd, message, message, PM_NOREMOVE));
+        UINT_PTR timer = SetTimer(hwnd, 1, USER_TIMER_MINIMUM, 0);
+        ASSERT_NE((UINT_PTR)0, timer);
+        do
+        {
+            ASSERT_GT(GetMessageW(&tick, hwnd, WM_TIMER, WM_TIMER), 0);
+        } while (tick.time == ctrl.time);
+
+        KillTimer(hwnd, timer);
+        ASSERT_TRUE(PostMessageW(hwnd, message, VK_MENU, released | 0x01380001));
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+        EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RALT));
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
 // Alt+Space must reach the game without entering the modal system menu. Alt+F4 must still reach Windows.
 TEST(dmPlatform, WindowsKeyboardMenu)
 {
