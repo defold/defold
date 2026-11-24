@@ -13,7 +13,6 @@ sudo apt-get install -y --no-install-recommends \
 	libopenal-dev \
 	libgl1-mesa-dev \
 	libglw1-mesa-dev \
-	freeglut3-dev \
 	libtinfo5 \
 	unzip \
 	zip \

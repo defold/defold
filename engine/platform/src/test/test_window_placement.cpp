@@ -132,6 +132,22 @@ protected:
     }
 };
 
+#if defined(__MACH__) || defined(_WIN32)
+// Verify Cocoa and Win32 reject the null graphics API and can reopen with Vulkan.
+TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)
+{
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    dmPlatform::CloseWindow(m_Window);
+    m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(m_Window, m_Params));
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, dmPlatform::GetNativeWindowId(m_Window).m_Type);
+    dmPlatform::CloseWindow(m_Window);
+    m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+}
+#endif
+
 // Native IDs are stable while the window exists and unavailable before opening or after closing it.
 TEST_F(WindowPlacementTest, NativeWindowIdentity)
 {

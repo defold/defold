@@ -42,7 +42,6 @@ RUN \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
-    freeglut3-dev \
     libx11-xcb-dev \
     libxkbcommon-dev \
     libwayland-dev \

@@ -172,7 +172,6 @@ def install_linux(args):
         "autoconf",
         "automake",
         "build-essential",
-        "freeglut3-dev",
         "libssl-dev",
         "libtool",
         "libxi-dev",

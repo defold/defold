@@ -92,6 +92,7 @@ namespace dmGraphics
     {
         WGPUBindGroup m_BindGroup;
         uint32_t      m_LastUsedFrame;
+        uint8_t       m_UsesStorageTexture : 1;
     };
 
     struct WebGPUProgramLayout
@@ -209,6 +210,7 @@ namespace dmGraphics
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
         WGPUBuffer            m_IndexBuffer;
+        uint8_t               m_UsesStorageTexture : 1;
     };
 
     struct WebGPUTextureSampler
@@ -221,6 +223,17 @@ namespace dmGraphics
         TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
+    };
+
+    struct WebGPUContext;
+
+    struct WebGPUStencilClearPipelineRequest
+    {
+        WebGPUContext* m_Context;
+        uint64_t       m_PipelineHash;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUFuture     m_Future;
+#endif
     };
 
     struct WebGPUContext
@@ -268,6 +281,7 @@ namespace dmGraphics
         WGPUTextureFormat                  m_Format;
         WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
+        WebGPUStencilClearPipelineRequest* m_StencilClearPipelineRequest;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
 

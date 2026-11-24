@@ -108,7 +108,7 @@ namespace dmJson
         // between high and high+2. Away from a midpoint both bounds round alike.
         static DM_FORCE_INLINE uint64_t RoundDecimal(uint64_t significand, int binary_exponent, int power, uint32_t leading)
         {
-            uint64_t cached = power <= 308 ? DECIMAL_POWERS[power + 342].m_High : ENCODE_POWERS_HIGH[power - 309];
+            uint64_t cached = power <= 308 ? DECIMAL_POWERS[power + 342] : ENCODE_POWERS_HIGH[power - 309];
             int cache_exponent = ((power * 217706 + 134217728) >> 16) - 2175;
             uint64_t normalized = significand << leading;
             uint64_t ignored, high;

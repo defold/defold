@@ -19,7 +19,7 @@ platforms:
         context:
             excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_opengles","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
-            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","EGL","GLESv1_CM","GLESv2"]
+            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     web:
@@ -30,8 +30,8 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["record","sound","libtremolo","graphics","hid","platform"]
-            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            excludeLibs: ["record","sound","libtremolo","graphics","graphics_dx12","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan","GraphicsAdapterDX12"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     android:

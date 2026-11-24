@@ -14,10 +14,13 @@
 
 package com.dynamo.bob.util;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class AppManifestMigration {
 
@@ -135,6 +138,28 @@ public final class AppManifestMigration {
         addWindowsLibraryNames(names, "mbedtls", "dmbedtls");
         addWindowsLibraryNames(names, "mbedtls_noasan", "dmbedtls_noasan");
         WINDOWS_LIBRARY_NAMES = Collections.unmodifiableMap(names);
+    }
+
+    // Shared by Bob and the editor: preserve an explicit pre-DX12 Vulkan-only choice.
+    public static boolean isLegacyWindowsVulkanSelection(Collection<?> enabled, Collection<?> excluded) {
+        Set<String> additions = normalizeGraphicsItems(enabled);
+        Set<String> removals = normalizeGraphicsItems(excluded);
+        return (additions.contains("graphics_vulkan") || additions.contains("GraphicsAdapterVulkan"))
+                && (removals.contains("graphics") || removals.contains("GraphicsAdapterOpenGL"))
+                && !additions.contains("graphics_dx12") && !additions.contains("GraphicsAdapterDX12")
+                && !removals.contains("graphics_dx12") && !removals.contains("GraphicsAdapterDX12")
+                && !removals.contains("graphics_vulkan") && !removals.contains("GraphicsAdapterVulkan");
+    }
+
+    private static Set<String> normalizeGraphicsItems(Collection<?> items) {
+        Set<String> result = new HashSet<>();
+        for (Object item : items) {
+            if (item instanceof String) {
+                String name = (String) item;
+                result.add(WINDOWS_LIBRARY_NAMES.getOrDefault(name, name));
+            }
+        }
+        return result;
     }
 
     private AppManifestMigration() {

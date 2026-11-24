@@ -80,6 +80,115 @@ function loadEnvironment(standardWheel = false) {
     return context;
 }
 
+function createCanvas(context) {
+    const listeners = new Map();
+    return {
+        id: "canvas", width: 640, height: 480, tabIndex: 0,
+        addEventListener(type, listener) {
+            if (!listeners.has(type)) listeners.set(type, new Set());
+            listeners.get(type).add(listener);
+        },
+        removeEventListener(type, listener) {
+            listeners.get(type)?.delete(listener);
+        },
+        dispatchEvent(event) {
+            for (const listener of listeners.get(event.type) || []) listener(event);
+        },
+        focus() {
+            context.document.activeElement = this;
+            this.dispatchEvent({ type: "focus" });
+        },
+        cloneNode() { return createCanvas(context); }
+    };
+}
+
+// Closing for graphics fallback must allow reopening without emitting a user-close event that stops the engine.
+function testWindowCloseAndReopen() {
+    const context = loadEnvironment();
+    const library = context.LibraryDefoldPlatform;
+    context.Module.canvas = createCanvas(context);
+    context.navigator.userAgent = "";
+    context.Browser = { createContext: () => ({}) };
+    let closeCalls = 0;
+    library.dmNativeSetWindowCloseCallback(() => { ++closeCalls; return 0; });
+
+    // A failed WebGPU attempt closes its window before the fallback opens a WebGL context.
+    for (const useWebGL of [false, true]) {
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, false, false, useWebGL, 2), 1);
+        assert.strictEqual(library.dmNativeGetWindowParam(1), 1);
+        assert.strictEqual(!!context.Module.ctx, useWebGL);
+        library.dmNativeCloseWindow();
+        assert.strictEqual(library.dmNativeGetWindowParam(1), 0);
+        assert.strictEqual(closeCalls, 0);
+        assert.strictEqual(context.Module.ctx, undefined);
+
+        // Final engine cleanup may close a window already closed by a failed graphics attempt.
+        library.dmNativeCloseWindow();
+        assert.strictEqual(closeCalls, 0);
+    }
+}
+
+// Replacing a WebGPU canvas must transfer native input and loader context events without retaining old listeners.
+function testGraphicsFallbackCanvasListeners() {
+    for (const canvasIsFullscreenContainer of [false, true]) {
+        const context = loadLoaderEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        library.dmNativeTerminate();
+        const previous = createCanvas(context);
+        const parent = { child: previous, replaceChild(canvas, old) {
+            assert.strictEqual(old, this.child);
+            this.child = canvas;
+            canvas.parentNode = this;
+        } };
+        previous.parentNode = parent;
+        context.Module.canvas = previous;
+        context.Module.fullScreenContainer = canvasIsFullscreenContainer ? previous : parent;
+        context.CUSTOM_PARAMETERS.disable_context_menu = true;
+        const events = [];
+        context.dmRenderer = { CONTEXT_LOST_EVENT: 1, CONTEXT_RESTORED_EVENT: 2,
+            rendererContextEvent: event => events.push(event) };
+        context.DefoldPlatform.onTouchStart = () => events.push("touch");
+        library.dmNativeInitJS();
+        context.Module.setCanvasEventListeners(previous, true);
+        library.dmNativeSetWindowFocusCallback(focus => events.push(focus ? "focus" : "blur"));
+        previous.focus();
+        assert.deepStrictEqual(events, ["focus"]);
+        events.length = 0;
+        context.Browser = { createContext: canvas => ({ canvas }) };
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 0, 2), 1);
+        library.dmNativeCloseWindow();
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2), 1);
+        const canvas = context.Module.canvas;
+        assert.notStrictEqual(canvas, previous);
+        assert.strictEqual(parent.child, canvas);
+        assert.strictEqual(context.document.activeElement, canvas);
+        assert.strictEqual(context.Module.fullScreenContainer, canvasIsFullscreenContainer ? canvas : parent);
+        assert.strictEqual(context.Module.ctx.canvas, canvas);
+
+        let prevented = 0;
+        for (const target of [previous, canvas]) {
+            for (const type of ["touchstart", "blur", "focus", "webglcontextlost", "webglcontextrestored"]) {
+                target.dispatchEvent({ type, preventDefault() { ++prevented; } });
+            }
+        }
+        assert.deepStrictEqual(events, ["touch", "blur", "focus", 1, 2]);
+        assert.strictEqual(previous.oncontextmenu, null);
+        canvas.oncontextmenu({ preventDefault() { ++prevented; } });
+        assert.strictEqual(prevented, 2);
+
+        // Reopening the same API must keep the canvas and must not multiply its listeners.
+        library.dmNativeCloseWindow();
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2), 1);
+        assert.strictEqual(context.Module.canvas, canvas);
+        events.length = 0;
+        canvas.dispatchEvent({ type: "touchstart" });
+        assert.deepStrictEqual(events, ["touch"]);
+        library.dmNativeTerminate();
+        canvas.dispatchEvent({ type: "touchstart" });
+        assert.deepStrictEqual(events, ["touch"]);
+    }
+}
+
 // Verify native capability queries drive browser gamepad input and report disconnection.
 function testGamepadCapabilitiesAndInput() {
     const context = loadEnvironment();
@@ -109,6 +218,140 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
     assert.strictEqual(library.dmNativeGetJoystickPos(0, 0, 2), 0);
     assert.deepStrictEqual([values[0], values[4]], [0, 0]);
+}
+
+// Verify modifier presses, repeats and releases keep both sides independent, including overlapping holds (#13745).
+function testModifierKeyEvents() {
+    // Both sides share a DOM keyCode and must produce distinct native key values.
+    for (const [name, keyCode, left, right] of [
+        ["Shift", 16, 287, 288], ["Control", 17, 289, 290], ["Alt", 18, 291, 292]
+    ]) {
+        // Exercise both left-first and right-first press/release sequences.
+        for (const first of [0, 1]) {
+            const context = loadEnvironment();
+            const library = context.LibraryDefoldPlatform;
+            context.Module.canvas = {};
+            const keys = [left, right];
+            const codes = [name + "Left", name + "Right"];
+            const dispatch = (type, side, repeat = false) => context.window.dispatchEvent({
+                type, keyCode, key: name, code: codes[side], location: side + 1, repeat,
+                shiftKey: name === "Shift" && type === "keydown", target: context.Module.canvas
+            });
+            const keyStates = () => keys.map(key => library.dmNativeGetKey(key));
+            const second = 1 - first;
+
+            dispatch("keydown", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [1, 0] : [0, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Additional keydowns remain presses, whether or not the browser marks them as repeats.
+            dispatch("keydown", first, true);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Release only the named side, even if the aggregate shiftKey flag is false.
+            dispatch("keyup", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [0, 1] : [1, 0]);
+            dispatch("keyup", second);
+            assert.deepStrictEqual(keyStates(), [0, 0]);
+        }
+    }
+}
+
+// Verify remapped modifiers use their reported function and location, preserving Ctrl/Alt swaps.
+function testRemappedModifierKeys() {
+    for (const [key, keyCode, code, location, expected] of [
+        ["Control", 17, "AltLeft", 1, 289], ["Alt", 18, "ControlLeft", 1, 291],
+        ["Control", 17, "AltRight", 2, 290], ["Alt", 18, "ControlRight", 2, 292],
+        ["Shift", 16, "CapsLock", 1, 287], ["Shift", 0, "ControlRight", 2, 288],
+        ["Control", 0, "AltLeft", 1, 289], ["AltGraph", 225, "AltRight", 2, 292],
+        // XKB lv3:rwin_switch produces AltGraph at MetaRight with a standard (0) location in Firefox.
+        ["AltGraph", 225, "MetaRight", 0, 292], ["AltGraph", 225, "MetaLeft", 0, 291],
+        ["AltGraph", 225, "MetaRight", 1, 291],
+        // The reported key and location take precedence even when legacy or physical values disagree.
+        ["Control", 18, "AltRight", 1, 289], ["Alt", 17, "ControlLeft", 2, 292],
+        // Events without key or code still retain the modifier identity from keyCode.
+        [undefined, 17, "AltLeft", 1, 289], ["Unidentified", 18, undefined, 2, 292],
+        ["Control", 17, "AltRight", undefined, 290],
+        // With no reported modifier identity, code supplies the function and location still supplies the side.
+        [undefined, 0, "ShiftLeft", 2, 288], [undefined, 0, "AltRight", 1, 291]
+    ]) {
+        const context = loadEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context.Module.canvas = {};
+        for (const type of ["keydown", "keyup"]) {
+            context.window.dispatchEvent({
+                type, key, keyCode, code, location, shiftKey: key === "Shift" && type === "keydown",
+                target: context.Module.canvas
+            });
+            assert.strictEqual(library.dmNativeGetKey(expected), type === "keydown" ? 1 : 0);
+        }
+    }
+}
+
+// Verify physical modifiers work without legacy key codes, including AltGraph as right Alt (#13745).
+function testModifierPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [keyCode, code, expected] of [
+        [16, "ShiftLeft", 287], [16, "ShiftRight", 288], [17, "ControlLeft", 289],
+        [17, "ControlRight", 290], [18, "AltLeft", 291], [18, "AltRight", 292]
+    ]) {
+        // A physical code must be sufficient even when keyCode is unavailable.
+        assert.strictEqual(platform.keyNumber({ keyCode: 0, code }), expected);
+        // Older events can provide a shared modifier keyCode without a key or usable location.
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code, location: 0 }), expected);
+    }
+    // AltGraph's legacy keyCode also uses the physical side.
+    assert.strictEqual(platform.keyNumber({ keyCode: 225, code: "AltRight" }), 292);
+}
+
+// Verify modifier disambiguation preserves legacy mappings and ordinary keyboard input.
+function testKeyboardMappingFallbacks() {
+    const platform = loadEnvironment().DefoldPlatform;
+    // Without event.code, keyCodes 16/17/18 still map to left Shift/Ctrl/Alt.
+    // Also preserve the mapper's explicit left/right keyCode pairs:
+    // Shift 0x05/0x06, Ctrl 0x03/0x04, and Alt 0x02/0x01.
+    for (const code of [undefined, "", "Unidentified"]) {
+        for (const [keyCode, expected] of [
+            [16, 287], [17, 289], [18, 291],
+            [0x05, 287], [0x06, 288], [0x03, 289], [0x04, 290], [0x02, 291], [0x01, 292]
+        ]) {
+            assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+        }
+    }
+    // Ordinary keys and numpad operators still use their keyCode mappings.
+    for (const [keyCode, code, expected] of [
+        [65, "KeyA", 65], [32, "Space", 32], [37, "ArrowLeft", 285],
+        [112, "F1", 258], [96, "Numpad0", 302], [109, "NumpadSubtract", 314],
+        [107, "NumpadAdd", 315], [110, "NumpadDecimal", 316], [13, "NumpadEnter", 318]
+    ]) {
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+    }
+    // A modifier position remapped to a letter or Caps Lock must retain that reported keyCode.
+    assert.strictEqual(platform.keyNumber({ keyCode: 65, code: "ControlLeft" }), 65);
+    assert.strictEqual(platform.keyNumber({ keyCode: 20, code: "AltLeft" }), 20);
+}
+
+// Verify physical punctuation remains a fallback, preserving remapped Backspace and other explicit keyCodes.
+function testPunctuationPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [keyCode, code, expected] of [
+        [189, "Minus", 45], [190, "Period", 46], [188, "Comma", 44], [191, "Slash", 47],
+        [220, "Backslash", 92], [193, "IntlRo", 92], [255, "IntlYen", 92], [226, "IntlBackslash", 92],
+        [192, "Backquote", 96], [219, "BracketLeft", 91], [221, "BracketRight", 93],
+        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316]
+    ]) {
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode: 0, code }), expected);
+    }
+    // NICOLA-F maps the physical Quote key to Backspace; its reported function must win.
+    for (const [keyCode, code, expected] of [
+        [8, "Quote", 295], [9, "Backquote", 293], [13, "Semicolon", 294],
+        [27, "Backquote", 257], [109, "Minus", 314], [107, "Equal", 315]
+    ]) {
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+    }
 }
 
 function loadLoaderEnvironment(hasWebGPU = false, verifySize = true, parameters = {}) {
@@ -1498,10 +1741,10 @@ async function testLoaderTransportAdapters() {
 // Cache reads always complete asynchronously; corrupt or unreadable cached files are downloaded again (#10116).
 async function testLoaderArchiveCacheResults() {
     const bytes = Uint8Array.of(7);
-    for (const cached of ["valid", "corrupt", "unreadable"]) {
+    for (const [cached, verifySize] of [["valid", true], ["valid", false], ["corrupt", true], ["unreadable", true]]) {
         const file = archiveFile("a");
         file.sha1 = crypto.createHash("sha1").update(bytes).digest("hex");
-        const { context, loader, requests, waitFor } = setupArchiveDownloads([file]);
+        const { context, loader, requests, waitFor } = setupArchiveDownloads([file], verifySize);
         const miss = context.ArchiveStorage.readCached(file, context.createLoaderScope());
         assert.strictEqual(typeof miss.then, "function");
         assert.strictEqual(await miss, false);
@@ -1525,6 +1768,44 @@ async function testLoaderArchiveCacheResults() {
         assert.strictEqual(requests.length, cached === "valid" ? 0 : 1);
         assert.strictEqual(streams.length, cached === "valid" ? 1 : 2);
         assert(streams.every(stream => stream.closed));
+    }
+}
+
+// A same-sized archive from an older build must be downloaded again when no hash can verify its cached bytes.
+async function testLoaderArchiveCacheWithoutHash() {
+    for (const verifySize of [true, false]) {
+        const file = archiveFile("game.arci");
+        const updated = Uint8Array.of(2);
+        let stored = Uint8Array.of(1);
+        assert.strictEqual(stored.length, file.size);
+        assert.strictEqual(updated.length, file.size);
+        const { context, loader, requests, waitFor, calls } = setupArchiveDownloads([file], verifySize);
+        context.Module.isDMFSSupported = true;
+        context.DMSYS = { GetUserPersistentDataRoot: () => "/data" };
+        context.FS = {
+            stat: () => ({ size: stored.length }),
+            open(name, mode) {
+                if (mode === "w+") stored = new Uint8Array(0);
+                return { mode };
+            },
+            mmap: () => stored,
+            write(stream, buffer, offset, length, position) {
+                assert.strictEqual(stream.mode, "w+");
+                assert.strictEqual(position, 0);
+                stored = buffer.slice(offset, offset + length);
+            },
+            close() {}, unlink() {}
+        };
+        assert.strictEqual(await context.ArchiveStorage.readCached(file, context.createLoaderScope()), false,
+            "Equal size cannot validate cached content without a hash");
+        const completion = loader.downloadContent();
+        await waitFor(() => requests.length === 1);
+        requests[0].complete(updated.buffer);
+        await completion;
+        assert.strictEqual(requests.length, 1);
+        assert.deepStrictEqual(Array.from(stored), Array.from(updated));
+        assert.deepStrictEqual(calls.loaded, [file.name]);
+        assert.strictEqual(calls.completed, 1);
     }
 }
 
@@ -2857,7 +3138,10 @@ function testWebGLFallbackAndRetry() {
 
 async function runTests() {
     for (const test of [testKeyboardTranslation, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
-        testWebGLFallbackAndRetry, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle, testUnrelatedDisplayOwner,
+                       testWebGLFallbackAndRetry, testWindowCloseAndReopen, testGraphicsFallbackCanvasListeners,
+                       testModifierKeyEvents, testModifierPhysicalKeyCodes, testRemappedModifierKeys,
+                       testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput,
+                       testLoaderFullscreenToggle, testUnrelatedDisplayOwner,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
@@ -2874,6 +3158,7 @@ async function runTests() {
                        testLoaderArchiveDMFSCloseFailure, testLoaderArchiveDMFSErrorCleanup,
                        testLoaderArchiveDMFSVerificationCancellation, testLoaderArchiveTerminalStates,
                        testLoaderTransportRetryLifecycle, testLoaderTransportAdapters, testLoaderArchiveCacheResults,
+                       testLoaderArchiveCacheWithoutHash,
                        testLoaderArchiveDescriptionHash,
                        testLoaderEngineHashFailure, testLoaderScriptBytes, testLoaderEngineSizeRetry,
                        testLoaderStreamingWasm, testLoaderStreamingCancellation, testLoaderStreamingProgressWithoutLength,

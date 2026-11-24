@@ -240,6 +240,11 @@ if(TARGET graphics_webgpu AND
 endif()
 
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
+  # These GPU tests select OpenGL on Windows and do not yet support DX12.
+  set(_graphics_app_saved_opengl "${WITH_OPENGL}")
+  if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    set(WITH_OPENGL ON)
+  endif()
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
@@ -263,6 +268,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       dlib
       profile_null)
     defold_target_link_graphics(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    set(WITH_OPENGL "${_graphics_app_saved_opengl}")
     defold_target_link_platform(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_socket(test_app_graphics "${TARGET_PLATFORM}" PRIVATE)
     if("GraphicsAdapterDX12" IN_LIST _graphics_app_symbols)

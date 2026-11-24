@@ -1,0 +1,5 @@
+name: "halloween"
+instances {
+  id: "pumpkin"
+  prototype: "/halloween/pumpkin.go"
+}

@@ -19,6 +19,39 @@
 #include "../platform_window_constants.h"
 #include "../win32/window_win32.h"
 
+// Verify teardown is safe before the HWND exists.
+TEST(dmPlatform, WindowsCloseUnopenedWindow)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Failed graphics startup and engine teardown may both close the window; reopening must still work afterwards.
+TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_FocusOnShow = false;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    ASSERT_EQ(1u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+    dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
@@ -88,6 +121,8 @@ TEST(dmPlatform, WindowsCloseAndReopen)
     params.m_CloseCallbackUserData = &events;
     params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
     params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
     HWND hwnd = dmPlatform::GetWindowsHWND(window);

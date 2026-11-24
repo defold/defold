@@ -21,6 +21,8 @@ var LibraryDefoldPlatform = {
     initialized: false,
     watchingDisplay: false,
     fullscreenTarget: null,
+    contextCanvas: null,
+    contextUsesWebGL: false,
     isFullscreen: false,
     isPointerLocked: false,
     NATIVE_PHASE_BEGAN: 0,
@@ -47,7 +49,7 @@ var LibraryDefoldPlatform = {
     // Older browsers and virtual keyboards can omit KeyboardEvent.code.
     legacyKeyNames: {
       1: 'AltRight', 2: 'AltLeft', 3: 'ControlLeft', 4: 'ControlRight', 5: 'ShiftLeft', 6: 'ShiftRight',
-      8: 'Backspace', 9: 'Tab', 13: 'Enter', 16: 'ShiftLeft', 17: 'ControlLeft', 18: 'AltLeft',
+      8: 'Backspace', 9: 'Tab', 13: 'Enter',
       27: 'Escape', 33: 'PageUp', 34: 'PageDown', 35: 'End', 36: 'Home',
       37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown', 45: 'Insert', 46: 'Delete',
       106: 'NumpadMultiply', 107: 'NumpadAdd', 109: 'NumpadSubtract', 110: 'NumpadDecimal', 111: 'NumpadDivide'
@@ -55,10 +57,32 @@ var LibraryDefoldPlatform = {
 
     keyNumber: function(event) {
       var value = event.keyCode;
+      var code = event.code;
+      var modifierCode = /^(Shift|Control|Alt)(Left|Right)$/.exec(code);
+      var modifier = event.key === 'AltGraph' ? 'Alt' : event.key;
+
+      // Use the reported function and side to preserve OS modifier remaps.
+      if (modifier !== 'Shift' && modifier !== 'Control' && modifier !== 'Alt') {
+        switch (value) {
+          case 16: modifier = 'Shift'; break;
+          case 17: modifier = 'Control'; break;
+          case 18:
+          case 225: modifier = 'Alt'; break;
+          default: modifier = !value && modifierCode ? modifierCode[1] : null; break;
+        }
+      }
+      if (modifier) {
+        // XKB can report AltGraph from MetaRight with a standard location.
+        var right = event.location === 2 || (event.location !== 1 &&
+          ((modifierCode && modifierCode[2] === 'Right') || code === 'MetaRight'));
+        return DefoldPlatform.namedKeys[modifier + (right ? 'Right' : 'Left')];
+      }
+
       if (value >= 112 && value <= 123) return 258 + value - 112;
       if (value >= 96 && value <= 105) return 302 + value - 96;
-      var code = event.code;
-      var named = DefoldPlatform.namedKeys[code] || DefoldPlatform.namedKeys[DefoldPlatform.legacyKeyNames[value]];
+      if (code === 'NumpadEnter' && value === 13) return DefoldPlatform.namedKeys.NumpadEnter;
+      var named = DefoldPlatform.namedKeys[DefoldPlatform.legacyKeyNames[value]] ||
+        (!modifierCode && DefoldPlatform.namedKeys[code]);
       if (named) return named;
       if (value) return value;
       if (/^F([1-9]|1[0-2])$/.test(code)) return 257 + Number(code.slice(1));
@@ -323,6 +347,42 @@ var LibraryDefoldPlatform = {
       }
     },
 
+    listenToCanvas: function(canvas) {
+      var platform = DefoldPlatform;
+      platform.listen(canvas, ['touchstart'], platform.onTouchStart, true);
+      platform.listen(canvas, ['touchmove'], platform.onTouchMove, true);
+      platform.listen(canvas, ['touchend'], platform.onTouchEnd, true);
+      platform.listen(canvas, ['touchcancel'], platform.onTouchCancel, true);
+      platform.listen(canvas, ['focus'], function() { platform.onFocusChanged(1); }, true);
+      platform.listen(canvas, ['blur'], function() { platform.onFocusChanged(0); }, true);
+    },
+
+    prepareCanvas: function(useWebGL) {
+      var platform = DefoldPlatform;
+      var previous = Module['canvas'];
+      if (previous && previous === platform.contextCanvas && useWebGL !== platform.contextUsesWebGL) {
+        // WebGPU and WebGL need separate canvases. Preserve the DOM attributes and rebind the listeners.
+        var canvas = previous.cloneNode(true);
+        var focused = document.activeElement === previous;
+        platform.listeners = platform.listeners.filter(function(entry) {
+          if (entry[0] !== previous) return true;
+          previous.removeEventListener(entry[1], entry[2], entry[3]);
+          return false;
+        });
+        if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](previous, false);
+        if (previous.parentNode) previous.parentNode.replaceChild(canvas, previous);
+        Module['canvas'] = canvas;
+        if (Module['fullScreenContainer'] === previous) Module['fullScreenContainer'] = canvas;
+        if (platform.fullscreenTarget === previous) platform.fullscreenTarget = null;
+        if (focused) canvas.focus();
+        platform.listenToCanvas(canvas);
+        if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](canvas, true);
+        platform.readDisplayState();
+      }
+      platform.contextCanvas = Module['canvas'];
+      platform.contextUsesWebGL = useWebGL;
+    },
+
     updateCRC16: function(crc, string) {
       for (var i = 0; i < string.length; ++i) {
         var r = (crc ^ (string.charCodeAt(i) & 0xff)) & 0xff;
@@ -481,7 +541,6 @@ var LibraryDefoldPlatform = {
     platform.params[2] = platform.params[4] = 1;
     platform.prevWidth = platform.prevHeight = 0;
     platform.resetInput();
-    var canvas = Module['canvas'];
     if (typeof window !== 'undefined') {
       platform.listen(window, ['pagehide'], function() { platform.params[1] = 0; }, true);
       platform.listen(window, ['gamepadconnected', 'gamepaddisconnected'], platform.onGamepadChange, true);
@@ -494,12 +553,7 @@ var LibraryDefoldPlatform = {
       var wheelEvents = 'onwheel' in window ? ['wheel'] : ['DOMMouseScroll', 'mousewheel'];
       platform.listen(window, wheelEvents, platform.onMouseWheel, { capture: true, passive: false });
     }
-    platform.listen(canvas, ['touchstart'], platform.onTouchStart, true);
-    platform.listen(canvas, ['touchmove'], platform.onTouchMove, true);
-    platform.listen(canvas, ['touchend'], platform.onTouchEnd, true);
-    platform.listen(canvas, ['touchcancel'], platform.onTouchCancel, true);
-    platform.listen(canvas, ['focus'], function() { platform.onFocusChanged(1); }, true);
-    platform.listen(canvas, ['blur'], function() { platform.onFocusChanged(0); }, true);
+    platform.listenToCanvas(Module['canvas']);
     platform.watchDisplay();
     return 1;
   },
@@ -518,6 +572,7 @@ var LibraryDefoldPlatform = {
 
   dmNativeOpenWindowJS: function(alphaBits, samples, fullscreen, highDPI, useWebGL, version) {
     var platform = DefoldPlatform;
+    platform.prepareCanvas(!!useWebGL);
     if (fullscreen) platform.requestFullScreen();
     if (useWebGL) {
       // WebGL 2 contexts on iOS before 15.2 could be created but failed to render.
@@ -542,11 +597,8 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeCloseWindow: function() {
-    if (!DefoldPlatform.params[1]) return;
+    // Graphics startup can close the window between adapter attempts.
     DefoldPlatform.params[1] = 0;
-    if (DefoldPlatform.callbacks.close) {
-      {{{ makeDynCall('i', 'DefoldPlatform.callbacks.close') }}}();
-    }
     delete Module.ctx;
   },
 
@@ -593,7 +645,7 @@ var LibraryDefoldPlatform = {
   dmNativeGetWindowParam: function(param) { return DefoldPlatform.params[param] || 0; },
 
   dmNativeSetWindowSizeCallback: function(callback) { DefoldPlatform.callbacks.resize = callback; },
-  dmNativeSetWindowCloseCallback: function(callback) { DefoldPlatform.callbacks.close = callback; },
+  dmNativeSetWindowCloseCallback: function() {},
   dmNativeSetWindowFocusCallback: function(callback) { DefoldPlatform.callbacks.focus = callback; },
   dmNativeSetWindowIconifyCallback: function() {},
   dmNativePollEvents: function() {},
