@@ -125,17 +125,17 @@ namespace dmPlatform
     static int ChooseWindowFormat(HDC dc, const WglFunctions& wgl, uint32_t requested, uint32_t* samples)
     {
         *samples = 1;
-        if (requested > 1 && wgl.m_ChooseFormat && wgl.m_GetFormat)
+        if (requested && wgl.m_ChooseFormat && wgl.m_GetFormat)
         {
             const int attributes[] = { WGL_DRAW_TO_WINDOW_ARB, TRUE, WGL_SUPPORT_OPENGL_ARB, TRUE, WGL_DOUBLE_BUFFER_ARB, TRUE,
                                        WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB, WGL_COLOR_BITS_ARB, 24, WGL_ALPHA_BITS_ARB, 8, WGL_DEPTH_BITS_ARB, 24,
                                        WGL_STENCIL_BITS_ARB, 8, WGL_SAMPLE_BUFFERS_ARB, 1, 0 };
-            // Choose the driver's preferred format at the highest sample count within the request.
             int format_count = DescribePixelFormat(dc, 1, 0, 0);
             dmArray<int> formats;
             formats.SetCapacity(format_count);
             UINT count = 0;
             int best = 0;
+            uint32_t best_error = UINT32_MAX;
             if (format_count && wgl.m_ChooseFormat(dc, attributes, 0, format_count, formats.Begin(), &count))
             {
                 const int attribute = WGL_SAMPLES_ARB;
@@ -143,10 +143,15 @@ namespace dmPlatform
                 {
                     int value;
                     int index = formats.Begin()[i];
-                    if (wgl.m_GetFormat(dc, index, 0, 1, &attribute, &value) && value > (int)*samples && (uint32_t)value <= requested)
+                    if (wgl.m_GetFormat(dc, index, 0, 1, &attribute, &value) && value > 0)
                     {
-                        *samples = value;
-                        best = index;
+                        uint32_t error = OpenGLSampleCountError(requested, value);
+                        if (error < best_error)
+                        {
+                            best_error = error;
+                            *samples = value;
+                            best = index;
+                        }
                     }
                 }
             }

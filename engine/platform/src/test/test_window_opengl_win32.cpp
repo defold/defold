@@ -40,6 +40,33 @@ static DWORD WINAPI Upload(void* data)
     return wglGetCurrentContext() != 0;
 }
 
+// A positive request below the driver's minimum must still select a multisampled default framebuffer.
+TEST(Win32OpenGL, MinimumMultisampling)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    params.m_Hidden = true;
+    params.m_Samples = 4;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    GLint supported = 0;
+    glGetIntegerv(0x80A9, &supported); // GL_SAMPLES
+    dmPlatform::CloseWindow(window);
+    params.m_Samples = 1;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    GLint selected = 0;
+    glGetIntegerv(0x80A9, &selected);
+    if (supported > 1)
+    {
+        EXPECT_GT(selected, 0);
+        EXPECT_LE(selected, supported);
+        EXPECT_EQ((uint32_t)selected, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT));
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies WGL shares real texture storage across threads and releases its context on close.
 TEST(Win32OpenGL, SharedWorkerUpload)
 {
@@ -56,7 +83,6 @@ TEST(Win32OpenGL, SharedWorkerUpload)
     ASSERT_TRUE(dmPlatform::GetProcAddress(window, "glTexImage2D") != 0);
     ASSERT_TRUE(dmPlatform::GetProcAddress(window, "glNonexistentDefoldProc") == 0);
     ASSERT_GE(dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT), 1U);
-    ASSERT_LE(dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT), 4U);
     WorkerUpload upload = { window };
     HANDLE worker = CreateThread(0, 0, Upload, &upload, 0, 0);
     ASSERT_NE((HANDLE)0, worker);

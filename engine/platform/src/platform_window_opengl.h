@@ -15,9 +15,22 @@
 #ifndef DM_PLATFORM_WINDOW_OPENGL_H
 #define DM_PLATFORM_WINDOW_OPENGL_H
 
+#include <stdint.h>
+
 namespace dmPlatform
 {
     int32_t OpenGLGetDefaultFramebufferId();
+
+    // Any multisampled format is preferable to disabling a positive request.
+    static inline uint32_t OpenGLSampleCountError(uint32_t requested, uint32_t available)
+    {
+        if (requested && !available)
+        {
+            return UINT32_MAX;
+        }
+
+        return requested > available ? requested - available : available - requested;
+    }
 
     static inline bool OpenGLGetVersion(int32_t version, uint32_t* major, uint32_t* minor)
     {
