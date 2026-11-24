@@ -61,9 +61,10 @@ probe images are retained as `<case>.png.<probe>-expected.png` and
 
 Shader sources are local to the test. CMake regenerates their embedded data
 when the sources change, using the same aligned embedding helper as the font
-viewer. Builds with Vulkan compile SPIR-V with the SDK's `glslang` (or
-`glslangValidator` from PATH). Generated files stay in the build directory;
-builds without Vulkan do not require a SPIR-V compiler.
+viewer. Vulkan builds embed SPIR-V compiled with the SDK's `glslang`
+(or `glslangValidator` from PATH). Windows DX12 builds use Bob Light to compile
+the four capture programs in one batch. The test executable embeds each
+compiled program with its DXIL, root signature and resource bindings.
 The vertex shaders follow production compiler
 conventions: MSL negates Y, SPIR-V leaves Y unchanged, and OpenGL maps the
 test's [0, 1] depth to [-1, 1]. WGSL supplies the marked Y-flipped offscreen
@@ -84,6 +85,14 @@ python3 engine/graphics/src/test/test_graphics_images.py
 The manual CMake target renders the local backend matrix, records explicit
 skips for adapters absent from the build, and produces
 `engine/graphics/build/graphics-render-report/<target-platform>/index.html` and `results.json`.
+
+For each backend, the `clear` capture queries the device's texture formats. The
+runner records unsupported optional formats as skips and runs every required
+format in its own process. If the query is missing or incomplete, the runner
+launches each texture case. Desktop captures run up to four processes at a time.
+Pass `--jobs 1` to the Python runner for a serial run. The iOS simulator runs
+one capture at a time because each launch reuses the same installed app.
+
 Capture processes create hidden windows with focus-on-show disabled, so the
 offscreen tests do not activate a window while running.
 Capture PNGs, logs, reproduction commands and platform/adapter metadata
@@ -103,11 +112,11 @@ JavaScript, the backend/category hierarchy is used.
 Keep any diagnostic PNGs alongside the original capture when copying a
 capture directory. Capture attempts and skips remove stale diagnostic images.
 
-The capture backends are OpenGL, Metal, Vulkan and WebGPU. The manual CMake
+The capture backends are OpenGL, Metal, Vulkan, WebGPU and DX12. The manual CMake
 matrix uses Metal/OpenGL/Vulkan/WebGPU on macOS, Vulkan on Linux, and
-OpenGL/Vulkan on Windows, with unavailable adapters skipped. Native WebGPU
-uses Dawn on Apple Silicon macOS; configure the build with `-DWITH_WEBGPU=ON`
-and the Dawn SDK dependencies. DX12 capture support is deferred.
+OpenGL/Vulkan/DX12 on Windows, with unavailable adapters skipped. Configure
+with `-DWITH_DX12=ON` to include DX12 on Windows. Native WebGPU uses Dawn on
+Apple Silicon macOS and requires `-DWITH_WEBGPU=ON` and the Dawn SDK dependencies.
 
 To run only WebGPU locally with the configured capture executable:
 
@@ -137,8 +146,8 @@ checked-in GLSL, MSL and WGSL variants. `shaderc_standalone` cross-compiles the
 SPIR-V produced by `glslang` to GLSL 330 and MSL 2.2 using the engine's compiler
 options, including Metal's vertex Y flip and argument buffers. Tint produces
 WGSL, then the generator invokes Bob's shared `WgslShader.java` helper using
-the host Java runtime to add the offscreen entry point. Vulkan continues
-to compile SPIR-V from these sources during the CMake build.
+the host Java runtime to add the offscreen entry point. The Vulkan and DX12
+builds compile the same GLSL sources directly.
 
 Build the **host** `shaderc_standalone` target first (include `shaderc` in
 `DEFOLD_SELECTED_ENGINE_LIBS` if using a focused build). For example, from the
@@ -227,6 +236,9 @@ pass, failure or skip to the totals, combining capture and comparison results.
 Only clear uses the entire image; all other cases use the foreground union
 against RGB (37, 73, 109). Rendering defects remain failures; there are no expected-failure exemptions.
 Readback diagnostics compare the whole image and require identical pixels.
+For texture cases, `verified_lower_mips` in `captures.json` records how many
+consecutive levels passed GPU readback starting at mip 1. Older captures retain
+their mip-0 image comparison and show the lower levels as unverified.
 
 Validation on 2026-10-02 (`arm64-macos`, Debug): all nine cases pass on Metal,
 OpenGL, Vulkan through MoltenVK and WebGPU through Dawn at 100% reference likeness: 36 passed,
@@ -263,7 +275,8 @@ focused render-target regressions; Parking Jam was not run.
 `texture_*.png` are CPU-decoded references for the precompressed payloads in
 [`../texture_formats`](../texture_formats/README.md), plus the RGBA source baseline.
 Each format has its own capture case and reference at the same 99% likeness
-threshold. Unsupported formats are explicitly skipped before upload. These
+threshold. Each case also uploads a full mip chain and checks every smaller
+level through 1×1 by GPU readback. Unsupported formats are explicitly skipped before upload. These
 references are generated offline from the blocks, independently of the graphics
 backend, and are never updated by ordinary test runs. Add `--show` to a capture
 command to display the selected case in a window until it is closed.
