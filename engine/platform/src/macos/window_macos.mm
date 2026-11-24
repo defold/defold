@@ -75,11 +75,6 @@
 
 - (void)setFocused:(BOOL)focused
 {
-    if (!handle->m_Ready)
-    {
-        return;
-    }
-
     if (handle->m_Params.m_Fullscreen)
     {
         handle->m_Window.level = focused ? NSMainMenuWindowLevel + 1 : NSNormalWindowLevel;
@@ -104,7 +99,15 @@
 
     if (handle->m_Params.m_FocusCallback)
     {
-        handle->m_Params.m_FocusCallback(handle->m_Params.m_FocusCallbackUserData, focused);
+        // AppKit can grant focus inside OpenWindow on reboot, before extensions have a graphics context.
+        if (!handle->m_Ready || handle->m_FocusCallbackPending)
+        {
+            handle->m_FocusCallbackPending = focused;
+        }
+        else
+        {
+            handle->m_Params.m_FocusCallback(handle->m_Params.m_FocusCallbackUserData, focused);
+        }
     }
 }
 
@@ -409,13 +412,13 @@ namespace dmPlatform
             }
 
             UpdateWindowMetrics(window, false);
-            window->m_Ready = true;
             if (!params.m_Hidden && params.m_FocusOnShow)
             {
                 [NSApp activateIgnoringOtherApps:YES];
                 [native makeKeyAndOrderFront:nil];
             }
 
+            window->m_Ready = true;
             return WINDOW_RESULT_OK;
         }
     }
@@ -481,6 +484,12 @@ namespace dmPlatform
             {
                 dmLogError("AppKit events must be polled on the main thread.");
                 return;
+            }
+
+            if (window->m_FocusCallbackPending)
+            {
+                window->m_FocusCallbackPending = false;
+                window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, 1);
             }
 
             NSEvent* event;

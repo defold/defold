@@ -53,6 +53,7 @@ struct dmWindow
     bool                           m_CursorLocked;
     bool                           m_CursorDisabled;
     bool                           m_Ready;
+    bool                           m_FocusCallbackPending;
 };
 
 namespace dmPlatform

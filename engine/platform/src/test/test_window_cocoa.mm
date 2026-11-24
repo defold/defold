@@ -147,16 +147,22 @@ class CocoaWindowTest : public jc_test_base_class
 
 };
 
-// Opening with the default visibility must show and focus the window without a separate show call.
+// Opening and reopening must show the window immediately and deliver focus after OpenWindow returns.
 TEST_F(CocoaWindowTest, OpenVisibleWindow)
 {
     @autoreleasepool
     {
         params.m_Hidden = false;
-        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
-        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
-        ASSERT_TRUE(native.visible);
-        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        for (int i = 0; i < 2; ++i)
+        {
+            events.m_Focus = -1;
+            ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
+            EXPECT_EQ(-1, events.m_Focus);
+            NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+            ASSERT_TRUE(native.visible);
+            ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+            dmPlatform::CloseWindow(window);
+        }
     }
 }
 
