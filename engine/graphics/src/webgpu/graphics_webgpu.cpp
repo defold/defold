@@ -1478,6 +1478,9 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 
         if (surface_initialized)
         {
+#if defined(__EMSCRIPTEN__)
+            dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
             // Emscripten applies these dimensions to the canvas, so preserve an initially invalid surface.
             uint32_t width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
             uint32_t height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
@@ -2039,6 +2042,9 @@ static bool WebGPUIsFrameValid(WebGPUContext* context)
 static void WebGPUSubmitCommandEncoder(WebGPUContext* context)
 {
     TRACE_CALL;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
     if (context->m_CommandEncoder)
     {
         WebGPUEndComputePass(context);
@@ -2603,6 +2609,14 @@ static void WebGPUBeginFrame(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
+    if (GetWindowWidth(_context) == 0 || GetWindowHeight(_context) == 0)
+    {
+        return;
+    }
+
     ++context->m_BindGroupCacheFrame;
     WebGPUPruneBindGroups(context);
     {
@@ -2611,6 +2625,15 @@ static void WebGPUBeginFrame(HContext _context)
         if (!context->m_MainRenderTarget || context->m_SurfaceNeedsConfigure || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
         {
             WebGPUConfigure(context, window_width, window_height);
+#if defined(__EMSCRIPTEN__)
+            // Configuration writes the canvas attributes before a texture is acquired.
+            dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+            if (GetWindowWidth(_context) == 0 || GetWindowHeight(_context) == 0)
+            {
+                return;
+            }
+
+#endif
         }
 
         WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
@@ -2730,8 +2753,8 @@ static void WebGPUFlip(HContext _context)
         dmLogFatal("WebGPU validation failed; see the preceding uncaptured error");
     }
 
-    bool frame_valid = WebGPUIsFrameValid(context);
     WebGPUSubmitCommandEncoder(context);
+    bool frame_valid = WebGPUIsFrameValid(context);
     if (!frame_valid)
     {
         wgpuSurfaceUnconfigure(context->m_Surface);
@@ -4676,6 +4699,9 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*) _context;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
     if (context->m_FrameBegun && !WebGPUIsFrameValid(context))
     {
         return;

@@ -32,6 +32,13 @@ function loadEnvironment() {
         console,
         Module: {},
         MainLoop: { currentFrameNumber: 1 },
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; this.records = []; }
+            observe(target, options) { this.target = target; this.options = options; }
+            takeRecords() { return this.records.splice(0); }
+            disconnect() { this.target = null; this.records.length = 0; }
+            deliver() { this.callback(this.takeRecords()); }
+        },
         navigator: { getGamepads: () => [] },
         window: {
             addEventListener(type, callback) {
@@ -807,6 +814,55 @@ function testZeroSizeCanvasRequests() {
         context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
         assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], [width, height]);
         assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
+    }
+}
+
+// Attribute writes must invalidate an acquired frame even if polling sees the original dimensions again.
+function testCanvasResizeMutations() {
+    for (const delivered of [false, true]) {
+        const context = loadResizeEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context.resize();
+        const canvas = context.Module.canvas;
+        const observer = context.DefoldPlatform.canvasResizeObserver;
+        assert.strictEqual(observer.target, canvas);
+        assert.deepStrictEqual(Array.from(observer.options.attributeFilter), ["width", "height"]);
+        const initial = context.resizes.length;
+        observer.records.push({ attributeName: "width" }, { attributeName: "height" });
+        if (delivered) observer.deliver();
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 1);
+        assert.deepStrictEqual(context.resizes.at(-1), [canvas.width, canvas.height]);
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 1);
+
+        // Explicit requests already notify native code and must consume their own mutation records.
+        observer.records.push({ attributeName: "width" });
+        library.dmNativeSetWindowSize(canvas.width, canvas.height);
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 2);
+    }
+}
+
+// Closing or terminating must detach the observer before a reboot or graphics fallback replaces the canvas.
+function testCanvasResizeObserverLifecycle() {
+    for (const teardown of ["dmNativeCloseWindow", "dmNativeTerminate"]) {
+        const context = loadEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context.Module.canvas = createCanvas(context);
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        const previous = context.DefoldPlatform.canvasResizeObserver;
+        previous.records.push({ attributeName: "width" });
+        previous.deliver();
+        library[teardown]();
+        assert.strictEqual(previous.target, null);
+        assert.strictEqual(context.DefoldPlatform.canvasResizeObserver, null);
+        assert.strictEqual(context.DefoldPlatform.canvasResized, false);
+        library.dmNativeInitJS();
+        context.Module.canvas = createCanvas(context);
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        assert.notStrictEqual(context.DefoldPlatform.canvasResizeObserver, previous);
+        assert.strictEqual(context.DefoldPlatform.canvasResizeObserver.target, context.Module.canvas);
     }
 }
 
@@ -3174,7 +3230,8 @@ async function runTests() {
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
                        testRemappedModifierKeys,
                        testPunctuationPhysicalKeyCodes,
-                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testZeroSizeCanvasRequests, testLoaderProgressView,
+                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testZeroSizeCanvasRequests,
+                       testCanvasResizeMutations, testCanvasResizeObserverLifecycle, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
                        testLoaderArchiveConcurrency, testLoaderArchiveRetryReleasesSlot, testLoaderArchiveQueuedCancellation,
