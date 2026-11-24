@@ -177,31 +177,45 @@ namespace dmGraphics
                 return format;
         }
     }
-    static DXGI_FORMAT GetDXGIRenderTargetFormatFromTextureFormat(TextureFormat format)
+
+    static TextureFormat GetTextureStorageFormat(TextureFormat format, bool color_attachment)
     {
         switch (format)
         {
+            case TEXTURE_FORMAT_RGB:
+            {
+                return TEXTURE_FORMAT_RGBA;
+            }
+            case TEXTURE_FORMAT_RGB16F:
+            {
+                return TEXTURE_FORMAT_RGBA16F;
+            }
             case TEXTURE_FORMAT_LUMINANCE:
             case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            case TEXTURE_FORMAT_RGB:
-            case TEXTURE_FORMAT_RGBA:
-                return DXGI_FORMAT_R8G8B8A8_UNORM;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA : format;
+            }
             case TEXTURE_FORMAT_R16F:
             case TEXTURE_FORMAT_RG16F:
-            case TEXTURE_FORMAT_RGB16F:
-            case TEXTURE_FORMAT_RGBA16F:
-                return DXGI_FORMAT_R16G16B16A16_FLOAT;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA16F : format;
+            }
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG32F:
             case TEXTURE_FORMAT_RGB32F:
-            case TEXTURE_FORMAT_RGBA32F:
-                return DXGI_FORMAT_R32G32B32A32_FLOAT;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA32F : format;
+            }
             default:
-                return GetDXGIFormatFromTextureFormat(format);
+            {
+                return format;
+            }
         }
+    }
+
+    static DXGI_FORMAT GetDXGIRenderTargetFormatFromTextureFormat(TextureFormat format)
+    {
+        return GetDXGIFormatFromTextureFormat(GetTextureStorageFormat(format, true));
     }
 
     void SetupSupportedTextureFormats(DX12Context* context)
@@ -1957,34 +1971,71 @@ namespace dmGraphics
         D3D12_RESOURCE_STATES              m_PreviousState;
     };
 
+    // Match native narrow textures by filling missing color channels with zero and alpha with one.
+    template <uint32_t ChannelCount, typename T>
+    static void RepackTextureRowToRGBA(uint32_t width, const uint8_t* src, uint8_t* dst, T alpha)
+    {
+        T texel[4] = { 0, 0, 0, alpha };
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            memcpy(texel, src, ChannelCount * sizeof(T));
+            memcpy(dst, texel, sizeof(texel));
+            src += ChannelCount * sizeof(T);
+            dst += sizeof(texel);
+        }
+    }
+
+    // Dispatch once per row so each texel copy has a fixed byte count.
+    template <typename T>
+    static void RepackTextureRowToRGBA(uint32_t width, uint32_t src_texel_size, const uint8_t* src, uint8_t* dst, T alpha)
+    {
+        if (src_texel_size == sizeof(T))
+        {
+            RepackTextureRowToRGBA<1>(width, src, dst, alpha);
+        }
+        else if (src_texel_size == 2 * sizeof(T))
+        {
+            RepackTextureRowToRGBA<2>(width, src, dst, alpha);
+        }
+        else
+        {
+            assert(src_texel_size == 3 * sizeof(T));
+            RepackTextureRowToRGBA<3>(width, src, dst, alpha);
+        }
+    }
+
     // Fills the upload heap from a tightly packed source holding exactly the requested layers.
-    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format,
-                                           const dmArray<TextureUploadLayer>& layers, const uint8_t* pixels, uint8_t* upload_data)
+    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat storage_format,
+                                           const dmArray<TextureUploadLayer>& layers, uint8_t* upload_data)
     {
         // The source is packed at the requested update extent (the sub-rectangle for a sub-update),
         // not at the full subresource, so deriving its pitch from the footprint would overread it.
         uint32_t src_row_pitch;
         uint32_t src_rows;
+        uint32_t src_texel_size = 0;
         TextureFormatCompressedBlockSize block_size;
-        if (GetTextureFormatCompressedBlockSize(format, &block_size))
+        const bool compressed = GetTextureFormatCompressedBlockSize(params.m_Format, &block_size);
+        if (compressed)
         {
             src_row_pitch = ((params.m_Width  + block_size.m_Width  - 1) / block_size.m_Width) * block_size.m_ByteSize;
             src_rows      =  (params.m_Height + block_size.m_Height - 1) / block_size.m_Height;
         }
         else
         {
-            src_row_pitch = params.m_Width * (GetTextureFormatBitsPerPixel(format) / 8);
+            src_texel_size = GetTextureFormatBitsPerPixel(params.m_Format) / 8;
+            src_row_pitch = params.m_Width * src_texel_size;
             src_rows      = params.m_Height;
         }
 
+        const uint8_t* pixels = (const uint8_t*) params.m_Data;
         uint64_t src_offset = 0;
         for (uint32_t i = 0; i < layers.Size(); ++i)
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layers[i].m_Footprint;
             const uint64_t dst_row_pitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
             const uint32_t depth = dmMath::Min((uint32_t) layout.Footprint.Depth, dmMath::Max(1u, (uint32_t) params.m_Depth));
-            const uint32_t dst_rows = GetTextureFormatCompressedBlockSize(format, &block_size) ?
-                (layout.Footprint.Height + block_size.m_Height - 1) / block_size.m_Height : layout.Footprint.Height;
+            const uint32_t dst_rows = compressed ?
+                                      (layout.Footprint.Height + block_size.m_Height - 1) / block_size.m_Height : layout.Footprint.Height;
 
             uint8_t* dst = upload_data + layout.Offset;
 
@@ -1995,7 +2046,23 @@ namespace dmGraphics
                     const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
                     uint8_t* dst_row = dst + (uint64_t) (z * dst_rows + row) * dst_row_pitch;
 
-                    memcpy(dst_row, src_row, src_row_pitch);
+                    if (storage_format == params.m_Format)
+                    {
+                        memcpy(dst_row, src_row, src_row_pitch);
+                    }
+                    else if (storage_format == TEXTURE_FORMAT_RGBA)
+                    {
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, (uint8_t) 255);
+                    }
+                    else if (storage_format == TEXTURE_FORMAT_RGBA16F)
+                    {
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, (uint16_t) 0x3c00); // Half-float 1.0
+                    }
+                    else
+                    {
+                        assert(storage_format == TEXTURE_FORMAT_RGBA32F);
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, 1.0f);
+                    }
                 }
             }
 
@@ -2059,7 +2126,7 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static bool TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format, const TextureParams& params, const uint8_t* pixels)
+    static bool TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat storage_format, const TextureParams& params)
     {
         const uint32_t target_mip = params.m_MipMap;
         if (target_mip >= texture->m_ResourceDesc.MipLevels)
@@ -2125,7 +2192,7 @@ namespace dmGraphics
         box.back = depth;
 
         TextureFormatCompressedBlockSize block;
-        if (!full_mip && GetTextureFormatCompressedBlockSize(format, &block))
+        if (!full_mip && GetTextureFormatCompressedBlockSize(params.m_Format, &block))
         {
             if (params.m_X % block.m_Width || params.m_Y % block.m_Height ||
                 (box.right % block.m_Width && params.m_X + box.right != width) ||
@@ -2141,8 +2208,8 @@ namespace dmGraphics
             box.bottom = DM_ALIGN(box.bottom, block.m_Height);
         }
 
-        // A valid allocation-only call still sets the texture parameters.
-        if (!pixels)
+        // RGB and RGB16F uploads historically clear their expanded texels when no data is supplied.
+        if (!params.m_Data && params.m_Format != TEXTURE_FORMAT_RGB && params.m_Format != TEXTURE_FORMAT_RGB16F)
         {
             return true;
         }
@@ -2197,7 +2264,14 @@ namespace dmGraphics
             return false;
         }
 
-        CopyTextureDataMipmapLevel(params, format, layers, pixels, upload_data);
+        if (params.m_Data)
+        {
+            CopyTextureDataMipmapLevel(params, storage_format, layers, upload_data);
+        }
+        else
+        {
+            memset(upload_data, 0, total_upload_size);
+        }
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -5058,18 +5132,18 @@ namespace dmGraphics
 
         DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
         const bool volume = tex->m_Base.m_Type == TEXTURE_TYPE_3D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D;
-        TextureFormat format_orig    = params.m_Format;
-        TextureFormat format_actual  = params.m_Format;
-        void* tex_data_ptr           = (void*) params.m_Data;
+        const bool color_attachment = tex->m_Resource && (tex->m_ResourceDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+        // Only the declared attachment format gets its render-target promotion. Other uploads must match the backing format.
+        const TextureFormat storage_format = GetTextureStorageFormat(params.m_Format, color_attachment && params.m_Format == tex->m_Base.m_Format);
         uint16_t tex_layer_count     = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_LayerCount, (uint16_t) params.m_LayerCount));
         uint16_t tex_depth           = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_Base.m_Depth, (uint16_t) params.m_Depth));
         if (tex->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
             tex_layer_count = dmMath::Max(tex_layer_count, tex_depth);
         uint32_t depth_or_array_size = dmMath::Max((uint32_t)tex_depth, (uint32_t)tex_layer_count);
-        const DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(format_orig);
+        const DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(storage_format);
         if (dxgi_format == DXGI_FORMAT_UNKNOWN)
         {
-            dmLogError("DX12 unsupported texture format %s", TextureFormatToString(format_orig));
+            dmLogError("DX12 unsupported texture format %s", TextureFormatToString(params.m_Format));
             return;
         }
 
@@ -5090,41 +5164,8 @@ namespace dmGraphics
         if (tex->m_Resource && (params.m_SubUpdate || params.m_MipMap > 0) && tex->m_ResourceDesc.Format != dxgi_format)
         {
             dmLogError("Invalid DX12 texture upload format %s (DXGI %u) for a resource with DXGI format %u.",
-                       TextureFormatToString(format_orig), (uint32_t) dxgi_format, (uint32_t) tex->m_ResourceDesc.Format);
+                       TextureFormatToString(params.m_Format), (uint32_t) dxgi_format, (uint32_t) tex->m_ResourceDesc.Format);
             return;
-        }
-
-        // Note: There's no 8 bit RGB format, we have to expand this to four channels
-        // TODO: Can we use R11G11B10 somehow?
-        if (format_orig == TEXTURE_FORMAT_RGB || format_orig == TEXTURE_FORMAT_RGB16F)
-        {
-            format_actual = format_orig == TEXTURE_FORMAT_RGB ? TEXTURE_FORMAT_RGBA : TEXTURE_FORMAT_RGBA16F;
-
-            const uint32_t upload_layers = volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) :
-                params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : depth_or_array_size;
-            const uint64_t pixel_count = (uint64_t) params.m_Width * params.m_Height * upload_layers;
-            const uint32_t bpp_new = format_orig == TEXTURE_FORMAT_RGB ? 4 : 8;
-            if (pixel_count > 0xffffffffu / bpp_new)
-            {
-                dmLogError("DX12 RGB texture update is too large to repack");
-                return;
-            }
-            uint32_t data_pixel_count = (uint32_t) pixel_count;
-            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
-
-            memset(data_new, 0, data_pixel_count * bpp_new);
-            if (tex_data_ptr && format_orig == TEXTURE_FORMAT_RGB)
-                RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-            else if (tex_data_ptr)
-            {
-                for (uint32_t i = 0; i < data_pixel_count; ++i)
-                {
-                    memcpy(data_new + i * 8, (const uint8_t*) tex_data_ptr + i * 6, 6);
-                    const uint16_t one = 0x3c00; // half-float 1.0
-                    memcpy(data_new + i * 8 + 6, &one, sizeof(one));
-                }
-            }
-            tex_data_ptr  = data_new;
         }
 
         bool recreate_resource = tex->m_Resource == 0;
@@ -5137,6 +5178,11 @@ namespace dmGraphics
                 tex->m_Base.m_Depth != tex_depth ||
                 tex->m_LayerCount != tex_layer_count ||
                 tex->m_ResourceDesc.DepthOrArraySize != depth_or_array_size;
+            if (recreate_resource && color_attachment)
+            {
+                dmLogError("Cannot change the format or dimensions of a DX12 render target attachment with SetTexture. Use SetRenderTargetSize to resize it.");
+                return;
+            }
         }
 
         DX12Texture replacement = {};
@@ -5163,21 +5209,13 @@ namespace dmGraphics
             if (FAILED(hr))
             {
                 OUTPUT_HRESULT(hr);
-                if (format_actual != format_orig)
-                    delete[] (uint8_t*) tex_data_ptr;
                 return;
             }
 
             InitializeTextureResourceStates(g_DX12Context->m_Device, &replacement, D3D12_RESOURCE_STATE_COPY_DEST);
         }
 
-        const bool uploaded = TextureBufferUploadHelper(g_DX12Context, recreate_resource ? &replacement : tex, format_actual, params, (const uint8_t*) tex_data_ptr);
-        if (format_actual != format_orig)
-        {
-            delete[] (uint8_t*) tex_data_ptr;
-        }
-
-        if (!uploaded)
+        if (!TextureBufferUploadHelper(g_DX12Context, recreate_resource ? &replacement : tex, storage_format, params))
         {
             if (replacement.m_Resource)
             {
@@ -5199,7 +5237,10 @@ namespace dmGraphics
             tex->m_LayerCount = tex_layer_count;
         }
 
-        tex->m_Base.m_Format = format_actual;
+        if (!color_attachment)
+        {
+            tex->m_Base.m_Format = storage_format;
+        }
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);

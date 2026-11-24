@@ -634,6 +634,85 @@ TEST_F(DX12Test, TextureUpdateFormatMustMatchStorage)
     ASSERT_EQ(0, memcmp(rgba, bytes.Begin(), bytes.Size()));
 }
 
+// Verifies writes in a color attachment's declared format preserve texel spacing and the render target resource.
+TEST_F(DX12Test, PromotedRenderTargetTextureUploads)
+{
+    const uint16_t r16f[] = { 0x3800, 0x4000 }; // 0.5, 2.0
+    const uint16_t rgba16f[] = { 0x3800, 0, 0, 0x3c00, 0x4000, 0, 0, 0x3c00 };
+    const uint8_t rg8[] = { 11, 22, 33, 44 };
+    const uint8_t rgba8[] = { 11, 22, 0, 255, 33, 44, 0, 255 };
+    const float rgb32f[] = { 0.25f, 0.5f, 0.75f, 2.0f, 3.0f, 4.0f };
+    const float rgba32f[] = { 0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 3.0f, 4.0f, 1.0f };
+    const struct
+    {
+        TextureFormat m_Format;
+        TextureFormat m_IncompatibleFormat;
+        const void*   m_Pixels;
+        uint32_t      m_Size;
+        const void*   m_Expected;
+        uint32_t      m_ExpectedSize;
+    } cases[] = {
+        { TEXTURE_FORMAT_R16F, TEXTURE_FORMAT_RG16F, r16f, sizeof(r16f), rgba16f, sizeof(rgba16f) },
+        { TEXTURE_FORMAT_LUMINANCE_ALPHA, TEXTURE_FORMAT_LUMINANCE, rg8, sizeof(rg8), rgba8, sizeof(rgba8) },
+        { TEXTURE_FORMAT_RGB32F, TEXTURE_FORMAT_R32F, rgb32f, sizeof(rgb32f), rgba32f, sizeof(rgba32f) },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        RenderTargetCreationParams creation;
+        creation.m_ColorBufferCreationParams[0].m_Width = creation.m_ColorBufferParams[0].m_Width = 2;
+        creation.m_ColorBufferCreationParams[0].m_Height = creation.m_ColorBufferParams[0].m_Height = 1;
+        creation.m_ColorBufferParams[0].m_Format = cases[i].m_Format;
+        HRenderTarget target = NewRenderTarget(GetContext(), BUFFER_TYPE_COLOR0_BIT, creation);
+        HTexture color = GetRenderTargetTexture(GetContext(), target, BUFFER_TYPE_COLOR0_BIT);
+        ID3D12Resource* attachment = GetTextureData(color)->m_Resource;
+
+        TextureParams params;
+        params.m_Format = cases[i].m_Format;
+        params.m_Width = 2;
+        params.m_Height = 1;
+        params.m_Data = cases[i].m_Pixels;
+        params.m_DataSize = cases[i].m_Size;
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        dmArray<uint8_t> bytes;
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+
+        // Overwrite only the second texel with the first texel's value.
+        params.m_X = 1;
+        params.m_Width = 1;
+        params.m_DataSize = cases[i].m_Size / 2;
+        SetTexture(GetContext(), color, params);
+        ReadTexture(color, 0, 0, bytes);
+        const uint32_t stride = cases[i].m_ExpectedSize / 2;
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), stride));
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin() + stride, stride));
+
+        params.m_SubUpdate = 0;
+        params.m_X = 0;
+        params.m_Width = 2;
+        params.m_DataSize = cases[i].m_Size;
+        SetTexture(GetContext(), color, params);
+
+        // Reject another narrow format that would promote to the same render-target storage.
+        const uint32_t zeros[2] = {};
+        params.m_Format = cases[i].m_IncompatibleFormat;
+        params.m_Data = zeros;
+        params.m_DataSize = GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height);
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        params.m_SubUpdate = 0;
+        SetTexture(GetContext(), color, params);
+        ASSERT_EQ(attachment, GetTextureData(color)->m_Resource);
+        ASSERT_EQ(cases[i].m_Format, GetTextureData(color)->m_Base.m_Format);
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+        DeleteRenderTarget(GetContext(), target);
+    }
+}
+
 // Verifies a rejected mip-zero redefinition preserves the original resource until a valid upload replaces it.
 TEST_F(DX12Test, TextureRedefinitionCommitsAfterUpload)
 {
