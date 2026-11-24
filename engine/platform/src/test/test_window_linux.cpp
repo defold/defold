@@ -1135,18 +1135,32 @@ static int InputTest()
     dmPlatform::SwapBuffers(w);
     puts("READY");
     fflush(stdout);
-    int step = 0;
+    enum
+    {
+        POINTER, FOCUS, PRESS, RELEASE, MOVE, ACCENT, COMPOSE, SHORTCUT, ALTGR, COPY, PASTE, DONE
+    };
+    int step = POINTER;
     int32_t x = 0, y = 0;
     uint64_t deadline = dmTime::GetMonotonicTime() + 20000000;
-    while (step < 9 && dmTime::GetMonotonicTime() < deadline)
+    while (step != DONE && dmTime::GetMonotonicTime() < deadline)
     {
         dmPlatform::PollEvents(w);
-        if (step == 0 && text == 'a' && dmPlatform::GetKey(w, 'A') && dmPlatform::GetMouseButton(w, 0))
+        if (step == POINTER && (!w->m_Wayland || w->m_Wayland->m_PointerSurface == w->m_Surface))
+        {
+            puts("POINTER_READY");
+            ++step;
+        }
+        else if (step == FOCUS && w->m_Focused && dmPlatform::GetMouseButton(w, 0))
+        {
+            puts("KEYBOARD_READY");
+            ++step;
+        }
+        else if (step == PRESS && text == 'a' && dmPlatform::GetKey(w, 'A') && dmPlatform::GetMouseButton(w, 0))
         {
             puts("PRESSED");
             ++step;
         }
-        else if (step == 1 && !dmPlatform::GetKey(w, 'A') && !dmPlatform::GetMouseButton(w, 0) && dmPlatform::GetMouseWheel(w) > 0)
+        else if (step == RELEASE && !dmPlatform::GetKey(w, 'A') && !dmPlatform::GetMouseButton(w, 0) && dmPlatform::GetMouseWheel(w) > 0)
         {
             dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
             if (!w->m_Wayland || w->m_Wayland->m_PointerLocked)
@@ -1156,7 +1170,7 @@ static int InputTest()
                 ++step;
             }
         }
-        else if (step == 2)
+        else if (step == MOVE)
         {
             int32_t mx, my;
             dmPlatform::GetMousePosition(w, &mx, &my);
@@ -1167,27 +1181,27 @@ static int InputTest()
                 ++step;
             }
         }
-        else if (step == 3 && dmPlatform::GetKey(w, '\''))
+        else if (step == ACCENT && dmPlatform::GetKey(w, '\''))
         {
             puts("ACCENT_DOWN");
             ++step;
         }
-        else if (step == 4 && text == 0xe9)
+        else if (step == COMPOSE && text == 0xe9)
         {
             puts("COMPOSED");
             ++step;
         }
-        else if (step == 5 && dmPlatform::GetKey(w, 'K') && text == 0xe9)
+        else if (step == SHORTCUT && dmPlatform::GetKey(w, 'K') && text == 0xe9)
         {
             puts("SHORTCUT");
             ++step;
         }
-        else if (step == 6 && text == 0x20ac)
+        else if (step == ALTGR && text == 0x20ac)
         {
             puts("ALTGR");
             ++step;
         }
-        else if (step == 7 && dmPlatform::GetKey(w, 'B'))
+        else if (step == COPY && dmPlatform::GetKey(w, 'B'))
         {
             const char text[] = "Defold clipboard";
             dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
@@ -1203,7 +1217,7 @@ static int InputTest()
             puts("COPIED");
             ++step;
         }
-        else if (step == 8)
+        else if (step == PASTE)
         {
             pollfd input = { STDIN_FILENO, POLLIN, 0 };
             if (poll(&input, 1, 0) == 1)
@@ -1224,7 +1238,7 @@ static int InputTest()
     }
 
     dmPlatform::DeleteWindow(w);
-    return step == 9 && shown ? 0 : 1;
+    return step == DONE && shown ? 0 : 1;
 }
 
 int main(int argc, char** argv)

@@ -53,8 +53,12 @@ def input_test(executable, app_env, x11, directory, nested):
         selector = ['--class', 'Weston Compositor'] if nested else ['--name', 'Defold Linux input test']
         window = subprocess.check_output(['xdotool', 'search', '--sync', '--onlyvisible', *selector],
                                          env=x11, timeout=10).splitlines()[-1].decode()
-        mouse('windowactivate', '--sync', window, 'mousemove', '--window', window, '200', '200',
-              'mousedown', '1', 'keydown', 'a')
+        mouse('windowactivate', '--sync', window, 'mousemove', '--window', window, '200', '200')
+        # Activating the outer Weston window does not tell us when the game surface can receive input.
+        expect('POINTER_READY')
+        mouse('mousedown', '1')
+        expect('KEYBOARD_READY')
+        mouse('keydown', 'a')
         expect('PRESSED')
         mouse('keyup', 'a', 'mouseup', '1', 'click', '4')
         expect('LOCKED')
