@@ -1306,7 +1306,8 @@
   ([l r]
    {:property (merge-with merge (:property l) (:property r))
     :input (merge-with merge (:input l) (:input r))
-    :output (merge-with merge (:output l) (:output r))
+    ;; An output override replaces the producer and its dependency metadata.
+    :output (merge (:output l) (:output r))
     :supertypes (into (:supertypes l) (:supertypes r))
     :register-type-info (into (or (:register-type-info l) {}) (:register-type-info r))
     ;; Display order gets resolved at runtime
