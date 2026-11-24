@@ -458,6 +458,64 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
 static XIDProc g_InstantiateIM;
 static XPointer g_InstantiateData;
 static XIC g_FocusedIC;
+static unsigned g_FilterKeycode;
+
+extern "C" Bool __real_XFilterEvent(XEvent*, Window);
+extern "C" Bool __wrap_XFilterEvent(XEvent* event, Window window)
+{
+    if (g_FilterKeycode && (event->type == KeyPress || event->type == KeyRelease) && event->xkey.keycode == g_FilterKeycode)
+    {
+        event->xkey.keycode = 0;
+        return True;
+    }
+
+    return __real_XFilterEvent(event, window);
+}
+
+static void Character(void* data, int character)
+{
+    *(int*)data = character;
+}
+
+// An XIM can clear a consumed event's keycode. Physical presses and releases must still reach the game.
+TEST(LinuxWindow, X11FilteredPhysicalKey)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_X11)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    int character = 0;
+    dmPlatform::SetKeyboardCharCallback(w, Character, &character);
+    XEvent key = {};
+    key.xkey.display = w->m_Display;
+    key.xkey.window = w->m_Xid;
+    key.xkey.keycode = XKeysymToKeycode(w->m_Display, XK_a);
+    ASSERT_NE(0u, key.xkey.keycode);
+    int16_t codes[256];
+    dmPlatform::X11ReadKeymap(w->m_Display, codes);
+    int physical = codes[key.xkey.keycode];
+    ASSERT_GE(physical, 0);
+    g_FilterKeycode = key.xkey.keycode;
+    key.type = KeyPress;
+    XPutBackEvent(w->m_Display, &key);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, physical));
+    EXPECT_EQ(0, character);
+    key.type = KeyRelease;
+    XPutBackEvent(w->m_Display, &key);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(0, dmPlatform::GetKey(w, physical));
+    g_FilterKeycode = 0;
+    dmPlatform::DeleteWindow(w);
+}
 
 extern "C" Bool __real_XRegisterIMInstantiateCallback(Display*, XrmDatabase, char*, char*, XIDProc, XPointer);
 extern "C" Bool __wrap_XRegisterIMInstantiateCallback(Display* d, XrmDatabase db, char* name, char* cls, XIDProc callback, XPointer data)
@@ -1134,11 +1192,6 @@ TEST(LinuxWindow, SharedOpenGLContext)
     }
 
     dmPlatform::DeleteWindow(w);
-}
-
-static void Character(void* data, int character)
-{
-    *(int*)data = character;
 }
 
 // X11 can return a composed character in a reused buffer without terminating it.

@@ -687,9 +687,9 @@ namespace dmPlatform
         return c >= 32 && !(c >= 127 && c < 160) && !(c >= 0xd800 && c <= 0xdfff) && c <= 0x10ffff ? c : 0;
     }
 
-    static void KeyEvent(HWindow w, XKeyEvent& e, bool down, bool filtered)
+    static void KeyEvent(HWindow w, unsigned keycode, XKeyEvent& e, bool down, bool filtered)
     {
-        int code = e.keycode < 256 ? w->m_X11->m_KeyCodes[e.keycode] : -1;
+        int code = keycode < 256 ? w->m_X11->m_KeyCodes[keycode] : -1;
         if (code >= 0)
         {
             w->m_Keys[code] = down;
@@ -759,6 +759,8 @@ namespace dmPlatform
         {
             XEvent e;
             XNextEvent(d, &e);
+            // Some input methods clear the keycode when they consume an event for text composition.
+            unsigned keycode = (e.type == KeyPress || e.type == KeyRelease) ? e.xkey.keycode : 0;
             bool filtered = XFilterEvent(&e, None);
             if (x->m_XkbEventBase && e.type == x->m_XkbEventBase)
             {
@@ -800,7 +802,7 @@ namespace dmPlatform
                 case KeyPress:
                 case KeyRelease:
                 {
-                    KeyEvent(w, e.xkey, e.type == KeyPress, filtered);
+                    KeyEvent(w, keycode, e.xkey, e.type == KeyPress, filtered);
                     break;
                 }
                 case ButtonPress:
