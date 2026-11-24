@@ -19,10 +19,6 @@
 #include <dlib/log.h>
 #include <stdlib.h>
 
-#ifndef WM_DPICHANGED
-#define WM_DPICHANGED 0x02E0
-#endif
-
 // Hybrid laptop drivers read these exports from the executable at startup.
 extern "C"
 {
@@ -67,9 +63,11 @@ namespace dmPlatform
     {
         RECT rect = {};
         GetClientRect(window->m_Window, &rect);
-        bool changed = window->m_Width != (uint32_t)rect.right || window->m_Height != (uint32_t)rect.bottom;
+        bool changed = window->m_Width != (uint32_t)rect.right || window->m_Height != (uint32_t)rect.bottom ||
+                       window->m_LastResizeScale != window->m_Scale;
         window->m_Width = rect.right;
         window->m_Height = rect.bottom;
+        window->m_LastResizeScale = window->m_Scale;
         WindowPlacementChanged(window);
         if (changed && notify && window->m_Ready && window->m_Params.m_ResizeCallback)
         {
@@ -146,6 +144,11 @@ namespace dmPlatform
                 }
 
                 SetWindowPos(hwnd, 0, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE | SWP_NOZORDER);
+                // WM_SIZE handles a simultaneous pixel resize. A scale-only change still needs a callback.
+                if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window && window->m_LastResizeScale != window->m_Scale)
+                {
+                    UpdateSize(window, true);
+                }
                 return 0;
             }
             case WM_DISPLAYCHANGE:

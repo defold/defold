@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_window_placement_native.h"
-#include "../platform_window_win32.h"
+#include "../win32/window_win32.h"
 #include <jc_test/jc_test.h>
 
 namespace dmWindowTest
@@ -87,6 +87,46 @@ namespace dmWindowTest
         *height = query.m_Work.bottom - *y;
     }
 
+}
+
+static void CountResize(void* data, uint32_t, uint32_t)
+{
+    ++*(unsigned*)data;
+}
+
+// DPI changes must notify once, including when the window retains its pixel dimensions.
+TEST(Win32Desktop, DpiResizeCallback)
+{
+    for (int fullscreen = 0; fullscreen < 2; ++fullscreen)
+    {
+        unsigned count = 0;
+        HWindow window = dmPlatform::NewWindow();
+        WindowCreateParams params;
+        WindowCreateParamsInitialize(&params);
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+        params.m_Fullscreen = fullscreen != 0;
+        params.m_Hidden = true;
+        params.m_ResizeCallback = CountResize;
+        params.m_ResizeCallbackUserData = &count;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        RECT bounds;
+        ASSERT_TRUE(GetWindowRect(hwnd, &bounds));
+        UINT dpi = dmPlatform::GetDisplayScaleFactor(window) == 1.0f ? 144 : 96;
+        count = 0;
+        SendMessageW(hwnd, WM_DPICHANGED, MAKEWPARAM(dpi, dpi), (LPARAM)&bounds);
+        EXPECT_EQ(1u, count);
+        EXPECT_EQ(dpi / 96.0f, dmPlatform::GetDisplayScaleFactor(window));
+        if (!fullscreen)
+        {
+            bounds.right += 64;
+            dpi = dpi == 96 ? 144 : 96;
+            SendMessageW(hwnd, WM_DPICHANGED, MAKEWPARAM(dpi, dpi), (LPARAM)&bounds);
+            EXPECT_EQ(2u, count);
+        }
+
+        dmPlatform::DeleteWindow(window);
+    }
 }
 
 // A borderless fullscreen window must cover its monitor again after Windows changes the display mode.

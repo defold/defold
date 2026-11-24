@@ -18,6 +18,10 @@
 #include "../platform_window_win32.h"
 #include "window_geometry.h"
 
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
+#endif
+
 struct Win32InputCallbacks
 {
     FWindowAddKeyboardCharCallback m_Char;
@@ -41,7 +45,7 @@ struct dmWindow
     HWindow             m_Next;
     POINT               m_SavedCursor, m_VirtualCursor, m_LastCursor;
     uint32_t            m_Width, m_Height, m_Samples;
-    float               m_Scale;
+    float               m_Scale, m_LastResizeScale;
     double              m_Wheel;
     uint16_t            m_HighSurrogate;
     uint8_t             m_Keys[349], m_Buttons[8];
