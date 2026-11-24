@@ -470,12 +470,12 @@ target_link_libraries(lz4_consumer PRIVATE dlib)
                 flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('-Wl,--gc-sections', flags)
 
-    # Linux engines must link their GL backend without requiring GLU or the Vulkan loader at startup.
+    # Linux defaults to Vulkan and GL, with X11-xcb for native surfaces and a runtime-loaded Vulkan loader.
     def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_libraries in (
                 ('x86_64-linux', 'GraphicsAdapterOpenGL', {'graphics', 'GL'}),
                 ('arm64-linux', 'GraphicsAdapterOpenGLES', {'graphics_opengles', 'GLESv2'})):
-            for vulkan in (False, True):
+            for vulkan in (None, False, True):
                 with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
                     (root / 'CMakeLists.txt').write_text('''
@@ -493,21 +493,22 @@ get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
 ''')
                     definitions = {'TARGET_PLATFORM': platform}
-                    if vulkan:
-                        definitions['WITH_VULKAN'] = 'ON'
+                    if vulkan is not None:
+                        definitions['WITH_VULKAN'] = 'ON' if vulkan else 'OFF'
                     result = self.configure_project(root, **definitions)
                     self.assertEqual(0, result.returncode, result.stdout)
                     symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
                     expected_symbols = {gl_symbol}
                     expected_libraries = set(gl_libraries)
                     libraries = set(libraries.split(';'))
-                    if vulkan:
+                    if vulkan is not False:
                         expected_symbols.add('GraphicsAdapterVulkan')
                         expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
                     else:
                         expected_libraries.add('platform')
                         self.assertNotIn('graphics_vulkan', libraries)
                         self.assertNotIn('platform_vulkan', libraries)
+                        self.assertNotIn('X11-xcb', libraries)
                     self.assertEqual(expected_symbols, set(symbols.split(';')))
                     self.assertTrue(expected_libraries <= libraries, libraries)
                     self.assertNotIn('GLU', libraries)

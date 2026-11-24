@@ -37,7 +37,7 @@
 #include "engine_version.h"
 
 #if defined(_WIN32)
-#include <process.h>
+#include <dmsdk/dlib/safe_windows.h>
 #elif defined(__APPLE__) || defined(__linux__)
 #include <unistd.h>
 #endif
@@ -634,7 +634,7 @@ namespace dmEngineService
     void OnEngineInit(HEngineService engine_service)
     {
 #if defined(_WIN32)
-        uint32_t process_id = (uint32_t)_getpid();
+        uint32_t process_id = GetCurrentProcessId();
 #elif defined(__APPLE__) || defined(__linux__)
         uint32_t process_id = (uint32_t)getpid();
 #else

@@ -24,6 +24,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
+#include <dlib/socket.h>
 #include <dlib/time.h>
 
 #include "test_app_graphics.h"
@@ -3258,6 +3259,12 @@ extern "C" void dmExportedSymbols();
 int RunGraphicsCapture(int argc, char** argv);
 #endif
 
+static void FinalizeLogAndSockets()
+{
+    dmLog::LogFinalize();
+    dmSocket::Finalize();
+}
+
 int main(int argc, char **argv)
 {
     TestMainPlatformInit();
@@ -3266,10 +3273,17 @@ int main(int argc, char **argv)
     dmHashEnableReverseHash(true);
 
     dmExportedSymbols();
+    // The debug logger opens a TCP socket.
+    dmSocket::Result socket_result = dmSocket::Initialize();
+    if (socket_result != dmSocket::RESULT_OK)
+    {
+        fprintf(stderr, "Failed to initialize sockets for the test logger: %s\n", dmSocket::ResultToString(socket_result));
+        return 1;
+    }
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
-    // Stop the log thread before process teardown destroys its locks.
-    atexit(dmLog::LogFinalize);
+    atexit(FinalizeLogAndSockets);
 
 #if defined(DM_TEST_GRAPHICS_CAPTURE)
     int capture_result = RunGraphicsCapture(argc, argv);

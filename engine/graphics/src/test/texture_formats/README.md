@@ -4,9 +4,13 @@
 and alternating rows make channel swaps, rotation, mirroring and block-layout
 errors visible. The original palette uses green `#558B7B`, pale yellow
 `#F6E697`, orange `#F3AD70` and red `#DA6357`, with dark `#121815` labels.
-`testimage.<format>` contains a **raw GPU payload**, without a container header: one 256×256 mip, top-down, tightly packed. PVRTC uses its
-native swizzled block order. The app passes these bytes to `SetTexture`; it does not
-compress or transcode at runtime. Metal uploads PVRTC with zero row/image pitches
+`testimage.<format>` contains nine tightly packed native GPU mip levels, from
+256×256 through 1×1, in descending size order. Mip 0 contains the labelled grid.
+Each smaller mip contains a distinct grayscale value, with red equal to 28 times
+the level number before compression. Each compressed level includes all storage
+blocks required by its format, including the PVRTC1 minimum of 8×8 texels.
+PVRTC uses its native swizzled block order. The app passes these bytes directly
+to `SetTexture`. Metal uploads PVRTC with zero row/image pitches
 to a shared texture, then blits into the private texture. Vulkan/MoltenVK uses
 `VK_EXT_host_image_copy`. Both paths keep the compressed block order unchanged.
 
@@ -22,14 +26,22 @@ Run a capture, or keep the texture visible until the window is closed:
 ```sh
 <test_app_graphics> --backend metal --case texture_bc7 --output captures
 <test_app_graphics> --backend metal --case texture_bc7 --show
+test_app_graphics.exe --backend dx12 --case texture_bc1 --output captures
 ```
 
-Use `--list-cases` for the full list. Every texture case queries
-`IsTextureFormatSupported` before creating or loading the texture. Unsupported
-formats print `GRAPHICS_CAPTURE_SKIP` and exit with code 77; the capture manifest
-records the reason, while the report omits them. Missing/corrupt supported fixtures and rendering errors
-remain failures. The capture uses nearest filtering at mip 0, with opaque
-output; R/RG textures retain their native red/red-green sampled channels.
+Use `--list-cases` for the full list. A directly launched texture case checks
+`IsTextureFormatSupported` before loading the texture. If an optional format is
+unsupported, the case prints `GRAPHICS_CAPTURE_SKIP` and exits with code 77.
+The matrix can skip that launch using the same device query during `clear`.
+Both paths record the skip reason in the capture manifest and omit the case from
+the report. Missing or corrupt supported fixtures and rendering errors fail the case.
+The capture compares mip 0 to its CPU-decoded image with nearest
+filtering and opaque output. A second draw explicitly samples levels 1–8 into
+separate columns. The capture reads the middle row and checks every pixel's red
+value against the expected gray for its mip, allowing an error of 8 for lossy
+compression. A mismatch fails the case and logs the mip, dimensions and pixel
+coordinate. R/RG textures retain their native channels.
+The DX12 case requires BC1 support. A missing BC1 capability fails the case.
 
 ## Regeneration
 
@@ -53,6 +65,11 @@ python3 engine/graphics/src/test/texture_formats/generate.py \
   --encoder /tmp/encode-graphics-textures
 ```
 
+The encoder takes one square RGBA level per invocation, with a power-of-two side
+length from 8 through 256. `generate.py` encodes smaller solid levels at 8×8 and
+takes the required blocks for each format. Set `GRAPHICS_TEXTURE_ENCODER` to the built
+encoder path to exercise its input-size checks in `test_graphics_images.py`.
+
 The offline tool encodes BC/ETC/PVRTC from UASTC at level 2 without RDO, and
 ASTC at quality 100 (exhaustive), using one thread. It independently CPU-decodes the resulting
 blocks into `../graphics_reference/texture_<format>.png`. These are format-specific
@@ -67,6 +84,4 @@ unsupported on these Metal/Vulkan devices. The PVRTC4 cases exposed uploads that
 treated swizzled data as rows. Both RGB and RGBA now render with 100% reference
 likeness on Metal and MoltenVK using direct texture uploads. These cases also
 compare a fresh asynchronous upload against the synchronous render. MoltenVK
-requires host-image-copy support to advertise PVRTC formats. The PVRTC fixtures, CPU
-references and 99% threshold are unchanged. WebGPU, DX12 and mobile devices have
-not been validated.
+requires host-image-copy support to advertise PVRTC formats.

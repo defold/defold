@@ -243,7 +243,7 @@ if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared shaderc_dxcompiler)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS dlib_shared texc_shared modelc_shared shaderc_shared fontc_shared shaderc_dxcompiler)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     # Track the runtime file too: imported libraries have no build rule.
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB} "$<TARGET_FILE:${_DEFOLD_BOB_LIGHT_LIB}>")

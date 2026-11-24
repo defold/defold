@@ -25,7 +25,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
-static const uint32_t SIZE = 256;
+static const uint32_t MAX_SIZE = 256;
 
 struct Format
 {
@@ -64,9 +64,9 @@ static bool Save(const char* directory, const char* suffix, const basisu::gpu_im
         return false;
     }
     // Missing channels have the same values as a normalized GPU texture sample.
-    for (uint32_t y = 0; y < SIZE; ++y)
+    for (uint32_t y = 0; y < decoded.get_height(); ++y)
     {
-        for (uint32_t x = 0; x < SIZE; ++x)
+        for (uint32_t x = 0; x < decoded.get_width(); ++x)
         {
             decoded(x, y).a = 255;
             if (strcmp(suffix, "bc4") == 0 || strcmp(suffix, "etc2_r") == 0)
@@ -81,7 +81,7 @@ static bool Save(const char* directory, const char* suffix, const basisu::gpu_im
         }
     }
     snprintf(path, sizeof(path), "%s/../graphics_reference/texture_%s.png", directory, suffix);
-    if (!stbi_write_png(path, SIZE, SIZE, 4, decoded.get_ptr(), SIZE * 4))
+    if (!stbi_write_png(path, decoded.get_width(), decoded.get_height(), 4, decoded.get_ptr(), decoded.get_width() * 4))
     {
         fprintf(stderr, "Cannot write decoded reference: %s\n", path);
         return false;
@@ -95,11 +95,27 @@ static bool Save(const char* directory, const char* suffix, const basisu::gpu_im
 // The graphics test only uploads the resulting payloads; it does not link encoders.
 int main(int argc, char** argv)
 {
-    if (argc != 2)
+    if (argc != 2 && argc != 3)
     {
-        fprintf(stderr, "Usage: %s <texture_formats-directory>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <texture_formats-directory> [size]\n", argv[0]);
         return 1;
     }
+
+    uint32_t size = MAX_SIZE;
+    if (argc == 3)
+    {
+        char* end;
+        const long value = strtol(argv[2], &end, 10);
+        // PVRTC1 4bpp requires power-of-two dimensions and at least 8x8 texels of storage.
+        if (*end || value < 8 || value > (long)MAX_SIZE || (value & (value - 1)) != 0)
+        {
+            fprintf(stderr, "Invalid texture size '%s'. Expected a power of two from 8 to %u.\n", argv[2], MAX_SIZE);
+            return 1;
+        }
+
+        size = (uint32_t)value;
+    }
+
     char path[1024];
     snprintf(path, sizeof(path), "%s/testimage.rgba", argv[1]);
     FILE* file = fopen(path, "rb");
@@ -108,22 +124,24 @@ int main(int argc, char** argv)
         fprintf(stderr, "Cannot open %s: %s\n", path, strerror(errno));
         return 1;
     }
-    uint8_t pixels[SIZE * SIZE * 4];
-    bool    loaded = fread(pixels, 1, sizeof(pixels), file) == sizeof(pixels);
+
+    uint8_t  pixels[MAX_SIZE * MAX_SIZE * 4];
+    uint32_t byte_count = size * size * 4;
+    bool     loaded = fread(pixels, 1, byte_count, file) == byte_count && fgetc(file) == EOF && !ferror(file);
     fclose(file);
     if (!loaded)
     {
-        fprintf(stderr, "Cannot read %u RGBA bytes from %s\n", (uint32_t)sizeof(pixels), path);
+        fprintf(stderr, "Expected exactly %u RGBA bytes for one %ux%u level in '%s'.\n", byte_count, size, size, path);
         return 1;
     }
 
     dmTexc::BasisUEncodeSettings settings = {};
     settings.m_Path = path;
-    settings.m_Width = settings.m_Height = SIZE;
+    settings.m_Width = settings.m_Height = size;
     settings.m_PixelFormat = dmTexc::PF_R8G8B8A8;
     settings.m_ColorSpace = dmTexc::CS_LRGB;
     settings.m_Data = pixels;
-    settings.m_DataCount = sizeof(pixels);
+    settings.m_DataCount = byte_count;
     settings.m_NumThreads = 1;
     settings.m_pack_uastc_flags = 2;
     uint8_t* basis = 0;
@@ -156,7 +174,7 @@ int main(int argc, char** argv)
     };
     for (uint32_t i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i)
     {
-        basisu::gpu_image texture(basist::basis_get_basisu_texture_format(formats[i].m_Format), SIZE, SIZE);
+        basisu::gpu_image texture(basist::basis_get_basisu_texture_format(formats[i].m_Format), size, size);
         if (!transcoder.transcode_image_level(basis, basis_size, 0, 0, texture.get_ptr(), texture.get_total_blocks(), formats[i].m_Format))
         {
             fprintf(stderr, "Cannot transcode %s to %s\n", path, formats[i].m_Suffix);
@@ -194,11 +212,11 @@ int main(int argc, char** argv)
     {
         dmTexc::ASTCEncodeSettings astc = {};
         astc.m_Path = path;
-        astc.m_Width = astc.m_Height = SIZE;
+        astc.m_Width = astc.m_Height = size;
         astc.m_PixelFormat = dmTexc::PF_R8G8B8A8;
         astc.m_ColorSpace = dmTexc::CS_LRGB;
         astc.m_Data = pixels;
-        astc.m_DataCount = sizeof(pixels);
+        astc.m_DataCount = byte_count;
         astc.m_NumThreads = 1;
         astc.m_QualityLevel = 100.0f;
         astc.m_OutPixelFormat = astc_formats[i].m_Format;
@@ -209,7 +227,8 @@ int main(int argc, char** argv)
             fprintf(stderr, "Cannot encode %s as %s\n", path, astc_formats[i].m_Suffix);
             return 1;
         }
-        basisu::gpu_image texture(astc_formats[i].m_BasisFormat, SIZE, SIZE);
+
+        basisu::gpu_image texture(astc_formats[i].m_BasisFormat, size, size);
         if (data_size != texture.get_size_in_bytes())
         {
             fprintf(stderr, "Unexpected %s payload size: %u (expected %u)\n", astc_formats[i].m_Suffix, data_size, texture.get_size_in_bytes());
