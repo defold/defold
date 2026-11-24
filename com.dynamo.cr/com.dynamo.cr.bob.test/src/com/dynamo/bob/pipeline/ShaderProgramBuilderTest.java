@@ -1080,12 +1080,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
+    // Debug SPIR-V output adds a language without replacing the default Windows DX12 shaders.
     @Test
     public void testShaderLanguageOverrides() throws Exception {
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "default_windows"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60);
+
         getProject().setOption("debug-output-spirv", "true");
         checkOnlyExpectedLanguages(
             buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "debug_spirv_windows"),
-            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 
