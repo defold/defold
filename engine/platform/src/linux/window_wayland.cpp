@@ -259,7 +259,13 @@ namespace dmPlatform
 
             wl_output_destroy(out->m_Output);
             delete out;
-            wl->m_Outputs.EraseSwap(i);
+            // Keep registry order so fullscreen still prefers the first remaining output after a disconnect.
+            for (uint32_t j = i + 1; j < wl->m_Outputs.Size(); ++j)
+            {
+                wl->m_Outputs[j - 1] = wl->m_Outputs[j];
+            }
+
+            wl->m_Outputs.Pop();
             if (w->m_Surface)
             {
                 Resize(w, w->m_Width, w->m_Height);
@@ -482,6 +488,12 @@ namespace dmPlatform
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
     }
 
+    static wl_output* FullscreenOutput(const LinuxWayland* wl)
+    {
+        // Wayland has no primary-output flag. GLFW used the first reported output as its preference.
+        return wl->m_Outputs.Size() ? wl->m_Outputs[0]->m_Output : 0;
+    }
+
     static bool Map(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -520,7 +532,7 @@ namespace dmPlatform
         {
             if (w->m_Params.m_Fullscreen)
             {
-                xdg_toplevel_set_fullscreen(wl->m_Toplevel, 0);
+                xdg_toplevel_set_fullscreen(wl->m_Toplevel, FullscreenOutput(wl));
             }
 
             wl_surface_commit(w->m_Surface);
@@ -547,7 +559,7 @@ namespace dmPlatform
         // libdecor creates its xdg_toplevel during the initial configure.
         if (wl->m_Configured && wl->m_Frame && w->m_Params.m_Fullscreen)
         {
-            g_Decor.libdecor_frame_set_fullscreen_(wl->m_Frame, 0);
+            g_Decor.libdecor_frame_set_fullscreen_(wl->m_Frame, FullscreenOutput(wl));
         }
 
         wl->m_Unmapped = !wl->m_Configured;

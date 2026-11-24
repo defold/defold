@@ -32,6 +32,15 @@ def wait_ready(process, command, env, expected=None):
     raise RuntimeError(f"Display service did not become ready: {command}")
 
 
+# Check the fullscreen request itself because a compositor can pick the same monitor with a null preference.
+def fullscreen_output_test(executable, env, directory):
+    result = subprocess.run([executable, '--test-filter', 'LinuxWindow.WaylandFirstSwapAfterOpen'],
+                            cwd=directory, env=dict(env, WAYLAND_DEBUG='client'),
+                            stderr=subprocess.PIPE, text=True, timeout=30)
+    if result.returncode or '.set_fullscreen(wl_output' not in result.stderr:
+        raise RuntimeError(f'Expected an explicit Wayland fullscreen output.\n{result.stderr}')
+
+
 def input_test(executable, app_env, x11, directory, nested):
     def mouse(*args):
         subprocess.run(['xdotool', *args], env=x11, check=True, timeout=10)
@@ -146,10 +155,12 @@ def run(args, directory):
             no_libdecor = directory / 'without-libdecor'
             no_libdecor.mkdir()
             (no_libdecor / 'libdecor-0.so.0').touch()
+            fallback_env = dict(wayland, DM_TEST_WAYLAND_FALLBACK='1',
+                                LD_LIBRARY_PATH=str(no_libdecor) + ':' + clean.get('LD_LIBRARY_PATH', ''))
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.WaylandFallbackFrame'], cwd=directory,
-                           env=dict(wayland, DM_TEST_WAYLAND_FALLBACK='1',
-                                    LD_LIBRARY_PATH=str(no_libdecor) + ':' + clean.get('LD_LIBRARY_PATH', '')),
-                           check=True, timeout=30)
+                           env=fallback_env, check=True, timeout=30)
+            fullscreen_output_test(args.native, wayland, directory)
+            fullscreen_output_test(args.native, fallback_env, directory)
             rejected = subprocess.run([args.native, '--reject-glx-context'], cwd=directory,
                                       env=dict(x11, MESA_GL_VERSION_OVERRIDE='3.3'), check=True,
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
