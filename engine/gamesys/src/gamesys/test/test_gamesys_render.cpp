@@ -3198,6 +3198,228 @@ TEST_F(ModelTest, GltfPackedInstanceTransforms)
     }
 }
 
+class ModelCustomInstanceSkinningTest : public ModelTest
+{
+    public:
+    void Run(bool render_override, bool update_vertex_attribute = false)
+    {
+        dmGraphics::HProgram programs[2];
+        dmRender::HMaterial materials[2];
+        const float default_brightness = 1.0f;
+        for (uint32_t custom = 0; custom < 2; ++custom)
+        {
+            TestShaderDesc shader("uniform sampler2D tex0; uniform sampler2D pose_matrix_cache; void main() {}");
+            shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+            shader.AddInput("mtx_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            shader.AddInput("mtx_normal", 5, render_override ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            shader.AddInput("bone_weights", 9, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+            shader.AddInput("bone_indices", 10, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+            if (custom)
+            {
+                shader.AddInput("brightness", 11, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+            }
+
+            if (update_vertex_attribute)
+            {
+                shader.AddInput("custom_vertex", 13, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+            }
+
+            shader.AddInput("animation_data", 12, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+            // The fox occupies tex0; leave a second sampler for the pose cache.
+            const char* sampler_names[] = { "tex0", "pose_matrix_cache" };
+            dmGraphics::ShaderDesc::ResourceBinding textures[2] = {};
+            for (uint32_t sampler = 0; sampler < DM_ARRAY_SIZE(textures); ++sampler)
+            {
+                textures[sampler].m_Name = sampler_names[sampler];
+                textures[sampler].m_NameHash = dmHashString64(sampler_names[sampler]);
+                textures[sampler].m_Binding = sampler;
+                textures[sampler].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D;
+                textures[sampler].m_StageFlags = dmGraphics::GetShaderStageFlags(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
+            }
+
+            shader.m_Desc.m_Reflection.m_Textures.m_Data = textures;
+            shader.m_Desc.m_Reflection.m_Textures.m_Count = DM_ARRAY_SIZE(textures);
+            programs[custom] = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+            materials[custom] = dmRender::NewMaterial(m_RenderContext, programs[custom]);
+            dmRender::SetMaterialVertexSpace(materials[custom], dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+            dmhash_t tag = dmHashString64("model");
+            dmRender::SetMaterialTags(materials[custom], 1, &tag);
+            for (uint32_t sampler = 0; sampler < DM_ARRAY_SIZE(textures); ++sampler)
+            {
+                ASSERT_TRUE(dmRender::SetMaterialSampler(materials[custom], textures[sampler].m_NameHash, sampler,
+                                                         dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                                                         dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+            }
+
+            if (custom)
+            {
+                dmGraphics::VertexAttribute attribute = {};
+                attribute.m_NameHash = dmHashString64("brightness");
+                attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+                attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+                attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+                attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+                attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&default_brightness;
+                attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_brightness);
+                dmRender::SetMaterialProgramAttributes(materials[custom], &attribute, 1);
+            }
+
+            if (update_vertex_attribute)
+            {
+                dmGraphics::VertexAttribute attribute = {};
+                attribute.m_NameHash = dmHashString64("custom_vertex");
+                attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+                attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+                attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+                attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+                attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&default_brightness;
+                attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_brightness);
+                dmRender::SetMaterialProgramAttributes(materials[custom], &attribute, 1);
+            }
+        }
+
+        dmGameSystem::ModelResource* model;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/fox.modelc", (void**)&model));
+        dmRender::HMaterial saved_material = model->m_Materials[0].m_Material->m_Material;
+        model->m_Materials[0].m_Material->m_Material = materials[render_override ? 0 : 1];
+        ASSERT_TRUE(dmGameObject::Init(m_Collection));
+        dmGameObject::HInstance instances[] = {
+            Spawn(m_Factory, m_Collection, "/model/benchmark_animated.goc", dmHashString64("/a"), 0, Point3(-3, 0, 0), Quat::identity(), Vector3(1)),
+            Spawn(m_Factory, m_Collection, "/model/benchmark_animated.goc", dmHashString64("/b"), 0, Point3(3, 0, 0), Quat::identity(), Vector3(1)),
+        };
+        dmGameObject::PropertyOptions options;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(instances); ++i)
+        {
+            ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[i], dmHashString64("model"), dmHashString64("playback_rate"), options, dmGameObject::PropertyVar(0.0)));
+        }
+
+        dmRender::HRenderContext context = m_RenderContext;
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(instances); ++i)
+            {
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[i], dmHashString64("model"), dmHashString64("cursor"), options, dmGameObject::PropertyVar(0.1 + 0.4 * i + 0.1 * frame)));
+                if (frame && !render_override)
+                {
+                    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[i], dmHashString64("model"), dmHashString64("brightness"), options, dmGameObject::PropertyVar(2.0 + i)));
+                }
+            }
+
+            if (frame && update_vertex_attribute)
+            {
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[0], dmHashString64("model"), dmHashString64("custom_vertex"), options, dmGameObject::PropertyVar(2.0)));
+            }
+
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            float animation_values[2][2][4];
+            for (uint32_t pass = 0; pass < 2; ++pass)
+            {
+                // Draw the custom material first so a reference draw cannot clear the dirty vertex state.
+                const uint32_t custom = update_vertex_attribute ? 1 - pass : pass;
+                dmRender::TestSetMaterial(context, custom == 0 ? materials[0] : render_override ? materials[1] : 0);
+                dmRender::ClearRenderObjects(m_RenderContext);
+                dmRender::RenderListBegin(m_RenderContext);
+                dmGameObject::Render(m_Collection);
+                dmRender::RenderListEnd(m_RenderContext);
+                ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+                ASSERT_EQ(1u, dmRender::TestGetRenderObjectCount(context));
+                const dmRender::RenderObject& ro = *dmRender::TestGetRenderObject(context, 0);
+                ASSERT_EQ(2u, ro.m_InstanceCount);
+                const uint32_t unit = dmRender::GetMaterialSamplerUnit(materials[custom], dmRender::SAMPLER_POSE_MATRIX_CACHE);
+                ASSERT_NE(dmRender::INVALID_SAMPLER_UNIT, unit);
+                ASSERT_NE((dmGraphics::HTexture)0, ro.m_Textures[unit]);
+                dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+                const uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+                const uint32_t world_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("mtx_world"));
+                const uint32_t animation_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+                const uint32_t brightness_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("brightness"));
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, world_offset);
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, animation_offset);
+                if (custom)
+                {
+                    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, brightness_offset);
+                }
+
+                ASSERT_EQ(ro.m_VertexBufferOffsets[1] + ro.m_InstanceCount * stride, dmGraphics::GetVertexBufferSize(ro.m_VertexBuffers[1]));
+                const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+                data += ro.m_VertexBufferOffsets[1];
+                bool matched[2] = {};
+                for (uint32_t i = 0; i < ro.m_InstanceCount; ++i)
+                {
+                    Matrix4 world;
+                    memcpy(&world, data + i * stride + world_offset, sizeof(world));
+                    const uint32_t instance = world.getTranslation().getX() < 0 ? 0 : 1;
+                    ASSERT_FALSE(matched[instance]);
+                    matched[instance] = true;
+                    float animation[4];
+                    memcpy(animation, data + i * stride + animation_offset, sizeof(animation));
+                    ASSERT_GE(animation[0], 0.0f);
+                    ASSERT_GT(animation[1], 0.0f);
+                    ASSERT_EQ((float)dmGraphics::GetTextureWidth(m_GraphicsContext, ro.m_Textures[unit]), animation[2]);
+                    ASSERT_EQ((float)dmGraphics::GetTextureHeight(m_GraphicsContext, ro.m_Textures[unit]), animation[3]);
+                    ASSERT_LE(animation[0] + animation[1] * 3, animation[2] * animation[3]);
+                    memcpy(animation_values[custom][instance], animation, sizeof(animation));
+                    if (custom)
+                    {
+                        const float expected_brightness = frame && !render_override ? 2.0f + instance : default_brightness;
+                        ASSERT_EQ(expected_brightness, ReadUnalignedFloat(data + i * stride + brightness_offset));
+                    }
+                }
+
+                dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+                ASSERT_TRUE(matched[0]);
+                ASSERT_TRUE(matched[1]);
+                ASSERT_NE(animation_values[custom][0][0], animation_values[custom][1][0]);
+            }
+
+            for (uint32_t instance = 0; instance < DM_ARRAY_SIZE(instances); ++instance)
+            {
+                for (uint32_t element = 0; element < 4; ++element)
+                {
+                    ASSERT_EQ(animation_values[0][instance][element], animation_values[1][instance][element]);
+                }
+            }
+        }
+
+        dmRender::TestSetMaterial(context, 0);
+        ASSERT_TRUE(dmGameObject::Final(m_Collection));
+        model->m_Materials[0].m_Material->m_Material = saved_material;
+        dmResource::Release(m_Factory, model);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+        {
+            dmRender::DeleteMaterial(m_RenderContext, materials[i]);
+            dmGraphics::DeleteProgram(m_GraphicsContext, programs[i]);
+        }
+    }
+
+};
+
+// Custom instance values must preserve each animated model's skinning data and batching (#13777).
+TEST_F(ModelCustomInstanceSkinningTest, ComponentMaterial)
+{
+    Run(false);
+}
+
+// A render material adding custom instance values must retain skinning with packed mat3 normals (#13777).
+TEST_F(ModelCustomInstanceSkinningTest, RenderMaterialOverride)
+{
+    Run(true);
+}
+
+// A vertex property rebuild must preserve both animated instance records in the custom material batch.
+TEST_F(ModelCustomInstanceSkinningTest, ComponentMaterialVertexUpdate)
+{
+    Run(false, true);
+}
+
+// A dirty vertex rebuild must preserve instance data when the custom render override is drawn first.
+TEST_F(ModelCustomInstanceSkinningTest, RenderMaterialOverrideVertexUpdate)
+{
+    Run(true, true);
+}
+
 // The caller deletes the returned material and its program.
 static dmRender::HMaterial NewLegacyModelInstanceMaterial(dmRender::HRenderContext context, bool skinned, dmGraphics::HProgram* program)
 {
