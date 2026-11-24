@@ -43,6 +43,7 @@ ordinary paths."
             [util.text-util :as text-util])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
+           [com.dynamo.bob.archive.packages PackageArtifacts]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException PushbackReader]
@@ -697,8 +698,20 @@ ordinary paths."
    (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
-  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
-    (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
+  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)
+        resources (resource-watch/make-resource-map (:snapshot snapshot-info))
+        manifest-present (coll/any? #(and (= :file (resource/source-type %))
+                                          (= "archivemanifest" (resource/type-ext %)))
+                                    (coll/vals resources))
+        archive-output-paths (if-not manifest-present
+                               #{}
+                               (try
+                                 (set (PackageArtifacts/generatedPaths (.toPath (io/file project-path))))
+                                 (catch Exception error
+                                   (g/error-fatal (ex-message error)))))]
+    (-> snapshot-info
+        (assoc :map resources)
+        (assoc-in [:snapshot :archive-output-paths] archive-output-paths))))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]
   (g/transact
@@ -921,7 +934,8 @@ ordinary paths."
              (sort-by plugin-zip-priority))]
 
     (run! #(unpack-plugin-zip! workspace %) plugin-zips)
-    (run! #(unpack-resource! workspace %) resources)))
+    (run! #(unpack-resource! workspace %) resources)
+    (boolean (or (coll/not-empty plugin-zips) (coll/not-empty resources)))))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
   (when (or old-errors new-errors)
@@ -980,12 +994,16 @@ ordinary paths."
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
          moved-proj-paths (resource/expand-resource-moves physical-moved-proj-paths old-map new-map)
-         changes (resource-watch/diff old-snapshot new-snapshot)]
+         changes (resource-watch/diff old-snapshot new-snapshot)
+         changed (or (not (resource-watch/empty-diff? changes)) (coll/not-empty moved-proj-paths))
+         archive-output-paths (:archive-output-paths new-snapshot #{})]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
-     (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
+     (when (or changed (not= archive-output-paths (g/node-value workspace :archive-output-paths)))
        (g/transact
          {:undoable false}
-         (g/set-property workspace :resource-snapshot new-snapshot))
+         [(g/set-property workspace :archive-output-paths archive-output-paths)
+          (when changed (g/set-property workspace :resource-snapshot new-snapshot))]))
+     (when changed
        (let [changes (coll/update-vals changes coll/filterv-> #(= :file (resource/source-type %)))
              move-source-paths (map first moved-proj-paths)
              move-target-paths (map second moved-proj-paths)
@@ -1088,6 +1106,7 @@ ordinary paths."
   (property resource-list g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-map g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-listeners g/Any)
+  (property archive-output-paths g/Any (default #{}))
   (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
   (property resource-types g/Any

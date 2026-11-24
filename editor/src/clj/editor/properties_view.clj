@@ -15,6 +15,7 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.separator :as fx.separator]
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -22,6 +23,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
@@ -41,8 +43,10 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
-            [util.id-vec :as iv])
+            [util.id-vec :as iv]
+            [util.path :as path])
   (:import [editor.properties Curve CurveSpread]
+           [java.io File]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
@@ -275,6 +279,35 @@
         (resolve-value property)
         (resolve-validation property localization-state)
         (resolve-script-property-style-class property))))
+
+(defmethod make-control-view :directory [property {:keys [workspace] :as context} localization-state]
+  {:fx/type fxui/horizontal
+   :style-class "ext-resource-picker"
+   :children
+   [(assoc (make-control-view (assoc-in property [:edit-type :type] g/Str) context localization-state)
+      :h-box/hgrow :always
+      :style-class "ext-resource-picker-field")
+    {:fx/type fxui/button
+     :text "..."
+     :style-class "ext-resource-picker-browse-button"
+     :disable (properties/read-only? property)
+     :on-action (fn [^Event event]
+                  (let [directory (loop [directory (File. ^String (get-in property [:edit-type :directory]))]
+                                    (when directory
+                                      (if (.isDirectory directory)
+                                        directory
+                                        (recur (.getParentFile directory)))))]
+                    (when-let [selected (dialogs/make-directory-dialog
+                                          (localization-state (localization/message "dialog.directory.title.select"))
+                                          directory
+                                          (fxui/event->window event))]
+                      (let [path (if (path/same? selected (workspace/project-directory workspace))
+                                   "."
+                                   (if-let [proj-path (workspace/as-proj-path workspace selected)]
+                                     (subs proj-path 1)
+                                     (.getAbsolutePath selected)))
+                            directory->value (get-in property [:edit-type :directory->value] identity)]
+                        (set-values! property (mapv (constantly (directory->value path)) (:node-ids property)))))))}]})
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field
@@ -516,7 +549,8 @@
     #(or (options %) (str %))))
 
 (defmethod make-control-view :choicebox [property _context localization-state]
-  (let [options (:options (:edit-type property))]
+  (let [options (mapv (fn [[value label]] [value (localization-state label)])
+                      (:options (:edit-type property)))]
     {:fx/type ui/ext-memo
      :fn make-choicebox-to-string
      :args [options]
@@ -749,6 +783,12 @@
               (when-not (coll/empty? category-properties)
                 (-> []
                     (cond->
+                      (and category-title
+                           (coll/any? (fn [[_ property]]
+                                        (get-in property [:edit-type :category-separator]))
+                                      category-properties))
+                      (conj {:fx/type fx.separator/lifecycle})
+
                       category-title
                       (conj {:fx/type fxui/label
                              :text (localization-state category-title)

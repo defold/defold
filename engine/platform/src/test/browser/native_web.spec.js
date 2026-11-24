@@ -97,7 +97,7 @@ async function browserStateChange(page, eventName, action) {
     await page.evaluate(() => Module.browserStateChanged);
 }
 
-// Verify real DOM input and rendering reach C++, and teardown prevents stale or duplicate callbacks after recreation.
+// Verify recreation preserves input and rendering, while only a close request emits the engine's close callback.
 test("rendering, resize and input survive window recreation", async ({ page }) => {
     const canvas = page.locator("#canvas");
     await openWindow(page);
@@ -128,7 +128,7 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
 
     await page.evaluate(() => Module._TestClose());
     const closed = await state(page);
-    expect(closed).toMatchObject({ opened: 0, closes: 1 });
+    expect(closed).toMatchObject({ opened: 0, closes: 0 });
     await canvas.focus();
     await page.keyboard.press("a");
     expect(await state(page)).toEqual(closed);
@@ -142,8 +142,54 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
         opened: 1, key: 0, button: 0, focused: 1,
         focuses: reopened.focuses + 1, characters: reopened.characters + 1
     });
+    expect(await page.evaluate(() => Module._TestRequestClose())).toBe(1);
+    expect((await state(page)).closes).toBe(1);
     await page.evaluate(() => Module._TestClose());
-    expect((await state(page)).closes).toBe(2);
+    expect((await state(page)).closes).toBe(1);
+});
+
+// A canvas bound to WebGPU must be replaced before WebGL fallback, preserving layout, focus, input, and rendering.
+test("WebGPU canvas can fall back to WebGL", async ({ page }) => {
+    expect(await page.evaluate(() => Module._TestOpenWebGPU())).toBe(0);
+    await page.locator("#canvas").focus();
+    expect(await page.evaluate(() => {
+        Module.previousCanvas = Module.canvas;
+        Module.canvas.setAttribute("data-fallback-test", "preserved");
+        Module.canvas.style.borderRadius = "4px";
+        Module.fullScreenContainer = Module.canvas;
+        // Simulate graphics initialization failing after acquiring the surface.
+        const context = Module.canvas.getContext("webgpu");
+        return !!context && Module.canvas.getContext("webgl2") === null && Module.canvas.getContext("webgl") === null;
+    })).toBe(true);
+
+    await openWindow(page);
+    expect(await page.evaluate(() => ({
+        replaced: Module.canvas !== Module.previousCanvas && !Module.previousCanvas.isConnected,
+        current: document.getElementById("canvas") === Module.canvas,
+        fullscreen: Module.fullScreenContainer === Module.canvas,
+        focused: document.activeElement === Module.canvas,
+        attribute: Module.canvas.getAttribute("data-fallback-test"),
+        tabIndex: Module.canvas.tabIndex,
+        style: Module.canvas.style.borderRadius
+    }))).toEqual({ replaced: true, current: true, fullscreen: true, focused: true,
+        attribute: "preserved", tabIndex: 0, style: "4px" });
+    const initial = await state(page);
+    expect(initial).toMatchObject({ opened: 1, width: 640, height: 480, scale: 2, closes: 0 });
+    await page.keyboard.down("a");
+    expect(await state(page)).toMatchObject({ key: 1, characters: initial.characters + 1 });
+    const box = await page.locator("#canvas").boundingBox();
+    await page.mouse.move(box.x + 64, box.y + 48);
+    await page.mouse.down();
+    expect(await state(page)).toMatchObject({ button: 1, x: 128, y: 96 });
+    await page.locator("#outside").focus();
+    expect(await state(page)).toMatchObject({ key: 0, button: 0, focused: 0, focuses: initial.focuses + 1 });
+    await page.keyboard.up("a");
+    await page.mouse.up();
+    await page.locator("#canvas").focus();
+    expect(await state(page)).toMatchObject({ focused: 1, focuses: initial.focuses + 2 });
+    expect(await page.evaluate(() => Module._TestRender())).toBe(1);
+    await page.evaluate(() => Module._TestClose());
+    expect((await state(page)).closes).toBe(0);
 });
 
 // Verify a loader-selected ratio is reported as display scale and survives fullscreen without duplicate resize events (#8040).

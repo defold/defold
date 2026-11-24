@@ -339,6 +339,17 @@ class dmGraphicsSynchronousTest : public dmGraphicsTestT<false>
 {
 };
 
+#if !defined(DM_PLATFORM_VENDOR)
+// Headless engines must accept the HLSL shaders produced by default Windows builds.
+TEST_F(dmGraphicsTest, WindowsDefaultShaderLanguage)
+{
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE));
+}
+
+#endif
+
 TEST_F(dmGraphicsTest, NewDeleteContext)
 {
     ASSERT_NE((void*)0, m_Context);
@@ -1246,6 +1257,64 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
 
     ASSERT_STREQ("my_uniform", my_uniform->m_Name);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, my_uniform->m_Type);
+
+    dmGraphics::DeleteProgram(m_Context, program);
+}
+
+// Storage buffers remain bindable resources, but their type indices must not appear as settable uniforms.
+TEST_F(dmGraphicsTest, StorageBuffersAreNotUniforms)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddTypeMember("u_frame", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    const char* type_names[] = { "BufferA", "A", "BufferB", "B", "BufferC", "C", "BufferD", "D", "BufferE" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_names); ++i)
+    {
+        builder.AddTypeMember(type_names[i], dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    }
+
+    builder.AddUniformBuffer("cs_uniforms", 5, 0, sizeof(dmVMath::Vector4));
+
+    const char* buffer_names[] = { "BufferA", "BufferB", "BufferC", "BufferD", "BufferE" };
+    dmGraphics::ShaderDesc::ResourceBinding storage_buffers[DM_ARRAY_SIZE(buffer_names)] = {};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage_buffers); ++i)
+    {
+        storage_buffers[i].m_Name                     = buffer_names[i];
+        storage_buffers[i].m_NameHash                 = dmHashString64(buffer_names[i]);
+        storage_buffers[i].m_Binding                  = i;
+        storage_buffers[i].m_StageFlags               = dmGraphics::SHADER_STAGE_FLAG_COMPUTE;
+        storage_buffers[i].m_Type.m_UseTypeIndex      = true;
+        storage_buffers[i].m_Type.m_Type.m_TypeIndex  = i * 2 + 1;
+    }
+
+    const char* compute_data = "#version 430\nlayout(local_size_x = 1) in;\nvoid main() {}\n";
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430,
+                      compute_data, strlen(compute_data));
+
+    dmGraphics::ShaderDesc* shader = builder.Get();
+    shader->m_Reflection.m_StorageBuffers.m_Data = storage_buffers;
+    shader->m_Reflection.m_StorageBuffers.m_Count = DM_ARRAY_SIZE(storage_buffers);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, program);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    ASSERT_EQ(DM_ARRAY_SIZE(buffer_names), null_program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Size());
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(buffer_names); ++i)
+    {
+        const dmGraphics::ProgramResourceBinding& binding = null_program->m_BaseProgram.m_ResourceBindings[0][i];
+        ASSERT_NE((dmGraphics::ShaderResourceBinding*) 0, binding.m_Res);
+        ASSERT_EQ(dmGraphics::BINDING_FAMILY_STORAGE_BUFFER, binding.m_Res->m_BindingFamily);
+        ASSERT_EQ(i, binding.m_StorageBufferUnit);
+    }
+
+    ASSERT_EQ(1u, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(dmGraphics::INVALID_UNIFORM_LOCATION, dmGraphics::FindUniformLocation(program, "BufferE"));
+
+    dmGraphics::Uniform uniform;
+    dmGraphics::GetUniform(program, 0, &uniform);
+    ASSERT_STREQ("u_frame", uniform.m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, uniform.m_Type);
 
     dmGraphics::DeleteProgram(m_Context, program);
 }

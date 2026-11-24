@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BuildInputDataCollector {
-    private static final String DATA_FILE_NAME = "build_input_data.json";
+    public static final String DATA_FILE_NAME = "build_input_data.json";
 
     private static String[] bobArguments;
 

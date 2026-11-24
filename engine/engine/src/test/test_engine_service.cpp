@@ -719,7 +719,7 @@ class EngineServiceRuntimeTest : public EngineServiceOpenAPITest
                                "--config=display.width=960", "--config=display.height=640",
                                "--config=bootstrap.main_collection=/service/runtime.collectionc",
                                fail_bootstrap ? "--config=test.fail_bootstrap=1" : "--config=test.fail_bootstrap=0", project };
-        return dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv);
+        return dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     }
 
     dmPlatformService::HService PlatformService()
@@ -778,7 +778,7 @@ TEST_F(EngineServiceRuntimeTest, WindowExtensionInitializationFailure)
     char project[512];
     dmTestUtil::MakeHostPathf(project, sizeof(project), "%s/game.projectc", CONTENT_ROOT);
     const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.render=/missing-render.renderc", project };
-    ASSERT_FALSE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_FALSE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
     ASSERT_NE((dmPlatformService::HService)0, PlatformService());
     Fetch("GET", "/window");
     ASSERT_EQ(200, m_Status);
@@ -995,13 +995,13 @@ TEST_F(EngineServiceRuntimeTest, BootstrapFailure)
 TEST_F(EngineServiceRuntimeTest, ConnectionAndInitializationFailure)
 {
     const char* connect[] = { "test_engine", "--config=dmengine.unload_builtins=0" };
-    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(connect), (char**)connect));
+    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(connect), (char**)connect, true));
     ExpectState(false, 0);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"connection_mode\": true"));
     dmEngine::Delete(m_Engine);
     m_Engine = dmEngine::New(m_Service);
     const char* invalid[] = { "test_engine", "missing-m0-project.projectc" };
-    ASSERT_FALSE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(invalid), (char**)invalid));
+    ASSERT_FALSE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(invalid), (char**)invalid, true));
     ExpectState(false, 0);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"engine_instance_id\": \""));
 }

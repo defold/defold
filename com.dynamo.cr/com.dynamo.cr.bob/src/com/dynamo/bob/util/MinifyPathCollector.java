@@ -36,9 +36,8 @@ import java.util.zip.CRC32;
 public class MinifyPathCollector {
     public static final String DATA_FILE_NAME = "minified_paths.json";
 
-    public static void saveAsJson(IResource outputResource, IResource... buildArtifacts) throws IOException {
-        Map<String, String> paths = ResourceUtil.snapshotMinifiedPaths();
-
+    /** Serializes the mapping with fingerprints of the build records that produced it. */
+    public static byte[] toJson(Map<String, String> paths, Map<String, byte[]> buildArtifacts) throws IOException {
         Map<String, Object> data = new HashMap<>();
         String buildDir = ResourceUtil.getBuildDirectory();
         if (buildDir != null) {
@@ -47,13 +46,13 @@ public class MinifyPathCollector {
         data.put("paths", paths);
 
         Map<String, String> artifactChecksums = new HashMap<>();
-        for (IResource artifact : buildArtifacts) {
-            artifactChecksums.put(FilenameUtils.getName(artifact.getPath()), checksumArtifact(artifact));
+        for (Map.Entry<String, byte[]> artifact : buildArtifacts.entrySet()) {
+            artifactChecksums.put(artifact.getKey(), checksum(artifact.getValue()));
         }
         data.put("build_artifacts", artifactChecksums);
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        outputResource.setContent(mapper.writeValueAsBytes(data));
+        return mapper.writeValueAsBytes(data);
     }
 
     public static byte[] readAndValidate(IResource mappingResource, IResource... buildArtifacts) throws IOException, CompileExceptionError {
@@ -81,14 +80,14 @@ public class MinifyPathCollector {
                 parser.skipChildren();
             }
         } catch (JsonProcessingException e) {
-            throw new CompileExceptionError(mappingResource, 0, "Invalid minified paths mapping. Run 'build' with '--archive' before bundling.", e);
+            throw new CompileExceptionError(mappingResource, 0, "Invalid minified paths mapping. Run 'build' before bundling.", e);
         }
         for (IResource artifact : buildArtifacts) {
             String name = FilenameUtils.getName(artifact.getPath());
             String checksum = checksumArtifact(artifact);
             if (checksum == null || artifactChecksums == null || !checksum.equals(artifactChecksums.path(name).asText())) {
                 throw new CompileExceptionError(mappingResource, 0, String.format(
-                        "Minified paths mapping is stale or missing a build fingerprint for '%s'. Run 'build' with '--archive' before bundling.", name));
+                        "Minified paths mapping is stale or missing a build fingerprint for '%s'. Run 'build' before bundling.", name));
             }
         }
         return content;
@@ -101,9 +100,10 @@ public class MinifyPathCollector {
         }
 
         byte[] content = artifact.getContent();
-        if (content == null) {
-            return null;
-        }
+        return content == null ? null : checksum(content);
+    }
+
+    private static String checksum(byte[] content) {
         CRC32 checksum = new CRC32();
         checksum.update(content);
         return Long.toHexString(checksum.getValue());
