@@ -30,6 +30,7 @@ static unsigned g_Connected, g_Disconnected;
 static bool g_HatOnly;
 static int g_StandaloneAxis = -1;
 static unsigned g_StandaloneAxisCount;
+static int g_StandaloneButton = -1;
 static bool g_Accelerometer;
 
 // Only the device identity and capability ioctls are synthetic. Discovery,
@@ -100,7 +101,7 @@ extern "C"
             }
             case _IOC_NR(EVIOCGBIT(0, 0)):
             {
-                if (g_StandaloneAxis < 0)
+                if (g_StandaloneAxis < 0 || g_StandaloneButton >= 0)
                 {
                     SetBit(bits, EV_KEY);
                 }
@@ -109,11 +110,12 @@ extern "C"
             }
             case _IOC_NR(EVIOCGBIT(EV_KEY, 0)):
             {
-                if (g_StandaloneAxis >= 0)
+                if (g_StandaloneAxis >= 0 && g_StandaloneButton < 0)
                 {
                     return -1;
                 }
-                SetBit(bits, BTN_A);
+
+                SetBit(bits, g_StandaloneAxis < 0 ? BTN_A : g_StandaloneButton);
                 break;
             }
             case _IOC_NR(EVIOCGBIT(EV_ABS, 0)):
@@ -231,13 +233,16 @@ TEST(LinuxJoystick, HotplugAndResync)
     {
         int      first;
         unsigned count;
+        int      button;
     } standalone[] = {
-        { ABS_WHEEL, 1 }, { ABS_THROTTLE, 1 }, { ABS_X, 1 }, { ABS_X, 3 }, { ABS_RX, 3 }
+        { ABS_WHEEL, 1, -1 }, { ABS_THROTTLE, 1, -1 }, { ABS_X, 1, -1 }, { ABS_X, 3, -1 }, { ABS_RX, 3, -1 },
+        { ABS_X, 1, BTN_TRIGGER }, { ABS_RZ, 1, BTN_GEAR_UP }
     };
     for (unsigned i = 0; i < sizeof(standalone) / sizeof(standalone[0]); ++i)
     {
         g_StandaloneAxis = standalone[i].first;
         g_StandaloneAxisCount = standalone[i].count;
+        g_StandaloneButton = standalone[i].button;
         ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
         int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
         ASSERT_GE(writer, 0);
@@ -245,7 +250,18 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_EQ(3u + i, g_Connected);
         float axes[3];
         uint8_t button;
-        EXPECT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
+        if (g_StandaloneButton >= 0)
+        {
+            input_event press = { {}, EV_KEY, (uint16_t)g_StandaloneButton, 1 };
+            ASSERT_EQ((ssize_t)sizeof(press), write(writer, &press, sizeof(press)));
+            dmPlatform::LinuxPollJoysticks();
+            ASSERT_EQ(1u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
+            EXPECT_EQ(1u, button);
+        }
+        else
+        {
+            EXPECT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
+        }
         ASSERT_EQ(g_StandaloneAxisCount, dmPlatform::GetJoystickAxes(0, 0, axes, 3));
         for (unsigned axis = 0; axis < g_StandaloneAxisCount; ++axis)
         {
@@ -259,12 +275,20 @@ TEST(LinuxJoystick, HotplugAndResync)
     }
     unsigned connected = g_Connected;
     g_StandaloneAxis = ABS_X;
-    g_Accelerometer = true;
-    ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
-    dmPlatform::LinuxPollJoysticks();
-    EXPECT_EQ(connected, g_Connected);
-    EXPECT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
-    ASSERT_EQ(0, unlink(g_Fifo));
+    g_StandaloneAxisCount = 1;
+    // A lone position axis on a sensor or pointer does not identify a joystick.
+    const int nongame_buttons[] = { -1, BTN_LEFT };
+    for (unsigned i = 0; i < sizeof(nongame_buttons) / sizeof(nongame_buttons[0]); ++i)
+    {
+        g_StandaloneButton = nongame_buttons[i];
+        g_Accelerometer = g_StandaloneButton < 0;
+        ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
+        dmPlatform::LinuxPollJoysticks();
+        EXPECT_EQ(connected, g_Connected);
+        EXPECT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+        ASSERT_EQ(0, unlink(g_Fifo));
+        dmPlatform::LinuxPollJoysticks();
+    }
     dmPlatform::LinuxCloseJoysticks();
     ASSERT_EQ(0, rmdir(g_Directory));
 }

@@ -47,7 +47,20 @@ namespace dmPlatform
         return (bits[code / 8] & (1u << (code % 8))) != 0;
     }
 
-    static bool HasJoystickControls(int fd, const uint8_t* absolute, bool has_keys)
+    static bool AnyBit(const uint8_t* bits, unsigned first, unsigned last)
+    {
+        for (unsigned code = first; code <= last; ++code)
+        {
+            if (Bit(bits, code))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static bool HasJoystickControls(int fd, const uint8_t* absolute, const uint8_t* keys, bool has_keys)
     {
         if (Bit(absolute, ABS_WHEEL) || Bit(absolute, ABS_THROTTLE) || Bit(absolute, ABS_RUDDER) ||
             Bit(absolute, ABS_GAS) || Bit(absolute, ABS_BRAKE))
@@ -91,7 +104,11 @@ namespace dmPlatform
             }
         }
 
-        return false;
+        // Single-axis pedals and handbrakes can also report joystick buttons.
+        return AnyBit(absolute, ABS_X, ABS_RZ) &&
+               (AnyBit(keys, BTN_0, BTN_9) || AnyBit(keys, BTN_JOYSTICK, BTN_THUMBR) ||
+                AnyBit(keys, BTN_GEAR_DOWN, BTN_GEAR_UP) || AnyBit(keys, BTN_DPAD_UP, BTN_DPAD_RIGHT) ||
+                AnyBit(keys, BTN_TRIGGER_HAPPY1, BTN_TRIGGER_HAPPY40));
     }
 
     void EvdevGuid(const input_id& id, const char* name, char guid[33])
@@ -257,7 +274,7 @@ namespace dmPlatform
         if (ioctl(fd, EVIOCGBIT(0, sizeof(events)), events) < 0 || !Bit(events, EV_ABS) ||
             (Bit(events, EV_KEY) && ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0) ||
             ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absolute)), absolute) < 0 ||
-            ioctl(fd, EVIOCGID, &id) < 0 || !HasJoystickControls(fd, absolute, Bit(events, EV_KEY)))
+            ioctl(fd, EVIOCGID, &id) < 0 || !HasJoystickControls(fd, absolute, keys, Bit(events, EV_KEY)))
         {
             close(fd);
             return;
