@@ -379,6 +379,69 @@ TEST_F(dmRenderScriptTest, TestSetRenderScript)
     dmRender::DeleteRenderScript(m_Context, render_script_b);
 }
 
+
+// Optional vector materials are borrowed as a complete set and must be cleared
+// on replacement, resource reload, and instance destruction without dangling handles.
+TEST_F(dmRenderScriptTest, VectorFontMaterialResourceLifetime)
+{
+    dmRender::HRenderScript script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
+    dmRender::HRenderScriptInstance first = dmRender::NewRenderScriptInstance(m_Context, script);
+    dmRender::HRenderScriptInstance second = dmRender::NewRenderScriptInstance(m_Context, script);
+    dmRender::HMaterial materials[4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        materials[i] = dmRender::NewMaterial(m_Context, m_FontProgram);
+    }
+
+    const char* names[] = { "vector_font_face", "vector_font_bitmap", "vector_font_decoration" };
+    dmRender::TextContext& text = m_Context->m_TextContext;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmRender::AddRenderScriptInstanceRenderResource(first, names[i], (uint64_t)materials[i], dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+        EXPECT_EQ(i == 2 ? first : (dmRender::HRenderScriptInstance)0, text.m_VectorFontMaterialOwner);
+    }
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        EXPECT_EQ(materials[i], text.m_VectorFontMaterials[i]);
+    }
+
+    dmRender::AddRenderScriptInstanceRenderResource(first, names[0], (uint64_t)materials[3], dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    EXPECT_EQ(materials[3], text.m_VectorFontMaterials[0]);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmRender::AddRenderScriptInstanceRenderResource(second, names[i], (uint64_t)materials[i], dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    }
+
+    dmRender::ClearRenderScriptInstanceRenderResources(first);
+    dmRender::DeleteRenderScriptInstance(first);
+    EXPECT_EQ(second, text.m_VectorFontMaterialOwner);
+    dmRender::AddRenderScriptInstanceRenderResource(second, names[1], 0, dmRender::RENDER_RESOURCE_TYPE_INVALID);
+    EXPECT_EQ((dmRender::HRenderScriptInstance)0, text.m_VectorFontMaterialOwner);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        EXPECT_EQ((dmRender::HMaterial)0, text.m_VectorFontMaterials[i]);
+    }
+
+    dmRender::AddRenderScriptInstanceRenderResource(second, names[1], (uint64_t)materials[1], dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    EXPECT_EQ(second, text.m_VectorFontMaterialOwner);
+    dmRender::ClearRenderScriptInstanceRenderResources(second);
+    EXPECT_EQ((dmRender::HRenderScriptInstance)0, text.m_VectorFontMaterialOwner);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmRender::AddRenderScriptInstanceRenderResource(second, names[i], (uint64_t)materials[i], dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    }
+
+    dmRender::DeleteRenderScriptInstance(second);
+    EXPECT_EQ((dmRender::HRenderScriptInstance)0, text.m_VectorFontMaterialOwner);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+
+    dmRender::DeleteRenderScript(m_Context, script);
+}
+
 TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 {
     const char* script = "function init(self)\n"

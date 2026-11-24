@@ -41,13 +41,16 @@ struct FontVectorSlugData
     uint32_t          m_MaxBandCurves;
 };
 
+// Clears encoded records for the next active glyph set.
 void FontVectorSlugBegin(FontVectorSlugData* data);
 // Appends one glyph using unhinted, unsplit quadratic outlines in em-space.
 // Each band header/list and each curve's two texels stay within a texture row.
+// Font records store exact curve bounds and do not share endpoint texels.
 // On failure, existing records and counters are preserved.
 bool FontVectorSlugAddGlyph(FontVectorSlugData* data, const FontGlyphOutline& outline, float font_size, uint32_t bands, FontVectorSlugGlyph* glyph);
 
 // Normalizes runtime or prebaked glyph geometry to its original glyph bounds.
+// Stores exact curve bounds with unshared endpoint texels.
 // Inputs are borrowed. On failure, existing records and counters are preserved.
 bool FontVectorSlugAddFontGlyph(FontVectorSlugData* data, const FontGlyph& source, uint32_t bands, FontVectorSlugGlyph* glyph);
 

@@ -298,6 +298,26 @@ TEST(RenderContext, ThreadedExecutionRequiresExecutor)
     ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
 }
 
+// Out-of-range project settings fall back to eight bands before creating font maps.
+TEST_F(dmRenderTest, VectorFontBandCountValidation)
+{
+    dmRender::RenderContextParams params;
+    ASSERT_EQ(8u, params.m_VectorFontBands);
+    params.m_ScriptContext = m_ScriptContext;
+    params.m_MaxCharacters = 6;
+    params.m_MaxBatches = 1;
+    const uint32_t values[] = { 1, 8, 16, 32, 0, 33 };
+    const uint32_t expected[] = { 1, 8, 16, 32, 8, 8 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        dmRender::DeleteRenderContext(m_Context, 0);
+        params.m_VectorFontBands = values[i];
+        m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
+        ASSERT_NE((dmRender::HRenderContext)0, m_Context);
+        EXPECT_EQ(expected[i], m_Context->m_VectorFontBands);
+    }
+}
+
 // Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
 TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
 {
@@ -5122,6 +5142,309 @@ protected:
         FontDestroy(font);
     }
 };
+
+
+class VectorFontSplitTest : public VectorFontTest
+{
+protected:
+    dmRender::HMaterial  m_Layers[3];
+    dmGraphics::HProgram m_LayerPrograms[3];
+    uint8_t              m_Bitmap[45];
+
+    void SetUp() override
+    {
+        VectorFontTest::SetUp();
+        m_Context->m_RenderObjects.SetCapacity(64);
+        dmRender::HMaterial original = m_Material;
+        dmGraphics::HProgram original_program = m_Program;
+        CreateVectorMaterial(false, &m_Material, &m_Program);
+        const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            CreateVectorMaterial(false, &m_Layers[i], &m_LayerPrograms[i]);
+            // Reflect all names with different unit ordering from the original.
+            for (uint32_t unit = 0; unit < 3; ++unit)
+            {
+                ASSERT_TRUE(dmRender::SetMaterialSampler(m_Layers[i], dmHashString64(samplers[unit]), (unit + 1) % 3,
+                                                         dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                                                         dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+            }
+        }
+
+        dmRender::SetVectorFontMaterials(m_Context, (dmRender::HRenderScriptInstance)this, m_Layers[0], m_Layers[1], m_Layers[2]);
+        memset(m_Bitmap, 255, sizeof(m_Bitmap));
+        m_GlyphBank->m_Provider.m_GlyphPadding = 1;
+        m_GlyphBank->m_Provider.m_GlyphChannels = 3;
+        m_GlyphBank->m_Glyphs[65].m_Data = m_Bitmap;
+        m_GlyphBank->m_Glyphs[65].m_DataSize = sizeof(m_Bitmap);
+        m_SystemFontMap->m_CacheCellPadding = 1;
+        m_SystemFontMap->m_CacheCellMaxAscent = 2;
+        m_SystemFontMap->m_VectorBitmapEffects = true;
+        m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_SHADOW;
+        ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        dmRender::DeleteMaterial(m_Context, original);
+        dmGraphics::DeleteProgram(m_GraphicsContext, original_program);
+    }
+
+    void TearDown() override
+    {
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::ClearVectorFontMaterials(m_Context, (dmRender::HRenderScriptInstance)this);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            dmRender::DeleteMaterial(m_Context, m_Layers[i]);
+            dmGraphics::DeleteProgram(m_GraphicsContext, m_LayerPrograms[i]);
+        }
+
+        VectorFontTest::TearDown();
+    }
+
+    void QueueRichText(uint32_t batch)
+    {
+        const char* source = "<shadow color=#000000><ul>AA</ul></shadow>A";
+        HMarkup document = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &document, 0));
+        TextLayoutSettings settings = {};
+        settings.m_Size = 1;
+        settings.m_Width = 128;
+        settings.m_Leading = 1;
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), document, &settings, &layout));
+        dmRender::DrawTextParams draw;
+        draw.m_TextLayout = layout;
+        draw.m_Width = 128;
+        draw.m_FaceColor = draw.m_OutlineColor = draw.m_ShadowColor = Vector4(1.0f);
+        draw.m_RenderOrder = batch;
+        draw.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+        draw.m_StencilTestParamsSet = true;
+        draw.m_StencilTestParams.m_Ref = 23;
+        draw.m_StencilTestParams.m_ClearBuffer = 1;
+        draw.m_StencilTestParams.m_BufferMask = 0x3f;
+        dmRender::DrawText(m_Context, m_SystemFontMap, m_Material, batch, draw);
+        TextLayoutRelease(layout);
+        MarkupDestroy(document);
+    }
+
+    void DrawBatches(uint32_t batches)
+    {
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::RenderListBegin(m_Context);
+        for (uint32_t i = 0; i < batches; ++i)
+        {
+            QueueRichText(i);
+        }
+
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+    }
+
+};
+
+// Splitting must cover each original vertex exactly once, in the same order,
+// and remap textures by sampler name while retaining blend and stencil state.
+TEST_F(VectorFontSplitTest, SplitPreservesVertexOrderAndTextureBindings)
+{
+    DrawBatches(2);
+    dmRender::TextContext& text = m_Context->m_TextContext;
+    const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)text.m_ClientBuffer;
+    uint32_t cursor = 0;
+    uint32_t seen = 0;
+    dmRender::HNamedConstantBuffer previous_constants = 0;
+    ASSERT_GT(m_Context->m_RenderObjects.Size(), 2u);
+    for (uint32_t i = 0; i < m_Context->m_RenderObjects.Size(); ++i)
+    {
+        const dmRender::RenderObject& object = *m_Context->m_RenderObjects[i];
+        EXPECT_EQ(cursor, object.m_VertexStart);
+        ASSERT_GT(object.m_VertexCount, 0u);
+        EXPECT_EQ(0u, object.m_VertexCount % 6);
+        const float mode = vertices[cursor].m_VectorTexcoord[3];
+        const uint32_t layer = mode > 2.5f ? 2 : mode > .5f ? 1 : 0;
+        seen |= 1 << layer;
+        EXPECT_EQ(m_Layers[layer], object.m_Material);
+        EXPECT_EQ(1u, object.m_SetBlendFactors);
+        EXPECT_EQ(dmGraphics::BLEND_FACTOR_ONE, object.m_SourceBlendFactor);
+        EXPECT_EQ(1u, object.m_SetStencilTest);
+        EXPECT_EQ(23u, object.m_StencilTestParams.m_Ref);
+        EXPECT_EQ(0x3fu, object.m_StencilTestParams.m_BufferMask);
+        EXPECT_EQ(previous_constants != object.m_ConstantBuffer, (bool)object.m_StencilTestParams.m_ClearBuffer);
+        previous_constants = object.m_ConstantBuffer;
+        for (uint32_t j = 0; j < object.m_VertexCount; j += 6)
+        {
+            const float current = vertices[cursor + j].m_VectorTexcoord[3];
+            EXPECT_EQ(layer, current > 2.5f ? 2u : current > .5f ? 1u : 0u);
+        }
+
+        EXPECT_EQ(m_SystemFontMap->m_Texture, object.m_Textures[dmRender::GetMaterialSamplerUnit(object.m_Material, dmHashString64("curve_texture"))]);
+        EXPECT_EQ(m_SystemFontMap->m_VectorBandTexture, object.m_Textures[dmRender::GetMaterialSamplerUnit(object.m_Material, dmHashString64("band_texture"))]);
+        EXPECT_EQ(m_SystemFontMap->m_VectorSdfTexture, object.m_Textures[dmRender::GetMaterialSamplerUnit(object.m_Material, dmHashString64("effect_bitmap"))]);
+        cursor += object.m_VertexCount;
+    }
+
+    EXPECT_EQ(7u, seen);
+    EXPECT_EQ(text.m_VertexIndex, cursor);
+}
+
+// A render-script material override must retain the original combined batch
+// and its sampler bindings instead of inheriting a specialized layer layout.
+TEST_F(VectorFontSplitTest, MaterialOverrideKeepsCombinedBatch)
+{
+    m_Context->m_Material = m_Material;
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    const dmRender::RenderObject& object = *m_Context->m_RenderObjects[0];
+    EXPECT_EQ(m_Material, object.m_Material);
+    EXPECT_EQ(m_SystemFontMap->m_Texture, object.m_Textures[0]);
+    EXPECT_EQ(m_SystemFontMap->m_VectorBandTexture, object.m_Textures[1]);
+    EXPECT_EQ(m_SystemFontMap->m_VectorSdfTexture, object.m_Textures[2]);
+    m_Context->m_Material = 0;
+}
+
+// Indexed texture overrides retain their original units; named overrides can
+// still follow the specialized materials' sampler names.
+TEST_F(VectorFontSplitTest, TextureOverridesPreserveSamplerLayout)
+{
+    dmRender::SetTextureBindingByUnit(m_Context, 2, m_SystemFontMap->m_VectorSdfTexture);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    EXPECT_EQ(m_SystemFontMap->m_VectorSdfTexture, m_Context->m_RenderObjects[0]->m_Textures[2]);
+    dmRender::SetTextureBindingByUnit(m_Context, 2, 0);
+    DrawBatches(1);
+    EXPECT_GT(m_Context->m_RenderObjects.Size(), 1u);
+    const dmhash_t sampler = dmHashString64("effect_bitmap");
+    dmRender::SetTextureBindingByHash(m_Context, sampler, m_SystemFontMap->m_VectorSdfTexture);
+    DrawBatches(1);
+    EXPECT_GT(m_Context->m_RenderObjects.Size(), 1u);
+    dmRender::SetTextureBindingByHash(m_Context, sampler, 0);
+}
+
+// Optional splitting must fall back to the intact batch when either pool is
+// too small, rather than submitting only a prefix of the text.
+TEST_F(VectorFontSplitTest, SplitFallsBackAtDrawLimits)
+{
+    const uint32_t original_size = m_Context->m_TextContext.m_RenderObjects.Size();
+    m_Context->m_TextContext.m_RenderObjects.SetSize(1);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    EXPECT_EQ(m_Context->m_TextContext.m_VertexIndex, m_Context->m_RenderObjects[0]->m_VertexCount);
+    m_Context->m_TextContext.m_RenderObjects.SetSize(original_size);
+    dmRender::ClearRenderObjects(m_Context);
+    m_Context->m_RenderObjects.SetCapacity(1);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    EXPECT_EQ(m_Context->m_TextContext.m_VertexIndex, m_Context->m_RenderObjects[0]->m_VertexCount);
+}
+
+// Extra runs from an earlier batch must not consume the original draw slots
+// needed by later text in the same render pass.
+TEST_F(VectorFontSplitTest, SplitReservesCapacityForLaterBatches)
+{
+    const uint32_t original_size = m_Context->m_TextContext.m_RenderObjects.Size();
+    m_Context->m_TextContext.m_RenderObjects.SetSize(2);
+    DrawBatches(2);
+    ASSERT_EQ(2u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[1]->m_Material);
+    EXPECT_EQ(m_Context->m_TextContext.m_VertexIndex,
+              m_Context->m_RenderObjects[0]->m_VertexCount + m_Context->m_RenderObjects[1]->m_VertexCount);
+    m_Context->m_TextContext.m_RenderObjects.SetSize(original_size);
+    dmRender::ClearRenderObjects(m_Context);
+    m_Context->m_RenderObjects.SetCapacity(2);
+    DrawBatches(2);
+    ASSERT_EQ(2u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[1]->m_Material);
+    EXPECT_EQ(m_Context->m_TextContext.m_VertexIndex,
+              m_Context->m_RenderObjects[0]->m_VertexCount + m_Context->m_RenderObjects[1]->m_VertexCount);
+}
+
+// Deleting a borrowed material during hot reload must disable splitting before
+// any later draw can dereference the old handle; rebinding restores the path.
+TEST_F(VectorFontSplitTest, DeletedMaterialFallsBackUntilRebound)
+{
+    dmRender::DeleteMaterial(m_Context, m_Layers[0]);
+    dmGraphics::DeleteProgram(m_GraphicsContext, m_LayerPrograms[0]);
+    EXPECT_EQ((dmRender::HRenderScriptInstance)0, m_Context->m_TextContext.m_VectorFontMaterialOwner);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    CreateVectorMaterial(false, &m_Layers[0], &m_LayerPrograms[0]);
+    dmRender::SetVectorFontMaterials(m_Context, (dmRender::HRenderScriptInstance)this, m_Layers[0], m_Layers[1], m_Layers[2]);
+    DrawBatches(1);
+    EXPECT_GT(m_Context->m_RenderObjects.Size(), 1u);
+}
+
+// Color paint, incompatible tags, vertex space, or sampler layouts must retain
+// the original material instead of silently changing custom rendering behavior.
+TEST_F(VectorFontSplitTest, SplitPreservesUnsupportedMaterials)
+{
+    dmRender::HMaterial color;
+    dmGraphics::HProgram program;
+    CreateVectorMaterial(true, &color, &program);
+    dmRender::HMaterial original = m_Material;
+    m_Material = color;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, color));
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(color, m_Context->m_RenderObjects[0]->m_Material);
+    m_Material = original;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, original));
+    const dmhash_t tag = dmHashString64("custom_text");
+    dmRender::SetMaterialTags(m_Material, 1, &tag);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    dmRender::SetMaterialTags(m_Material, 0, 0);
+    dmRender::SetMaterialVertexSpace(m_Layers[0], dmRender::GetMaterialVertexSpace(m_Material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL
+        ? dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD : dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    dmRender::SetMaterialVertexSpace(m_Layers[0], dmRender::GetMaterialVertexSpace(m_Material));
+    dmRender::HMaterial face = m_Layers[0];
+    dmRender::SetVectorFontMaterials(m_Context, (dmRender::HRenderScriptInstance)this, color, m_Layers[1], m_Layers[2]);
+    DrawBatches(1);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    EXPECT_EQ(m_Material, m_Context->m_RenderObjects[0]->m_Material);
+    dmRender::SetVectorFontMaterials(m_Context, (dmRender::HRenderScriptInstance)this, face, m_Layers[1], m_Layers[2]);
+    dmRender::DeleteMaterial(m_Context, color);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// The configured band count must reach both the lookup tables and every glyph vertex.
+TEST_F(VectorFontTest, BandCountMatchesCacheAndVertices)
+{
+    const uint32_t values[] = { 1, 8, 16, 32 };
+    dmRender::HFontMap original_map = m_SystemFontMap;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        m_Context->m_VectorFontBands = values[i];
+        HFontCollection collection = FontCollectionCreate();
+        FontCollectionAddFont(collection, m_Font);
+        dmRender::FontMapParams params;
+        params.m_FontCollection = collection;
+        params.m_Size = 1;
+        params.m_CacheWidth = params.m_CacheHeight = 128;
+        params.m_CacheCellWidth = params.m_CacheCellHeight = 8;
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, params);
+        ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        dmRender::FontDefaultVertex vertices[6];
+        ASSERT_EQ(6u, Render("A", false, vertices, DM_ARRAY_SIZE(vertices)));
+        EXPECT_EQ(values[i] * 2, m_SystemFontMap->m_SlugData->m_BandReferences);
+        EXPECT_EQ(values[i] * 4, m_SystemFontMap->m_SlugData->m_BandTexels);
+        for (uint32_t v = 0; v < DM_ARRAY_SIZE(vertices); ++v)
+        {
+            EXPECT_EQ((float)values[i], vertices[v].m_FaceColor[0]);
+            EXPECT_EQ((float)values[i], vertices[v].m_VectorEffectParams[0]);
+        }
+
+        dmRender::DeleteFontMap(m_SystemFontMap);
+        m_SystemFontMap = original_map;
+    }
+}
 
 // Atlas overflow recovery must preserve queued texture handles and every glyph.
 TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)

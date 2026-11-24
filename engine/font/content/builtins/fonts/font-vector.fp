@@ -63,7 +63,7 @@ void main()
     }
     else if (var_mode < 0.5)
     {
-        coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
+        coverage = SlugRenderWithBounds(var_texcoord, emsPerPixel, var_banding, var_glyph);
     }
     else
         coverage = 0.0;

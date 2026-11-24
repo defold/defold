@@ -26,6 +26,7 @@
 #include <script/lua_source_ddf.h>
 
 #include "font/font_renderer.h"
+#include "font/font_renderer_private.h"
 #include "render/render_ddf.h"
 
 namespace dmRender
@@ -3603,6 +3604,8 @@ bail:
         {
             delete render_script_instance->m_Predicates[i];
         }
+
+        ClearVectorFontMaterials(render_script_instance->m_RenderContext, render_script_instance);
         ClearRenderScriptCommands(render_script_instance);
         DeleteRenderFrame(render_script_instance->m_ScratchFrame);
         render_script_instance->~RenderScriptInstance();
@@ -3612,6 +3615,24 @@ bail:
     void SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script)
     {
         render_script_instance->m_RenderScript = render_script;
+    }
+
+    static void UpdateVectorFontMaterials(HRenderScriptInstance instance)
+    {
+        RenderResource* face = instance->m_RenderResources.Get(dmHashString64("vector_font_face"));
+        RenderResource* bitmap = instance->m_RenderResources.Get(dmHashString64("vector_font_bitmap"));
+        RenderResource* decoration = instance->m_RenderResources.Get(dmHashString64("vector_font_decoration"));
+        if (face && bitmap && decoration && face->m_Type == RENDER_RESOURCE_TYPE_MATERIAL &&
+            bitmap->m_Type == RENDER_RESOURCE_TYPE_MATERIAL && decoration->m_Type == RENDER_RESOURCE_TYPE_MATERIAL)
+        {
+            SetVectorFontMaterials(instance->m_RenderContext, instance,
+                                   (HMaterial)(uintptr_t)face->m_Resource, (HMaterial)(uintptr_t)bitmap->m_Resource,
+                                   (HMaterial)(uintptr_t)decoration->m_Resource);
+        }
+        else
+        {
+            ClearVectorFontMaterials(instance->m_RenderContext, instance);
+        }
     }
 
     void AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type)
@@ -3625,11 +3646,18 @@ bail:
         RenderResource res = {};
         res.m_Resource     = resource;
         res.m_Type         = type;
-        render_script_instance->m_RenderResources.Put(dmHashString64(name), res);
+        const dmhash_t name_hash = dmHashString64(name);
+        render_script_instance->m_RenderResources.Put(name_hash, res);
+        if (name_hash == dmHashString64("vector_font_face") || name_hash == dmHashString64("vector_font_bitmap") ||
+            name_hash == dmHashString64("vector_font_decoration"))
+        {
+            UpdateVectorFontMaterials(render_script_instance);
+        }
     }
 
     void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
+        ClearVectorFontMaterials(render_script_instance->m_RenderContext, render_script_instance);
         render_script_instance->m_RenderResources.Clear();
     }
 

@@ -167,7 +167,7 @@ float CalcCoverage(float xcov, float ycov, float xwgt, float ywgt, int flags)
 	return (coverage);
 }
 
-float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 glyphData)
+float SlugRenderInternal(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 glyphData, bool fontBounds)
 {
 	int curveIndex;
 
@@ -213,15 +213,28 @@ float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 g
 		//
 		//     C(t) = (1 - t)^2 p1 + 2t(1 - t) p2 + t^2 p3
 
-		vec4 p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
-		vec2 p3 = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y)).xy - renderCoord;
+		vec4 p12;
+		vec2 p3;
+		if (fontBounds)
+		{
+			// Reject with the exact stored bound before loading p1 and p2.
+			vec4 p3Data = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y));
+			if ((p3Data.z - renderCoord.x) * pixelsPerEm.x < -0.5) break;
+			p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
+			p3 = p3Data.xy - renderCoord;
+		}
+		else
+		{
+			p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
+			p3 = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y)).xy - renderCoord;
+		}
 
 		// If the largest x coordinate among all three control points falls
 		// left of the current pixel, then there are no more curves in the
 		// horizontal band that can influence the result, so exit the loop.
 		// (The curves are sorted in descending order by max x coordinate.)
 
-		if (max(max(p12.x, p12.z), p3.x) * pixelsPerEm.x < -0.5) break;
+		if (!fontBounds && max(max(p12.x, p12.z), p3.x) * pixelsPerEm.x < -0.5) break;
 
 		int code = CalcRootCode(p12.y, p12.w, p3.y);
 		if (code != 0)
@@ -261,15 +274,28 @@ float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 g
 	for (curveIndex = 0; curveIndex < int(vbandData.x); curveIndex++)
 	{
 		ivec2 curveLoc = ivec2(LoadBand(ivec2(vbandLoc.x + curveIndex, vbandLoc.y)).xy);
-		vec4 p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
-		vec2 p3 = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y)).xy - renderCoord;
+		vec4 p12;
+		vec2 p3;
+		if (fontBounds)
+		{
+			// Reject with the exact stored bound before loading p1 and p2.
+			vec4 p3Data = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y));
+			if ((p3Data.w - renderCoord.y) * pixelsPerEm.y < -0.5) break;
+			p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
+			p3 = p3Data.xy - renderCoord;
+		}
+		else
+		{
+			p12 = TexelLoad2D(curve_texture, curveLoc) - vec4(renderCoord, renderCoord);
+			p3 = TexelLoad2D(curve_texture, ivec2(curveLoc.x + 1, curveLoc.y)).xy - renderCoord;
+		}
 
 		// If the largest y coordinate among all three control points falls
 		// below the current pixel, then there are no more curves in the
 		// vertical band that can influence the result, so exit the loop.
 		// (The curves are sorted in descending order by max y coordinate.)
 
-		if (max(max(p12.y, p12.w), p3.y) * pixelsPerEm.y < -0.5) break;
+		if (!fontBounds && max(max(p12.y, p12.w), p3.y) * pixelsPerEm.y < -0.5) break;
 
 		int code = CalcRootCode(p12.x, p12.z, p3.x);
 		if (code != 0)
@@ -291,4 +317,16 @@ float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 g
 	}
 
 	return (CalcCoverage(xcov, ycov, xwgt, ywgt, glyphData.w));
+}
+
+// Existing atlases and stored-bound records share the control-point layout.
+float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 glyphData)
+{
+    return SlugRenderInternal(renderCoord, emsPerPixel, bandTransform, glyphData, false);
+}
+
+// Font adapters always store bounds. Specialization removes legacy checks.
+float SlugRenderWithBounds(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 glyphData)
+{
+    return SlugRenderInternal(renderCoord, emsPerPixel, bandTransform, glyphData, true);
 }

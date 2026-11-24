@@ -2501,6 +2501,8 @@ form.label.project.render.clear_color_blue = Clear Color Blue
 form.help.project.render.clear_color_blue = The **blue** component of the clear color used when the window is created. Defold's built-in render script also uses it when clearing the frame; a custom render script need not. `0.0` contributes no blue; `1.0` contributes full blue intensity.
 form.label.project.render.clear_color_alpha = Clear Color Alpha
 form.help.project.render.clear_color_alpha = The **alpha** component of the clear color used when the window is created. Defold's built-in render script also uses it when clearing the frame; a custom render script need not. `0.0` is fully transparent; `1.0` is fully opaque where framebuffer alpha is used.
+form.label.project.render.vector_font_bands = Vector Font Bands
+form.help.project.render.vector_font_bands = Number of curve bands per axis used to render vector glyphs, from 1 to 32. The default is 8. More bands can reduce fragment shader work, but use more space in the glyph cache. Compare performance with your fonts and target devices. Color glyph paint layers use their own band tables.
 
 form.label.project.resource = Resource
 form.help.project.resource = Resource loading and management related settings

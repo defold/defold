@@ -79,6 +79,7 @@ namespace dmRender
         dmGraphics::HTexture    m_VectorSdfTexture;
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
+        uint32_t                m_VectorFontBands;
         dmArray<FontGlyphVertex> m_DecorationVertices;
         FontVectorPaintCache*   m_VectorPaint;
         dmGraphics::HTexture   m_VectorPaintTexture;

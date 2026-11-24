@@ -1565,6 +1565,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
+        render_params.m_VectorFontBands = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "render.vector_font_bands", 8);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
         if (!engine->m_RenderContext)
             return false;

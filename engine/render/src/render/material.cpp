@@ -24,6 +24,7 @@
 #include <dmsdk/graphics/graphics.h>
 #include "render.h"
 #include "render_private.h"
+#include "font/font_renderer_private.h"
 
 namespace dmRender
 {
@@ -356,6 +357,18 @@ namespace dmRender
 
     void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material)
     {
+        // Resource hot reload can replace a borrowed specialization material.
+        // Keep rendering with the combined program until the set is rebound.
+        TextContext& text = render_context->m_TextContext;
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            if (text.m_VectorFontMaterials[i] == material)
+            {
+                ClearVectorFontMaterials(render_context, text.m_VectorFontMaterialOwner);
+                break;
+            }
+        }
+
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationShared);
 
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerVertex);

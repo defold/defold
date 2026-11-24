@@ -9,9 +9,10 @@ algorithm.
 
 1. **Prepare the curves.** Normalize each glyph's outline to its bounds and pack
    the quadratic control points into a curve texture.
-2. **Build the bands.** Divide the glyph into eight horizontal and eight vertical
-   bands. Each band stores a list of the curves that can intersect it. Sort the
-   lists so the shader can stop once later curves cannot affect the pixel.
+2. **Build the bands.** Divide the glyph into horizontal and vertical bands
+   (eight per axis by default). Each band stores a list of the curves that can
+   intersect it. Sort the lists so the shader can stop once later curves cannot
+   affect the pixel.
 3. **Evaluate coverage.** For each pixel, look up its horizontal and vertical
    bands, solve the curve crossings, and combine their contributions into face
    coverage. Screen-space derivatives determine the pixel footprint for
@@ -20,19 +21,55 @@ algorithm.
 Glyph instances share the font map's cached curve and band records. Changing
 the display size or zoom transforms the glyph without regenerating its curves.
 
+### Tuning the band count
+
+Set **Render > Vector Font Bands** in `game.project` to choose the number of
+bands per axis for the runtime glyph cache:
+
+```ini
+[render]
+vector_font_bands = 32
+```
+
+The default is **8**, and the supported range is **1–32**. Invalid runtime values
+log a warning and use 8. More bands can shorten the candidate lists evaluated
+by the fragment shader, at the cost of larger band tables and potentially more
+cache growth or resets. Measure with the project's fonts and target devices.
+This changes lookup tables, not glyph geometry or antialiasing quality.
+
+Both static glyph banks and dynamic fonts build these tables at runtime; no
+different baked curve format is needed. The built-in vertex shader reads the
+count from `face_color.x`, which the runtime supplies on vector glyph vertices.
+Custom vector vertex shaders should use this count instead of a fixed band
+maximum. Native editor previews and color glyph paint layers retain their
+separate eight-band encoding.
+
 ## Textures
 
 Each runtime Vector font map uses these textures:
 
 | Texture | Format | Dimensions | Contents |
 | --- | --- | --- | --- |
-| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points |
+| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points and curve bounds |
 | Bands | `R32UI` | **4096 × 8–256 texels** | Band headers and references to curves |
 | Effects (when enabled) | `RGB` | Font cache width × height | SDF outlines and bitmap shadows |
 
 The curve and band textures contain numeric data. Curve records and band lists
 are kept within texture rows. The effects texture stores glyph images in cells
 and follows the font's cache settings.
+
+Font curve records store max X and max Y in the second texel's Z/W components.
+These bounds use the same half-float coordinates as the three control points.
+The shader reads the endpoint and bounds first, then loads the other control
+points only if the curve can influence the pixel.
+
+Band headers and references retain their existing 16-bit count/offset and X/Y
+address fields. Font face shaders use `SlugRenderWithBounds`, since the font
+encoder always stores bounds. `SlugRender` reads the control points directly
+and supports both shared endpoint records and records with stored bounds.
+Storing bounds prevents adjacent curves from sharing the endpoint texel and
+increases occupied curve data. Texture growth follows the same row limits and
+cache policy.
 
 The runtime starts with eight rows in each numeric texture. When the atlas fills,
 it doubles their height at the next frame boundary, up to 256 rows, and rebuilds
@@ -105,6 +142,53 @@ Both materials use `font-vector.vp` and `font-vector.fp`. Face, outline, and
 shadow are separate quads rendered with the same material. The shared text
 layout supplies display size, corner colors, animated offsets, and effect
 colors. Face-only Vector fonts need no Bitmap Size.
+
+### Monochrome vector materials
+
+Use `/builtins/fonts/font-vector-monochrome.material` for GUI text or
+`/builtins/fonts/label-vector-monochrome.material` for labels when the font does
+not need color glyph paint. These materials retain rich-text colors, gradients,
+outlines, shadows, and decorations. Color font glyphs use their ordinary outline
+fallback. Removing the paint interpreter reduces the fragment program without
+changing the number of text draws.
+
+### Separate face, bitmap, and decoration programs
+
+A custom `.render` resource can opt into specialized vector programs by adding
+all three material resources:
+
+```text
+render_resources {
+  name: "vector_font_face"
+  path: "/builtins/fonts/font-vector-face.material"
+}
+render_resources {
+  name: "vector_font_bitmap"
+  path: "/builtins/fonts/font-vector-bitmap.material"
+}
+render_resources {
+  name: "vector_font_decoration"
+  path: "/builtins/fonts/font-vector-decoration.material"
+}
+```
+
+The renderer divides monochrome vector batches into consecutive runs of face,
+bitmap-effect, and decoration quads, preserving their order and vertex buffer.
+Outlines and shadows share the bitmap program. This increases draw calls when
+the layer changes, but lets each fragment program contain only the work needed
+for its layer. Choose this using measurements on the target device.
+
+The complete set belongs to its render script instance and is cleared when the
+instance or its resources are replaced. Deleting a specialized material, including
+a material hot reload, disables splitting until the `.render` resource rebinds
+the complete set. Materials with a `paint_texture` sampler
+retain the combined program, as do render-script material overrides and indexed
+texture overrides. Named texture overrides follow sampler names. Custom materials
+also retain it if the specialized
+materials have incompatible vertex space, missing original tags, or missing
+samplers. If either draw pool cannot fit every run, the intact original batch
+is submitted. Custom specialized materials must accept the built-in vector
+font vertex layout and preserve the original shader's colors and constants.
 
 ## Cache and platform limits
 

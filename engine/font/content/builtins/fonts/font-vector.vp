@@ -28,7 +28,9 @@ uniform vs_uniforms
 void main()
 {
     int header = int(position.z + 0.5);
-    int band_max = 7; // Matches the runtime cache’s eight bands per axis.
+    // Vector glyphs reuse face_color.x for their band count. Native previews
+    // omit this stream and retain their eight-band cache.
+    int band_max = face_color.x > 0.0 ? int(face_color.x + 0.5) - 1 : 7;
     var_font_position = texcoord0;
     var_paint = face_color.z;
     var_texcoord = texcoord.xy;
