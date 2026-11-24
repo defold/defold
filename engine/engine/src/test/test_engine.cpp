@@ -1442,7 +1442,7 @@ TEST_F(EngineTest, ZeroSizeInitialWindow)
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=display.width=640", "--config=display.height=480", project_path };
     g_StartWithZeroSizeWindow = true;
     g_Flipped = 0;
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true);
     g_StartWithZeroSizeWindow = false;
     ASSERT_TRUE(initialized);
     ASSERT_EQ(0u, g_Flipped);
@@ -1540,7 +1540,7 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
     WindowResizeMessages messages = {};
@@ -1661,7 +1661,7 @@ TEST_F(EngineTest, OutOfBoundsPointerRelease)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=display.width=960", "--config=display.height=640", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmPlatform::SetWindowSize(engine->m_Window, 10, 10);
     dmInputDDF::MouseTrigger mouse_trigger = {};
     mouse_trigger.m_Input = dmInputDDF::MOUSE_BUTTON_1;
@@ -1734,7 +1734,7 @@ TEST_P(ZeroSizeProjectionTest, ZeroSizeProjectionMessage)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.render=/builtins/render/default.renderc", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
     dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(instance));
@@ -1806,7 +1806,7 @@ TEST_F(EngineTest, ZeroSizeDrawBufferCleanup)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmRender::ClearRenderObjects(engine->m_RenderContext);
     dmPlatform::SetWindowSize(engine->m_Window, 0, 0);
     dmMessage::URL receiver;
@@ -1862,7 +1862,7 @@ TEST_F(EngineTest, ZeroSizeResizeDuringRender)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
     dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
     dmRender::HRenderScript script = instance->m_RenderScript;
@@ -1918,7 +1918,7 @@ TEST_F(EngineTest, ZeroSizeResizeFromRenderTimer)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
     dmRender::HRenderScript script = instance->m_RenderScript;
     lua_State* L = instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
