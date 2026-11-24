@@ -14,7 +14,7 @@
 
 #include "platform_window_constants.h"
 
-// Desktop input codes are part of the window API and existing gamepad mappings.
+// WindowGetKey accepts raw desktop key codes, so keep their numeric values stable.
 namespace dmPlatform
 {
     const int PLATFORM_KEY_START           = 32;

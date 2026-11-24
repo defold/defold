@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_linux.h"
+#include "../window_desktop_keys.h"
 #include <dlib/utf8.h>
 #include <linux/input-event-codes.h>
 
@@ -46,12 +47,12 @@ namespace dmPlatform
 
         if (code >= KEY_F1 && code <= KEY_F10)
         {
-            return 290 + code - KEY_F1;
+            return PLATFORM_KEY_F1 + code - KEY_F1;
         }
 
         if (code >= KEY_F13 && code <= KEY_F24)
         {
-            return 302 + code - KEY_F13;
+            return PLATFORM_KEY_F13 + code - KEY_F13;
         }
 
         switch (code)
@@ -102,201 +103,201 @@ namespace dmPlatform
             }
             case KEY_GRAVE:
             {
-                return 96;
+                return '`';
             }
             case KEY_102ND:
             {
-                return 161;
+                return PLATFORM_KEY_NON_US_1;
             }
             case KEY_ESC:
             {
-                return 256;
+                return PLATFORM_KEY_ESC;
             }
             case KEY_ENTER:
             {
-                return 257;
+                return PLATFORM_KEY_ENTER;
             }
             case KEY_TAB:
             {
-                return 258;
+                return PLATFORM_KEY_TAB;
             }
             case KEY_BACKSPACE:
             {
-                return 259;
+                return PLATFORM_KEY_BACKSPACE;
             }
             case KEY_INSERT:
             {
-                return 260;
+                return PLATFORM_KEY_INSERT;
             }
             case KEY_DELETE:
             {
-                return 261;
+                return PLATFORM_KEY_DEL;
             }
             case KEY_RIGHT:
             {
-                return 262;
+                return PLATFORM_KEY_RIGHT;
             }
             case KEY_LEFT:
             {
-                return 263;
+                return PLATFORM_KEY_LEFT;
             }
             case KEY_DOWN:
             {
-                return 264;
+                return PLATFORM_KEY_DOWN;
             }
             case KEY_UP:
             {
-                return 265;
+                return PLATFORM_KEY_UP;
             }
             case KEY_PAGEUP:
             {
-                return 266;
+                return PLATFORM_KEY_PAGEUP;
             }
             case KEY_PAGEDOWN:
             {
-                return 267;
+                return PLATFORM_KEY_PAGEDOWN;
             }
             case KEY_HOME:
             {
-                return 268;
+                return PLATFORM_KEY_HOME;
             }
             case KEY_END:
             {
-                return 269;
+                return PLATFORM_KEY_END;
             }
             case KEY_CAPSLOCK:
             {
-                return 280;
+                return PLATFORM_KEY_CAPS_LOCK;
             }
             case KEY_SCROLLLOCK:
             {
-                return 281;
+                return PLATFORM_KEY_SCROLL_LOCK;
             }
             case KEY_NUMLOCK:
             {
-                return 282;
+                return PLATFORM_KEY_KP_NUM_LOCK;
             }
             case KEY_SYSRQ:
             {
-                return 283;
+                return PLATFORM_KEY_PRINT_SCREEN;
             }
             case KEY_PAUSE:
             {
-                return 284;
+                return PLATFORM_KEY_PAUSE;
             }
             case KEY_F11:
             {
-                return 300;
+                return PLATFORM_KEY_F11;
             }
             case KEY_F12:
             {
-                return 301;
+                return PLATFORM_KEY_F12;
             }
             case KEY_KP0:
             {
-                return 320;
+                return PLATFORM_KEY_KP_0;
             }
             case KEY_KP1:
             {
-                return 321;
+                return PLATFORM_KEY_KP_1;
             }
             case KEY_KP2:
             {
-                return 322;
+                return PLATFORM_KEY_KP_2;
             }
             case KEY_KP3:
             {
-                return 323;
+                return PLATFORM_KEY_KP_3;
             }
             case KEY_KP4:
             {
-                return 324;
+                return PLATFORM_KEY_KP_4;
             }
             case KEY_KP5:
             {
-                return 325;
+                return PLATFORM_KEY_KP_5;
             }
             case KEY_KP6:
             {
-                return 326;
+                return PLATFORM_KEY_KP_6;
             }
             case KEY_KP7:
             {
-                return 327;
+                return PLATFORM_KEY_KP_7;
             }
             case KEY_KP8:
             {
-                return 328;
+                return PLATFORM_KEY_KP_8;
             }
             case KEY_KP9:
             {
-                return 329;
+                return PLATFORM_KEY_KP_9;
             }
             case KEY_KPDOT:
             case KEY_KPCOMMA:
             {
-                return 330;
+                return PLATFORM_KEY_KP_DECIMAL;
             }
             case KEY_KPSLASH:
             {
-                return 331;
+                return PLATFORM_KEY_KP_DIVIDE;
             }
             case KEY_KPASTERISK:
             {
-                return 332;
+                return PLATFORM_KEY_KP_MULTIPLY;
             }
             case KEY_KPMINUS:
             {
-                return 333;
+                return PLATFORM_KEY_KP_SUBTRACT;
             }
             case KEY_KPPLUS:
             {
-                return 334;
+                return PLATFORM_KEY_KP_ADD;
             }
             case KEY_KPENTER:
             {
-                return 335;
+                return PLATFORM_KEY_KP_ENTER;
             }
             case KEY_KPEQUAL:
             {
-                return 336;
+                return PLATFORM_KEY_KP_EQUAL;
             }
             case KEY_LEFTSHIFT:
             {
-                return 340;
+                return PLATFORM_KEY_LSHIFT;
             }
             case KEY_LEFTCTRL:
             {
-                return 341;
+                return PLATFORM_KEY_LCTRL;
             }
             case KEY_LEFTALT:
             {
-                return 342;
+                return PLATFORM_KEY_LALT;
             }
             case KEY_LEFTMETA:
             {
-                return 343;
+                return PLATFORM_KEY_LSUPER;
             }
             case KEY_RIGHTSHIFT:
             {
-                return 344;
+                return PLATFORM_KEY_RSHIFT;
             }
             case KEY_RIGHTCTRL:
             {
-                return 345;
+                return PLATFORM_KEY_RCTRL;
             }
             case KEY_RIGHTALT:
             {
-                return 346;
+                return PLATFORM_KEY_RALT;
             }
             case KEY_RIGHTMETA:
             {
-                return 347;
+                return PLATFORM_KEY_RSUPER;
             }
             case KEY_COMPOSE:
             case KEY_MENU:
             {
-                return 348;
+                return PLATFORM_KEY_MENU;
             }
             default:
             {

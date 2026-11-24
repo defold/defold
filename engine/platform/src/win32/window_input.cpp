@@ -13,13 +13,14 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_win32.h"
+#include "../window_desktop_keys.h"
 #include <imm.h>
 #include <windowsx.h>
 #include <math.h>
 
 namespace dmPlatform
 {
-    // Physical PC scan codes map to the desktop key numbers used in compiled input bindings.
+    // Map physical PC scan codes to the desktop window key codes accepted by GetKey.
     static int KeyCode(WPARAM key, LPARAM flags)
     {
         unsigned scan = (flags >> 16) & 0xff;
@@ -30,17 +31,17 @@ namespace dmPlatform
 
         if (key == VK_PAUSE)
         {
-            return 284;
+            return PLATFORM_KEY_PAUSE;
         }
 
         if (key == VK_SNAPSHOT)
         {
-            return 283;
+            return PLATFORM_KEY_PRINT_SCREEN;
         }
 
         if (key == VK_NUMLOCK)
         {
-            return 282;
+            return PLATFORM_KEY_KP_NUM_LOCK;
         }
 
         // Some CJK input methods also set the extended bit on the ordinary right Shift scan code.
@@ -50,71 +51,71 @@ namespace dmPlatform
             {
                 case 0x1c:
                 {
-                    return 335;        // Keypad Enter
+                    return PLATFORM_KEY_KP_ENTER;
                 }
                 case 0x1d:
                 {
-                    return 345;        // Right Control
+                    return PLATFORM_KEY_RCTRL;
                 }
                 case 0x35:
                 {
-                    return 331;
+                    return PLATFORM_KEY_KP_DIVIDE;
                 }
                 case 0x38:
                 {
-                    return 346;
+                    return PLATFORM_KEY_RALT;
                 }
                 case 0x47:
                 {
-                    return 268;
+                    return PLATFORM_KEY_HOME;
                 }
                 case 0x48:
                 {
-                    return 265;
+                    return PLATFORM_KEY_UP;
                 }
                 case 0x49:
                 {
-                    return 266;
+                    return PLATFORM_KEY_PAGEUP;
                 }
                 case 0x4b:
                 {
-                    return 263;
+                    return PLATFORM_KEY_LEFT;
                 }
                 case 0x4d:
                 {
-                    return 262;
+                    return PLATFORM_KEY_RIGHT;
                 }
                 case 0x4f:
                 {
-                    return 269;
+                    return PLATFORM_KEY_END;
                 }
                 case 0x50:
                 {
-                    return 264;
+                    return PLATFORM_KEY_DOWN;
                 }
                 case 0x51:
                 {
-                    return 267;
+                    return PLATFORM_KEY_PAGEDOWN;
                 }
                 case 0x52:
                 {
-                    return 260;
+                    return PLATFORM_KEY_INSERT;
                 }
                 case 0x53:
                 {
-                    return 261;
+                    return PLATFORM_KEY_DEL;
                 }
                 case 0x5b:
                 {
-                    return 343;
+                    return PLATFORM_KEY_LSUPER;
                 }
                 case 0x5c:
                 {
-                    return 347;
+                    return PLATFORM_KEY_RSUPER;
                 }
                 case 0x5d:
                 {
-                    return 348;
+                    return PLATFORM_KEY_MENU;
                 }
                 default:
                 {
@@ -123,22 +124,39 @@ namespace dmPlatform
             }
         }
 
-        static const short codes[] = {
-            -1, 256, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 259, 258,
-            'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', 257, 341, 'A', 'S',
-            'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', 39, 96, 340, 92, 'Z', 'X', 'C', 'V',
-            'B', 'N', 'M', ',', '.', '/', 344, 332, 342, ' ', 280, 290, 291, 292, 293, 294,
-            295, 296, 297, 298, 299, 282, 281, 327, 328, 329, 333, 324, 325, 326, 334, 321,
-            322, 323, 320, 330, -1, -1, 162, 300, 301
+        static const int codes[] = {
+            /* 0x00 */ -1, PLATFORM_KEY_ESC, '1', '2',
+            /* 0x04 */ '3', '4', '5', '6',
+            /* 0x08 */ '7', '8', '9', '0',
+            /* 0x0C */ '-', '=', PLATFORM_KEY_BACKSPACE, PLATFORM_KEY_TAB,
+            /* 0x10 */ 'Q', 'W', 'E', 'R',
+            /* 0x14 */ 'T', 'Y', 'U', 'I',
+            /* 0x18 */ 'O', 'P', '[', ']',
+            /* 0x1C */ PLATFORM_KEY_ENTER, PLATFORM_KEY_LCTRL, 'A', 'S',
+            /* 0x20 */ 'D', 'F', 'G', 'H',
+            /* 0x24 */ 'J', 'K', 'L', ';',
+            /* 0x28 */ '\'', '`', PLATFORM_KEY_LSHIFT, '\\',
+            /* 0x2C */ 'Z', 'X', 'C', 'V',
+            /* 0x30 */ 'B', 'N', 'M', ',',
+            /* 0x34 */ '.', '/', PLATFORM_KEY_RSHIFT, PLATFORM_KEY_KP_MULTIPLY,
+            /* 0x38 */ PLATFORM_KEY_LALT, ' ', PLATFORM_KEY_CAPS_LOCK, PLATFORM_KEY_F1,
+            /* 0x3C */ PLATFORM_KEY_F2, PLATFORM_KEY_F3, PLATFORM_KEY_F4, PLATFORM_KEY_F5,
+            /* 0x40 */ PLATFORM_KEY_F6, PLATFORM_KEY_F7, PLATFORM_KEY_F8, PLATFORM_KEY_F9,
+            /* 0x44 */ PLATFORM_KEY_F10, PLATFORM_KEY_KP_NUM_LOCK, PLATFORM_KEY_SCROLL_LOCK, PLATFORM_KEY_KP_7,
+            /* 0x48 */ PLATFORM_KEY_KP_8, PLATFORM_KEY_KP_9, PLATFORM_KEY_KP_SUBTRACT, PLATFORM_KEY_KP_4,
+            /* 0x4C */ PLATFORM_KEY_KP_5, PLATFORM_KEY_KP_6, PLATFORM_KEY_KP_ADD, PLATFORM_KEY_KP_1,
+            /* 0x50 */ PLATFORM_KEY_KP_2, PLATFORM_KEY_KP_3, PLATFORM_KEY_KP_0, PLATFORM_KEY_KP_DECIMAL,
+            /* 0x54 */ -1, -1, PLATFORM_KEY_NON_US_2, PLATFORM_KEY_F11,
+            /* 0x58 */ PLATFORM_KEY_F12,
         };
         if (key >= VK_F13 && key <= VK_F24)
         {
-            return 302 + (int)key - VK_F13;
+            return PLATFORM_KEY_F13 + (int)key - VK_F13;
         }
 
         if (scan == 0x59)
         {
-            return 336; // Keypad equals
+            return PLATFORM_KEY_KP_EQUAL;
         }
 
         return scan < sizeof(codes) / sizeof(codes[0]) ? codes[scan] : -1;

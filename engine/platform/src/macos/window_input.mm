@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_macos.h"
-#include "../platform_window_constants.h"
+#include "../window_desktop_keys.h"
 #import <Carbon/Carbon.h>
 #include <math.h>
 
@@ -24,7 +24,7 @@ static int KeyCode(unsigned short native)
     static const int codes[] = {
         /* 0x00 */ 'A', 'S', 'D', 'F',
         /* 0x04 */ 'H', 'G', 'Z', 'X',
-        /* 0x08 */ 'C', 'V', 161, 'B',
+        /* 0x08 */ 'C', 'V', PLATFORM_KEY_NON_US_1, 'B',
         /* 0x0C */ 'Q', 'W', 'E', 'R',
         /* 0x10 */ 'Y', 'T', '1', '2',
         /* 0x14 */ '3', '4', '6', '5',
@@ -38,19 +38,19 @@ static int KeyCode(unsigned short native)
         /* 0x34 */ -1, PLATFORM_KEY_ESC, PLATFORM_KEY_RSUPER, PLATFORM_KEY_LSUPER,
         /* 0x38 */ PLATFORM_KEY_LSHIFT, PLATFORM_KEY_CAPS_LOCK, PLATFORM_KEY_LALT, PLATFORM_KEY_LCTRL,
         /* 0x3C */ PLATFORM_KEY_RSHIFT, PLATFORM_KEY_RALT, PLATFORM_KEY_RCTRL, -1,
-        /* 0x40 */ 306, PLATFORM_KEY_KP_DECIMAL, -1, PLATFORM_KEY_KP_MULTIPLY,
+        /* 0x40 */ PLATFORM_KEY_F17, PLATFORM_KEY_KP_DECIMAL, -1, PLATFORM_KEY_KP_MULTIPLY,
         /* 0x44 */ -1, PLATFORM_KEY_KP_ADD, -1, PLATFORM_KEY_KP_NUM_LOCK,
         /* 0x48 */ -1, -1, -1, PLATFORM_KEY_KP_DIVIDE,
-        /* 0x4C */ PLATFORM_KEY_KP_ENTER, -1, PLATFORM_KEY_KP_SUBTRACT, 307,
-        /* 0x50 */ 308, PLATFORM_KEY_KP_EQUAL, PLATFORM_KEY_KP_0, PLATFORM_KEY_KP_1,
+        /* 0x4C */ PLATFORM_KEY_KP_ENTER, -1, PLATFORM_KEY_KP_SUBTRACT, PLATFORM_KEY_F18,
+        /* 0x50 */ PLATFORM_KEY_F19, PLATFORM_KEY_KP_EQUAL, PLATFORM_KEY_KP_0, PLATFORM_KEY_KP_1,
         /* 0x54 */ PLATFORM_KEY_KP_2, PLATFORM_KEY_KP_3, PLATFORM_KEY_KP_4, PLATFORM_KEY_KP_5,
-        /* 0x58 */ PLATFORM_KEY_KP_6, PLATFORM_KEY_KP_7, 309, PLATFORM_KEY_KP_8,
+        /* 0x58 */ PLATFORM_KEY_KP_6, PLATFORM_KEY_KP_7, PLATFORM_KEY_F20, PLATFORM_KEY_KP_8,
         /* 0x5C */ PLATFORM_KEY_KP_9, -1, -1, -1,
         /* 0x60 */ PLATFORM_KEY_F5, PLATFORM_KEY_F6, PLATFORM_KEY_F7, PLATFORM_KEY_F3,
         /* 0x64 */ PLATFORM_KEY_F8, PLATFORM_KEY_F9, -1, PLATFORM_KEY_F11,
-        /* 0x68 */ -1, 283, 305, 303,
+        /* 0x68 */ -1, PLATFORM_KEY_PRINT_SCREEN, PLATFORM_KEY_F16, PLATFORM_KEY_F14,
         /* 0x6C */ -1, PLATFORM_KEY_F10, PLATFORM_KEY_MENU, PLATFORM_KEY_F12,
-        /* 0x70 */ -1, 304, PLATFORM_KEY_INSERT, PLATFORM_KEY_HOME,
+        /* 0x70 */ -1, PLATFORM_KEY_F15, PLATFORM_KEY_INSERT, PLATFORM_KEY_HOME,
         /* 0x74 */ PLATFORM_KEY_PAGEUP, PLATFORM_KEY_DEL, PLATFORM_KEY_F4, PLATFORM_KEY_END,
         /* 0x78 */ PLATFORM_KEY_F2, PLATFORM_KEY_PAGEDOWN, PLATFORM_KEY_F1, PLATFORM_KEY_LEFT,
         /* 0x7C */ PLATFORM_KEY_RIGHT, PLATFORM_KEY_DOWN, PLATFORM_KEY_UP, -1,
