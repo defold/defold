@@ -28,7 +28,7 @@ dependencies {
 
 tasks.register('compileTest', JavaCompile) {
     dependsOn 'distBob'
-    source = fileTree(dir: 'src', include: '**/com/dynamo/**')
+    source = fileTree(dir: 'src', includes: ['**/com/dynamo/**', '**/com/defold/extension/pipeline/**'])
     destinationDirectory = testClassesDir
     classpath = files("$project.bobDir/dist/bob.jar", configurations.testClasspath)
     options.encoding = 'UTF-8'

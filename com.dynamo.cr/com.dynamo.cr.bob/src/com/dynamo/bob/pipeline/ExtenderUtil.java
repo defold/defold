@@ -587,6 +587,32 @@ public class ExtenderUtil {
         return modified;
     }
 
+    @SuppressWarnings("unchecked")
+    private static boolean migrateWindowsVulkanSelection(Object value) {
+        if (!(value instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) value;
+        List<Object> enabled = new ArrayList<>();
+        List<Object> excluded = new ArrayList<>();
+        for (String key : List.of("libs", "engineLibs", "symbols")) {
+            if (context.get(key) instanceof List<?>) enabled.addAll((List<?>) context.get(key));
+        }
+        for (String key : List.of("excludeLibs", "excludeSymbols")) {
+            if (context.get(key) instanceof List<?>) excluded.addAll((List<?>) context.get(key));
+        }
+        if (!AppManifestMigration.isLegacyWindowsVulkanSelection(enabled, excluded)) {
+            return false;
+        }
+        for (String key : List.of("excludeLibs", "excludeSymbols")) {
+            List<Object> items = new ArrayList<>();
+            if (context.get(key) instanceof List<?>) items.addAll((List<?>) context.get(key));
+            items.add(key.equals("excludeLibs") ? "graphics_dx12" : "GraphicsAdapterDX12");
+            context.put(key, items);
+        }
+        return true;
+    }
+
     // Migrate legacy app manifest settings before upload, even without opening
     // the editor.
     private static byte[] migrateAppManifest(byte[] content) {
@@ -626,6 +652,7 @@ public class ExtenderUtil {
                             || "x86-win32".equals(platform.getKey())
                             || "x86_64-win32".equals(platform.getKey())) {
                         modified |= migrateLibraryNames(context, AppManifestMigration.WINDOWS_LIBRARY_NAMES);
+                        modified |= migrateWindowsVulkanSelection(context);
                     }
                     modified |= migrateRecordExclusions(context, platform.getKey());
                 }

@@ -1,0 +1,9 @@
+name: "episode_09"
+instances {
+  id: "actor"
+  prototype: "/episodes/common/actor.go"
+}
+instances {
+  id: "episode"
+  prototype: "/episodes/09/episode.go"
+}

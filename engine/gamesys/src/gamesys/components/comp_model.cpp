@@ -1863,6 +1863,17 @@ namespace dmGameSystem
         const bool               use_transform_layout = GetInstanceTransformLayout(material_infos, &transform_layout);
         const bool               share_batch_vertex_data = use_transform_layout && CanShareVertexData(material_infos);
 
+        uint8_t animation_attribute_index = dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX;
+        if (!use_transform_layout)
+        {
+            animation_attribute_index = dmRender::GetMaterialAttributeIndex(render_material, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+            if (animation_attribute_index != dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX &&
+                material_infos.m_Infos[animation_attribute_index].m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+            {
+                animation_attribute_index = dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX;
+            }
+        }
+
         int32_t                  first_free_index = FillTextures(&ro, component, material_index);
         MeshAttributeRenderData  shared_attribute_data;
         bool                     has_shared_attribute_data = false;
@@ -1929,6 +1940,16 @@ namespace dmGameSystem
                         if (instance_render_item->m_DynamicVertexAttributesDirty)
                         {
                             SetMeshAttributeRenderData(world, instance_component, render_context, &material_infos, attribute_infos, instance_render_item, instance_component->m_Resource->m_Materials[material_index].m_Attributes, instance_component->m_Resource->m_Materials[material_index].m_AttributeCount, attribute_rd);
+
+                            // The vertex rebuild filters the shared scratch list. Restore the full
+                            // attribute list before writing this instance's data.
+                            FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                                               instance_render_item->m_DynamicVertexAttributeIndex,
+                                               instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                                               instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                                               &material_infos,
+                                               attribute_infos,
+                                               GetRenderMaterialCoordinateSpace(render_material));
                         }
                     }
 
@@ -1985,7 +2006,32 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    // animation_data is an internal attribute without a semantic. Supply it
+                    // explicitly so the generic writer retains skinning alongside custom values.
+                    dmGraphics::VertexAttributeInfo* animation_attribute = 0;
+                    dmGraphics::VertexAttributeInfo saved_animation_attribute;
+                    uint8_t animation_values[sizeof(dmVMath::Vector4)];
+                    if (animation_attribute_index != dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX)
+                    {
+                        dmGraphics::VertexAttributeInfo& info = (dmGraphics::VertexAttributeInfo&)attribute_infos->m_Infos[animation_attribute_index];
+                        animation_attribute = &info;
+                        saved_animation_attribute = info;
+                        dmVMath::Vector4 animation_data = IsRenderItemSkinned(instance_component, instance_render_item) ? GetModelAnimationData(world, instance_component, graphics_context) : dmVMath::Vector4(0.0f);
+                        uint8_t* animation_value_ptr = animation_values;
+                        for (uint32_t element = 0; element < 4; ++element)
+                        {
+                            animation_value_ptr = dmGraphics::WriteVertexAttributeFromFloat(animation_value_ptr, animation_data.getElem(element), info.m_DataType);
+                        }
+
+                        info.m_ValuePtr = animation_values;
+                        info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                    }
+
                     instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
+                    if (animation_attribute)
+                    {
+                        *animation_attribute = saved_animation_attribute;
+                    }
                 }
                 if (IsRenderItemSkinned(instance_component, instance_render_item))
                     SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);

@@ -44,12 +44,45 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch (family)
+        {
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
+            default:
+            {
+                break;
+            }
+        }
+
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
+
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
                                  GraphicsAdapterIsSupportedCb              is_supported_cb,
                                  GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
                                  GraphicsAdapterGetContextCb               get_context_cb,
                                  int8_t                                    priority)
     {
+        for (GraphicsAdapter* registered = g_adapter_list; registered; registered = registered->m_Next)
+        {
+            if (registered->m_Family == adapter->m_Family)
+            {
+                dmLogError("Cannot register graphics adapter '%s' because an adapter for this family is already registered.", GetAdapterFamilyLiteral(adapter->m_Family));
+                return;
+            }
+        }
+
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_GetContextCb  = get_context_cb;
@@ -131,30 +164,6 @@ namespace dmGraphics
 
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
-    }
-
-    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
-
-    const char* GetAdapterFamilyLiteral(AdapterFamily family)
-    {
-        switch (family)
-        {
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
-            default:
-            {
-                break;
-            }
-        }
-
-        return "<unknown dmGraphics::AdapterFamily>";
     }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
@@ -2071,8 +2080,7 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while ((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
@@ -2179,6 +2187,11 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while ((next = it.Next()))
         {
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            {
+                continue;
+            }
+
             const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
             uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
         }
@@ -3010,6 +3023,11 @@ namespace dmGraphics
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
 
@@ -3041,6 +3059,11 @@ namespace dmGraphics
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
 

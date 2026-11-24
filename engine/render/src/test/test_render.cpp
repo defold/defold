@@ -1308,6 +1308,151 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
 
+static const char* SPARSE_TEXTURE_SAMPLERS[] = {
+    "texture_sampler_0", "texture_sampler_1", "texture_sampler_2",
+    "texture_sampler_3", "texture_sampler_4", "scene_ao_texture"
+};
+
+static dmGraphics::HProgram MakeSparseTextureProgram(dmGraphics::HContext context, bool compute)
+{
+    const char* shader_src = "uniform sampler2D texture_sampler_0;\n"
+                             "uniform sampler2D texture_sampler_1;\n"
+                             "uniform sampler2D texture_sampler_2;\n"
+                             "uniform sampler2D texture_sampler_3;\n"
+                             "uniform sampler2D texture_sampler_4;\n"
+                             "uniform sampler2D scene_ao_texture;\n";
+    dmGraphics::ShaderDescBuilder builder;
+    if (compute)
+    {
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
+    }
+    else
+    {
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+    {
+        builder.AddTexture(SPARSE_TEXTURE_SAMPLERS[i], i, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    }
+
+    return dmGraphics::NewProgram(context, builder.Get(), 0, 0);
+}
+
+// Keeps scene AO at sampler 5 when optional material maps are absent, including material overrides and later unbinding.
+TEST_F(dmRenderTest, TestSparseNamedTextureBindings)
+{
+    dmGraphics::HProgram program = MakeSparseTextureProgram(m_GraphicsContext, false);
+    dmRender::HMaterial materials[] = {
+        dmRender::NewMaterial(m_Context, program), dmRender::NewMaterial(m_Context, program)
+    };
+    dmhash_t tag = dmHashString64("sparse_textures");
+    for (uint32_t material = 0; material < DM_ARRAY_SIZE(materials); ++material)
+    {
+        dmRender::SetMaterialTags(materials[material], 1, &tag);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+        {
+            ASSERT_TRUE(dmRender::SetMaterialSampler(materials[material], dmHashString64(SPARSE_TEXTURE_SAMPLERS[i]), i,
+                                                     dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+                                                     dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+        }
+    }
+
+    dmGraphics::HTexture material_textures[] = {
+        MakeDummyTexture(m_GraphicsContext), MakeDummyTexture(m_GraphicsContext), MakeDummyTexture(m_GraphicsContext)
+    };
+    dmRender::RenderObject object;
+    object.m_Material = materials[0];
+    object.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    object.m_VertexBuffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    object.m_VertexCount = 1;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &object));
+
+    const dmhash_t ao_sampler = dmHashString64("scene_ao_texture");
+    for (uint32_t override_material = 0; override_material < 2; ++override_material)
+    {
+        m_Context->m_Material = override_material ? materials[1] : 0;
+        for (uint32_t use_material_maps = 0; use_material_maps < 2; ++use_material_maps)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+            {
+                object.m_Textures[i] = use_material_maps ? material_textures[i] : 0;
+            }
+
+            dmGraphics::HTexture ao_texture = MakeDummyTexture(m_GraphicsContext);
+            dmRender::SetTextureBindingByHash(m_Context, ao_sampler, ao_texture);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+            ASSERT_EQ(5, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, ao_texture, 0));
+            if (use_material_maps)
+            {
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+                {
+                    ASSERT_EQ((int32_t) i, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, material_textures[i], 0));
+                }
+            }
+
+            // Mark the texture so a stale binding in the next draw is observable.
+            dmGraphics::EnableTexture(m_GraphicsContext, 15, 0, ao_texture);
+            dmGraphics::DisableTexture(m_GraphicsContext, 15, ao_texture);
+            dmRender::SetTextureBindingByHash(m_Context, ao_sampler, 0);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+            ASSERT_EQ(15, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, ao_texture, 0));
+            ASSERT_EQ(0u, m_Context->m_TextureBindTable.Size());
+            dmGraphics::DeleteTexture(m_GraphicsContext, ao_texture);
+        }
+    }
+
+    m_Context->m_Material = 0;
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteVertexBuffer(object.m_VertexBuffer);
+    dmGraphics::DeleteVertexDeclaration(object.m_VertexDeclaration);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+    {
+        dmGraphics::DeleteTexture(m_GraphicsContext, material_textures[i]);
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Compute dispatches preserve named sampler slots with gaps and stop using textures after unbinding.
+TEST_F(dmRenderTest, TestSparseComputeTextureBindings)
+{
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, 1 << dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER);
+    dmGraphics::HProgram program = MakeSparseTextureProgram(m_GraphicsContext, true);
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, program);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+    {
+        ASSERT_TRUE(dmRender::SetComputeProgramSampler(compute_program, dmHashString64(SPARSE_TEXTURE_SAMPLERS[i]), i,
+                                                       dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+                                                       dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+    }
+
+    m_Context->m_ComputeProgram = compute_program;
+    dmGraphics::HTexture texture = MakeDummyTexture(m_GraphicsContext);
+    const dmhash_t sampler = dmHashString64("scene_ao_texture");
+    dmRender::SetTextureBindingByHash(m_Context, sampler, texture);
+    dmRender::DispatchCompute(m_Context, 1, 1, 1, 0);
+    ASSERT_EQ(5, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, texture, 0));
+
+    dmGraphics::EnableTexture(m_GraphicsContext, 15, 0, texture);
+    dmGraphics::DisableTexture(m_GraphicsContext, 15, texture);
+    dmRender::SetTextureBindingByHash(m_Context, sampler, 0);
+    dmRender::DispatchCompute(m_Context, 1, 1, 1, 0);
+    ASSERT_EQ(15, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, texture, 0));
+    ASSERT_EQ(0u, m_Context->m_TextureBindTable.Size());
+
+    m_Context->m_ComputeProgram = 0;
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
+    dmRender::DeleteComputeProgram(m_Context, compute_program);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, TestRenderObjectMaxTextureBindings)
 {
     dmGraphics::ShaderDescBuilder shader_desc_builder;

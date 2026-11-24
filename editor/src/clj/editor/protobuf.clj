@@ -563,7 +563,7 @@ Macros currently mean no foreseeable performance gain, however."
                                (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                                  (pb-value->clj field-pb-value))))))))))))))
 
-(def ^:private pb->clj-fn (fn/memoize-late-bound {:timeout-ms 1000} pb->clj-fn-raw))
+(def ^:private pb->clj-fn (fn/memoize-late-bound pb->clj-fn-raw))
 
 (def ^:private pb->clj-with-defaults-fn (fn/memoize #(pb->clj-fn % #{:pb-field-kind/optional :pb-field-kind/required})))
 
@@ -860,7 +860,7 @@ Macros currently mean no foreseeable performance gain, however."
       (comp builder-fn vector->map)
       builder-fn)))
 
-(def ^:private pb-builder (fn/memoize-late-bound {:timeout-ms 1000} pb-builder-raw))
+(def ^:private pb-builder (fn/memoize-late-bound pb-builder-raw))
 
 (defmacro map->pb [^Class cls m]
   (cond-> `((#'pb-builder ~cls) ~m)
