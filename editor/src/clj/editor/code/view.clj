@@ -2069,7 +2069,7 @@
 
 (defn- request-signature-help! [view-node]
   (let [resource (g/node-value (get-property view-node :resource-node) :resource)
-        cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+        cursor (data/cursor-range-start (first (get-property view-node :cursor-ranges)))
         request [(get-property view-node :lines) cursor]]
     (g/user-data! view-node :signature-help-request request)
     (lsp/signature-help!
@@ -4119,10 +4119,8 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- signature-help-popup-view [{:keys [canvas-repaint-info cursor signature-help font-name font-size view-node]}]
-  (let [{:keys [^Canvas canvas layout lines]} canvas-repaint-info
-        ^Rect r (data/cursor-rect layout lines (data/adjust-cursor lines cursor))
-        anchor (.localToScreen canvas (.x r) (.y r))
+(defn- signature-help-popup-view [{:keys [canvas-repaint-info signature-help font-name font-size view-node]}]
+  (let [{:keys [^Canvas canvas]} canvas-repaint-info
         {:keys [label start end]} signature-help
         text (fn [s fill bold]
                {:fx/type fx.text/lifecycle
@@ -4132,29 +4130,34 @@
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ui/ext-value :value canvas}
      :popup
-     {:fx/type fx.popup/lifecycle
+     {:fx/type fx/ext-on-instance-lifecycle
       :showing true
-      :anchor-x (.getX anchor)
-      :anchor-y (.getY anchor)
-      :anchor-location :window-bottom-left
-      :auto-hide true
-      :auto-fix true
-      :hide-on-escape false
-      :consume-auto-hiding-events false
-      :on-hidden (fn [_] (hide-signature-help! view-node))
-      :content
-      [{:fx/type fx.stack-pane/lifecycle
-        :stylesheets [(str (io/resource "editor.css"))]
-        :children
-        [{:fx/type fx.region/lifecycle
-          :style-class "hover-background"}
-         {:fx/type fx.text-flow/lifecycle
-          :padding 6
-          :children (if start
-                      [(text (subs label 0 start) "#a2b0be" false)
-                       (text (subs label start end) "#4cb1ff" true)
-                       (text (subs label end) "#a2b0be" false)]
-                      [(text label "#a2b0be" false)])}]}]}}))
+      :on-created #(g/user-data! view-node :signature-help-window %)
+      :on-deleted (fn [_]
+                    (g/user-data! view-node :signature-help-window nil)
+                    (g/user-data! view-node :signature-help-anchor nil))
+      :desc
+      {:fx/type fx.popup/lifecycle
+       :anchor-location :window-bottom-left
+       :auto-hide true
+       :auto-fix true
+       :hide-on-escape false
+       :consume-auto-hiding-events false
+       :on-hidden (fn [_] (hide-signature-help! view-node))
+       :content
+       [{:fx/type fx.stack-pane/lifecycle
+         :stylesheets [(str (io/resource "editor.css"))]
+         :children
+         [{:fx/type fx.region/lifecycle
+           :style-class "hover-background"}
+          {:fx/type fx.text-flow/lifecycle
+           :padding 6
+           :max-width 600
+           :children (if start
+                       [(text (subs label 0 start) "#a2b0be" false)
+                        (text (subs label start end) "#4cb1ff" true)
+                        (text (subs label end) "#a2b0be" false)]
+                       [(text label "#a2b0be" false)])}]}]}}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
@@ -4220,7 +4223,7 @@
 
     (when editable
       (let [signature-help (get-property view-node :signature-help)
-            cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
+            cursor (data/cursor-range-start (first (get-property view-node :cursor-ranges)))]
         (when (and signature-help
                    (not= [(get-property view-node :lines) cursor] (g/user-data view-node :signature-help-request)))
           (request-signature-help! view-node))
@@ -4229,11 +4232,18 @@
           (when signature-help
             {:fx/type signature-help-popup-view
              :canvas-repaint-info canvas-repaint-info
-             :cursor cursor
              :signature-help signature-help
              :font-name (get-property view-node :font-name)
              :font-size (get-property view-node :font-size)
-             :view-node view-node}))))
+             :view-node view-node}))
+        (when-let [^PopupWindow window (and signature-help (g/user-data view-node :signature-help-window))]
+          (let [{:keys [^Canvas canvas layout lines]} canvas-repaint-info
+                ^Rect r (data/cursor-rect layout lines (data/adjust-cursor lines cursor))
+                anchor (.localToScreen canvas (.x r) (.y r))]
+            (when-not (= anchor (g/user-data view-node :signature-help-anchor))
+              (g/user-data! view-node :signature-help-anchor anchor)
+              (.setAnchorX window (.getX anchor))
+              (.setAnchorY window (.getY anchor)))))))
 
     ;; Repaint hovered regions
     (ui/advance-graph-user-data-component!
