@@ -78,6 +78,7 @@ namespace dmGraphics
     {
         StorageBuffer m_Base;
         WGPUBuffer    m_Buffer;
+        uint8_t*      m_Data; // Content uploaded from the CPU, uploaded again after a lost device. Shader writes are not kept.
         uint64_t      m_LastRenderPass = 0;
         uint32_t      m_DeviceGeneration = 0;
         uint8_t       m_RenderPassAccess = 0;

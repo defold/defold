@@ -3189,20 +3189,29 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
     delete ubo;
 }
 
-static void WebGPUEnsureStorageBuffer(WebGPUContext* context, WebGPUStorageBuffer* buffer)
+// Storage buffers have no resource to reload them from, so a buffer replaced on a new device is
+// filled with the content last uploaded to it. Returns true if the buffer was replaced.
+static bool WebGPUEnsureStorageBuffer(WebGPUContext* context, WebGPUStorageBuffer* buffer)
 {
     if (buffer->m_Buffer && !WebGPUIsStale(buffer->m_DeviceGeneration))
     {
-        return;
+        return false;
     }
 
-    if (buffer->m_Buffer)
+    const bool stale = buffer->m_Buffer != NULL;
+    if (stale)
     {
         wgpuBufferRelease(buffer->m_Buffer);
     }
 
     buffer->m_Buffer = WebGPUCreateBuffer(context, buffer->m_Base.m_Size, WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst, &buffer->m_DeviceGeneration);
     buffer->m_LastRenderPass = 0;
+    if (stale)
+    {
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, buffer->m_Data, buffer->m_Base.m_Size);
+    }
+
+    return stale;
 }
 
 static HStorageBuffer WebGPUNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -3211,6 +3220,12 @@ static HStorageBuffer WebGPUNewStorageBuffer(HContext _context, uint32_t size, c
     WebGPUStorageBuffer* buffer = new WebGPUStorageBuffer();
     buffer->m_Base.m_Size = size;
     buffer->m_Base.m_Usage = buffer_usage;
+    buffer->m_Data = (uint8_t*) calloc(size, 1);
+    if (data)
+    {
+        memcpy(buffer->m_Data, data, size);
+    }
+
     WebGPUEnsureStorageBuffer(context, buffer);
     if (data) wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, data, size);
     return (HStorageBuffer) buffer;
@@ -3246,6 +3261,7 @@ static void WebGPUDeleteStorageBuffer(HContext _context, HStorageBuffer storage_
     // the old native buffer, including groups for programs no longer selected.
     WebGPUInvalidateBindGroups((WebGPUContext*) _context);
     wgpuBufferRelease(buffer->m_Buffer);
+    free(buffer->m_Data);
     delete buffer;
 }
 
@@ -3260,11 +3276,22 @@ static void WebGPUSetStorageBufferData(HContext _context, HStorageBuffer storage
         wgpuBufferRelease(buffer->m_Buffer);
         buffer->m_Buffer = NULL;
         buffer->m_Base.m_Size = size;
+        free(buffer->m_Data);
+        buffer->m_Data = (uint8_t*) calloc(size, 1);
     }
 
-    WebGPUEnsureStorageBuffer(context, buffer);
+    // Without data, the content of a buffer of the same size is kept
+    if (data)
+    {
+        memcpy(buffer->m_Data, data, size);
+    }
+
     buffer->m_Base.m_Usage = buffer_usage;
-    if (data) wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, data, size);
+    // A replaced buffer is filled with the whole content, this write included
+    if (!WebGPUEnsureStorageBuffer(context, buffer) && data)
+    {
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, 0, data, size);
+    }
 }
 
 static void WebGPUSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
@@ -3272,9 +3299,12 @@ static void WebGPUSetStorageBufferSubData(HContext _context, HStorageBuffer stor
     WebGPUContext* context = (WebGPUContext*) _context;
     WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*) storage_buffer;
     assert(offset + size <= buffer->m_Base.m_Size);
+    memcpy(buffer->m_Data + offset, data, size);
     WebGPUSubmitCommandEncoder(context);
-    WebGPUEnsureStorageBuffer(context, buffer);
-    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+    if (!WebGPUEnsureStorageBuffer(context, buffer))
+    {
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+    }
 }
 
 static uint32_t WebGPUGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)

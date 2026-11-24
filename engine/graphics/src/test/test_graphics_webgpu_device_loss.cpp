@@ -38,6 +38,73 @@ static const char* UNIFORM_FRAGMENT_SOURCE =
     "  return colors.color + colors.tint;\n"
     "}\n";
 
+static const char* STORAGE_FRAGMENT_SOURCE =
+    "struct Colors { color: vec4<f32>, tint: vec4<f32>, };\n"
+    "@group(0) @binding(0) var<storage, read> colors: Colors;\n"
+    "@fragment fn main() -> @location(0) vec4<f32> {\n"
+    "  return colors.color + colors.tint;\n"
+    "}\n";
+
+// Reflection of a fragment shader returning the sum of the two vec4 members of a buffer at set 0, binding 0
+struct ColorsShaderDesc
+{
+    dmGraphics::ShaderDesc::ResourceMember   m_Members[2];
+    dmGraphics::ShaderDesc::ResourceTypeInfo m_Type;
+    dmGraphics::ShaderDesc::ResourceBinding  m_Colors;
+    dmGraphics::ShaderDesc::Shader           m_Shaders[2];
+    dmGraphics::ShaderDesc                   m_Desc;
+
+    ColorsShaderDesc(const dmGraphics::ShaderDesc::Shader& vertex, bool storage)
+    {
+        memset(m_Members, 0, sizeof(m_Members));
+        const char* member_names[] = { "color", "tint" };
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            m_Members[i].m_Name                     = member_names[i];
+            m_Members[i].m_NameHash                 = dmHashString64(member_names[i]);
+            m_Members[i].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+            m_Members[i].m_ElementCount             = 1;
+            m_Members[i].m_Offset                   = i * sizeof(dmVMath::Vector4);
+        }
+
+        memset(&m_Type, 0, sizeof(m_Type));
+        m_Type.m_Name            = "Colors";
+        m_Type.m_NameHash        = dmHashString64("Colors");
+        m_Type.m_Members.m_Data  = m_Members;
+        m_Type.m_Members.m_Count = 2;
+        memset(&m_Colors, 0, sizeof(m_Colors));
+        m_Colors.m_Name                    = "colors";
+        m_Colors.m_NameHash                = dmHashString64("colors");
+        m_Colors.m_Type.m_Type.m_TypeIndex = 0;
+        m_Colors.m_Type.m_UseTypeIndex     = 1;
+        m_Colors.m_StageFlags              = dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
+        m_Colors.m_Bindinginfo.m_BlockSize = 2 * sizeof(dmVMath::Vector4);
+        const char* fragment_source = storage ? STORAGE_FRAGMENT_SOURCE : UNIFORM_FRAGMENT_SOURCE;
+        m_Shaders[0] = vertex;
+        memset(&m_Shaders[1], 0, sizeof(m_Shaders[1]));
+        m_Shaders[1].m_ShaderType     = dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT;
+        m_Shaders[1].m_Language       = dmGraphics::ShaderDesc::LANGUAGE_WGSL;
+        m_Shaders[1].m_Source.m_Data  = (uint8_t*) fragment_source;
+        m_Shaders[1].m_Source.m_Count = strlen(fragment_source);
+        memset(&m_Desc, 0, sizeof(m_Desc));
+        m_Desc.m_Shaders.m_Data             = m_Shaders;
+        m_Desc.m_Shaders.m_Count            = 2;
+        m_Desc.m_Reflection.m_Types.m_Data  = &m_Type;
+        m_Desc.m_Reflection.m_Types.m_Count = 1;
+        if (storage)
+        {
+            m_Colors.m_ResourceAccessFlags               = dmGraphics::SHADER_RESOURCE_ACCESS_READ;
+            m_Desc.m_Reflection.m_StorageBuffers.m_Data  = &m_Colors;
+            m_Desc.m_Reflection.m_StorageBuffers.m_Count = 1;
+        }
+        else
+        {
+            m_Desc.m_Reflection.m_UniformBuffers.m_Data  = &m_Colors;
+            m_Desc.m_Reflection.m_UniformBuffers.m_Count = 1;
+        }
+    }
+};
+
 struct ValidationResult
 {
     WGPUPopErrorScopeStatus m_Status;
@@ -204,26 +271,39 @@ struct WebGPUDeviceLossTest : jc_test_base_class
         WebGPUSetTexture(m_GraphicsContext, texture, params);
     }
 
-    void DrawPixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program, dmGraphics::HTexture texture, uint8_t bgra[4])
+    void BeginPixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program)
     {
         dmGraphics::RenderTargetBindingParams binding = {};
         WebGPUSetRenderTarget(m_GraphicsContext, rt, binding);
         WebGPUSetViewport(m_GraphicsContext, 0, 0, 1, 1);
         WebGPUEnableProgram(m_GraphicsContext, program);
-        WebGPUEnableTexture(m_GraphicsContext, 0, 0, texture);
+    }
+
+    void EndPixel(uint8_t bgra[4])
+    {
         WebGPUDraw(m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         WebGPUReadPixels(m_GraphicsContext, 0, 0, 1, 1, bgra, 4);
     }
 
+    void DrawPixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program, dmGraphics::HTexture texture, uint8_t bgra[4])
+    {
+        BeginPixel(rt, program);
+        WebGPUEnableTexture(m_GraphicsContext, 0, 0, texture);
+        EndPixel(bgra);
+    }
+
     void DrawUniformPixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program, dmGraphics::HUniformBuffer buffer, uint8_t bgra[4])
     {
-        dmGraphics::RenderTargetBindingParams binding = {};
-        WebGPUSetRenderTarget(m_GraphicsContext, rt, binding);
-        WebGPUSetViewport(m_GraphicsContext, 0, 0, 1, 1);
-        WebGPUEnableProgram(m_GraphicsContext, program);
+        BeginPixel(rt, program);
         WebGPUEnableUniformBuffer(m_GraphicsContext, buffer, 0, 0);
-        WebGPUDraw(m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
-        WebGPUReadPixels(m_GraphicsContext, 0, 0, 1, 1, bgra, 4);
+        EndPixel(bgra);
+    }
+
+    void DrawStoragePixel(dmGraphics::HRenderTarget rt, dmGraphics::HProgram program, dmGraphics::HStorageBuffer buffer, uint8_t bgra[4])
+    {
+        BeginPixel(rt, program);
+        WebGPUEnableStorageBuffer(m_GraphicsContext, buffer, 0, 0);
+        EndPixel(bgra);
     }
 };
 
@@ -371,45 +451,8 @@ TEST_F(WebGPUDeviceLossTest, UniformBuffersKeepContent)
         SKIP();
     }
 
-    dmGraphics::ShaderDesc::ResourceMember members[2];
-    memset(members, 0, sizeof(members));
-    const char* member_names[] = { "color", "tint" };
-    for (uint32_t i = 0; i < 2; ++i)
-    {
-        members[i].m_Name                     = member_names[i];
-        members[i].m_NameHash                 = dmHashString64(member_names[i]);
-        members[i].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        members[i].m_ElementCount             = 1;
-        members[i].m_Offset                   = i * sizeof(dmVMath::Vector4);
-    }
-
-    dmGraphics::ShaderDesc::ResourceTypeInfo type;
-    memset(&type, 0, sizeof(type));
-    type.m_Name            = "Colors";
-    type.m_NameHash        = dmHashString64("Colors");
-    type.m_Members.m_Data  = members;
-    type.m_Members.m_Count = 2;
-    dmGraphics::ShaderDesc::ResourceBinding colors;
-    memset(&colors, 0, sizeof(colors));
-    colors.m_Name                    = "colors";
-    colors.m_NameHash                = dmHashString64("colors");
-    colors.m_Type.m_Type.m_TypeIndex = 0;
-    colors.m_Type.m_UseTypeIndex     = 1;
-    colors.m_StageFlags              = dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
-    colors.m_Bindinginfo.m_BlockSize = 2 * sizeof(dmVMath::Vector4);
-    dmGraphics::ShaderDesc::Shader shaders[2];
-    memcpy(shaders, m_Shaders, sizeof(shaders));
-    shaders[1].m_Source.m_Data  = (uint8_t*) UNIFORM_FRAGMENT_SOURCE;
-    shaders[1].m_Source.m_Count = strlen(UNIFORM_FRAGMENT_SOURCE);
-    dmGraphics::ShaderDesc desc;
-    memset(&desc, 0, sizeof(desc));
-    desc.m_Shaders.m_Data                       = shaders;
-    desc.m_Shaders.m_Count                      = 2;
-    desc.m_Reflection.m_UniformBuffers.m_Data   = &colors;
-    desc.m_Reflection.m_UniformBuffers.m_Count  = 1;
-    desc.m_Reflection.m_Types.m_Data            = &type;
-    desc.m_Reflection.m_Types.m_Count           = 1;
-
+    ColorsShaderDesc colors(m_Shaders[0], false);
+    dmGraphics::ShaderDesc& desc = colors.m_Desc;
     dmGraphics::HRenderTarget rt = NewRenderTarget();
     dmGraphics::HProgram program = WebGPUNewProgram(m_GraphicsContext, &desc, 0, 0);
     ASSERT_NE((dmGraphics::HProgram)0, program);
@@ -455,6 +498,73 @@ TEST_F(WebGPUDeviceLossTest, UniformBuffersKeepContent)
     for (uint32_t i = 0; i < 2; ++i)
     {
         WebGPUDeleteUniformBuffer(m_GraphicsContext, buffers[i]);
+    }
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    DeleteRenderTarget(rt);
+}
+
+// Storage buffers recreated on the new device keep the content uploaded before the loss: written
+// once at creation, resized by a full write, kept by a write without data, and partially written
+// after the loss. Guards against restored draws reading zeros from storage buffers.
+TEST_F(WebGPUDeviceLossTest, StorageBuffersKeepContent)
+{
+    if (!m_HasDevice)
+    {
+        SKIP();
+    }
+
+    ColorsShaderDesc colors(m_Shaders[0], true);
+    dmGraphics::ShaderDesc& desc = colors.m_Desc;
+    dmGraphics::HRenderTarget rt = NewRenderTarget();
+    dmGraphics::HProgram program = WebGPUNewProgram(m_GraphicsContext, &desc, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+
+    const dmVMath::Vector4 contents[4][2] = {
+        { dmVMath::Vector4(1, 0, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+        { dmVMath::Vector4(0, 1, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+        { dmVMath::Vector4(0, 0, 1, 1), dmVMath::Vector4(0, 0, 0, 0) },
+        { dmVMath::Vector4(1, 1, 0, 1), dmVMath::Vector4(0, 0, 0, 0) },
+    };
+    dmGraphics::HStorageBuffer buffers[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        const uint32_t size = i == 2 ? sizeof(dmVMath::Vector4) : sizeof(contents[i]);
+        buffers[i] = WebGPUNewStorageBuffer(m_GraphicsContext, size, contents[i], dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    }
+
+    WebGPUSetStorageBufferData(m_GraphicsContext, buffers[2], sizeof(contents[2]), contents[2], dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    WebGPUSetStorageBufferData(m_GraphicsContext, buffers[3], sizeof(contents[3]), 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+    // BGRA, as returned by ReadPixels()
+    const uint8_t before[4][4] = { { 0, 0, 255, 255 }, { 0, 255, 0, 255 }, { 255, 0, 0, 255 }, { 0, 255, 255, 255 } };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        uint8_t bgra[4] = {};
+        DrawStoragePixel(rt, program, buffers[i], bgra);
+        ASSERT_EQ(0, memcmp(before[i], bgra, sizeof(bgra)));
+    }
+
+    LoseAndRestoreDevice();
+    PushValidationScope();
+    WebGPURecreateGraphicsHandles(m_GraphicsContext);
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, &desc, 0, 0));
+    const dmVMath::Vector4 tint(0, 0, 1, 0);
+    WebGPUSetStorageBufferSubData(m_GraphicsContext, buffers[1], sizeof(dmVMath::Vector4), sizeof(tint), &tint);
+
+    const uint8_t after[4][4] = { { 0, 0, 255, 255 }, { 255, 255, 0, 255 }, { 255, 0, 0, 255 }, { 0, 255, 255, 255 } };
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        uint8_t bgra[4] = {};
+        DrawStoragePixel(rt, program, buffers[i], bgra);
+        ASSERT_EQ(0, memcmp(after[i], bgra, sizeof(bgra)));
+    }
+
+    AssertNoValidationErrors();
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        WebGPUDeleteStorageBuffer(m_GraphicsContext, buffers[i]);
     }
 
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
