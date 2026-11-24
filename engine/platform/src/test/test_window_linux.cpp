@@ -203,6 +203,35 @@ TEST(LinuxWindow, X11RandRMonitors)
     ASSERT_GT(monitors[0].m_WorkArea.m_Height, 0);
 }
 
+// A bare X server must focus a mapped game on request and preserve the current focus otherwise.
+TEST(LinuxWindow, X11FocusWithoutWindowManager)
+{
+    if (!getenv("DM_TEST_X11_NO_WM"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w && w->m_X11);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    for (int focus = 0; focus <= 1; ++focus)
+    {
+        p.m_FocusOnShow = focus;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        Window before, after;
+        int revert;
+        XGetInputFocus(w->m_Display, &before, &revert);
+        dmPlatform::ShowWindow(w);
+        XGetInputFocus(w->m_Display, &after, &revert);
+        EXPECT_EQ(focus ? w->m_Xid : before, after);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // Window managers match game launchers by the initial title and the optional X resource instance.
 TEST(LinuxWindow, X11WindowClass)
 {

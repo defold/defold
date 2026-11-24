@@ -100,6 +100,9 @@ def run(args, directory):
             raise RuntimeError('Xvfb did not publish a display')
         display = int(reader.readline())
         x11 = dict(clean, DISPLAY=f':{display}', DM_TEST_X11_MONITOR='screen')
+        if args.native:
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11FocusWithoutWindowManager'],
+                           cwd=directory, env=dict(x11, DM_TEST_X11_NO_WM='1'), check=True, timeout=30)
         wm = stack.enter_context(server(['openbox'], x11, directory))
         wait_ready(wm, ['xprop', '-root', '_NET_SUPPORTING_WM_CHECK'], x11, b'window id #')
         wayland = dict(clean, WAYLAND_DISPLAY='defold-test', DM_TEST_WAYLAND_SCALE='2')

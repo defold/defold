@@ -296,12 +296,17 @@ namespace dmPlatform
         XTranslateCoordinates(w->m_Display, w->m_Xid, Root(w), 0, 0, x, y, &child);
     }
 
-    static void WaitForMap(HWindow w)
+    static bool WaitForMap(HWindow w)
     {
         uint64_t end = dmTime::GetMonotonicTime() + 250000;
         XWindowAttributes attrs;
-        while (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.map_state != IsViewable)
+        while (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
         {
+            if (attrs.map_state == IsViewable)
+            {
+                return true;
+            }
+
             uint64_t now = dmTime::GetMonotonicTime();
             if (now >= end)
             {
@@ -310,6 +315,8 @@ namespace dmPlatform
             pollfd descriptor = { ConnectionNumber(w->m_Display), POLLIN, 0 };
             poll(&descriptor, 1, dmMath::Min(10, (int)((end - now) / 1000) + 1));
         }
+
+        return false;
     }
 
     static void RecordGeometryRequest(HWindow w, bool size, int x, int y)
@@ -1102,15 +1109,37 @@ namespace dmPlatform
         XSync(w->m_Display, False);
     }
 
+    static void Focus(HWindow w, bool viewable)
+    {
+        Atom active = AtomFor(w, "_NET_ACTIVE_WINDOW");
+        dmArray<Atom> supported;
+        ReadProperty(w, Root(w), AtomFor(w, "_NET_SUPPORTED"), XA_ATOM, XMaxRequestSize(w->m_Display), supported);
+        for (uint32_t i = 0; i < supported.Size(); ++i)
+        {
+            if (supported[i] == active)
+            {
+                Message(w, active, 1, CurrentTime);
+                return;
+            }
+        }
+
+        // Bare X servers and older window managers need an explicit focus change on a viewable window.
+        if (viewable)
+        {
+            XRaiseWindow(w->m_Display, w->m_Xid);
+            XSetInputFocus(w->m_Display, w->m_Xid, RevertToParent, CurrentTime);
+        }
+    }
+
     static void Show(HWindow w, bool on)
     {
         if (on)
         {
             XMapWindow(w->m_Display, w->m_Xid);
-            WaitForMap(w);
+            bool viewable = WaitForMap(w);
             if (w->m_Params.m_FocusOnShow)
             {
-                Message(w, AtomFor(w, "_NET_ACTIVE_WINDOW"), 1, CurrentTime);
+                Focus(w, viewable);
             }
         }
         else
