@@ -21,6 +21,7 @@
 #include "array.h"
 #include "condition_variable.h"
 #include "dstrings.h"
+#include "memory.h"
 #include <dlib/mutex.h>
 #include <dlib/static_assert.h>
 #include <dlib/spinlock.h>
@@ -32,7 +33,7 @@ DM_PROPERTY_U32(rmtp_Messages, 0, PROFILE_PROPERTY_FRAME_RESET, "# messages/fram
 namespace dmMessage
 {
     // Alignment of allocations
-    const uint32_t DM_MESSAGE_ALIGNMENT = 16U;
+    const uint32_t DM_MESSAGE_ALIGNMENT = alignof(Message);
 
     struct MemoryPage
     {
@@ -65,15 +66,8 @@ namespace dmMessage
 
     static Result GetSocketNoLock(dmhash_t name_hash, HSocket* out_socket);
 
-    static void AllocateNewPage(MemoryAllocator* allocator)
+    static MemoryPage* AllocateNewPage(MemoryAllocator* allocator)
     {
-        if (allocator->m_CurrentPage)
-        {
-            // Link current page to full pages
-            allocator->m_CurrentPage->m_NextPage = allocator->m_FullPages;
-            allocator->m_FullPages = allocator->m_CurrentPage;
-        }
-
         MemoryPage* new_page = 0;
 
         if (allocator->m_FreePages)
@@ -84,14 +78,26 @@ namespace dmMessage
         }
         else
         {
-            // Allocate new page
-            new_page = new MemoryPage;
+            void* buffer;
+            if (dmMemory::AlignedMalloc(&buffer, DM_MESSAGE_ALIGNMENT, sizeof(MemoryPage)) != dmMemory::RESULT_OK)
+            {
+                return 0;
+            }
+            new_page = new (buffer) MemoryPage;
+        }
+
+        if (allocator->m_CurrentPage)
+        {
+            // Link current page to full pages
+            allocator->m_CurrentPage->m_NextPage = allocator->m_FullPages;
+            allocator->m_FullPages = allocator->m_CurrentPage;
         }
 
         new_page->m_Current = 0;
         new_page->m_NextPage = 0;
 
         allocator->m_CurrentPage = new_page;
+        return new_page;
     }
 
     static void* AllocateMessage(MemoryAllocator* allocator, uint32_t size)
@@ -101,13 +107,17 @@ namespace dmMessage
         size &= ~(DM_MESSAGE_ALIGNMENT-1);
         assert(size <= DM_MESSAGE_PAGE_SIZE);
 
-        if (allocator->m_CurrentPage == 0 || (DM_MESSAGE_PAGE_SIZE-allocator->m_CurrentPage->m_Current) < size)
+        MemoryPage* page = allocator->m_CurrentPage;
+        if (page == 0 || (DM_MESSAGE_PAGE_SIZE - page->m_Current) < size)
         {
             // No current page or allocation didn't fit.
-            AllocateNewPage(allocator);
+            page = AllocateNewPage(allocator);
+            if (!page)
+            {
+                return 0;
+            }
         }
 
-        MemoryPage* page = allocator->m_CurrentPage;
         void* ret = (void*) ((uintptr_t) &page->m_Memory[0] + page->m_Current);
         page->m_Current += size;
         return ret;
@@ -221,11 +231,12 @@ namespace dmMessage
         Message *message_object = s->m_Header;
         while (message_object)
         {
-            if (message_object->m_DestroyCallback)
+            MessageDestroyCallback destroy_callback = GetDestroyCallback(message_object);
+            if (destroy_callback)
             {
-                message_object->m_DestroyCallback(message_object);
+                destroy_callback(message_object);
             }
-            message_object = message_object->m_Next;
+            message_object = GetNext(message_object);
         }
 
         free((void*) s->m_Name);
@@ -234,19 +245,19 @@ namespace dmMessage
         while (p)
         {
             MemoryPage* next = p->m_NextPage;
-            delete p;
+            dmMemory::AlignedFree(p);
             p = next;
         }
         p = s->m_Allocator.m_FullPages;
         while (p)
         {
             MemoryPage* next = p->m_NextPage;
-            delete p;
+            dmMemory::AlignedFree(p);
             p = next;
         }
         if (s->m_Allocator.m_CurrentPage)
         {
-            delete s->m_Allocator.m_CurrentPage;
+            dmMemory::AlignedFree(s->m_Allocator.m_CurrentPage);
         }
 
         dmConditionVariable::Delete(s->m_Condition);
@@ -465,26 +476,15 @@ namespace dmMessage
         dmMutex::Lock(s->m_Mutex);
 
         MemoryAllocator* allocator = &s->m_Allocator;
-        uint32_t data_size = sizeof(Message) + message_data_size;
-        Message *new_message = (Message *) AllocateMessage(allocator, data_size);
-        if (sender != 0x0)
+        void* buffer = AllocateMessage(allocator, sizeof(Message) + message_data_size);
+        if (!buffer)
         {
-            new_message->m_Sender = *sender;
+            dmMutex::Unlock(s->m_Mutex);
+            ReleaseSocket(s);
+            return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
-        else
-        {
-            ResetURL(&new_message->m_Sender);
-        }
-        new_message->m_Receiver = *receiver;
-        new_message->m_Id = message_id;
-        new_message->m_UserData1 = user_data1;
-        new_message->m_UserData2 = user_data2;
-        new_message->m_Descriptor = descriptor;
-        new_message->m_DataSize = message_data_size;
-        new_message->m_Next = 0;
-        new_message->m_DestroyCallback = destroy_callback;
-        if (message_data_size)
-            memcpy(GetData(new_message), message_data, message_data_size);
+        Message* new_message = InitMessage(buffer, sender, receiver, message_id, user_data1, user_data2,
+                                           descriptor, message_data, message_data_size, destroy_callback);
 
         bool is_first_message = !s->m_Header;
 
@@ -495,7 +495,7 @@ namespace dmMessage
         }
         else
         {
-            s->m_Tail->m_Next = new_message;
+            SetNext(s->m_Tail, new_message);
             s->m_Tail = new_message;
         }
 
@@ -586,10 +586,12 @@ namespace dmMessage
         while (message_object)
         {
             dispatch_callback(message_object, user_ptr);
-            if (message_object->m_DestroyCallback) {
-                message_object->m_DestroyCallback(message_object);
+            MessageDestroyCallback destroy_callback = GetDestroyCallback(message_object);
+            if (destroy_callback)
+            {
+                destroy_callback(message_object);
             }
-            message_object = message_object->m_Next;
+            message_object = GetNext(message_object);
             dispatch_count++;
         }
 

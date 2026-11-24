@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/memory.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
@@ -208,15 +209,13 @@ namespace dmGameSystem
         const char* source = TextLayoutGetObjectSource(target.m_Layout);
         const uint32_t src_length = src ? src->m_ValueLength : 0;
         const uint32_t data_size = sizeof(Message) + src_length + 1;
-        dmArray<uint8_t> buffer;
-        buffer.SetCapacity(sizeof(dmMessage::Message) + data_size);
-        buffer.SetSize(sizeof(dmMessage::Message) + data_size);
-
-        dmMessage::Message* message = (dmMessage::Message*)buffer.Begin();
-        memset(message, 0, sizeof(dmMessage::Message));
-        message->m_Id = Message::m_DDFDescriptor->m_NameHash;
-        message->m_Descriptor = (uintptr_t)Message::m_DDFDescriptor;
-        message->m_DataSize = data_size;
+        void* buffer;
+        if (dmMemory::AlignedMalloc(&buffer, alignof(dmMessage::Message), sizeof(dmMessage::Message) + data_size) != dmMemory::RESULT_OK)
+        {
+            dmLogError("Failed to allocate GUI layout object message.");
+            return;
+        }
+        dmMessage::Message* message = dmMessage::InitMessage(buffer, Message::m_DDFDescriptor->m_NameHash, (uintptr_t)Message::m_DDFDescriptor, data_size);
         Message* message_data = (Message*)dmMessage::GetData(message);
         char* src_value = (char*)(message_data + 1);
 
@@ -230,6 +229,7 @@ namespace dmGameSystem
         message_data->m_Type = object->m_Tag;
         message_data->m_Src = (const char*)((uintptr_t)src_value - (uintptr_t)message_data);
         dmGui::DispatchMessage(component->m_Scene, message);
+        dmMemory::AlignedFree(buffer);
     }
 
     static void ClearGuiLayoutObjectInteraction(GuiComponent* component)
@@ -1039,13 +1039,8 @@ namespace dmGameSystem
         }
 
         char DM_ALIGNED(16) buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
-        dmMessage::Message* message = (dmMessage::Message*)buf;
-        memset(message, 0, sizeof(dmMessage::Message));
-        message->m_Sender = dmMessage::URL();
-        message->m_Receiver = dmMessage::URL();
-        message->m_Id = dmHashString64("layout_changed");
-        message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
-        message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+        dmMessage::Message* message = dmMessage::InitMessage(buf, dmHashString64("layout_changed"), (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor,
+                                                             sizeof(dmGuiDDF::LayoutChanged));
         dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)dmMessage::GetData(message);
         message_data->m_Id = layout_id;
         message_data->m_PreviousId = previous_layout_id;

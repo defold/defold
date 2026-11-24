@@ -728,7 +728,7 @@ namespace dmHttpService
             return;
         }
 
-        if (message->m_Descriptor == GetRequestMessageDescriptor())
+        if (dmMessage::GetDescriptor(message) == GetRequestMessageDescriptor())
         {
             RequestMessage request_message;
             memcpy(&request_message, dmMessage::GetData(message), sizeof(request_message));
@@ -752,13 +752,13 @@ namespace dmHttpService
                 }
             }
         }
-        else if (message->m_Descriptor == GetStopMessageDescriptor())
+        else if (dmMessage::GetDescriptor(message) == GetStopMessageDescriptor())
         {
             worker->m_Run = false;
         }
         else
         {
-            const dmMessage::URL* sender = &message->m_Sender;
+            const dmMessage::URL* sender = dmMessage::GetSender(message);
             const char*           socket_name = dmMessage::GetSocketName(sender->m_Socket);
             const char*           path_name = dmHashReverseSafe64(sender->m_Path);
             const char*           fragment_name = dmHashReverseSafe64(sender->m_Fragment);
@@ -774,22 +774,22 @@ namespace dmHttpService
     void LoadBalance(dmMessage::Message* message, void* user_ptr)
     {
         HttpService* service = (HttpService*)user_ptr;
-        if (message->m_Descriptor == GetStopMessageDescriptor())
+        if (dmMessage::GetDescriptor(message) == GetStopMessageDescriptor())
         {
             service->m_Run = false;
         }
         else
         {
-            dmMessage::URL r = message->m_Receiver;
+            dmMessage::URL r = *dmMessage::GetReceiver(message);
             r.m_Socket = service->m_Workers[service->m_LoadBalanceCount % service->m_Workers.Size()]->m_Socket;
-            dmMessage::Post(&message->m_Sender,
+            dmMessage::Post(dmMessage::GetSender(message),
                             &r,
-                            message->m_Id,
-                            message->m_UserData1,
-                            message->m_UserData2,
-                            message->m_Descriptor,
+                            dmMessage::GetId(message),
+                            dmMessage::GetUserData1(message),
+                            dmMessage::GetUserData2(message),
+                            dmMessage::GetDescriptor(message),
                             dmMessage::GetData(message),
-                            message->m_DataSize,
+                            dmMessage::GetDataSize(message),
                             0);
             service->m_LoadBalanceCount++;
         }

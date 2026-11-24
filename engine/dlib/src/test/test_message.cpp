@@ -34,7 +34,7 @@ struct CustomMessageData1
 
 void HandleMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    switch(message_object->m_Id)
+    switch (dmMessage::GetId(message_object))
     {
         case m_HashMessage1:
             break;
@@ -236,7 +236,7 @@ void HandleMessagePostDuring(dmMessage::Message *message_object, void *user_ptr)
     CustomMessageData1 message_data1;
     message_data1.m_MyValue = 123;
 
-    switch(message_object->m_Id)
+    switch (dmMessage::GetId(message_object))
     {
         case m_HashMessage2:
             ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
@@ -374,7 +374,7 @@ void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
     ASSERT_EQ(data, dmMessage::GetData(message_object));
     ASSERT_EQ(sizeof(*message), (uintptr_t)data - (uintptr_t)message);
     ASSERT_EQ(0u, (uintptr_t)data % 16);
-    ASSERT_EQ(message->m_Id, dmHashBuffer64(data, message->m_DataSize));
+    ASSERT_EQ(dmMessage::GetId(message), dmHashBuffer64(data, dmMessage::GetDataSize(message)));
 }
 
 TEST(dmMessage, Integrity)
@@ -423,7 +423,7 @@ TEST(dmMessage, Integrity)
 
 void HandleUserDataMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    *((uint32_t*)user_ptr) = *((uint32_t*)message_object->m_UserData1);
+    *((uint32_t*)user_ptr) = *((uint32_t*)dmMessage::GetUserData1(message_object));
 }
 
 TEST(dmMessage, UserData)
@@ -455,7 +455,75 @@ uint32_t g_PostDistpatchCalled = 0;
 
 void CustomMessageDestroyCallback(dmMessage::Message* message)
 {
-    g_PostDistpatchCalled = *((uint32_t*)message->m_UserData1) + *((uint32_t*)message->m_UserData2);
+    g_PostDistpatchCalled = *((uint32_t*)dmMessage::GetUserData1(message)) + *((uint32_t*)dmMessage::GetUserData2(message));
+}
+
+// A copied message owns its payload bytes and stores every supplied header value.
+TEST(dmMessage, InitMessageWithPayload)
+{
+    dmMessage::URL sender, receiver;
+    sender.m_Path = 1;
+    receiver.m_Fragment = 2;
+    uint32_t payload = 42;
+    uint8_t DM_ALIGNED(16) buffer[sizeof(dmMessage::Message) + sizeof(payload)];
+    memset(buffer, 0xff, sizeof(buffer));
+    const dmMessage::Message* message = dmMessage::InitMessage(buffer, &sender, &receiver, m_HashMessage1, 3, 4, 5,
+                                                               &payload, sizeof(payload), CustomMessageDestroyCallback);
+    payload = 0;
+    ASSERT_EQ((const void*)buffer, (const void*)message);
+    ASSERT_EQ(0, memcmp(&sender, dmMessage::GetSender(message), sizeof(sender)));
+    ASSERT_EQ(0, memcmp(&receiver, dmMessage::GetReceiver(message), sizeof(receiver)));
+    ASSERT_EQ(m_HashMessage1, dmMessage::GetId(message));
+    ASSERT_EQ(3u, dmMessage::GetUserData1(message));
+    ASSERT_EQ(4u, dmMessage::GetUserData2(message));
+    ASSERT_EQ(5u, dmMessage::GetDescriptor(message));
+    ASSERT_EQ(sizeof(payload), dmMessage::GetDataSize(message));
+    ASSERT_EQ(42u, *(const uint32_t*)dmMessage::GetData(message));
+    ASSERT_EQ((dmMessage::Message*)0, dmMessage::GetNext(message));
+    ASSERT_TRUE(CustomMessageDestroyCallback == dmMessage::GetDestroyCallback(message));
+}
+
+// In-place initialization clears absent URLs and queue state, and setters update a caller-owned message.
+TEST(dmMessage, InitMessageInPlace)
+{
+    uint8_t DM_ALIGNED(16) buffer[sizeof(dmMessage::Message) + 2];
+    memset(buffer, 0x5a, sizeof(buffer));
+    dmMessage::Message* message = dmMessage::InitMessage(buffer, m_HashMessage1, 6, 2);
+    dmMessage::URL url;
+    ASSERT_EQ(0, memcmp(&url, dmMessage::GetSender(message), sizeof(url)));
+    ASSERT_EQ(0, memcmp(&url, dmMessage::GetReceiver(message), sizeof(url)));
+    ASSERT_EQ(m_HashMessage1, dmMessage::GetId(message));
+    ASSERT_EQ(6u, dmMessage::GetDescriptor(message));
+    ASSERT_EQ(0u, dmMessage::GetUserData1(message));
+    ASSERT_EQ(0u, dmMessage::GetUserData2(message));
+    ASSERT_EQ((dmMessage::Message*)0, dmMessage::GetNext(message));
+    ASSERT_TRUE(0 == dmMessage::GetDestroyCallback(message));
+    ASSERT_EQ(2u, dmMessage::GetDataSize(message));
+    ASSERT_EQ(0x5a, dmMessage::GetData(message)[0]);
+    ASSERT_EQ(0x5a, dmMessage::GetData(message)[1]);
+
+    url.m_Path = 7;
+    dmMessage::SetSender(message, &url);
+    url.m_Path = 8;
+    dmMessage::SetReceiver(message, &url);
+    dmMessage::SetId(message, m_HashMessage2);
+    dmMessage::SetUserData1(message, 9);
+    dmMessage::SetUserData2(message, 10);
+    dmMessage::SetDescriptor(message, 11);
+    dmMessage::SetDataSize(message, 1);
+    dmMessage::Message next;
+    dmMessage::SetNext(message, &next);
+    dmMessage::SetDestroyCallback(message, CustomMessageDestroyCallback);
+
+    ASSERT_EQ(7u, dmMessage::GetSender(message)->m_Path);
+    ASSERT_EQ(8u, dmMessage::GetReceiver(message)->m_Path);
+    ASSERT_EQ(m_HashMessage2, dmMessage::GetId(message));
+    ASSERT_EQ(9u, dmMessage::GetUserData1(message));
+    ASSERT_EQ(10u, dmMessage::GetUserData2(message));
+    ASSERT_EQ(11u, dmMessage::GetDescriptor(message));
+    ASSERT_EQ(1u, dmMessage::GetDataSize(message));
+    ASSERT_EQ(&next, dmMessage::GetNext(message));
+    ASSERT_TRUE(CustomMessageDestroyCallback == dmMessage::GetDestroyCallback(message));
 }
 
 TEST(dmMessage, MessagePostDispatch)

@@ -16,6 +16,7 @@
 #include "comp_script.h"
 
 #include <dlib/dstrings.h>
+#include <dlib/memory.h>
 #include <dlib/profile.h>
 
 #include <script/script.h>
@@ -336,30 +337,31 @@ namespace dmGameObject
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-        dmScript::PushHash(L, message->m_Id);
+        dmScript::PushHash(L, dmMessage::GetId(message));
 
         const char* message_name = 0;
-        if (message->m_Descriptor != 0)
+        const dmDDF::Descriptor* descriptor = (const dmDDF::Descriptor*)dmMessage::GetDescriptor(message);
+        if (descriptor)
         {
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
-            message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
-            dmScript::PushDDF(L, (const dmDDF::Descriptor*)message->m_Descriptor, (const char*) dmMessage::GetData(message), true);
+            message_name = descriptor->m_Name;
+            dmScript::PushDDF(L, descriptor, (const char*)dmMessage::GetData(message), true);
         }
         else
         {
             if (ProfileIsInitialized())
             {
                 // Try to find the message name via id and reverse hash
-                message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+                message_name = (const char*)dmHashReverse64(dmMessage::GetId(message), 0);
             }
-            if (message->m_DataSize > 0)
-                dmScript::PushTable(L, (const char*)dmMessage::GetData(message), message->m_DataSize);
+            if (dmMessage::GetDataSize(message) > 0)
+                dmScript::PushTable(L, (const char*)dmMessage::GetData(message), dmMessage::GetDataSize(message));
             else
                 lua_newtable(L);
         }
 
-        dmScript::PushURL(L, message->m_Sender);
+        dmScript::PushURL(L, *dmMessage::GetSender(message));
 
         // An on_message function shouldn't return anything.
         {
@@ -394,9 +396,9 @@ namespace dmGameObject
         dmMessage::Message* message = 0;
         void*               payload_message = 0;
 
-        if (params.m_Message->m_Descriptor != 0)
+        if (dmMessage::GetDescriptor(params.m_Message) != 0)
         {
-            if (params.m_Message->m_Id == dmGameObjectDDF::ScriptMessage::m_DDFDescriptor->m_NameHash)
+            if (dmMessage::GetId(params.m_Message) == dmGameObjectDDF::ScriptMessage::m_DDFDescriptor->m_NameHash)
             {
                 dmGameObjectDDF::ScriptMessage* script_message = (dmGameObjectDDF::ScriptMessage*)dmMessage::GetData(params.m_Message);
                 uint32_t payload_message_size = 0;
@@ -418,18 +420,18 @@ namespace dmGameObject
                 }
 
                 uint32_t new_message_size = sizeof(dmMessage::Message) + payload_message_size;
-                message = (dmMessage::Message*)malloc(new_message_size);
-
-                message->m_Sender       = params.m_Message->m_Sender;
-                message->m_Receiver     = params.m_Message->m_Receiver;
-                message->m_Id           = descriptor->m_NameHash;
-                message->m_DataSize     = payload_message_size;
-                message->m_Descriptor   = (uintptr_t)descriptor;
-                message->m_UserData1    = 0; // should we copy the current m_UserData1?
-                message->m_UserData2    = 0; // deprecated (the Lua function reference)
-                message->m_Next         = 0;
-
-                memcpy(dmMessage::GetData(message), payload_message, payload_message_size);
+                void* buffer;
+                if (dmMemory::AlignedMalloc(&buffer, alignof(dmMessage::Message), new_message_size) != dmMemory::RESULT_OK)
+                {
+                    dmDDF::FreeMessage(payload_message);
+                    dmLogError("Failed to allocate %u bytes for script message '%s'.", new_message_size, descriptor->m_Name);
+                    return UPDATE_RESULT_UNKNOWN_ERROR;
+                }
+                message = dmMessage::InitMessage(buffer, dmMessage::GetSender(params.m_Message), dmMessage::GetReceiver(params.m_Message),
+                                                 descriptor->m_NameHash,
+                                                 0, // should we copy the current m_UserData1?
+                                                 0, // deprecated (the Lua function reference)
+                                                 (uintptr_t)descriptor, payload_message, payload_message_size, 0);
 
                 if (script_message->m_Function)
                 {
@@ -444,7 +446,7 @@ namespace dmGameObject
                     function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
                 }
             }
-            else if (params.m_Message->m_Id == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
+            else if (dmMessage::GetId(params.m_Message) == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
             {
                 dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) dmMessage::GetData(params.m_Message);
                 return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + LUA_NOREF);
@@ -458,9 +460,9 @@ namespace dmGameObject
 
             // We added m_UserData2 just to make it easier to specify, and to keep Lua away from the dmMessage::URL struct
             // We should move towards the dmGameObjectDDF::ScriptMessage as it's type safe
-            if (params.m_Message->m_UserData2) // Deprecated. Use dmGameObject::PostDDF() instead
+            if (dmMessage::GetUserData2(params.m_Message)) // Deprecated. Use dmGameObject::PostDDF() instead
             {
-                function_ref = params.m_Message->m_UserData2 + LUA_NOREF;
+                function_ref = dmMessage::GetUserData2(params.m_Message) + LUA_NOREF;
                 is_callback = true;
             } else {
                 function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
@@ -475,7 +477,7 @@ namespace dmGameObject
         if (payload_message)
         {
             dmDDF::FreeMessage(payload_message);
-            free((void*)message);
+            dmMemory::AlignedFree(message);
         }
 
         return result;

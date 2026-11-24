@@ -2078,8 +2078,8 @@ struct TestMessage
 static void Dispatch1(dmMessage::Message* message, void* user_ptr)
 {
     TestMessage* test_message = (TestMessage*) user_ptr;
-    test_message->m_ComponentId = message->m_Receiver.m_Fragment;
-    test_message->m_MessageId = message->m_Id;
+    test_message->m_ComponentId = dmMessage::GetReceiver(message)->m_Fragment;
+    test_message->m_MessageId = dmMessage::GetId(message);
 }
 
 TEST_F(dmGuiTest, PostMessage1)
@@ -2123,8 +2123,8 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
 
 static void Dispatch2(dmMessage::Message* message, void* user_ptr)
 {
-    assert(message->m_Receiver.m_Fragment == dmHashString64("component"));
-    assert((dmDDF::Descriptor*)message->m_Descriptor == dmTestGuiDDF::AMessage::m_DDFDescriptor);
+    assert(dmMessage::GetReceiver(message)->m_Fragment == dmHashString64("component"));
+    assert((dmDDF::Descriptor*)dmMessage::GetDescriptor(message) == dmTestGuiDDF::AMessage::m_DDFDescriptor);
 
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) dmMessage::GetData(message);
     dmTestGuiDDF::AMessage* amessage_out = (dmTestGuiDDF::AMessage*) user_ptr;
@@ -2238,14 +2238,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char DM_ALIGNED(alignof(dmMessage::Message)) buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
-    dmMessage::Message* message = (dmMessage::Message*)buf;
-    message->m_Sender = dmMessage::URL();
-    message->m_Receiver = dmMessage::URL();
-    message->m_Id = dmHashString64("amessage");
-    message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
-    message->m_DataSize = sizeof(dmTestGuiDDF::AMessage);
-    message->m_UserData1 = 0;
-    message->m_UserData2 = 0;
+    dmMessage::Message* message = dmMessage::InitMessage(buf, dmHashString64("amessage"), (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor, sizeof(dmTestGuiDDF::AMessage));
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)dmMessage::GetData(message);
     amessage->m_A = 123;
     amessage->m_B = 0;
@@ -2272,14 +2265,7 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
-    dmMessage::Message* message = (dmMessage::Message*)buffer;
-    message->m_Sender = dmMessage::URL();
-    message->m_Receiver = dmMessage::URL();
-    message->m_Id = dmHashString64("amessage");
-    message->m_Descriptor = 0;
-    message->m_UserData1 = 0;
-    message->m_UserData2 = 0;
-    message->m_DataSize = 0;
+    dmMessage::Message* message = dmMessage::InitMessage(buffer, dmHashString64("amessage"), 0, 0);
 
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -2304,22 +2290,16 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
-    dmMessage::Message* message = (dmMessage::Message*)buffer;
-    message->m_Sender = dmMessage::URL();
-    message->m_Receiver = dmMessage::URL();
-    message->m_Id = dmHashString64("amessage");
-    message->m_Descriptor = 0;
-    message->m_UserData1 = 0;
-    message->m_UserData2 = 0;
+    dmMessage::Message* message = dmMessage::InitMessage(buffer, dmHashString64("amessage"), 0, 0);
 
     lua_State* L = lua_open();
     lua_newtable(L);
     lua_pushstring(L, "a");
     lua_pushinteger(L, 456);
     lua_settable(L, -3);
-    message->m_DataSize = dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1);
-    ASSERT_GT(message->m_DataSize, 0U);
-    ASSERT_LE(message->m_DataSize, 256u);
+    dmMessage::SetDataSize(message, dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1));
+    ASSERT_GT(dmMessage::GetDataSize(message), 0U);
+    ASSERT_LE(dmMessage::GetDataSize(message), 256u);
 
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -2574,13 +2554,7 @@ TEST_F(dmGuiTest, Bug352)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char DM_ALIGNED(alignof(dmMessage::Message)) buffer[256 + sizeof(dmMessage::Message)];
-    dmMessage::Message* message = (dmMessage::Message*)buffer;
-    message->m_Sender = dmMessage::URL();
-    message->m_Receiver = dmMessage::URL();
-    message->m_Id = dmHashString64("inc_score");
-    message->m_Descriptor = 0;
-    message->m_UserData1 = 0;
-    message->m_UserData2 = 0;
+    dmMessage::Message* message = dmMessage::InitMessage(buffer, dmHashString64("inc_score"), 0, 0);
 
     lua_State* L = lua_open();
     lua_newtable(L);
@@ -2588,9 +2562,9 @@ TEST_F(dmGuiTest, Bug352)
     lua_pushinteger(L, 123);
     lua_settable(L, -3);
 
-    message->m_DataSize = dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1);
-    ASSERT_GT(message->m_DataSize, 0U);
-    ASSERT_LE(message->m_DataSize, 256u);
+    dmMessage::SetDataSize(message, dmScript::CheckTable(L, (char*)dmMessage::GetData(message), 256, -1));
+    ASSERT_GT(dmMessage::GetDataSize(message), 0U);
+    ASSERT_LE(dmMessage::GetDataSize(message), 256u);
 
     for (int i = 0; i < 100; ++i)
     {
@@ -2846,15 +2820,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NE(dmGui::RESULT_OK, r);
     char DM_ALIGNED(alignof(dmMessage::Message)) buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
-    dmMessage::Message* message = (dmMessage::Message*)buffer;
-    message->m_Sender = dmMessage::URL();
-    message->m_Receiver = dmMessage::URL();
-    message->m_Id = 1;
-    message->m_DataSize = 0;
-    message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
-    message->m_Next = 0;
-    message->m_UserData1 = 0;
-    message->m_UserData2 = 0;
+    dmMessage::Message* message = dmMessage::InitMessage(buffer, 1, (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor, 0);
     dmTestGuiDDF::AMessage* data = (dmTestGuiDDF::AMessage*)dmMessage::GetData(message);
     data->m_A = 0;
     data->m_B = 0;
