@@ -103,6 +103,55 @@ namespace dmGameSystem
                + strlen(resource->m_Path) + 1 + resource->m_CPUDataSize;
     }
 
+    // Data read again after creation must have the layout of the buffers already uploaded to the GPU.
+    static bool HasUploadedLayout(const ModelBuffersResource* resource, const void* data, uint32_t size)
+    {
+        const ModelBuffersHeader* header = (const ModelBuffersHeader*)data;
+        if (!ValidateModelBuffers(header, size) || memcmp(header, &resource->m_Header, sizeof(*header)) != 0)
+        {
+            return false;
+        }
+
+        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(header + 1);
+        for (uint32_t i = 0; i < header->m_RangeCount; ++i)
+        {
+            if (memcmp(&ranges[i], &resource->m_Ranges[i].m_Descriptor, sizeof(ranges[i])) != 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Creates the GPU buffers, or writes the content into the existing ones after a graphics context
+    // restore, keeping the handles that mesh render items hold.
+    static void UploadModelBuffers(dmGraphics::HContext context, ModelBuffersResource* resource, const void* data)
+    {
+        const ModelBuffersHeader& header = resource->m_Header;
+        const uint8_t* vertices = (const uint8_t*)data + header.m_VertexOffset;
+        if (resource->m_VertexBuffer)
+        {
+            dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, header.m_VertexSize, vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        }
+        else
+        {
+            resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, header.m_VertexSize, vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        }
+
+        if (header.m_IndexSize)
+        {
+            const uint8_t* indices = (const uint8_t*)data + header.m_IndexOffset;
+            if (resource->m_IndexBuffer)
+            {
+                dmGraphics::SetIndexBufferData(resource->m_IndexBuffer, header.m_IndexSize, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            }
+            else
+            {
+                resource->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, header.m_IndexSize, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            }
+        }
+    }
+
     dmResource::Result ResModelBuffersCreate(const dmResource::ResourceCreateParams* params)
     {
         ModelBuffersResource* resource = (ModelBuffersResource*)params->m_PreloadData;
@@ -117,12 +166,7 @@ namespace dmGameSystem
             }
         }
 
-        const ModelBuffersHeader& header = resource->m_Header;
-        resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, header.m_VertexSize, (const uint8_t*)params->m_Buffer + header.m_VertexOffset, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        if (header.m_IndexSize)
-        {
-            resource->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, header.m_IndexSize, (const uint8_t*)params->m_Buffer + header.m_IndexOffset, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        }
+        UploadModelBuffers(context, resource, params->m_Buffer);
         for (uint32_t i = 0; i < resource->m_Ranges.Size(); ++i)
         {
             resource->m_Ranges[i].m_Buffers.m_VertexBuffer = resource->m_VertexBuffer;
@@ -249,21 +293,10 @@ namespace dmGameSystem
             return result;
         }
 
-        // CPU recovery must use the same layout as the buffers already uploaded to the GPU.
-        const ModelBuffersHeader* header = (const ModelBuffersHeader*)data;
-        if (!ValidateModelBuffers(header, size) || memcmp(header, &resource->m_Header, sizeof(*header)) != 0)
+        if (!HasUploadedLayout(resource, data, size))
         {
             free(data);
             return dmResource::RESULT_INVALID_DATA;
-        }
-        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(header + 1);
-        for (uint32_t i = 0; i < header->m_RangeCount; ++i)
-        {
-            if (memcmp(&ranges[i], &resource->m_Ranges[i].m_Descriptor, sizeof(ranges[i])) != 0)
-            {
-                free(data);
-                return dmResource::RESULT_INVALID_DATA;
-            }
         }
 
         uint64_t data_size = GetCPUDataSize(resource);
@@ -331,9 +364,21 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResModelBuffersRecreate(const dmResource::ResourceRecreateParams*)
+    dmResource::Result ResModelBuffersRecreate(const dmResource::ResourceRecreateParams* params)
     {
         // A geometry change produces a new content-addressed path.
-        return dmResource::RESULT_NOT_SUPPORTED;
+        if (!params->m_IsContextRestore)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        ModelBuffersResource* resource = (ModelBuffersResource*)dmResource::GetResource(params->m_Resource);
+        if (params->m_IsBufferPartial || !HasUploadedLayout(resource, params->m_Buffer, params->m_BufferSize))
+        {
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
+        UploadModelBuffers((dmGraphics::HContext)params->m_Context, resource, params->m_Buffer);
+        return dmResource::RESULT_OK;
     }
 } // namespace dmGameSystem

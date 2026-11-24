@@ -2278,6 +2278,74 @@ TEST_F(ModelTest, ModelBuffersValidation)
     dmResource::Release(m_Factory, model);
 }
 
+// A graphics context restore must upload the shared geometry once into the handles all mesh ranges hold,
+// and refuse bytes whose layout differs from the uploaded buffers instead of writing past them.
+TEST_F(ModelTest, ModelBuffersContextRestore)
+{
+    dmGameSystem::ModelResource* model;
+    dmGameSystem::ModelResource* other;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/several_meshes.modelc", (void**)&model));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/valid.modelc", (void**)&other));
+    ASSERT_GT(model->m_Meshes.Size(), 1u);
+
+    const dmhash_t buffers_path = dmHashString64(model->m_Model->m_Buffers);
+    uint8_t order;
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, buffers_path, &order));
+    ASSERT_EQ((uint8_t)RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS, order);
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, dmHashString64("/model/several_meshes.modelc"), &order));
+
+    const dmGraphics::HVertexBuffer vertex_buffer = model->m_Meshes[0].m_Buffers->m_VertexBuffer;
+    const dmGraphics::HIndexBuffer index_buffer = model->m_Meshes[0].m_Buffers->m_IndexBuffer;
+    const uint32_t vertex_size = dmGraphics::GetVertexBufferSize(vertex_buffer);
+    const uint32_t index_size = dmGraphics::GetIndexBufferSize(index_buffer);
+    ASSERT_GT(vertex_size, 0u);
+    ASSERT_GT(index_size, 0u);
+
+    uint8_t* vertices = (uint8_t*)malloc(vertex_size);
+    uint8_t* indices = (uint8_t*)malloc(index_size);
+    memcpy(vertices, dmGraphics::TestGetVertexBufferData(vertex_buffer), vertex_size);
+    memcpy(indices, dmGraphics::TestGetIndexBufferData(index_buffer), index_size);
+
+    uint8_t* zeros = (uint8_t*)calloc(dmMath::Max(vertex_size, index_size), 1);
+    dmGraphics::SetVertexBufferData(vertex_buffer, vertex_size, zeros, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmGraphics::SetIndexBufferData(index_buffer, index_size, zeros, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    free(zeros);
+    const uint32_t uploads = dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount;
+
+    dmResource::HDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(m_Factory, model->m_Model->m_Buffers, &descriptor));
+    void* other_bytes;
+    uint32_t other_size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, other->m_Model->m_Buffers, &other_bytes, &other_size));
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Factory = m_Factory;
+    params.m_Context = m_GraphicsContext;
+    params.m_Buffer = other_bytes;
+    params.m_BufferSize = other_size;
+    params.m_Resource = descriptor;
+    params.m_IsContextRestore = 1;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersRecreate(&params));
+    free(other_bytes);
+    ASSERT_EQ(uploads, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, buffers_path));
+    ASSERT_EQ(uploads + 1, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i)
+    {
+        ASSERT_EQ(vertex_buffer, model->m_Meshes[i].m_Buffers->m_VertexBuffer);
+        ASSERT_EQ(index_buffer, model->m_Meshes[i].m_Buffers->m_IndexBuffer);
+    }
+    ASSERT_EQ(vertex_size, dmGraphics::GetVertexBufferSize(vertex_buffer));
+    ASSERT_EQ(index_size, dmGraphics::GetIndexBufferSize(index_buffer));
+    ASSERT_EQ(0, memcmp(vertices, dmGraphics::TestGetVertexBufferData(vertex_buffer), vertex_size));
+    ASSERT_EQ(0, memcmp(indices, dmGraphics::TestGetIndexBufferData(index_buffer), index_size));
+
+    free(vertices);
+    free(indices);
+    dmResource::Release(m_Factory, other);
+    dmResource::Release(m_Factory, model);
+}
+
 // Guards retained model registration across unchanged frames, component
 // disable/enable, resource reload replacement, and component destruction.
 TEST_F(ModelTest, RetainedRenderItems)
