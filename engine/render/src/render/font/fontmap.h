@@ -279,6 +279,12 @@ namespace dmRender
      */
     void UpdateCacheTexture(HFontMap font_map);
 
+    /** Empties the glyph cache and allocates the cache texture again on the next UpdateCacheTexture,
+     * e.g. after the graphics context was lost. The glyphs are uploaded again as they are drawn.
+     * @param font_map [type: HFontMap] Font map handle
+     */
+    void InvalidateFontMapCache(HFontMap font_map);
+
     /** Get the font collection
      * @name GetFontCollection
      * @param font_map [type: HFontMap] Font map handlet

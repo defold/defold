@@ -173,9 +173,10 @@ namespace dmGameSystem
 
         // Opt the GPU-backed types into recreation after a graphics context restore
         // (render.reload_resources). Types not listed here either own no GPU objects, are
-        // restored elsewhere (render targets — by RecreateGraphicsHandles; font glyph caches —
-        // by the font system), or must keep their handles unswapped (materials). Extensions
-        // opt their own types in the same way from their type register functions.
+        // restored elsewhere (render targets — by RecreateGraphicsHandles), set their order in
+        // their own type register functions (fonts), or must keep their handles unswapped
+        // (materials). Extensions opt their own types in the same way from their type register
+        // functions.
 #define SET_GRAPHICS_RESTORE_ORDER(extension, order)\
     {\
         HResourceType type;\

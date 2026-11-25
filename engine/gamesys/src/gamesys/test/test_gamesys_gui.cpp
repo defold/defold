@@ -1593,6 +1593,37 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     dmResource::Release(m_Factory, font);
 }
 
+// The glyph cache texture loses its glyphs with the graphics context, so the font restore must empty
+// the cache of the same font map: the glyphs are then uploaded again as they are drawn. Replacing the
+// font map instead would drop the state set on it at runtime.
+TEST_F(FontTest, GraphicsContextRestoreEmptiesGlyphCache)
+{
+    const char path[] = "/font/valid_font.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+    uint8_t order;
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, dmHashString64(path), &order));
+    ASSERT_EQ((uint8_t)RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES, order);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    dmRender::UpdateCacheTexture(font_map);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'A', &glyph));
+    int32_t offset_y = dmRender::TestGetFontCacheState(font_map).m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+    uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
+    ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, 1, key, glyph, offset_y));
+    ASSERT_TRUE(dmRender::IsInCache(font_map, key));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, dmHashString64(path)));
+    ASSERT_EQ(font_map, dmGameSystem::ResFontGetHandle(font));
+    ASSERT_TRUE(dmRender::IsInCache(font_map, key));
+    dmRender::UpdateCacheTexture(font_map);
+    ASSERT_FALSE(dmRender::IsInCache(font_map, key));
+
+    dmResource::Release(m_Factory, font);
+}
+
 // Static vector effects render from baked bitmaps without loading the source font.
 TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
 {

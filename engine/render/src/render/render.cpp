@@ -2103,8 +2103,8 @@ namespace dmRender
             // (the engine types register their buckets in dmGameSystem::RegisterResourceTypes,
             // extensions do the same for theirs). Rendering stays paused until the whole worklist is
             // processed, so the bucket order only matters for recreate functions that read a sibling
-            // asset's GL state. Notable non-participants: materialc/fontc own no re-readable GPU
-            // bytes (and swapping a material's HMaterial would break handles cached by components);
+            // asset's GL state. Notable non-participants: materialc owns no re-readable GPU bytes
+            // (and swapping a material's HMaterial would break handles cached by components);
             // render targets — resource-backed and runtime-created alike — are restored in place by
             // RecreateGraphicsHandles at the start of the reload, since their contents are transient.
             uint8_t bucket;
