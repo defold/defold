@@ -50,16 +50,19 @@ else()
   # reconfigure Ninja whenever Bob's dependencies or the engine are installed.
   set(_sdk_header_candidates ${DEFOLD_DMSDK_HEADER_NAMES})
   set(SDK_TEST_HEADER_STAGE "${CMAKE_CURRENT_BINARY_DIR}/sdk-headers/$<CONFIG>")
+  set(_sdk_header_stamp "${SDK_TEST_HEADER_STAGE}/headers.stamp")
   set(_sdk_staged_headers ${_sdk_header_candidates})
   list(TRANSFORM _sdk_staged_headers PREPEND "${SDK_TEST_HEADER_STAGE}/sdk/include/dmsdk/")
+  # Install preserves source timestamps. Make needs a primary output that records completion.
   add_custom_command(
-    OUTPUT ${_sdk_staged_headers}
+    OUTPUT "${_sdk_header_stamp}" ${_sdk_staged_headers}
     COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config "$<CONFIG>"
       --prefix "${SDK_TEST_HEADER_STAGE}" --component defold_sdk_headers
+    COMMAND "${CMAKE_COMMAND}" -E touch "${_sdk_header_stamp}"
     DEPENDS ${DEFOLD_DMSDK_HEADER_SOURCES} "${CMAKE_BINARY_DIR}/cmake_install.cmake"
     COMMENT "Staging public headers for SDK tests"
     VERBATIM)
-  add_custom_target(sdk_test_headers DEPENDS ${_sdk_staged_headers})
+  add_custom_target(sdk_test_headers DEPENDS "${_sdk_header_stamp}")
 endif()
 
 function(sdk_write_if_different path content)

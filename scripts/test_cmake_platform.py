@@ -11,14 +11,14 @@ from pathlib import Path
 
 @unittest.skipUnless(shutil.which('cmake') and shutil.which('ninja'), 'CMake and Ninja are required')
 class PlatformLinkTests(unittest.TestCase):
-    def configure_project(self, root, **definitions):
+    def configure_project(self, root, generator='Ninja', **definitions):
         repository = Path(__file__).resolve().parent.parent
         build = root / 'build'
         query = build / '.cmake/api/v1/query'
         query.mkdir(parents=True)
         (query / 'codemodel-v2').touch()
         return subprocess.run([
-            'cmake', '-S', str(root), '-B', str(build), '-G', 'Ninja',
+            'cmake', '-S', str(root), '-B', str(build), '-G', generator,
             '-DDEFOLD_HOME=' + repository.as_posix(),
             '-DDEFOLD_BUILD_HOME=' + root.as_posix(),
             *[f'-D{name}={value}' for name, value in definitions.items()],
@@ -58,6 +58,51 @@ add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
 defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
     dlib dlib_noasan mbedtls mbedtls_noasan)
 ''')
+
+    # An unchanged SDK header build should skip staging, while a missing header must be restored.
+    def test_sdk_header_staging_is_incremental(self):
+        generators = ['Ninja']
+        if os.name != 'nt' and shutil.which('make'):
+            generators.append('Unix Makefiles')
+        for generator in generators:
+            with self.subTest(generator=generator), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                header = root / 'public.h'
+                header.write_text('#pragma once\n')
+                # Install preserves source timestamps. Keep this header older than the install script.
+                os.utime(header, (1, 1))
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(sdk_header_test LANGUAGES CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/installed")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_custom_target(build_tests)
+foreach(target IN ITEMS ddf_generated_sources gameobject_proto_headers gamesys_proto_headers
+    gamesys_model_proto_headers graphics_proto_header input_proto_headers particle_proto_headers
+    render_proto_headers rig_proto_headers)
+  add_custom_target(${target})
+endforeach()
+set(DEFOLD_DMSDK_HEADER_NAMES public.h)
+set(DEFOLD_DMSDK_HEADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/public.h")
+install(FILES ${DEFOLD_DMSDK_HEADER_SOURCES} DESTINATION sdk/include/dmsdk COMPONENT defold_sdk_headers)
+install(CODE [[file(APPEND "${CMAKE_INSTALL_PREFIX}/staging.log" "staged\\n")]] COMPONENT defold_sdk_headers)
+add_subdirectory("${DEFOLD_HOME}/engine/sdk/src/test" sdk)
+''')
+                result = self.configure_project(root, generator=generator, TARGET_PLATFORM='x86_64-linux',
+                                                CMAKE_BUILD_TYPE='Debug')
+                self.assertEqual(0, result.returncode, result.stdout)
+                build = root / 'build'
+                command = ['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp']
+                stage = build / 'sdk/sdk-headers/Debug'
+                staged_header = stage / 'sdk/include/dmsdk/public.h'
+                subprocess.check_output(command)
+                subprocess.check_output(command)
+                self.assertEqual(['staged'], (stage / 'staging.log').read_text().splitlines())
+                staged_header.unlink()
+                subprocess.check_output(command)
+                self.assertEqual(header.read_text(), staged_header.read_text())
 
     # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
     def test_server_groups_match_direct_target_locks(self):
@@ -524,7 +569,7 @@ add_executable(lz4_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
 target_link_libraries(lz4_consumer PRIVATE dlib)
 ''')
                 consumer = self.configure_target(root, 'lz4_consumer', TARGET_PLATFORM=platform)
-                library = self.read_target(root, 'dlib')
+                library = self.read_target(root, 'dlib_objects')
                 source = next(source for source in library['sources']
                               if source['path'].endswith('/dlib/lz4.cpp'))
                 group = library['compileGroups'][source['compileGroupIndex']]
