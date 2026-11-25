@@ -755,7 +755,7 @@ target_link_libraries(platform_consumer PRIVATE hid)
                     link_command = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                     if in_tree == 'ON':
                         repository = Path(__file__).resolve().parent.parent
-                        library = repository / 'engine/platform/src/native/web/library_platform.js'
+                        library = repository / 'engine/platform/src/web/library_platform.js'
                     else:
                         library = root / 'sdk/lib' / platform / 'js/library_platform.js'
                     self.assertIn('--js-library=' + library.as_posix(), link_command)

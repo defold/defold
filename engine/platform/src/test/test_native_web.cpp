@@ -16,7 +16,7 @@
 #include <jc_test/jc_test.h>
 #include <emscripten.h>
 
-#include "../native/native.h"
+#include "../window_mobile_web_backend.h"
 
 // Native web lookup must reach the linked Emscripten resolver.
 TEST(NativeWeb, GetProcAddress)

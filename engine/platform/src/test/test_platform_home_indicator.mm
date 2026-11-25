@@ -19,7 +19,7 @@
 
 #include "../platform_window_ios.h"
 #include "../platform_app.h"
-#import "../native/ios/app/ViewController.h"
+#import "../ios/app/ViewController.h"
 
 @interface HomeIndicatorTestViewController : ViewController
 @property (nonatomic) NSUInteger gestureUpdates;

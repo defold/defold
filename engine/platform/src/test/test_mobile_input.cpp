@@ -16,10 +16,10 @@
 
 extern "C"
 {
-#include "../native/window_mobile_private.h"
+#include "../mobile_shared/window_mobile_private.h"
 }
 
-// The null-backend test executable supplies the single mobile window used by input.c.
+// The null-backend test executable supplies the single mobile window used by window_input.c.
 Nativewin dmNativeWin;
 
 class MobileInput : public jc_test_base_class

@@ -14,7 +14,7 @@
 
 #include <string.h>
 #include <jc_test/jc_test.h>
-#include "../native/native_touch.h"
+#include "../window_touch.h"
 
 // Verifies a tap between updates produces both press and release instead of losing the input.
 TEST(NativeTouch, TapReportsBeganThenEnded)

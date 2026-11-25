@@ -20,14 +20,12 @@ endif()
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/test_mobile_input.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/../native/input.c"
+    "${CMAKE_CURRENT_LIST_DIR}/../mobile_shared/window_input.c"
     "${CMAKE_CURRENT_LIST_DIR}/test_native_touch.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/../native/native_touch.c")
+    "${CMAKE_CURRENT_LIST_DIR}/../window_touch.c")
 target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
-target_include_directories(test_platform PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/.."
-    "${CMAKE_CURRENT_LIST_DIR}/../native")
+target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
 
 defold_target_link_libraries(test_platform "${TARGET_PLATFORM}"
     dlib
@@ -264,9 +262,7 @@ endif()
 if(TARGET_PLATFORM MATCHES "-android$")
     defold_add_executable(test_platform_android_joystick
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_joystick.cpp")
-    target_include_directories(test_platform_android_joystick PRIVATE
-        "${CMAKE_CURRENT_LIST_DIR}/../native"
-        "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+    target_include_directories(test_platform_android_joystick PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
     defold_target_link_libraries(test_platform_android_joystick "${TARGET_PLATFORM}" dlib profile_null testmain platform)
     foreach(function IN ITEMS AInputEvent_getDeviceId AInputEvent_getType AInputEvent_getSource
             AKeyEvent_getKeyCode AKeyEvent_getAction AKeyEvent_getFlags AKeyEvent_getMetaState
@@ -281,9 +277,7 @@ if(TARGET_PLATFORM MATCHES "-android$")
         set(test_target "test_platform_android_insets_${backend}")
         defold_add_executable(${test_target}
             "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_insets.cpp")
-        target_include_directories(${test_target} PRIVATE
-            "${CMAKE_CURRENT_LIST_DIR}/../native"
-            "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+        target_include_directories(${test_target} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
         defold_target_link_libraries(${test_target} "${TARGET_PLATFORM}" dlib profile_null testmain)
         if(backend STREQUAL "gl")
             target_link_libraries(${test_target} PRIVATE platform)

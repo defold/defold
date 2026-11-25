@@ -18,7 +18,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const nativeHeader = fs.readFileSync(path.join(__dirname, "../native/native.h"), "utf8");
+const nativeHeader = fs.readFileSync(path.join(__dirname, "../window_mobile_web_backend.h"), "utf8");
 const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
     Number(nativeHeader.match(new RegExp("^#define NATIVE_" + name + "\\s+(0x[0-9A-Fa-f]+)", "m"))[1]));
 
@@ -63,7 +63,7 @@ function loadEnvironment(standardWheel = false) {
         stringToNewUTF8: value => value,
         _free() {}
     });
-    const libraryPath = path.join(__dirname, "../native/web/library_platform.js");
+    const libraryPath = path.join(__dirname, "../web/library_platform.js");
     // Call JavaScript test callbacks directly in place of Emscripten's WASM function pointers.
     const source = fs.readFileSync(libraryPath, "utf8").replace(
         /\{\{\{\s*makeDynCall\('[^']+', '([^']+)'\)\s*\}\}\}/g, "$1");

@@ -34,7 +34,7 @@ The engine's `android_main` registers the NDK's `android_app` with `dmAndroid::S
 
 AAPT2 assigns resource IDs when linking the app’s resources and generates `R.java` for the app and the library packages requested by Extender. Include each library’s resources in the build and leave its generated `R` classes out of precompiled JARs so the identifiers match the final package. See [Extender’s Android build configuration](share/extender/build_input.yml) and the [Android AAPT2 guide](https://developer.android.com/tools/aapt2).
 
-Defold's modified NDK glue is in [android_native_app_glue.c](engine/platform/src/native/android/android_native_app_glue.c).
+Defold's modified NDK glue is in [android_native_app_glue.c](engine/platform/src/android/android_native_app_glue.c).
 
 ### Android testing
 
@@ -118,7 +118,7 @@ and [trigger configuration](https://perfetto.dev/docs/concepts/config#triggers).
 
 At startup, `engine_main` registers the activity callbacks and waits for `APP_CMD_INIT_WINDOW` before starting the engine thread. The Android looper continues to receive lifecycle and input events. The engine thread processes queued events when it polls the window. See the [engine startup code](engine/engine/src/engine_main.cpp).
 
-Android delivers activity events (`APP_CMD_RESUME` and `APP_CMD_PAUSE`) separately from window events (`APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`). The backend marks the window as iconified until the activity is resumed and a drawable window is available. For OpenGL ES it checks the EGL surface. For backends that manage their own surfaces it checks the native window. After a pause, Android can kill the process without delivering `APP_CMD_DESTROY`. See the [Android command handler](engine/platform/src/native/android/android_init.c).
+Android delivers activity events (`APP_CMD_RESUME` and `APP_CMD_PAUSE`) separately from window events (`APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`). The backend marks the window as iconified until the activity is resumed and a drawable window is available. For OpenGL ES it checks the EGL surface. For backends that manage their own surfaces it checks the native window. After a pause, Android can kill the process without delivering `APP_CMD_DESTROY`. See the [Android command handler](engine/platform/src/android/android_init.c).
 
 With OpenGL ES, losing the native window releases its `EGLSurface`. The backend keeps the `EGLContext` and creates a surface for the replacement window. Closing the engine window releases both the surface and the context.
 

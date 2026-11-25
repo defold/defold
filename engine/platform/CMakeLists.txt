@@ -34,6 +34,19 @@ foreach(_platform_header IN LISTS _DEFOLD_PLATFORM_HEADERS)
 endforeach()
 
 # Select platform sources (centralized)
+set(_platform_mobile_web_sources
+    "${PLAT_SRC_DIR}/window.cpp"
+    "${PLAT_SRC_DIR}/window_mobile_web.cpp"
+    "${PLAT_SRC_DIR}/window_touch.c"
+    "${PLAT_SRC_DIR}/joystick_guid.c")
+set(_platform_mobile_sources
+    ${_platform_mobile_web_sources}
+    "${PLAT_SRC_DIR}/mobile_shared/window.c"
+    "${PLAT_SRC_DIR}/mobile_shared/window_init.c"
+    "${PLAT_SRC_DIR}/mobile_shared/window_input.c"
+    "${PLAT_SRC_DIR}/mobile_shared/window_joystick.c"
+    "${PLAT_SRC_DIR}/mobile_shared/window_opengl.c")
+
 set(PLATFORM_USE_LINUX OFF)
 set(PLATFORM_USE_COCOA OFF)
 set(PLATFORM_USE_WIN32 OFF)
@@ -80,7 +93,7 @@ elseif(TARGET_PLATFORM_OS STREQUAL "macos")
         "${PLAT_SRC_DIR}/macos/window_input.mm"
         "${PLAT_SRC_DIR}/macos/window_joystick.mm"
         "${PLAT_SRC_DIR}/macos/window_opengl.mm")
-elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
+elseif(TARGET_PLATFORM_OS STREQUAL "win32")
     set(PLATFORM_USE_WIN32 ON)
     set(_platform_sources
         "${PLAT_SRC_DIR}/window.cpp"
@@ -116,56 +129,43 @@ elseif(TARGET_PLATFORM_OS STREQUAL "linux")
         "${PLAT_SRC_DIR}/linux/window_placement.cpp"
         "${PLAT_SRC_DIR}/linux/window_opengl.cpp"
         $<TARGET_OBJECTS:platform_wayland_protocols>)
-else()
+elseif(TARGET_PLATFORM_OS STREQUAL "android")
+    set(PLATFORM_USE_ANDROID ON)
     set(_platform_sources
-        "${PLAT_SRC_DIR}/window.cpp"
-        "${PLAT_SRC_DIR}/platform_window_native.cpp")
-    if (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
-        list(APPEND _platform_sources "${PLAT_SRC_DIR}/platform_window_ios.mm" "${PLAT_SRC_DIR}/platform_app_ios.mm")
-    elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
-        list(APPEND _platform_sources "${PLAT_SRC_DIR}/platform_window_android.cpp" "${PLAT_SRC_DIR}/platform_app_android.cpp")
-    endif()
+        ${_platform_mobile_sources}
+        "${PLAT_SRC_DIR}/android/app_android.cpp"
+        "${PLAT_SRC_DIR}/android/platform_window_android.cpp"
+        "${PLAT_SRC_DIR}/android/android_init.c"
+        "${PLAT_SRC_DIR}/android/android_jni.c"
+        "${PLAT_SRC_DIR}/android/android_native_app_glue.c"
+        "${PLAT_SRC_DIR}/android/window_android.c"
+        "${PLAT_SRC_DIR}/android/window_joystick.c")
+    set(_platform_gles_sources
+        "${PLAT_SRC_DIR}/android/android_util.c"
+        "${PLAT_SRC_DIR}/android/window_opengl.c")
+elseif(TARGET_PLATFORM_OS STREQUAL "ios")
+    set(PLATFORM_USE_IOS ON)
+    set(_platform_sources
+        ${_platform_mobile_sources}
+        "${PLAT_SRC_DIR}/ios/app_ios.mm"
+        "${PLAT_SRC_DIR}/ios/platform_window_ios.mm"
+        "${PLAT_SRC_DIR}/ios/window_init.m"
+        "${PLAT_SRC_DIR}/ios/window_ios.m"
+        "${PLAT_SRC_DIR}/ios/window_joystick.m"
+        "${PLAT_SRC_DIR}/ios/app/AppDelegate.m"
+        "${PLAT_SRC_DIR}/ios/app/AppDelegateProxy.m"
+        "${PLAT_SRC_DIR}/ios/app/BaseView.m"
+        "${PLAT_SRC_DIR}/ios/app/EAGLView.m"
+        "${PLAT_SRC_DIR}/ios/app/MetalView.m"
+        "${PLAT_SRC_DIR}/ios/app/SceneDelegate.m"
+        "${PLAT_SRC_DIR}/ios/app/TextUtil.m"
+        "${PLAT_SRC_DIR}/ios/app/ViewController.m")
+elseif(TARGET_PLATFORM_OS STREQUAL "web")
+    set(PLATFORM_USE_WEB ON)
+    set(_platform_sources ${_platform_mobile_web_sources} "${PLAT_SRC_DIR}/web/window_web.c")
+else()
+    message(FATAL_ERROR "No window backend configured for ${TARGET_PLATFORM}")
 endif()
-
-# The mobile and web backends are engine sources, built with the platform library.
-set(PLATFORM_NATIVE_DIR "${PLAT_SRC_DIR}/native")
-set(PLATFORM_NATIVE_SOURCES)
-set(PLATFORM_NATIVE_VULKAN_SOURCES)
-if(NOT PLATFORM_USE_LINUX AND NOT PLATFORM_USE_COCOA AND NOT PLATFORM_USE_WIN32 AND NOT DEFOLD_IS_PRIVATE_VENDOR AND NOT DEFOLD_PLATFORM_WINDOW_SOURCES)
-    if(TARGET_PLATFORM_OS STREQUAL "web")
-        set(PLATFORM_NATIVE_SOURCES "${PLATFORM_NATIVE_DIR}/web/window_web.c" "${PLATFORM_NATIVE_DIR}/native_touch.c" "${PLATFORM_NATIVE_DIR}/joystick_guid.c")
-    else()
-        file(GLOB PLATFORM_NATIVE_COMMON CONFIGURE_DEPENDS "${PLATFORM_NATIVE_DIR}/*.c")
-        if(TARGET_PLATFORM_OS STREQUAL "ios")
-            file(GLOB PLATFORM_NATIVE_OS CONFIGURE_DEPENDS
-                "${PLATFORM_NATIVE_DIR}/ios/*.m" "${PLATFORM_NATIVE_DIR}/ios/app/*.m")
-        elseif(TARGET_PLATFORM_OS STREQUAL "android")
-            file(GLOB PLATFORM_NATIVE_OS CONFIGURE_DEPENDS "${PLATFORM_NATIVE_DIR}/android/*.c")
-        endif()
-        set(PLATFORM_NATIVE_SOURCES ${PLATFORM_NATIVE_COMMON} ${PLATFORM_NATIVE_OS})
-        if(TARGET_PLATFORM_OS STREQUAL "android")
-            set(PLATFORM_NATIVE_VULKAN_SOURCES ${PLATFORM_NATIVE_SOURCES})
-            list(FILTER PLATFORM_NATIVE_VULKAN_SOURCES EXCLUDE REGEX "/(android_util|android_window_gl)\\.c$")
-            list(FILTER PLATFORM_NATIVE_SOURCES EXCLUDE REGEX "/android_window_no_api\\.c$")
-        endif()
-    endif()
-endif()
-
-function(platform_configure_native target)
-    target_include_directories(${target} PRIVATE "${PLATFORM_NATIVE_DIR}" "${PLATFORM_NATIVE_DIR}/${TARGET_PLATFORM_OS}")
-    target_compile_definitions(${target} PRIVATE SDL_JOYSTICK_IOKIT)
-    if(TARGET_PLATFORM_OS STREQUAL "ios")
-        target_link_libraries(${target} PUBLIC ${DEFOLD_IOS_WINDOW_FRAMEWORKS})
-    elseif(TARGET_PLATFORM_OS STREQUAL "android")
-        target_link_libraries(${target} PUBLIC android log)
-        if(NOT target STREQUAL "platform_vulkan")
-            target_link_libraries(${target} PUBLIC EGL GLESv1_CM GLESv2)
-        endif()
-    elseif(TARGET_PLATFORM_OS STREQUAL "web")
-        target_link_options(${target} INTERFACE "SHELL:--js-library=${PLATFORM_NATIVE_DIR}/web/library_platform.js")
-        set_property(TARGET ${target} APPEND PROPERTY INTERFACE_LINK_DEPENDS "${PLATFORM_NATIVE_DIR}/web/library_platform.js")
-    endif()
-endfunction()
 
 # Debug HTTP service. The final engine chooses platform/platform_vulkan/platform_null;
 # linking a concrete backend here would pull a native window into headless engines.
@@ -186,7 +186,7 @@ cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
     CALL platform_service_add_graphics_header_dependency)
 
 # platform
-defold_add_library(platform STATIC ${_platform_sources} ${PLATFORM_NATIVE_SOURCES})
+defold_add_library(platform STATIC ${_platform_sources} ${_platform_gles_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
 target_compile_definitions(platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 defold_target_link_libraries(platform "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
@@ -198,8 +198,13 @@ elseif(PLATFORM_USE_COCOA)
     target_link_libraries(platform PUBLIC ${DEFOLD_COCOA_WINDOW_FRAMEWORKS})
 elseif(PLATFORM_USE_WIN32)
     target_link_libraries(platform PUBLIC ${DEFOLD_WIN32_WINDOW_LIBRARIES})
-elseif(PLATFORM_NATIVE_SOURCES)
-    platform_configure_native(platform)
+elseif(PLATFORM_USE_ANDROID)
+    target_link_libraries(platform PUBLIC android log EGL GLESv1_CM GLESv2)
+elseif(PLATFORM_USE_IOS)
+    target_link_libraries(platform PUBLIC ${DEFOLD_IOS_WINDOW_FRAMEWORKS})
+elseif(PLATFORM_USE_WEB)
+    target_link_options(platform INTERFACE "SHELL:--js-library=${PLAT_SRC_DIR}/web/library_platform.js")
+    set_property(TARGET platform APPEND PROPERTY INTERFACE_LINK_DEPENDS "${PLAT_SRC_DIR}/web/library_platform.js")
 endif()
 
 # platform_null
@@ -219,8 +224,8 @@ if (PLATFORM_USE_LINUX OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32 OR TARGET_PLA
         list(APPEND _platform_vulkan_sources "${PLAT_SRC_DIR}/win32/window_vulkan.cpp")
     elseif(PLATFORM_USE_LINUX)
         list(APPEND _platform_vulkan_sources "${PLAT_SRC_DIR}/linux/window_vulkan.cpp")
-    else()
-        list(APPEND _platform_vulkan_sources ${PLATFORM_NATIVE_VULKAN_SOURCES})
+    elseif(PLATFORM_USE_ANDROID)
+        list(APPEND _platform_vulkan_sources "${PLAT_SRC_DIR}/android/window_no_api.c")
     endif()
     list(REMOVE_DUPLICATES _platform_vulkan_sources)
     defold_add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
@@ -236,7 +241,7 @@ if (PLATFORM_USE_LINUX OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32 OR TARGET_PLA
         target_link_libraries(platform_vulkan PUBLIC ${DEFOLD_WIN32_WINDOW_LIBRARIES})
     elseif(TARGET_PLATFORM_OS STREQUAL "android")
         target_compile_definitions(platform_vulkan PRIVATE DM_PLATFORM_NO_OPENGL)
-        platform_configure_native(platform_vulkan)
+        target_link_libraries(platform_vulkan PUBLIC android log)
     endif()
 endif()
 
@@ -281,7 +286,7 @@ install(FILES
 if(TARGET_PLATFORM_OS STREQUAL "android")
     set(PLATFORM_ANDROID_CLASSES "${CMAKE_CURRENT_BINARY_DIR}/java")
     set(PLATFORM_ANDROID_JAR "${DEFOLD_SDK_ROOT}/share/java/platform_android.jar")
-    file(GLOB_RECURSE PLATFORM_ANDROID_JAVA CONFIGURE_DEPENDS "${PLAT_SRC_DIR}/java/*.java")
+    set(PLATFORM_ANDROID_JAVA "${PLAT_SRC_DIR}/android/java/com/dynamo/android/DefoldActivity.java")
     add_custom_command(OUTPUT "${PLATFORM_ANDROID_JAR}"
         COMMAND "${CMAKE_COMMAND}" -E rm -rf "${PLATFORM_ANDROID_CLASSES}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${PLATFORM_ANDROID_CLASSES}" "${DEFOLD_SDK_ROOT}/share/java"
@@ -295,7 +300,7 @@ if(TARGET_PLATFORM_OS STREQUAL "android")
     add_dependencies(platform_vulkan platform_android_jar)
     install(FILES "${PLATFORM_ANDROID_JAR}" DESTINATION share/java)
 elseif(TARGET_PLATFORM_OS STREQUAL "web")
-    install(FILES "${PLATFORM_NATIVE_DIR}/web/library_platform.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
+    install(FILES "${PLAT_SRC_DIR}/web/library_platform.js" DESTINATION "lib/${TARGET_PLATFORM}/js")
 endif()
 
 # ********************* Tests *********************
