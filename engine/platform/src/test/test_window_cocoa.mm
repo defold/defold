@@ -279,6 +279,24 @@ TEST_F(CocoaWindowTest, FailedOpenThenReopen)
     }
 }
 
+// OpenGL functions are available with a current context and unavailable on Vulkan or after unbinding.
+TEST_F(CocoaWindowTest, OpenGLProcAddressRequiresContext)
+{
+    @autoreleasepool
+    {
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        EXPECT_EQ((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
+        dmPlatform::CloseWindow(window);
+
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        EXPECT_NE((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
+        [NSOpenGLContext clearCurrentContext];
+        EXPECT_EQ((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
+    }
+}
+
 // A move notification alone must update the OpenGL drawable when the window stays on the same display.
 TEST_F(CocoaWindowTest, MoveUpdatesOpenGLContext)
 {

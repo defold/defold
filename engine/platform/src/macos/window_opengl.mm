@@ -86,6 +86,11 @@ namespace dmPlatform
 
     uintptr_t GetProcAddress(HWindow window, const char* name)
     {
+        if (!window->m_Context || ![NSOpenGLContext currentContext])
+        {
+            return 0;
+        }
+
         CFBundleRef bundle = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
         if (!bundle)
         {
