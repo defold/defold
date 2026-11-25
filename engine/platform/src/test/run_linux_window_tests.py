@@ -201,6 +201,9 @@ def run(args, directory):
                                                      '--socket=defold-input', '--shell=kiosk-shell.so', '--idle-time=0'],
                                                     x11, directory))
             wait_ready(compositor, ['test', '-S', directory / nested['WAYLAND_DISPLAY']], nested)
+            # The nested compositor has a seat, so fullscreen startup also exercises the libdecor path.
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.WaylandFirstSwapAfterOpen'],
+                           cwd=directory, env=nested, check=True, timeout=30)
             input_test(args.native, nested, x11, directory, True)
 
 

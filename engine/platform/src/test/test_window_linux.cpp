@@ -751,7 +751,7 @@ static void FrameDone(void* data, wl_callback*, uint32_t)
     *(bool*)data = true;
 }
 
-// A visible fullscreen window must present its first EGL buffer directly after WindowOpen.
+// The first EGL buffer must use the compositor's fullscreen geometry and present directly after WindowOpen.
 TEST(LinuxWindow, WaylandFirstSwapAfterOpen)
 {
     HWindow w = WindowNew();
@@ -765,6 +765,13 @@ TEST(LinuxWindow, WaylandFirstSwapAfterOpen)
     WindowCreateParams p = Params();
     p.m_Fullscreen = true;
     ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+    if (getenv("DM_TEST_WINDOW_BACKEND"))
+    {
+        // The private Weston compositor grants fullscreen requests on its only output.
+        EXPECT_TRUE(w->m_Wayland->m_ShellFullscreen);
+        LinuxOutput* output = w->m_Wayland->m_Outputs[0];
+        EXPECT_EQ(output->m_Width / output->m_Scale, w->m_Width);
+    }
     bool presented = false;
     static const wl_callback_listener listener = { FrameDone };
     wl_callback* frame = wl_surface_frame(w->m_Surface);

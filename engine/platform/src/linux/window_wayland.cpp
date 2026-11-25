@@ -35,6 +35,7 @@ namespace dmPlatform
     F(libdecor_dispatch) \
     F(libdecor_decorate) \
     F(libdecor_frame_unref) \
+    F(libdecor_frame_get_xdg_toplevel) \
     F(libdecor_frame_map) \
     F(libdecor_frame_commit) \
     F(libdecor_state_new) \
@@ -339,6 +340,7 @@ namespace dmPlatform
         if (g_Decor.libdecor_configuration_get_window_state_(cfg, &state))
         {
             w->m_Maximized = state & LIBDECOR_WINDOW_STATE_MAXIMIZED;
+            w->m_Wayland->m_ShellFullscreen = state & LIBDECOR_WINDOW_STATE_FULLSCREEN;
         }
 
         g_Decor.libdecor_configuration_get_content_size_(cfg, frame, &width, &height);
@@ -554,11 +556,8 @@ namespace dmPlatform
 
         ApplyAppId(wl);
         ApplyTitle(wl);
-        if (wl->m_Frame)
-        {
-            g_Decor.libdecor_frame_map_(wl->m_Frame);
-        }
-        else
+        bool map_frame = wl->m_Frame != 0;
+        if (!map_frame)
         {
             if (w->m_Params.m_Fullscreen)
             {
@@ -571,6 +570,19 @@ namespace dmPlatform
         const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         while (!wl->m_Configured && Dispatch(w))
         {
+            // libdecor creates the toplevel asynchronously. Set fullscreen before mapping so the first drawable gets its configured size.
+            if (map_frame && (!w->m_Params.m_Fullscreen || g_Decor.libdecor_frame_get_xdg_toplevel_(wl->m_Frame)))
+            {
+                if (w->m_Params.m_Fullscreen)
+                {
+                    g_Decor.libdecor_frame_set_fullscreen_(wl->m_Frame, FullscreenOutput(wl));
+                }
+
+                g_Decor.libdecor_frame_map_(wl->m_Frame);
+                map_frame = false;
+                continue;
+            }
+
             if (wl->m_Configured)
             {
                 break;
@@ -584,12 +596,6 @@ namespace dmPlatform
 
             pollfd fd = { g_WaylandClient.wl_display_get_fd_(w->m_WlDisplay), POLLIN, 0 };
             poll(&fd, 1, dmMath::Min(50, (int)((deadline - now) / 1000) + 1));
-        }
-
-        // libdecor creates its xdg_toplevel during the initial configure.
-        if (wl->m_Configured && wl->m_Frame && w->m_Params.m_Fullscreen)
-        {
-            g_Decor.libdecor_frame_set_fullscreen_(wl->m_Frame, FullscreenOutput(wl));
         }
 
         wl->m_Unmapped = !wl->m_Configured;
