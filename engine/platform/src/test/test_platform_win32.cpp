@@ -116,6 +116,33 @@ TEST(dmPlatform, WindowsStartupVisibilityAndFocus)
     dmPlatform::DeleteWindow(window);
 }
 
+// Showing an already-visible player should take keyboard focus from a child only when focus on show is enabled.
+TEST(dmPlatform, WindowsShowWithFocusedChild)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    for (int focus_on_show = 0; focus_on_show <= 1; ++focus_on_show)
+    {
+        params.m_FocusOnShow = focus_on_show;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        HWND child = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE, 0, 0, 40, 20, hwnd, 0, GetModuleHandleW(0), 0);
+        ASSERT_NE((HWND)0, child);
+        SetFocus(child);
+        ASSERT_EQ(child, GetFocus());
+
+        dmPlatform::ShowWindow(window);
+        EXPECT_EQ(focus_on_show ? hwnd : child, GetFocus());
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
 // Minimize and restore must each reach listeners before their corresponding resize.
 TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
 {

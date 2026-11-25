@@ -378,6 +378,7 @@ namespace dmPlatform
         if (window->m_Params.m_FocusOnShow)
         {
             SetForegroundWindow(window->m_Window);
+            SetFocus(window->m_Window);
         }
 
         WindowPlacementShown(window);
