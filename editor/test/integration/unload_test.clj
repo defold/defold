@@ -151,12 +151,10 @@
                     tile-map-node-id (test-util/resource-node project tile-map-proj-path)]
                 (binding [project/report-defunload-issues! (fn/make-call-logger)]
                   (when tile-source-materialized
-                    (g/with-auto-evaluation-context evaluation-context
-                      (g/materialize-node! tile-source-node-id evaluation-context)))
+                    (g/materialize-node! tile-source-node-id))
                   (is (= (not tile-source-materialized)
                          (in/shell-node? (g/node-by-id (g/now) tile-source-node-id))))
-                  (g/with-auto-evaluation-context evaluation-context
-                    (g/materialize-node! tile-map-node-id evaluation-context))
+                  (g/materialize-node! tile-map-node-id)
                   (let [tile-map-report [workspace {tile-map-proj-path #{tile-source-proj-path}} #{}]]
                     (is (= (if-not tile-source-materialized
                              [tile-map-report]
@@ -232,8 +230,7 @@
                 materialize-resource!
                 (fn materialize-resource! [proj-path]
                   (let [node-id (project/get-resource-node project proj-path)]
-                    (g/with-auto-evaluation-context evaluation-context
-                      (g/materialize-node! node-id evaluation-context))
+                    (g/materialize-node! node-id)
                     (is (not (g/defective? (g/now) node-id)))))]
 
             (testing "Loading resource dependencies stops at safe excluded placeholders."

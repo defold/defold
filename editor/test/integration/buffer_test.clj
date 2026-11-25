@@ -106,8 +106,7 @@
         (test-util/write-file-resource! workspace proj-path (color-weight-buffer-json 7))
         (is (= [-1.5] (get-in (g/node-value node-id :streams) [1 :data])))
         (is (g/shell-node? (g/node-by-id node-id)))
-        (g/with-auto-evaluation-context evaluation-context
-          (g/materialize-node! node-id evaluation-context))
+        (g/materialize-node! node-id)
         (is (= [-1.5] (get-in (g/node-value node-id :streams) [1 :data])))
         (workspace/resource-sync! workspace)
         (let [synced-node-id (test-util/resource-node project proj-path)]
@@ -175,8 +174,7 @@
           (is (= (localization/message "error.buffer-syntax-error") (:message shell-error)))
           (is (resource-io/file-not-found-error? shell-error)))
         (is (g/shell-node? (g/node-by-id node-id)))
-        (g/with-auto-evaluation-context evaluation-context
-          (g/materialize-node! node-id evaluation-context))
+        (g/materialize-node! node-id)
         (g/invalidate-outputs! [(g/endpoint node-id :streams)])
         (is (= shell-error (g/node-value node-id :streams)))))))
 

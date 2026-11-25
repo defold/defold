@@ -528,8 +528,7 @@
         (let [project (log/without-logging (test-util/setup-project! workspace))
               node-id (project/get-resource-node project "/b.type_b")]
           (log/without-logging
-            (g/with-auto-evaluation-context evaluation-context
-              (g/materialize-node! node-id evaluation-context)))
+            (g/materialize-node! node-id))
           (let [source-value (g/node-value node-id :source-value)]
             (is (g/defective? node-id))
             (is (g/error-value? source-value))

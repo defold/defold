@@ -72,8 +72,7 @@
       (doseq [proj-path editable-code-proj-paths]
         (let [node-id (test-util/resource-node project proj-path)]
           (is (not (resource-node/loaded? (g/now) node-id)))
-          (g/with-auto-evaluation-context evaluation-context
-            (g/materialize-node! node-id evaluation-context))
+          (g/materialize-node! node-id)
           (is (contains? (tracked-proj-paths) proj-path))))
       (is (= editable-code-proj-paths
              (set/intersection editable-code-proj-paths (tracked-proj-paths)))))))
@@ -197,8 +196,7 @@
                     (is (= ["    print('needle')"]
                            (mapv :text (search-fn search-value (search-fn search-string)))))))
                 (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
-                (g/with-auto-evaluation-context evaluation-context
-                  (g/materialize-node! node-id evaluation-context))
+                (g/materialize-node! node-id)
                 (is (instance? NodeImpl (g/node-by-id (g/now) node-id)))
                 (is (= lines (g/node-value node-id :lines)))
                 (is (= :four-spaces (g/node-value node-id :indent-type)))

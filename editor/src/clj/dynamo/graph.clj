@@ -548,11 +548,6 @@
   [node-id]
   (it/materialize-shell node-id))
 
-(defn materialize-node!
-  "Materializes a shell before inspecting its structure in evaluation-context."
-  [node-id evaluation-context]
-  (it/materialize-node! node-id evaluation-context))
-
 (defn initialize-shell-properties!
   "Initializes unassigned :non-materializing properties on a shell node.
 
@@ -1506,6 +1501,16 @@
          (when real-system#
            (update-system-from-evaluation-context! ~evaluation-context))
          result#))))
+
+(defn materialize-node!
+  "Materializes a shell before inspecting its structure in evaluation-context.
+
+  With only a node-id, commits the materialization on the calling thread."
+  ([node-id]
+   (with-auto-evaluation-context evaluation-context
+     (materialize-node! node-id evaluation-context)))
+  ([node-id evaluation-context]
+   (it/materialize-node! node-id evaluation-context)))
 
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.

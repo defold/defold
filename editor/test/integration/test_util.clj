@@ -1283,8 +1283,7 @@
         transform-properties nil
         overrides nil
         select-fn (fn/make-call-logger)]
-    (g/with-auto-evaluation-context evaluation-context
-      (g/materialize-node! collection-id evaluation-context))
+    (g/materialize-node! collection-id)
     (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
@@ -1390,8 +1389,7 @@
   (let [workspace (project/workspace project)
         image-resource (make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
         atlas (make-resource-node! project proj-path)]
-    (g/with-auto-evaluation-context evaluation-context
-      (g/materialize-node! atlas evaluation-context))
+    (g/materialize-node! atlas)
     (g/transact
       (atlas/add-images atlas [image-resource]))
     atlas))
@@ -1743,8 +1741,7 @@
 
 (defmulti edit-resource-node
   (fn [resource-node-id]
-    (g/with-auto-evaluation-context evaluation-context
-      (g/materialize-node! resource-node-id evaluation-context))
+    (g/materialize-node! resource-node-id)
     (edit-multimethod-dispatch-fn resource-node-id)))
 
 (defmethod edit-resource-node :code [resource-node-id]

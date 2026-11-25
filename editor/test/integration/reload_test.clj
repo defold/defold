@@ -220,8 +220,7 @@
           (is (some? initial-node))
           (is (not (g/has-undo? :undo/global)))
           (testing "Reference it, node added and linked"
-            (g/with-auto-evaluation-context evaluation-context
-              (g/materialize-node! atlas-node-id evaluation-context))
+            (g/materialize-node! atlas-node-id)
             (g/transact
               (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
             (is (g/has-undo? :undo/global))
@@ -619,8 +618,7 @@
         (let [atlas>images-powball (project/get-resource-node project "/atlas/images_powball.atlas")
               ;; Materialize the atlas so its image connections exist before
               ;; taking the graph snapshot and moving the images.
-              _ (g/with-auto-evaluation-context evaluation-context
-                  (g/materialize-node! atlas>images-powball evaluation-context))
+              _ (g/materialize-node! atlas>images-powball)
               images>pow (project/get-resource-node project "/images/pow.png")
               images>pow-resource (resource images>pow)
               image>ball (project/get-resource-node project "/images/ball.png")
