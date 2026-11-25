@@ -227,7 +227,7 @@ TEST_F(WindowPlacementTest, NativeWindowIdentity)
 }
 
 #if defined(_WIN32)
-// Wallpaper changes must preserve a player's position while a work-area change brings it back on screen.
+// Wallpaper and same-layout display notifications must preserve saved placement until a work-area change.
 TEST_F(WindowPlacementTest, OnlyWorkAreaSettingsClampPosition)
 {
     OpenAndShow();
@@ -245,6 +245,16 @@ TEST_F(WindowPlacementTest, OnlyWorkAreaSettingsClampPosition)
     dmWindowTest::Position(m_Window, &actual_x, &actual_y);
     EXPECT_EQ(x, actual_x);
     EXPECT_EQ(y, actual_y);
+
+    DEVMODEW mode = {};
+    mode.dmSize = sizeof(mode);
+    ASSERT_TRUE(EnumDisplaySettingsW(0, ENUM_CURRENT_SETTINGS, &mode));
+    SendMessageW(hwnd, WM_DISPLAYCHANGE, mode.dmBitsPerPel, MAKELPARAM(mode.dmPelsWidth, mode.dmPelsHeight));
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowState::State saved = {};
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    EXPECT_EQ(x, saved.m_Rect.m_X);
+    EXPECT_EQ(y, saved.m_Rect.m_Y);
 
     SendMessageW(hwnd, WM_SETTINGCHANGE, SPI_SETWORKAREA, 0);
     dmPlatform::UpdateWindowPlacement(m_Window, true);

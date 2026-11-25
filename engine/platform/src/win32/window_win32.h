@@ -59,6 +59,7 @@ namespace dmPlatform
     extern const wchar_t* const WIN32_WINDOW_CLASS;
     float Win32MonitorScale(HMONITOR monitor);
     void  Win32InitDpi();
+    bool  Win32UpdateDisplayLayout();
     void  Win32AdjustFrame(RECT* rect, DWORD style, DWORD ex_style, UINT dpi);
     bool  Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result);
     void  Win32UpdateCursor(HWindow window, bool focused);

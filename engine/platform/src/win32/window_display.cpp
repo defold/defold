@@ -99,6 +99,42 @@ namespace dmPlatform
         }
     }
 
+    struct DisplayLayout
+    {
+        uint64_t m_Hash;
+        uint32_t m_Count;
+    };
+
+    static BOOL CALLBACK HashMonitorGeometry(HMONITOR monitor, HDC, LPRECT, LPARAM data)
+    {
+        DisplayLayout* layout = (DisplayLayout*)data;
+        MONITORINFO info = { sizeof(info) };
+        if (!GetMonitorInfoW(monitor, &info))
+        {
+            layout->m_Count = 0;
+            return FALSE;
+        }
+
+        // Monitor bounds, work area and primary status determine placement. Enumeration order can vary.
+        layout->m_Hash += dmHashBufferNoReverse64(&info, sizeof(info));
+        ++layout->m_Count;
+        return TRUE;
+    }
+
+    bool Win32UpdateDisplayLayout()
+    {
+        static DisplayLayout previous;
+        DisplayLayout current = {};
+        if (!EnumDisplayMonitors(0, 0, HashMonitorGeometry, (LPARAM)&current) || !current.m_Count)
+        {
+            return false;
+        }
+
+        bool changed = current.m_Hash != previous.m_Hash || current.m_Count != previous.m_Count;
+        previous = current;
+        return changed;
+    }
+
     static dmWindowState::Rect ToRect(const RECT& rect)
     {
         dmWindowState::Rect out = { rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top };

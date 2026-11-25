@@ -168,14 +168,18 @@ namespace dmPlatform
                     }
                 }
 
-                // A display mode change also invalidates saved windowed placement.
-                WindowPlacementMonitorsChanged();
+                if (Win32UpdateDisplayLayout())
+                {
+                    WindowPlacementMonitorsChanged();
+                }
+
                 break;
             }
             case WM_SETTINGCHANGE:
             {
                 if (wp == SPI_SETWORKAREA)
                 {
+                    Win32UpdateDisplayLayout();
                     WindowPlacementMonitorsChanged();
                 }
 
@@ -225,6 +229,7 @@ namespace dmPlatform
         if (!g_Windows)
         {
             Win32InitDpi();
+            Win32UpdateDisplayLayout();
             WNDCLASSEXW wc = { sizeof(wc) };
             wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
             wc.lpfnWndProc = WindowProc;
