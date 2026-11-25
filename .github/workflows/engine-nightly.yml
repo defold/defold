@@ -130,12 +130,6 @@ jobs:
               run_test_component_render run_test_component_render_state'
       },
       {
-        name: 'Upload threaded rendering build reports',
-        if: "always() && (steps.threaded_rendering.outcome == 'success' || steps.threaded_rendering.outcome == 'failure')",
-        uses: ./.github/actions/upload-build-reports,
-        with: { platform: 'x86_64-linux', build-variant: 'threaded-rendering-tsan' }
-      },
-      {
         name: 'MSAN',
         id: msan,
         env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },

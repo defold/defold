@@ -8,11 +8,14 @@ rendering is paused.
 Production execution is still inline. The service supports a separate render
 owner in tests, but does not create a thread or move a graphics context itself.
 
-Drawing pause does not stop the service. Context loss does: queued requests wait
-until restoration, then resource uploads can run while drawing remains paused.
+Drawing pause does not stop the service. Context loss cancels queued requests
+with `GRAPHICS_SERVICE_CONTEXT_LOST` and rejects new requests with that result.
+Callbacks are still delivered on the game owner, so a synchronous resource load
+can return an error instead of blocking the browser's restoration event. Resource
+loaders must handle both admission and completion errors, not retry them as pending.
+Restoration accepts fresh requests while drawing remains paused. Recreate lost
+resources before submitting work against them; old queued operations are not replayed.
 Both the loading hook and frame-queue pump use the same availability check.
-Shutdown with a lost context cancels queued work and delivers its callbacks
-without issuing graphics calls.
 
 ## Request flow
 
@@ -60,10 +63,13 @@ later pump through the wake callback instead of blocking.
    step services requests and delivers callbacks even if no frame was drawn.
    Completion callbacks must not start synchronous resource loads or wait for
    another completion.
-5. Shutdown calls `DrainGraphicsService` while callback data is alive.
+5. Shutdown notifies producers with `STATE_DELETE_BEGIN` before draining requests.
+   Producers stop recurring work but keep callback data alive until it completes.
+   Shutdown calls `DrainGraphicsService` while callback data is alive.
    `FinalizeRenderer` releases drawing/Lua state, but keeps the service alive for
    later resource cleanup. `DeleteRenderContext` finally stops admission and
-   deletes the service before the graphics context is destroyed.
+   deletes the service before the graphics context is destroyed. Final deletion
+   closes admission before draining, so callbacks cannot extend that drain forever.
 
 `StopGraphicsService` preserves accepted work. Explicit cancellation is separate:
 it cancels queued requests and still delivers one completion per request. Active

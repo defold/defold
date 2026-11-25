@@ -1071,6 +1071,7 @@ struct GraphicsServiceProbe
 {
     uint32_t m_Completed;
     uint32_t m_Value;
+    int32_t  m_Result;
 };
 
 static int32_t ExecuteGraphicsServiceProbe(dmGraphics::HContext graphics, void* payload, uint32_t size)
@@ -1084,8 +1085,8 @@ static int32_t ExecuteGraphicsServiceProbe(dmGraphics::HContext graphics, void* 
 static void CompleteGraphicsServiceProbe(void* context, int32_t result, const void* payload, uint32_t size)
 {
     GraphicsServiceProbe* probe = (GraphicsServiceProbe*)context;
-    ASSERT_EQ(7, result);
     ASSERT_EQ(sizeof(uint32_t), size);
+    probe->m_Result = result;
     probe->m_Value = *(const uint32_t*)payload;
     ++probe->m_Completed;
 }
@@ -1163,7 +1164,7 @@ static void StartupRenderDispatch(const dmRender::RenderListDispatchParams&)
 
 // Verify gamesys creation connects loading hooks without scripting/input/physics,
 // and cleanup before Initialize leaves loading progress available to the factory.
-// Both loading and frame-queue service hooks must wait for context restoration.
+// Neither loading nor frame-queue service hooks execute work while the context is lost.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
     WindowCreateParams window_params;
@@ -1227,15 +1228,21 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmResource::RunFactoryService(factory);
     ASSERT_TRUE(dmGameSystem::PostUpdate(gamesys, 0));
     ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(service).m_Executed);
-    ASSERT_EQ(0u, probe.m_Completed);
+    ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_CONTEXT_LOST, probe.m_Result);
 
     dmRender::OnContextEvent(render, dmRender::CONTEXT_RESTORED);
     ASSERT_TRUE(dmRender::IsRenderPaused(render));
+    probe.m_Completed = 0;
+    value = 31;
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    value = 51;
     ASSERT_TRUE(dmGameSystem::PostUpdate(gamesys, 0));
     ASSERT_EQ((uint64_t)1, dmRender::GetGraphicsServiceStatus(service).m_Executed);
     ASSERT_EQ(0u, probe.m_Completed);
     dmResource::RunFactoryService(factory);
     ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(7, probe.m_Result);
     ASSERT_EQ(32u, probe.m_Value);
 
     // No drawing state was ever created. Finalization must still drain requests,
@@ -1366,6 +1373,78 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
     dmEngine::Delete(engine);
     ASSERT_EQ(2u, probe.m_Completed);
     ASSERT_EQ(100u, probe.m_Value);
+    dmEngineFinalize();
+}
+
+// Stops a recurring producer on DELETE_BEGIN while keeping callback data alive until deletion returns.
+struct GraphicsShutdownProbe
+{
+    dmRender::HGraphicsService m_Service;
+    uint32_t                   m_Completed;
+    uint8_t                    m_Stop : 1;
+};
+
+static GraphicsShutdownProbe* g_GraphicsShutdownProbe;
+
+static void GraphicsShutdownEvent(dmExtension::Params*, dmhash_t event_id, const void* data, uint32_t)
+{
+    if (g_GraphicsShutdownProbe && event_id == dmEngine::EVENT_STATE &&
+        ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE_BEGIN)
+    {
+        g_GraphicsShutdownProbe->m_Stop = true;
+    }
+}
+
+static dmExtension::Result RegisterGraphicsShutdownTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, GraphicsShutdownEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(GraphicsShutdownTestExt, RegisterGraphicsShutdownTest, 0);
+
+static void CompleteRecurringGraphics(void* context, int32_t result, const void* payload, uint32_t size)
+{
+    GraphicsShutdownProbe* probe = (GraphicsShutdownProbe*)context;
+    EXPECT_EQ(7, result);
+    ++probe->m_Completed;
+    // Cap the chain so the old ordering fails the assertion rather than hanging.
+    if (!probe->m_Stop && probe->m_Completed < 16)
+    {
+        dmRender::GraphicsTask task = {};
+        task.m_Execute = ExecuteGraphicsServiceProbe;
+        task.m_Complete = CompleteRecurringGraphics;
+        task.m_CompleteContext = probe;
+        task.m_Payload = payload;
+        task.m_PayloadSize = size;
+        EXPECT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(probe->m_Service, task));
+    }
+}
+
+// Shutdown notifies recurring producers before draining, so callbacks cannot postpone DELETE_BEGIN forever.
+TEST_F(EngineTest, GraphicsShutdownStopsProducersBeforeDraining)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    SKIP(); // Production threaded startup is still gated.
+#endif
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
+    GraphicsShutdownProbe probe = {};
+    probe.m_Service = dmRender::GetGraphicsService(engine->m_RenderContext);
+    g_GraphicsShutdownProbe = &probe;
+    uint32_t value = 1;
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteRecurringGraphics;
+    task.m_CompleteContext = &probe;
+    task.m_Payload = &value;
+    task.m_PayloadSize = sizeof(value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(probe.m_Service, task));
+    dmEngine::Delete(engine);
+    g_GraphicsShutdownProbe = 0;
+    ASSERT_TRUE(probe.m_Stop);
+    ASSERT_EQ(1u, probe.m_Completed);
     dmEngineFinalize();
 }
 
@@ -3274,6 +3353,7 @@ int main(int argc, char **argv)
     EngineAppFinalizeBroadcastReceiver();
     EngineAppFinalizeBroadcastSender();
     GameSystemStartupTestExt();
+    GraphicsShutdownTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();

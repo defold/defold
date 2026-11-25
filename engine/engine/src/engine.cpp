@@ -538,8 +538,6 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
-        // Finish queued graphics work and callbacks before deleting the data they use.
-        dmRender::DrainGraphicsService(engine->m_RenderContext);
         if (engine->m_EngineService)
         {
             dmEngineService::OnEngineDelete(engine->m_EngineService);
@@ -549,6 +547,9 @@ namespace dmEngine
             dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
             dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
+
+        // Let producers stop first, then finish callbacks before deleting their data.
+        dmRender::DrainGraphicsService(engine->m_RenderContext);
 
         if (engine->m_MainCollectionResource)
             dmResource::Release(engine->m_Factory, engine->m_MainCollectionResource);

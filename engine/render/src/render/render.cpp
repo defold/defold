@@ -176,6 +176,7 @@ namespace dmRender
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
+        SetupContextEventCallback(context, &OnContextEvent);
         return context;
     }
 
@@ -258,7 +259,6 @@ namespace dmRender
 
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
-        SetupContextEventCallback(context, &OnContextEvent);
         context->m_RendererInitialized = true;
     }
 
@@ -297,12 +297,15 @@ namespace dmRender
             return RESULT_INVALID_CONTEXT;
         }
 
-        FinalizeRenderer(render_context, script_context);
         if (render_context->m_OwnsGraphicsService)
         {
+            // FinalizeRenderer drains. Close admission before calling it so
+            // completion callbacks cannot keep adding work during final deletion.
             StopGraphicsService(render_context->m_GraphicsService);
-            DrainGraphicsService(render_context);
         }
+
+        FinalizeRenderer(render_context, script_context);
+        SetupContextEventCallback(0, 0);
 
         // Core state exists even if startup stopped before InitializeRenderer.
         FinalizeLightData(render_context);
@@ -369,18 +372,17 @@ namespace dmRender
         // Owned production services are still inline. A future native/browser executor
         // must keep running through resource cleanup and join/quiesce before deletion.
         HGraphicsService service = context->m_GraphicsService;
-        bool can_execute = CanExecuteGraphics(context);
-        if (!can_execute)
-        {
-            CancelGraphicsService(service, GRAPHICS_SERVICE_TASK_CANCELLED);
-        }
-
         GraphicsServiceStatus status = GetGraphicsServiceStatus(service);
         while (status.m_Accepted != status.m_Completed)
         {
-            if (can_execute)
+            // A completion callback can change window/context availability.
+            if (CanExecuteGraphics(context))
             {
                 PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+            }
+            else
+            {
+                CancelGraphicsService(service, GRAPHICS_SERVICE_TASK_CANCELLED);
             }
 
             DispatchGraphicsCompletions(service);
@@ -2105,6 +2107,11 @@ namespace dmRender
         if (event_type == dmRender::CONTEXT_LOST)
         {
             dmAtomicStoreRelease32(&render_context->m_IsContextLost, 1);
+            if (render_context->m_GraphicsService)
+            {
+                SetGraphicsServiceContextLost(render_context->m_GraphicsService, true);
+            }
+
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
         }
@@ -2112,6 +2119,10 @@ namespace dmRender
         {
             // Allow resource rebuilding before drawing is explicitly resumed.
             dmAtomicStoreRelease32(&render_context->m_IsContextLost, 0);
+            if (render_context->m_GraphicsService)
+            {
+                SetGraphicsServiceContextLost(render_context->m_GraphicsService, false);
+            }
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)

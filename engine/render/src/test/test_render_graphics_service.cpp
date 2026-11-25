@@ -746,6 +746,41 @@ TEST(GraphicsService, NativeShutdownCancellationPreservesActiveOperation)
     DeleteFixture(&fixture);
 }
 
+// Context loss cancels queued work without stopping the native executor; fresh
+// requests run after restoration, but restoring a stopped service cannot reopen it.
+TEST(GraphicsService, NativeContextRestorationAcceptsFreshRequests)
+{
+    if (!HasThreadedExecution())
+    {
+        SKIP();
+    }
+
+    GraphicsServiceFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED, 4, 1024);
+    GraphicsServiceExecutor executor;
+    StartExecutor(&executor, &fixture, false);
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueTestTask(&fixture, 1, 0));
+    SetGraphicsServiceContextLost(fixture.m_Service, true);
+    ASSERT_EQ(GRAPHICS_SERVICE_CONTEXT_LOST, EnqueueTestTask(&fixture, 2, 0));
+    ASSERT_EQ(1u, DispatchGraphicsCompletions(fixture.m_Service));
+    ASSERT_EQ(GRAPHICS_SERVICE_CONTEXT_LOST, fixture.m_Probe.m_CompletedResults[0]);
+    ASSERT_FALSE(GetGraphicsServiceStatus(fixture.m_Service).m_Stopping);
+
+    SetGraphicsServiceContextLost(fixture.m_Service, false);
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueTestTask(&fixture, 3, 0));
+    ResumeExecutor(&executor);
+    WaitForExecuted(fixture.m_Service, 1);
+    StopGraphicsService(fixture.m_Service);
+    dmThread::Join(executor.m_Thread);
+    ASSERT_EQ(1u, DispatchGraphicsCompletions(fixture.m_Service));
+    ASSERT_EQ(3u, fixture.m_Probe.m_CompletedValues[1]);
+    ASSERT_EQ(9u, fixture.m_Probe.m_CompletedOutputs[1]);
+
+    SetGraphicsServiceContextLost(fixture.m_Service, false);
+    ASSERT_EQ(GRAPHICS_SERVICE_STOPPED, EnqueueTestTask(&fixture, 4, 0));
+    DeleteFixture(&fixture);
+}
+
 // Inputs for a worker that submits requests without executing graphics work.
 struct TaskProducer
 {

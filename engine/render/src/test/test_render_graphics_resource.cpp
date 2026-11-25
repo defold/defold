@@ -20,6 +20,7 @@
 #include <dlib/message.h>
 #include <platform/window.hpp>
 #include <script/script.h>
+#include <resource/resource.h>
 #include <testmain/testmain.h>
 
 #include <graphics/graphics_test.hpp>
@@ -30,6 +31,28 @@
 using namespace dmRender;
 
 extern "C" void dmExportedSymbols();
+extern "C" void ResourceProviderFile();
+
+// Stand in for the web platform's callback registration, so tests exercise
+// event delivery through registration rather than calling OnContextEvent directly.
+static void* g_ContextEventContext;
+static ContextEventCallback g_ContextEventCallback;
+
+namespace dmRender
+{
+    void PlatformSetupContextEventCallback(void* context, ContextEventCallback callback)
+    {
+        g_ContextEventContext = context;
+        g_ContextEventCallback = callback;
+    }
+
+}
+
+static void RaiseContextEvent(RenderContextEvent event)
+{
+    ASSERT_NE((ContextEventCallback)0, g_ContextEventCallback);
+    g_ContextEventCallback(g_ContextEventContext, event);
+}
 
 // Captures game-owner completions without retaining any borrowed request storage.
 struct ResourceCompletionProbe
@@ -433,8 +456,8 @@ TEST_F(RenderGraphicsResource, RenderTargetSizeAcceptsEachAttachmentType)
     }
 }
 
-// Context loss blocks queued graphics work, but restoration allows uploads while drawing stays paused.
-TEST_F(RenderGraphicsResource, GraphicsRequestsWaitForContextRestoration)
+// Early platform events cancel queued work; restoration accepts fresh requests while drawing stays paused.
+TEST_F(RenderGraphicsResource, ContextLossCancelsRequestsBeforeRendererInitialization)
 {
     RenderContextParams render_params;
     HRenderContext render = NewRenderContext(m_Graphics, render_params, EXECUTION_MODE_INLINE, true);
@@ -445,28 +468,35 @@ TEST_F(RenderGraphicsResource, GraphicsRequestsWaitForContextRestoration)
     ResourceCompletionProbe probe = {};
     ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(service, params, CompleteResource, &probe));
 
-    OnContextEvent(render, CONTEXT_LOST);
+    ASSERT_EQ((void*)render, g_ContextEventContext);
+    RaiseContextEvent(CONTEXT_LOST);
     ASSERT_TRUE(IsRenderPaused(render));
+    ASSERT_EQ(0u, probe.m_Count); // Events do not deliver game callbacks inline.
     UpdateGraphicsService(render);
     ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(service).m_Executed);
-    ASSERT_EQ(0u, probe.m_Count);
-    ASSERT_EQ(1u, GetGraphicsServiceStatus(service).m_QueuedRequests);
+    ASSERT_EQ(1u, probe.m_Count);
+    ASSERT_EQ(GRAPHICS_RESOURCE_CONTEXT_LOST, probe.m_Result);
+    ASSERT_EQ(0u, GetGraphicsServiceStatus(service).m_PendingRequests);
 
     // Clearing the drawing pause must not make a lost context usable.
     SetRenderPause(render, 0);
-    UpdateGraphicsService(render);
-    ASSERT_EQ(0u, probe.m_Count);
-    SetRenderPause(render, 1);
-
-    OnContextEvent(render, CONTEXT_RESTORED);
-    ASSERT_TRUE(IsRenderPaused(render));
+    ASSERT_EQ(GRAPHICS_SERVICE_CONTEXT_LOST, EnqueueCreateTexture(service, params, CompleteResource, &probe));
     UpdateGraphicsService(render);
     ASSERT_EQ(1u, probe.m_Count);
+    SetRenderPause(render, 1);
+
+    RaiseContextEvent(CONTEXT_RESTORED);
+    ASSERT_TRUE(IsRenderPaused(render));
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(service, params, CompleteResource, &probe));
+    UpdateGraphicsService(render);
+    ASSERT_EQ(2u, probe.m_Count);
     ASSERT_EQ(GRAPHICS_RESOURCE_OK, probe.m_Result);
     ASSERT_NE((uint64_t)0, probe.m_Response.m_Handle);
     ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueDeleteTexture(service, probe.m_Response.m_Handle, CompleteResource, &probe));
     DeleteRenderContext(render, 0);
-    ASSERT_EQ(2u, probe.m_Count);
+    ASSERT_EQ(3u, probe.m_Count);
+    ASSERT_EQ((ContextEventCallback)0, g_ContextEventCallback);
+    ASSERT_EQ((void*)0, g_ContextEventContext);
 }
 
 // Shutdown with a lost context cancels queued requests instead of executing graphics calls.
@@ -481,15 +511,229 @@ TEST_F(RenderGraphicsResource, LostContextShutdownCancelsGraphicsRequests)
     ResourceCompletionProbe probe = {};
     ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(service, params, CompleteResource, &probe));
 
-    OnContextEvent(render, CONTEXT_LOST);
+    RaiseContextEvent(CONTEXT_LOST);
     DrainGraphicsService(render);
     ASSERT_EQ(1u, probe.m_Count);
-    ASSERT_EQ(GRAPHICS_RESOURCE_CANCELLED, probe.m_Result);
+    ASSERT_EQ(GRAPHICS_RESOURCE_CONTEXT_LOST, probe.m_Result);
     ASSERT_EQ((uint64_t)0, probe.m_Response.m_Handle);
     ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(service).m_Executed);
     ASSERT_EQ(0u, GetGraphicsServiceStatus(service).m_PendingRequests);
     DeleteRenderContext(render, 0);
     ASSERT_EQ(1u, probe.m_Count);
+}
+
+// An upload accepted for the old context must never be replayed after restoration.
+TEST_F(RenderGraphicsResource, ContextRestorationDoesNotReplayOldTextureUploads)
+{
+    RenderContextParams params;
+    HRenderContext render = NewRenderContext(m_Graphics, params, EXECUTION_MODE_INLINE, false);
+    HGraphicsService service = GetGraphicsService(render);
+    dmGraphics::HTexture texture;
+    CreateTexture(2, 2, &texture);
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams upload;
+    upload.m_Width = 2;
+    upload.m_Height = 2;
+    upload.m_Data = pixels;
+    upload.m_DataSize = sizeof(pixels);
+    ResourceCompletionProbe probe = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(service, texture, upload, CompleteResource, &probe));
+
+    RaiseContextEvent(CONTEXT_LOST);
+    RaiseContextEvent(CONTEXT_RESTORED);
+    UpdateGraphicsService(render);
+    ASSERT_EQ(1u, probe.m_Count);
+    ASSERT_EQ(GRAPHICS_RESOURCE_CONTEXT_LOST, probe.m_Result);
+    ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(service).m_Executed);
+    DeleteRenderContext(render, 0);
+    DeleteTexture(texture);
+}
+
+// Completion code can add another request and change graphics availability while draining.
+struct DrainCompletionProbe
+{
+    ResourceCompletionProbe m_First;
+    ResourceCompletionProbe m_Second;
+    HRenderContext          m_Render;
+    GraphicsServiceResult   m_SubmitResult;
+    uint8_t                 m_LoseContext : 1;
+    uint8_t                 m_ChangeAvailability : 1;
+};
+
+static void CompleteAndEnqueue(void* context, GraphicsResourceResult result, const GraphicsResourceResponse& response)
+{
+    DrainCompletionProbe* probe = (DrainCompletionProbe*)context;
+    CompleteResource(&probe->m_First, result, response);
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 2;
+    params.m_Height = 2;
+    probe->m_SubmitResult = EnqueueCreateTexture(GetGraphicsService(probe->m_Render), params, CompleteResource, &probe->m_Second);
+    if (probe->m_LoseContext)
+    {
+        RaiseContextEvent(CONTEXT_LOST);
+    }
+
+    if (probe->m_ChangeAvailability)
+    {
+        // Change just the availability gate to prove Drain rechecks it, independently
+        // of the cancellation performed by the normal context-event handler.
+        dmAtomicStoreRelease32(&probe->m_Render->m_IsContextLost, 1);
+    }
+}
+
+// Recheck availability after callbacks, independently of event-driven queue cancellation.
+TEST_F(RenderGraphicsResource, DrainRechecksAvailabilityAfterCompletion)
+{
+    for (uint32_t lose_context = 0; lose_context < 2; ++lose_context)
+    {
+        RenderContextParams render_params;
+        HRenderContext render = NewRenderContext(m_Graphics, render_params, EXECUTION_MODE_INLINE, false);
+        DrainCompletionProbe probe = {};
+        probe.m_Render = render;
+        probe.m_LoseContext = lose_context;
+        probe.m_ChangeAvailability = !lose_context;
+        dmGraphics::TextureCreationParams params;
+        params.m_Width = 2;
+        params.m_Height = 2;
+        ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(GetGraphicsService(render), params, CompleteAndEnqueue, &probe));
+        DrainGraphicsService(render);
+        ASSERT_EQ(GRAPHICS_SERVICE_OK, probe.m_SubmitResult);
+        ASSERT_EQ(1u, probe.m_Second.m_Count);
+        ASSERT_EQ(lose_context ? GRAPHICS_RESOURCE_CONTEXT_LOST : GRAPHICS_RESOURCE_CANCELLED, probe.m_Second.m_Result);
+        ASSERT_EQ((uint64_t)1, GetGraphicsServiceStatus(GetGraphicsService(render)).m_Executed);
+        DeleteRenderContext(render, 0);
+        DeleteTexture(probe.m_First.m_Response.m_Handle);
+    }
+}
+
+// Closing admission must precede the drain inside FinalizeRenderer, even for a core-only context.
+TEST_F(RenderGraphicsResource, FinalDeletionRejectsCallbackGeneratedRequests)
+{
+    RenderContextParams render_params;
+    HRenderContext render = NewRenderContext(m_Graphics, render_params, EXECUTION_MODE_INLINE, false);
+    DrainCompletionProbe probe = {};
+    probe.m_Render = render;
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 2;
+    params.m_Height = 2;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(GetGraphicsService(render), params, CompleteAndEnqueue, &probe));
+    DeleteRenderContext(render, 0);
+    ASSERT_EQ(1u, probe.m_First.m_Count);
+    ASSERT_EQ(GRAPHICS_SERVICE_STOPPED, probe.m_SubmitResult);
+    ASSERT_EQ(0u, probe.m_Second.m_Count);
+    DeleteTexture(probe.m_First.m_Response.m_Handle);
+}
+
+// Synthetic loader state stays alive through failure cleanup and graphics completion.
+struct ContextLossLoadProbe
+{
+    ResourceCompletionProbe m_Completion;
+    HRenderContext          m_Render;
+    uint32_t                m_PostCount;
+    uint32_t                m_DestroyCount;
+    uint8_t                 m_LoseDuringCreate : 1;
+};
+
+static void UpdateLoadGraphics(void* context)
+{
+    UpdateGraphicsService(((ContextLossLoadProbe*)context)->m_Render);
+}
+
+static dmResource::Result CreateContextLossResource(const dmResource::ResourceCreateParams* params)
+{
+    ContextLossLoadProbe* probe = (ContextLossLoadProbe*)params->m_Context;
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = 2;
+    creation.m_Height = 2;
+    GraphicsServiceResult result = EnqueueCreateTexture(GetGraphicsService(probe->m_Render), creation, CompleteResource, &probe->m_Completion);
+    if (result != GRAPHICS_SERVICE_OK)
+    {
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+
+    ResourceDescriptorSetResource(params->m_Resource, probe);
+    if (probe->m_LoseDuringCreate)
+    {
+        RaiseContextEvent(CONTEXT_LOST);
+    }
+
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result PostCreateContextLossResource(const dmResource::ResourcePostCreateParams* params)
+{
+    ContextLossLoadProbe* probe = (ContextLossLoadProbe*)params->m_Context;
+    ++probe->m_PostCount;
+    // Bound a broken implementation so the regression fails instead of hanging CI.
+    if (probe->m_PostCount > 4)
+    {
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+
+    if (!probe->m_Completion.m_Count)
+    {
+        return dmResource::RESULT_PENDING;
+    }
+
+    return probe->m_Completion.m_Result == GRAPHICS_RESOURCE_OK ? dmResource::RESULT_OK : dmResource::RESULT_FORMAT_ERROR;
+}
+
+static dmResource::Result DestroyContextLossResource(const dmResource::ResourceDestroyParams* params)
+{
+    ContextLossLoadProbe* probe = (ContextLossLoadProbe*)ResourceDescriptorGetResource(params->m_Resource);
+    ++probe->m_DestroyCount;
+    if (probe->m_Completion.m_Response.m_Handle)
+    {
+        dmGraphics::DeleteTexture(GetGraphicsContext(probe->m_Render), probe->m_Completion.m_Response.m_Handle);
+    }
+
+    return dmResource::RESULT_OK;
+}
+
+// Synchronous Get must return an error instead of waiting for browser restoration;
+// requests accepted before loss complete with failure, and new requests fail admission.
+TEST_F(RenderGraphicsResource, SynchronousLoadReturnsDuringContextLoss)
+{
+    for (uint32_t lost_before_load = 0; lost_before_load < 2; ++lost_before_load)
+    {
+        RenderContextParams params;
+        HRenderContext render = NewRenderContext(m_Graphics, params, EXECUTION_MODE_INLINE, false);
+        ContextLossLoadProbe probe = {};
+        probe.m_Render = render;
+        probe.m_LoseDuringCreate = !lost_before_load;
+        dmResource::NewFactoryParams factory_params;
+        factory_params.m_MaxResources = 4;
+        dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
+        ASSERT_NE((dmResource::HFactory)0, factory);
+        dmResource::SetFactoryService(factory, UpdateLoadGraphics, &probe);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "lost", &probe, 0,
+                                                                  CreateContextLossResource, PostCreateContextLossResource, DestroyContextLossResource, 0));
+        uint32_t source = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(factory, "/context.lost", sizeof(source), &source));
+        if (lost_before_load)
+        {
+            RaiseContextEvent(CONTEXT_LOST);
+        }
+
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::Get(factory, "/context.lost", &resource));
+        ASSERT_EQ((void*)0, resource);
+        ASSERT_TRUE(probe.m_PostCount <= 2);
+        ASSERT_EQ(lost_before_load ? 0u : 1u, probe.m_Completion.m_Count);
+        ASSERT_EQ(lost_before_load ? 0u : 1u, probe.m_DestroyCount);
+        ASSERT_EQ(0u, GetGraphicsServiceStatus(GetGraphicsService(render)).m_PendingRequests);
+
+        // Restoring the context permits a fresh load, without restarting the service.
+        RaiseContextEvent(CONTEXT_RESTORED);
+        probe.m_LoseDuringCreate = false;
+        probe.m_PostCount = 0;
+        memset(&probe.m_Completion, 0, sizeof(probe.m_Completion));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(factory, "/context.lost", &resource));
+        dmResource::Release(factory, resource);
+        ASSERT_EQ(lost_before_load ? 1u : 2u, probe.m_DestroyCount);
+        dmResource::DeleteFactory(factory);
+        DeleteRenderContext(render, 0);
+    }
 }
 
 static void StartupDispatch(const RenderListDispatchParams&)
@@ -533,6 +777,11 @@ TEST_F(RenderGraphicsResource, RendererInitializationPreservesCoreState)
     FinalizeRenderer(render, script);
     ASSERT_FALSE(IsRendererInitialized(render));
     ASSERT_FALSE(GetGraphicsServiceStatus(service).m_Stopping);
+    ASSERT_EQ((void*)render, g_ContextEventContext);
+    RaiseContextEvent(CONTEXT_LOST);
+    ASSERT_FALSE(CanExecuteGraphics(render));
+    RaiseContextEvent(CONTEXT_RESTORED);
+    ASSERT_TRUE(CanExecuteGraphics(render));
     ASSERT_TRUE(DeleteRenderItem(render, item));
     UnregisterRenderListDispatch(render, dispatch);
     DeleteRenderContext(render, 0);
@@ -563,6 +812,7 @@ TEST_F(RenderGraphicsResource, BorrowedServiceOutlivesRenderer)
 int main(int argc, char** argv)
 {
     dmExportedSymbols();
+    ResourceProviderFile();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

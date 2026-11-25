@@ -24,11 +24,12 @@ namespace dmRender
     /** Result of executing a resource request, separate from its admission result. */
     enum GraphicsResourceResult
     {
-        GRAPHICS_RESOURCE_CANCELLED   = GRAPHICS_SERVICE_TASK_CANCELLED,
-        GRAPHICS_RESOURCE_OK          = 0,
-        GRAPHICS_RESOURCE_INVALID     = 1,
-        GRAPHICS_RESOURCE_UNSUPPORTED = 2,
-        GRAPHICS_RESOURCE_FAILED      = 3,
+        GRAPHICS_RESOURCE_CANCELLED    = GRAPHICS_SERVICE_TASK_CANCELLED,
+        GRAPHICS_RESOURCE_CONTEXT_LOST = GRAPHICS_SERVICE_CONTEXT_LOST,
+        GRAPHICS_RESOURCE_OK           = 0,
+        GRAPHICS_RESOURCE_INVALID      = 1,
+        GRAPHICS_RESOURCE_UNSUPPORTED  = 2,
+        GRAPHICS_RESOURCE_FAILED       = 3,
     };
 
     /** Created handle or queried metadata; unused fields are zero. No resource is retained. */
@@ -62,6 +63,8 @@ namespace dmRender
      * The caller must keep existing resources alive while requests use them. Before
      * queuing a change or deletion, make sure no queued or currently rendering frame still
      * needs that resource. The service does not protect resources or wait for those frames.
+     * Context loss fails queued requests and rejects new ones with CONTEXT_LOST. After
+     * restoration, recreate lost resources before resubmitting; old requests are not replayed.
      *
      * GPU readback, mapped buffers and shaders are not supported here yet. They need
      * additional rules for when their data can be used or freed. Browser readback must

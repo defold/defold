@@ -16,22 +16,23 @@
 
 namespace dmRender
 {
+    // Resource kind and action are separate so new kinds can reuse the same operations.
+    enum ResourceType
+    {
+        RESOURCE_TYPE_TEXTURE       = 0,
+        RESOURCE_TYPE_VERTEX_BUFFER = 1,
+        RESOURCE_TYPE_INDEX_BUFFER  = 2,
+        RESOURCE_TYPE_RENDER_TARGET = 3,
+    };
+
     enum ResourceOperation
     {
-        RESOURCE_CREATE_TEXTURE,
-        RESOURCE_UPLOAD_TEXTURE,
-        RESOURCE_GET_TEXTURE_INFO,
-        RESOURCE_DELETE_TEXTURE,
-        RESOURCE_CREATE_VERTEX_BUFFER,
-        RESOURCE_UPLOAD_VERTEX_BUFFER,
-        RESOURCE_DELETE_VERTEX_BUFFER,
-        RESOURCE_CREATE_INDEX_BUFFER,
-        RESOURCE_UPLOAD_INDEX_BUFFER,
-        RESOURCE_DELETE_INDEX_BUFFER,
-        RESOURCE_CREATE_RENDER_TARGET,
-        RESOURCE_RESIZE_RENDER_TARGET,
-        RESOURCE_GET_RENDER_TARGET_SIZE,
-        RESOURCE_DELETE_RENDER_TARGET,
+        RESOURCE_OPERATION_CREATE   = 0,
+        RESOURCE_OPERATION_UPLOAD   = 1,
+        RESOURCE_OPERATION_DELETE   = 2,
+        RESOURCE_OPERATION_RESIZE   = 3,
+        RESOURCE_OPERATION_GET_INFO = 4,
+        RESOURCE_OPERATION_GET_SIZE = 5,
     };
 
     // Keep this first in every resource request so they share one completion callback.
@@ -44,6 +45,7 @@ namespace dmRender
         FGraphicsResourceComplete m_Complete;
         void*                     m_Context;
         ResourceOperation         m_Operation;
+        ResourceType              m_ResourceType;
     };
 
     // Texture parameters and result, followed by copied pixel bytes for uploads.
@@ -74,13 +76,14 @@ namespace dmRender
         dmGraphics::BufferType                 m_BufferType;
     };
 
-    static ResourceTask MakeResourceTask(ResourceOperation operation, uint64_t handle, FGraphicsResourceComplete complete, void* context)
+    static ResourceTask MakeResourceTask(ResourceType type, ResourceOperation operation, uint64_t handle, FGraphicsResourceComplete complete, void* context)
     {
         ResourceTask task = {};
         task.m_Complete = complete;
         task.m_Context = context;
         task.m_Handle = handle;
         task.m_Operation = operation;
+        task.m_ResourceType = type;
         return task;
     }
 
@@ -99,7 +102,7 @@ namespace dmRender
     {
         TextureTask* request = (TextureTask*)payload;
         ResourceTask& task = request->m_Task;
-        if (task.m_Operation == RESOURCE_CREATE_TEXTURE)
+        if (task.m_Operation == RESOURCE_OPERATION_CREATE)
         {
             task.m_Response.m_Handle = dmGraphics::NewTexture(context, request->m_CreationParams);
             return task.m_Response.m_Handle ? GRAPHICS_RESOURCE_OK : GRAPHICS_RESOURCE_FAILED;
@@ -112,7 +115,7 @@ namespace dmRender
 
         switch (task.m_Operation)
         {
-            case RESOURCE_UPLOAD_TEXTURE:
+            case RESOURCE_OPERATION_UPLOAD:
             {
                 const dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(context, task.m_Handle);
                 if (!IsTexture2D(info))
@@ -143,12 +146,12 @@ namespace dmRender
                 dmGraphics::SetTexture(context, task.m_Handle, params);
                 return GRAPHICS_RESOURCE_OK;
             }
-            case RESOURCE_GET_TEXTURE_INFO:
+            case RESOURCE_OPERATION_GET_INFO:
             {
                 task.m_Response.m_TextureInfo = dmGraphics::GetTextureInfo(context, task.m_Handle);
                 return GRAPHICS_RESOURCE_OK;
             }
-            case RESOURCE_DELETE_TEXTURE:
+            case RESOURCE_OPERATION_DELETE:
             {
                 dmGraphics::DeleteTexture(context, task.m_Handle);
                 return GRAPHICS_RESOURCE_OK;
@@ -165,36 +168,40 @@ namespace dmRender
         BufferTask* request = (BufferTask*)payload;
         ResourceTask& task = request->m_Task;
         const void* data = request->m_HasData ? request + 1 : 0;
+        bool vertex = task.m_ResourceType == RESOURCE_TYPE_VERTEX_BUFFER;
         switch (task.m_Operation)
         {
-            case RESOURCE_CREATE_VERTEX_BUFFER:
+            case RESOURCE_OPERATION_CREATE:
             {
-                task.m_Response.m_Handle = dmGraphics::NewVertexBuffer(context, request->m_Size, data, request->m_Usage);
+                task.m_Response.m_Handle = vertex
+                    ? dmGraphics::NewVertexBuffer(context, request->m_Size, data, request->m_Usage)
+                    : dmGraphics::NewIndexBuffer(context, request->m_Size, data, request->m_Usage);
                 return task.m_Response.m_Handle ? GRAPHICS_RESOURCE_OK : GRAPHICS_RESOURCE_FAILED;
             }
-            case RESOURCE_UPLOAD_VERTEX_BUFFER:
+            case RESOURCE_OPERATION_UPLOAD:
             {
-                dmGraphics::SetVertexBufferData((dmGraphics::HVertexBuffer)task.m_Handle, request->m_Size, data, request->m_Usage);
+                if (vertex)
+                {
+                    dmGraphics::SetVertexBufferData((dmGraphics::HVertexBuffer)task.m_Handle, request->m_Size, data, request->m_Usage);
+                }
+                else
+                {
+                    dmGraphics::SetIndexBufferData((dmGraphics::HIndexBuffer)task.m_Handle, request->m_Size, data, request->m_Usage);
+                }
+
                 return GRAPHICS_RESOURCE_OK;
             }
-            case RESOURCE_DELETE_VERTEX_BUFFER:
+            case RESOURCE_OPERATION_DELETE:
             {
-                dmGraphics::DeleteVertexBuffer((dmGraphics::HVertexBuffer)task.m_Handle);
-                return GRAPHICS_RESOURCE_OK;
-            }
-            case RESOURCE_CREATE_INDEX_BUFFER:
-            {
-                task.m_Response.m_Handle = dmGraphics::NewIndexBuffer(context, request->m_Size, data, request->m_Usage);
-                return task.m_Response.m_Handle ? GRAPHICS_RESOURCE_OK : GRAPHICS_RESOURCE_FAILED;
-            }
-            case RESOURCE_UPLOAD_INDEX_BUFFER:
-            {
-                dmGraphics::SetIndexBufferData((dmGraphics::HIndexBuffer)task.m_Handle, request->m_Size, data, request->m_Usage);
-                return GRAPHICS_RESOURCE_OK;
-            }
-            case RESOURCE_DELETE_INDEX_BUFFER:
-            {
-                dmGraphics::DeleteIndexBuffer((dmGraphics::HIndexBuffer)task.m_Handle);
+                if (vertex)
+                {
+                    dmGraphics::DeleteVertexBuffer((dmGraphics::HVertexBuffer)task.m_Handle);
+                }
+                else
+                {
+                    dmGraphics::DeleteIndexBuffer((dmGraphics::HIndexBuffer)task.m_Handle);
+                }
+
                 return GRAPHICS_RESOURCE_OK;
             }
             default:
@@ -208,7 +215,7 @@ namespace dmRender
     {
         RenderTargetTask* request = (RenderTargetTask*)payload;
         ResourceTask& task = request->m_Task;
-        if (task.m_Operation == RESOURCE_CREATE_RENDER_TARGET)
+        if (task.m_Operation == RESOURCE_OPERATION_CREATE)
         {
             task.m_Response.m_Handle = dmGraphics::NewRenderTarget(context, request->m_BufferFlags, request->m_Params);
             return task.m_Response.m_Handle ? GRAPHICS_RESOURCE_OK : GRAPHICS_RESOURCE_FAILED;
@@ -221,7 +228,7 @@ namespace dmRender
 
         switch (task.m_Operation)
         {
-            case RESOURCE_RESIZE_RENDER_TARGET:
+            case RESOURCE_OPERATION_RESIZE:
             {
                 if (dmGraphics::GetRenderTargetTextureType(context, task.m_Handle) == dmGraphics::TEXTURE_TYPE_CUBE_MAP && request->m_Width != request->m_Height)
                 {
@@ -231,12 +238,12 @@ namespace dmRender
                 dmGraphics::SetRenderTargetSize(context, task.m_Handle, request->m_Width, request->m_Height);
                 return GRAPHICS_RESOURCE_OK;
             }
-            case RESOURCE_GET_RENDER_TARGET_SIZE:
+            case RESOURCE_OPERATION_GET_SIZE:
             {
                 dmGraphics::GetRenderTargetSize(context, task.m_Handle, request->m_BufferType, task.m_Response.m_Width, task.m_Response.m_Height);
                 return GRAPHICS_RESOURCE_OK;
             }
-            case RESOURCE_DELETE_RENDER_TARGET:
+            case RESOURCE_OPERATION_DELETE:
             {
                 dmGraphics::DeleteRenderTarget(context, task.m_Handle);
                 return GRAPHICS_RESOURCE_OK;
@@ -272,7 +279,7 @@ namespace dmRender
         }
 
         TextureTask request;
-        request.m_Task = MakeResourceTask(RESOURCE_CREATE_TEXTURE, 0, complete, context);
+        request.m_Task = MakeResourceTask(RESOURCE_TYPE_TEXTURE, RESOURCE_OPERATION_CREATE, 0, complete, context);
         request.m_CreationParams = params;
         return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), 0, 0);
     }
@@ -315,7 +322,7 @@ namespace dmRender
         }
 
         TextureTask request;
-        request.m_Task = MakeResourceTask(RESOURCE_UPLOAD_TEXTURE, texture, complete, context);
+        request.m_Task = MakeResourceTask(RESOURCE_TYPE_TEXTURE, RESOURCE_OPERATION_UPLOAD, texture, complete, context);
         request.m_Params = params;
         request.m_Params.m_Data = 0;
         return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), params.m_Data, params.m_DataSize);
@@ -329,29 +336,29 @@ namespace dmRender
         }
 
         TextureTask request;
-        request.m_Task = MakeResourceTask(operation, texture, complete, context);
+        request.m_Task = MakeResourceTask(RESOURCE_TYPE_TEXTURE, operation, texture, complete, context);
         return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), 0, 0);
     }
 
     GraphicsServiceResult EnqueueGetTextureInfo(HGraphicsService service, dmGraphics::HTexture texture, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueTextureHandle(service, RESOURCE_GET_TEXTURE_INFO, texture, complete, context);
+        return EnqueueTextureHandle(service, RESOURCE_OPERATION_GET_INFO, texture, complete, context);
     }
 
     GraphicsServiceResult EnqueueDeleteTexture(HGraphicsService service, dmGraphics::HTexture texture, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueTextureHandle(service, RESOURCE_DELETE_TEXTURE, texture, complete, context);
+        return EnqueueTextureHandle(service, RESOURCE_OPERATION_DELETE, texture, complete, context);
     }
 
-    static GraphicsServiceResult EnqueueBuffer(HGraphicsService service, ResourceOperation operation, uint64_t buffer, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
+    static GraphicsServiceResult EnqueueBuffer(HGraphicsService service, ResourceType type, ResourceOperation operation, uint64_t buffer, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        if (operation != RESOURCE_CREATE_VERTEX_BUFFER && operation != RESOURCE_CREATE_INDEX_BUFFER && !buffer)
+        if (operation != RESOURCE_OPERATION_CREATE && !buffer)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
 
         BufferTask request;
-        request.m_Task = MakeResourceTask(operation, buffer, complete, context);
+        request.m_Task = MakeResourceTask(type, operation, buffer, complete, context);
         request.m_Size = size;
         request.m_Usage = usage;
         request.m_HasData = data != 0;
@@ -360,32 +367,32 @@ namespace dmRender
 
     GraphicsServiceResult EnqueueCreateVertexBuffer(HGraphicsService service, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_CREATE_VERTEX_BUFFER, 0, size, data, usage, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_VERTEX_BUFFER, RESOURCE_OPERATION_CREATE, 0, size, data, usage, complete, context);
     }
 
     GraphicsServiceResult EnqueueUploadVertexBuffer(HGraphicsService service, dmGraphics::HVertexBuffer buffer, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_UPLOAD_VERTEX_BUFFER, buffer, size, data, usage, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_VERTEX_BUFFER, RESOURCE_OPERATION_UPLOAD, buffer, size, data, usage, complete, context);
     }
 
     GraphicsServiceResult EnqueueDeleteVertexBuffer(HGraphicsService service, dmGraphics::HVertexBuffer buffer, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_DELETE_VERTEX_BUFFER, buffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_VERTEX_BUFFER, RESOURCE_OPERATION_DELETE, buffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW, complete, context);
     }
 
     GraphicsServiceResult EnqueueCreateIndexBuffer(HGraphicsService service, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_CREATE_INDEX_BUFFER, 0, size, data, usage, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_INDEX_BUFFER, RESOURCE_OPERATION_CREATE, 0, size, data, usage, complete, context);
     }
 
     GraphicsServiceResult EnqueueUploadIndexBuffer(HGraphicsService service, dmGraphics::HIndexBuffer buffer, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_UPLOAD_INDEX_BUFFER, buffer, size, data, usage, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_INDEX_BUFFER, RESOURCE_OPERATION_UPLOAD, buffer, size, data, usage, complete, context);
     }
 
     GraphicsServiceResult EnqueueDeleteIndexBuffer(HGraphicsService service, dmGraphics::HIndexBuffer buffer, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueBuffer(service, RESOURCE_DELETE_INDEX_BUFFER, buffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW, complete, context);
+        return EnqueueBuffer(service, RESOURCE_TYPE_INDEX_BUFFER, RESOURCE_OPERATION_DELETE, buffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW, complete, context);
     }
 
     GraphicsServiceResult EnqueueCreateRenderTarget(HGraphicsService service, uint32_t buffer_flags, const dmGraphics::RenderTargetCreationParams& params, FGraphicsResourceComplete complete, void* context)
@@ -404,7 +411,7 @@ namespace dmRender
         }
 
         RenderTargetTask request;
-        request.m_Task = MakeResourceTask(RESOURCE_CREATE_RENDER_TARGET, 0, complete, context);
+        request.m_Task = MakeResourceTask(RESOURCE_TYPE_RENDER_TARGET, RESOURCE_OPERATION_CREATE, 0, complete, context);
         request.m_Params = params;
         request.m_BufferFlags = buffer_flags;
         request.m_Width = 0;
@@ -421,7 +428,7 @@ namespace dmRender
         }
 
         RenderTargetTask request;
-        request.m_Task = MakeResourceTask(operation, target, complete, context);
+        request.m_Task = MakeResourceTask(RESOURCE_TYPE_RENDER_TARGET, operation, target, complete, context);
         request.m_BufferFlags = 0;
         request.m_Width = width;
         request.m_Height = height;
@@ -437,7 +444,7 @@ namespace dmRender
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
 
-        return EnqueueTargetHandle(service, RESOURCE_RESIZE_RENDER_TARGET, target, width, height, dmGraphics::BUFFER_TYPE_COLOR0_BIT, complete, context);
+        return EnqueueTargetHandle(service, RESOURCE_OPERATION_RESIZE, target, width, height, dmGraphics::BUFFER_TYPE_COLOR0_BIT, complete, context);
     }
 
     GraphicsServiceResult EnqueueGetRenderTargetSize(HGraphicsService service, dmGraphics::HRenderTarget target, dmGraphics::BufferType buffer_type, FGraphicsResourceComplete complete, void* context)
@@ -447,12 +454,12 @@ namespace dmRender
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
 
-        return EnqueueTargetHandle(service, RESOURCE_GET_RENDER_TARGET_SIZE, target, 0, 0, buffer_type, complete, context);
+        return EnqueueTargetHandle(service, RESOURCE_OPERATION_GET_SIZE, target, 0, 0, buffer_type, complete, context);
     }
 
     GraphicsServiceResult EnqueueDeleteRenderTarget(HGraphicsService service, dmGraphics::HRenderTarget target, FGraphicsResourceComplete complete, void* context)
     {
-        return EnqueueTargetHandle(service, RESOURCE_DELETE_RENDER_TARGET, target, 0, 0, dmGraphics::BUFFER_TYPE_COLOR0_BIT, complete, context);
+        return EnqueueTargetHandle(service, RESOURCE_OPERATION_DELETE, target, 0, 0, dmGraphics::BUFFER_TYPE_COLOR0_BIT, complete, context);
     }
 
 }

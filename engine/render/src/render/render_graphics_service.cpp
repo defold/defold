@@ -72,6 +72,7 @@ namespace dmRender
         uint8_t                                 m_InDispatch;
         uint8_t                                 m_AcknowledgementPending;
         uint8_t                                 m_Stopping;
+        uint8_t                                 m_ContextLost;
     };
 
     static void Changed(HGraphicsService service)
@@ -172,6 +173,11 @@ namespace dmRender
         if (service->m_Stopping)
         {
             return GRAPHICS_SERVICE_STOPPED;
+        }
+
+        if (service->m_ContextLost)
+        {
+            return GRAPHICS_SERVICE_CONTEXT_LOST;
         }
 
         if (service->m_FreeHead == INVALID_REQUEST || (uint64_t)payload_size + service->m_PayloadBytes > service->m_Params.m_MaxPayloadBytes)
@@ -416,6 +422,53 @@ namespace dmRender
         Wake(service);
     }
 
+    // The active payload belongs to the render owner. Only move requests that
+    // have not started; keep their memory until game-owner completion delivery.
+    static void CancelQueuedRequests(HGraphicsService service, int32_t result)
+    {
+        if (service->m_QueueHead == INVALID_REQUEST)
+        {
+            return;
+        }
+
+        for (uint32_t index = service->m_QueueHead; index != INVALID_REQUEST; index = service->m_Requests[index].m_Next)
+        {
+            service->m_Requests[index].m_Result = result;
+        }
+
+        if (service->m_CompleteTail == INVALID_REQUEST)
+        {
+            service->m_CompleteHead = service->m_QueueHead;
+        }
+        else
+        {
+            service->m_Requests[service->m_CompleteTail].m_Next = service->m_QueueHead;
+        }
+
+        service->m_CompleteTail = service->m_QueueTail;
+        service->m_CompleteCount += service->m_QueuedCount;
+        service->m_Cancelled += service->m_QueuedCount;
+        service->m_QueuedCount = 0;
+        service->m_QueueHead = INVALID_REQUEST;
+        service->m_QueueTail = INVALID_REQUEST;
+    }
+
+    void SetGraphicsServiceContextLost(HGraphicsService service, bool lost)
+    {
+        assert(IsRenderExecutionOwner(service->m_Execution, EXECUTION_OWNER_GAME));
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(service->m_Mutex);
+            service->m_ContextLost = lost;
+            if (lost)
+            {
+                CancelQueuedRequests(service, GRAPHICS_SERVICE_CONTEXT_LOST);
+            }
+
+            Changed(service);
+        }
+        Wake(service);
+    }
+
     void CancelGraphicsService(HGraphicsService service, int32_t result)
     {
         assert(IsRenderExecutionOwner(service->m_Execution, EXECUTION_OWNER_GAME));
@@ -428,32 +481,7 @@ namespace dmRender
             }
 
             service->m_Stopping = true;
-            // Move queued requests only. The render owner may still be using its active
-            // payload, so it publishes that result through the ordinary acknowledgement.
-            if (service->m_QueueHead != INVALID_REQUEST)
-            {
-                for (uint32_t index = service->m_QueueHead; index != INVALID_REQUEST; index = service->m_Requests[index].m_Next)
-                {
-                    service->m_Requests[index].m_Result = result;
-                }
-
-                if (service->m_CompleteTail == INVALID_REQUEST)
-                {
-                    service->m_CompleteHead = service->m_QueueHead;
-                }
-                else
-                {
-                    service->m_Requests[service->m_CompleteTail].m_Next = service->m_QueueHead;
-                }
-
-                service->m_CompleteTail = service->m_QueueTail;
-                service->m_CompleteCount += service->m_QueuedCount;
-                service->m_Cancelled += service->m_QueuedCount;
-                service->m_QueuedCount = 0;
-                service->m_QueueHead = INVALID_REQUEST;
-                service->m_QueueTail = INVALID_REQUEST;
-            }
-
+            CancelQueuedRequests(service, result);
             Changed(service);
         }
         Wake(service);

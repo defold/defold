@@ -36,6 +36,7 @@ namespace dmRender
         GRAPHICS_SERVICE_INVALID_ARGUMENT = -3,
         GRAPHICS_SERVICE_OUT_OF_MEMORY    = -4,
         GRAPHICS_SERVICE_TASK_CANCELLED   = -5,
+        GRAPHICS_SERVICE_CONTEXT_LOST     = -6,
     };
 
     /** Pump progress. DRAINED means execution finished, not completion delivery or GPU retirement. */
@@ -151,7 +152,8 @@ namespace dmRender
      * never a direct graphics fallback. Requests larger than the total budget are invalid.
      * @param service Service accepting work
      * @param task Execute callback and copied payload; completion may be null
-     * @return Admission result; OK guarantees execution or explicit shutdown cancellation,
+     * Context loss rejects new requests with CONTEXT_LOST until restoration.
+     * @return Admission result; OK guarantees execution or cancellation on shutdown/context loss,
      *         followed by one completion delivery if provided
      */
     GraphicsServiceResult EnqueueGraphicsTask(HGraphicsService service, const GraphicsTask& task);
@@ -205,6 +207,16 @@ namespace dmRender
      * @param result Cancellation result to deliver, normally GRAPHICS_SERVICE_TASK_CANCELLED
      */
     void CancelGraphicsService(HGraphicsService service, int32_t result);
+
+    /**
+     * Report context loss/restoration on the game owner. Loss cancels queued work with
+     * CONTEXT_LOST and rejects new requests; restoration allows fresh submissions unless
+     * the service was stopped. Does not call completions or interrupt active execution.
+     * May be called from a completion callback. Recreate lost resources before resubmitting.
+     * @param service Service using this context
+     * @param lost Whether the graphics context is lost
+     */
+    void SetGraphicsServiceContextLost(HGraphicsService service, bool lost);
 
     /**
      * Read progress and current budget use on the game owner.
