@@ -208,9 +208,17 @@ TEST(LinuxWindow, X11PollSecondaryWindow)
     p.m_ResizeCallback = OnX11Resize;
     p.m_ResizeCallbackUserData = &events;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(second, p));
+    // Bypass the window manager so the X server applies the resize before the only event poll.
+    XSetWindowAttributes attributes = {};
+    attributes.override_redirect = True;
+    XChangeWindowAttributes(main->m_Display, second->m_Xid, CWOverrideRedirect, &attributes);
     XResizeWindow(main->m_Display, second->m_Xid, 450, 320);
-    XSync(main->m_Display, False);
+    XWindowAttributes geometry = {};
+    EXPECT_TRUE(XGetWindowAttributes(main->m_Display, second->m_Xid, &geometry));
+    EXPECT_EQ(450, geometry.width);
+    EXPECT_EQ(320, geometry.height);
     XSync(second->m_Display, False);
+    EXPECT_EQ(0u, events.m_Count);
     dmPlatform::PollEvents(main);
     EXPECT_EQ(1u, events.m_Count);
     EXPECT_EQ(450u, dmPlatform::GetWindowWidth(second));
