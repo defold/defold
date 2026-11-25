@@ -48,7 +48,12 @@
 (defn- render-error [{:keys [rt label exception caught]}]
   (when caught
     (error-handling/display-script-error! rt label exception))
-  {:fx/type fxui/paragraph :text (ex-message exception) :alignment :top-left})
+  {:fx/type fxui/vertical
+   :padding :medium
+   :children [{:fx/type fxui/paragraph
+               :text (or (ex-message exception) (.getSimpleName (class exception)))
+               :alignment :top-left
+               :color :error}]})
 
 (ui/defc ^:private render-content
   {:compose [{:fx/type fxui/ext-error-boundary

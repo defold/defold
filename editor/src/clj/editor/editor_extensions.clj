@@ -459,6 +459,8 @@
       (fx/on-fx-thread
         (try
           (transact txs)
+          (when-let [scene (ui/main-scene)]
+            (ui/user-data! scene ::ui/refresh-requested? true))
           (future/complete! f (rt/and-refresh-context nil))
           (catch Throwable ex (future/fail! f ex))))
       f)))

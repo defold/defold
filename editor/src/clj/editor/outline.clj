@@ -146,7 +146,12 @@
                    (conj (:item-id-path (some-> parent-iterator value) []) id)
 
                    iterator
-                   (->OutlineItemIterator (assoc item :selection-id id :item-id-path item-path) parent-iterator)
+                   (->OutlineItemIterator
+                     (assoc item
+                       :selection-id id
+                       :item-id-path item-path
+                       :node-id-path (mapv selection-node-id item-path))
+                     parent-iterator)
 
                    acc
                    (cond-> acc
@@ -166,8 +171,9 @@
 (defn selection-roots
   "Excludes selected descendants and duplicate entries from outline iterators."
   [iterators]
-  (let [selected-paths (coll/into-> iterators #{}
-                         (map #(-> % value :item-id-path)))]
+  (let [selected-paths
+        (coll/into-> iterators #{}
+          (map #(-> % value :item-id-path)))]
     (coll/into-> iterators []
       (filter (fn selection-root [iterator]
                 (loop [ancestor (parent iterator)]

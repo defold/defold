@@ -139,15 +139,6 @@
             :pane-id "bottom-pane"
             :split-id "center-split"}})
 
-(defn- region-visible? [^Scene scene region]
-  (let [{:keys [pane-id split-id]} (split-info-by-pane-kw region)
-        app-view (:app-view (:env (ui/context (.getRoot scene))))
-        controls (when app-view (g/node-value app-view :pane-controls))]
-    (boolean
-      (when controls
-        (.contains (.getItems ^SplitPane (get controls (keyword split-id)))
-                   (get controls (keyword pane-id)))))))
-
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
@@ -263,12 +254,10 @@
         {:app-view app-view :evaluation-context evaluation-context :owner-window (.getWindow scene)}
 
         materialize
-        (fn materialize [built-in {:keys [location content] :as definition}]
+        (fn materialize [{:keys [location content] :as definition}]
           (assoc definition :content-desc
                  (when (visible definition)
-                   (content (cond-> env
-                              (not built-in)
-                              (assoc :contexts (get contexts (get-in panes/locations [location :scope]))))))))]
+                   (content (assoc env :contexts (get contexts (get-in panes/locations [location :scope])))))))]
     {:fx/type panes/layout
      :prefs prefs
      :localization localization
@@ -282,7 +271,7 @@
                                    :content (get controls (keyword pane-id))
                                    :index index})
                                 split-info-by-pane-kw)
-     :panes (coll/into-> scripts (mapv #(materialize true %) built-ins) (map #(materialize false %)))
+     :panes (mapv materialize (e/concat built-ins scripts))
      :hidden hidden}))
 
 (g/defnode AppView
@@ -1987,8 +1976,6 @@
     :id ::view
     :children [{:label (localization/message "command.window.toggle-left-pane")
                 :command :window.toggle-left-pane}
-               {:label (localization/message "command.window.toggle-changed-files-pane")
-                :command :window.toggle-changed-files-pane}
                {:label (localization/message "command.window.toggle-bottom-pane")
                 :command :window.toggle-bottom-pane}
                {:label (localization/message "command.window.toggle-right-pane")
@@ -3393,12 +3380,6 @@
   (run [^Stage main-stage]
     (let [main-scene (.getScene main-stage)]
       (set-region-enabled! main-scene :bottom (not (region-enabled? main-scene :bottom))))))
-
-(handler/defhandler :window.toggle-changed-files-pane :global
-  (enabled? [^Stage main-stage]
-    (region-visible? (.getScene main-stage) :left))
-  (run [^Stage main-stage]
-    (toggle-pane! (.getScene main-stage) :changed-files)))
 
 (handler/defhandler :window.show-console :global
   (run [^Stage main-stage] (show-pane! (.getScene main-stage) :console)))

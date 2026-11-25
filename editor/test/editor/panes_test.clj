@@ -428,6 +428,8 @@
             stage
             (doto (Stage.)
               (.setScene scene)
+              (.setX 0.0)
+              (.setY 0.0)
               (.setWidth 1200.0)
               (.setHeight 900.0))
 

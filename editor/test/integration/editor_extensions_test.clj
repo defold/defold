@@ -64,6 +64,7 @@
   (:import [clojure.lang IRef]
            [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
+           [java.util.concurrent CompletableFuture TimeUnit]
            [java.util.zip ZipEntry]
            [javafx.scene Node Scene]
            [javafx.scene.control Labeled]
@@ -544,13 +545,11 @@ end")))
             (.applyCss root)
             (.layout root)
             (vswap! component fx/advance-component (describe "/logic/main.gui"))
-            (testing "The error paragraph fills the pane and wraps its text"
-              (let [^Labeled error-label (first (.getChildren root))]
+            (testing "The error message wraps and is reported once"
+              (let [^Labeled error-label (.lookup root ".label")]
                 (is (string/ends-with? (.getText error-label)
                                        "Expected pane render failure with enough words to wrap inside a narrow pane."))
                 (is (.isWrapText error-label))
-                (is (= 180.0 (.getWidth error-label)))
-                (is (= 120.0 (.getHeight error-label)))
                 (expect-script-output
                   (str "Rendering pane :test.context in /context.editor_script failed: " (.getText error-label) "\n")
                   output)))
@@ -558,7 +557,7 @@ end")))
             (vswap! component fx/advance-component (describe "/game.project"))
             (testing "Changed props recover inside the same pane with a fresh context"
               (is (identical? root (fx/instance @component)))
-              (is (= "Ready" (.getText ^Labeled (first (.getChildren root)))))
+              (is (= "Ready" (.getText ^Labeled (.lookup root ".label"))))
               (is (not (identical? (:runtime (first @observations)) (:runtime (last @observations)))))
               (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
             (finally
@@ -860,6 +859,52 @@ Omitting conflicting editor pane :test.new-built-in defined in /first.editor_scr
 
       ;; all the changes should be reverted — a single transaction!
       (test-initial-state!))))
+
+;; A transaction resumed after HTTP suspension requests a UI refresh even after
+;; the original command's refresh has already been consumed.
+(deftest suspended-transaction-refresh-test
+  (let [requested (promise)
+        release (promise)
+
+        server
+        (http-server/start!
+          (fn respond-after-release [_]
+            (deliver requested true)
+            @release
+            (http-server/response 200 "ready")))
+
+        ^Stage stage
+        (ui/run-now
+          (doto (Stage.) (.setScene (Scene. (StackPane.)))))
+
+        scene (.getScene stage)
+        output (StringWriter.)]
+    (try
+      (binding [ui/*main-stage* (atom stage)]
+        (test-util/with-temp-project-content
+          {"/test.editor_script"
+           [(str "return {get_commands = function() return {{label = 'Test', locations = {'Edit'}, run = function()"
+                 " http.request('" (http-server/local-url server) "/wait')"
+                 " editor.transact {editor.tx.set('/game.project', 'display.width', 321)}"
+                 " print(editor.get('/game.project', 'display.width'))"
+                 " end}} end}")]}
+          (reload-editor-scripts! project
+                                  :display-output! (fn capture-output [_ text]
+                                                     (doto output (.append ^String text) (.append \newline))))
+          (let [^CompletableFuture running
+                (handler/run (handler/active
+                               (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                               (eval-handler-contexts :global [])
+                               {}))]
+            (is (= true (deref requested 5000 false)))
+            (ui/run-now (ui/user-data! scene ::ui/refresh-requested? false))
+            (deliver release true)
+            (.get running 5 TimeUnit/SECONDS)
+            (ui/run-now (is (true? (ui/user-data scene ::ui/refresh-requested?))))
+            (expect-script-output "321\n" output))))
+      (finally
+        (deliver release true)
+        (http-server/stop! server 0)))))
 
 (deftest save-test
   (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
@@ -1172,6 +1217,8 @@ scene.node.has_parent_property=false
 scene.node.get_parent_succeeds=false
 ")
 
+;; Real graph-based Outline selections retain the ancestry required by Lua's
+;; parent lookup, including when no native Outline component is mounted.
 (deftest outline-selection-parent-chain-test
   (test-util/with-loaded-project "test/resources/editor_extensions/outline_parent_project"
     (let [out (StringBuilder.)
@@ -1179,19 +1226,41 @@ scene.node.get_parent_succeeds=false
           resource-node (test-util/resource-node project "/main/main.collection")
           sprite-outline (decorated-outline resource-node [0 0])
           sprite-node-id (:node-id sprite-outline)
-          run-command! (fn run-command! [location context-name selection label]
-                         (let [command-contexts (eval-handler-contexts context-name selection)
-                               menu-items (handler/realize-menu location)
-                               handler+context (coll/some
-                                                 (fn [{:keys [command]}]
-                                                   (let [handler+context (handler/active command command-contexts {})]
-                                                     (when (and handler+context (= label (handler/label handler+context)))
-                                                       handler+context)))
-                                                 menu-items)]
-                           (assert handler+context "Test bug: undefined test command")
-                           (is (handler/enabled? handler+context))
-                           @(handler/run handler+context)))]
-      (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
+
+          outline-selection
+          (ui/run-now
+            (test-util/open-tab! project app-view "/main/main.collection")
+            (let [outline-view
+                  (outline-view/make-outline-view project app-view test-util/localization)]
+              (g/transact
+                [(g/connect app-view :outline-selection outline-view :selection)
+                 (g/connect resource-node :node-outline outline-view :active-outline)
+                 (g/connect resource-node :_node-id outline-view :active-resource-node)])
+              (app-view/select! app-view [sprite-node-id])
+              (g/with-auto-evaluation-context evaluation-context
+                (handler/selection
+                  (outline-view/->SelectionProvider outline-view (g/node-value outline-view :tree-view evaluation-context))
+                  evaluation-context))))
+
+          run-command!
+          (fn run-command! [location context-name selection label]
+            (let [command-contexts
+                  (eval-handler-contexts context-name selection)
+
+                  menu-items (handler/realize-menu location)
+
+                  handler+context
+                  (coll/some
+                    (fn [{:keys [command]}]
+                      (let [handler+context
+                            (handler/active command command-contexts {})]
+                        (when (and handler+context (= label (handler/label handler+context)))
+                          handler+context)))
+                    menu-items)]
+              (assert handler+context "Test bug: undefined test command")
+              (is (handler/enabled? handler+context))
+              @(handler/run handler+context)))]
+      (run-command! :editor.outline-view/context-menu-end :outline outline-selection "Outline Parent Chain Test")
       (run-command! :editor.scene-selection/context-menu-end :workbench [sprite-node-id] "Scene Parent Chain Test")
       (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 
