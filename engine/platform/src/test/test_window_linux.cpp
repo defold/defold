@@ -29,6 +29,7 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <poll.h>
+#include <math.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1267,14 +1268,22 @@ TEST(LinuxWindow, GLXMultisampleFallback)
     dmPlatform::DeleteWindow(w);
 }
 
+static void CheckDrawableSize(HWindow w, uint32_t client_width, uint32_t client_height)
+{
+    // X11 client dimensions are already pixels. Wayland scales logical dimensions, including fractional scales.
+    float scale = w->m_Wayland ? dmPlatform::GetDisplayScaleFactor(w) : 1.0f;
+    EXPECT_EQ((uint32_t)lround(client_width * scale), dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ((uint32_t)lround(client_height * scale), dmPlatform::GetWindowHeight(w));
+}
+
 // A texture uploaded on the resource worker must be readable by the render context after resize and reopen.
 TEST(LinuxWindow, SharedOpenGLContext)
 {
     HWindow w = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
-    const char* scale = getenv("DM_TEST_WAYLAND_SCALE");
-    const unsigned expected_scale = w->m_Wayland && scale ? atoi(scale) : 1;
+    const char* scale = w->m_Wayland ? getenv("DM_TEST_WAYLAND_SCALE") : 0;
+    const float expected_scale = scale ? strtof(scale, 0) : 0.0f;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
         p.m_HighDPI = cycle != 0;
@@ -1316,26 +1325,29 @@ TEST(LinuxWindow, SharedOpenGLContext)
         glDeleteFramebuffers(1, &fbo);
         glDeleteTextures(1, &texture);
         dmPlatform::SwapBuffers(w);
-        uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
-        while (dmPlatform::GetDisplayScaleFactor(w) != expected_scale && dmTime::GetMonotonicTime() < deadline)
+        if (scale)
         {
-            dmPlatform::PollEvents(w);
+            uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+            while (dmPlatform::GetDisplayScaleFactor(w) != expected_scale && dmTime::GetMonotonicTime() < deadline)
+            {
+                dmPlatform::PollEvents(w);
+            }
+
+            ASSERT_EQ(expected_scale, dmPlatform::GetDisplayScaleFactor(w));
         }
 
-        ASSERT_EQ((float)expected_scale, dmPlatform::GetDisplayScaleFactor(w));
         dmPlatform::SetWindowSize(w, 421, 307);
         dmPlatform::SwapBuffers(w);
-        deadline = dmTime::GetMonotonicTime() + 3000000;
+        uint32_t width, height;
+        uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
         do
         {
             dmPlatform::PollEvents(w);
-        } while (dmPlatform::GetWindowWidth(w) != 421u * expected_scale && dmTime::GetMonotonicTime() < deadline);
-        ASSERT_EQ(421u * expected_scale, dmPlatform::GetWindowWidth(w));
-        ASSERT_EQ(307u * expected_scale, dmPlatform::GetWindowHeight(w));
-        uint32_t width, height;
-        ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &width, &height));
+            ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &width, &height));
+        } while ((width != 421 || height != 307) && dmTime::GetMonotonicTime() < deadline);
         ASSERT_EQ(421u, width);
         ASSERT_EQ(307u, height);
+        CheckDrawableSize(w, width, height);
         dmPlatform::HideWindow(w);
         ASSERT_FALSE(w->m_Shown);
         dmPlatform::SwapBuffers(w);
@@ -1343,8 +1355,12 @@ TEST(LinuxWindow, SharedOpenGLContext)
         ASSERT_TRUE(w->m_Shown);
         dmPlatform::SwapBuffers(w);
         dmPlatform::PollEvents(w);
-        ASSERT_EQ((float)expected_scale, dmPlatform::GetDisplayScaleFactor(w));
-        ASSERT_EQ(421u * expected_scale, dmPlatform::GetWindowWidth(w));
+        if (scale)
+        {
+            ASSERT_EQ(expected_scale, dmPlatform::GetDisplayScaleFactor(w));
+        }
+
+        CheckDrawableSize(w, width, height);
         dmPlatform::CloseWindow(w);
         ASSERT_TRUE(dmPlatform::GetX11GLXContext(w) == 0);
     }

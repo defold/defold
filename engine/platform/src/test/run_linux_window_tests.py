@@ -208,6 +208,12 @@ def run(args, directory):
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.WaylandFirstSwapAfterOpen'],
                            cwd=directory, env=nested, check=True, timeout=30)
             input_test(args.native, nested, x11, directory, True)
+            # Exercise standalone scale detection on HiDPI X11 and Wayland desktops.
+            subprocess.run(['xprop', '-root', '-f', 'RESOURCE_MANAGER', '8s', '-set',
+                            'RESOURCE_MANAGER', 'Xft.dpi: 192\n'], env=x11, check=True)
+            for desktop in (x11, dict(clean, WAYLAND_DISPLAY=wayland['WAYLAND_DISPLAY'])):
+                subprocess.run([args.native, '--test-filter', 'LinuxWindow.SharedOpenGLContext'],
+                               cwd=directory, env=desktop, check=True, timeout=30)
 
 
 def main():
