@@ -654,6 +654,7 @@ namespace dmGameSystem
     /*# sets texture samplers in a material
      * Sets texture samplers in a material, if the samplers exist. Use this function to change the settings of texture samplers.
      * To set actual textures that should be bound to the samplers, use the `material.set_textures` function instead.
+     * The engine-managed `pose_matrix_cache` and `morph_targets` samplers cannot be changed.
      *
      * @name material.set_samplers
      *
@@ -677,6 +678,11 @@ namespace dmGameSystem
     {
         args_index = args_index < 0 ? lua_gettop(L) + args_index + 1 : args_index;
 
+        if (dmRender::IsMaterialInternalSampler(name_hash))
+        {
+            return luaL_error(L, "Material sampler '%s' is reserved for internal resources", dmHashReverseSafe64(name_hash));
+        }
+
         uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
         {
@@ -695,7 +701,7 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
 
-        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_WWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
+        dmRender::SetMaterialSamplerOptions(material_res->m_Material, name_hash, sampler_info);
 
         return 0;
     }
@@ -795,6 +801,7 @@ namespace dmGameSystem
 
     /*# sets textures in a material
      * Sets textures in a material, if the samplers exist.
+     * The engine-managed `pose_matrix_cache` and `morph_targets` textures cannot be changed.
      *
      * @name material.set_textures
      *
@@ -819,10 +826,19 @@ namespace dmGameSystem
     {
         texture_index = texture_index < 0 ? lua_gettop(L) + texture_index + 1 : texture_index;
 
+        if (dmRender::IsMaterialInternalSampler(name_hash))
+        {
+            return luaL_error(L, "Material sampler '%s' is reserved for internal resources", dmHashReverseSafe64(name_hash));
+        }
+
         uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
         {
             return luaL_error(L, "Material sampler '%s' not found", dmHashReverseSafe64(name_hash));
+        }
+        if (unit >= dmRender::GetMaterialUserTextureCount(material_res->m_Material))
+        {
+            return luaL_error(L, "Material sampler '%s' has no ordinary texture slot", dmHashReverseSafe64(name_hash));
         }
 
         dmhash_t texture_path        = dmScript::CheckHashOrString(L, texture_index);

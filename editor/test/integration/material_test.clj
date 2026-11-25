@@ -16,12 +16,114 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.form :as form]
             [editor.material]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.murmur :as murmur])
+  (:import [com.dynamo.bob.pipeline MaterialBuilder]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$ShaderReflection]
+           [com.dynamo.render.proto Material$MaterialDesc]
+           [com.google.protobuf ByteString]))
+
+;; The editor build function must emit the same native state and hash as Bob,
+;; independently of resource-path fusion and material metadata.
+(deftest shared-material-render-state
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test.material")
+          build-resource (workspace/make-build-resource (g/node-value node-id :resource))
+          program-resource (workspace/make-build-resource (g/node-value node-id :vertex-program))
+          reflection (Graphics$ShaderDesc$ShaderReflection/getDefaultInstance)
+          desc {:name "material"
+                :vertex-program ""
+                :fragment-program ""
+                :vertex-space :vertex-space-local
+                :program program-resource}
+          user-data {:material-desc-with-build-resources desc
+                     :shader-reflection (.toByteString reflection)}
+          result (#'editor.material/build-material
+                   build-resource
+                   {program-resource program-resource}
+                   user-data)
+          compiled (Material$MaterialDesc/parseFrom ^bytes (:content result))
+          expected (MaterialBuilder/buildRenderState
+                     (protobuf/map->pb Material$MaterialDesc
+                                       (assoc desc :name "renamed" :tags ["shadow"] :program "/other.spc"))
+                     reflection)]
+      (is (.hasRenderHash compiled))
+      (is (string? (:content-hash
+                     (bt/with-content-hash
+                       {:resource build-resource
+                        :build-fn @#'editor.material/build-material
+                        :user-data user-data}))))
+      (is (.hasRenderState compiled))
+      (is (= (.getRenderHash expected) (.getRenderHash compiled)))
+      (is (= (.getRenderState expected) (.getRenderState compiled))))))
+
+;; Editor and Bob must generate aliases only for active array fallback samplers,
+;; preserving the same shared material hash for native and fallback variants.
+(deftest shared-material-sampler-aliases
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test.material")
+          build-resource (workspace/make-build-resource (g/node-value node-id :resource))
+          program-resource (workspace/make-build-resource (g/node-value node-id :vertex-program))
+          samplers (mapv (fn [name]
+                           {:name name
+                            :wrap-u :wrap-mode-repeat
+                            :wrap-v :wrap-mode-repeat
+                            :filter-min :filter-mode-min-linear
+                            :filter-mag :filter-mode-mag-linear
+                            :name-indirections [(murmur/hash64 "stale_alias")]})
+                         ["ordinary" "array" "unused"])
+          hashes
+          (mapv (fn [fallback]
+                  (let [shader-desc (protobuf/map->pb Graphics$ShaderDesc
+                                                      {:shaders [{:source ByteString/EMPTY
+                                                                  :shader-type :shader-type-fragment
+                                                                  :language :language-glsl-sm120
+                                                                  :variant-texture-array fallback}]
+                                                       :reflection {:textures [{:name "ordinary"
+                                                                                :name-hash (murmur/hash64 "ordinary")
+                                                                                :type {:shader-type :shader-type-sampler2d}}
+                                                                               {:name "array"
+                                                                                :name-hash (murmur/hash64 "array")
+                                                                                :type {:shader-type :shader-type-sampler2d-array}}]}})
+                        reflection (.getReflection shader-desc)
+                        editor-samplers (#'editor.material/build-target-samplers samplers 2 shader-desc)
+                        desc {:name "material"
+                              :vertex-program ""
+                              :fragment-program ""
+                              :vertex-space :vertex-space-local
+                              :max-page-count 2
+                              :program program-resource
+                              :samplers editor-samplers}
+                        bob-builder (.toBuilder
+                                      (protobuf/map->pb Material$MaterialDesc
+                                                        (assoc desc
+                                                          :program "/other.spc"
+                                                          :samplers (mapv (fn [sampler]
+                                                                            (assoc sampler :name-hash (murmur/hash64 (:name sampler))))
+                                                                          samplers))))
+                        result (#'editor.material/build-material
+                                 build-resource
+                                 {program-resource program-resource}
+                                 {:material-desc-with-build-resources desc
+                                  :shader-reflection (.toByteString reflection)})
+                        compiled (Material$MaterialDesc/parseFrom ^bytes (:content result))]
+                    (MaterialBuilder/applyVariantTextureArray bob-builder shader-desc)
+                    (let [expected (MaterialBuilder/buildRenderState (.build bob-builder) reflection)]
+                      (is (= [[] (if fallback (mapv murmur/hash64 ["array_0" "array_1"]) []) []]
+                             (mapv #(vec (:name-indirections %)) editor-samplers)))
+                      (is (= (.getSamplersList expected) (.getSamplersList compiled)))
+                      (is (= 2 (.getSamplersCount (.getRenderState compiled))))
+                      (is (= (.getRenderState expected) (.getRenderState compiled)))
+                      (is (= (.getRenderHash expected) (.getRenderHash compiled)))
+                      (.getRenderHash compiled))))
+                [false true])]
+      (is (apply = hashes)))))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
