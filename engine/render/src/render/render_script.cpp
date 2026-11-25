@@ -3322,12 +3322,18 @@ namespace dmRender
     * finish callback is a good place to trigger that.
     *
     * @name render.reload_resources
-    * @param finish_callback [type:function(self)] Called once when all resources have been recreated.
-    * @param progress_callback [type:function(self, done, total)|nil] Optional. Called every frame with
-    * the number of resources recreated so far (`done`) and the total number to recreate (`total`).
+    * @param finish_callback [type:fun(self:script_instance)] Called once when all resources have been recreated.
+    * @param [progress_callback] [type:fun(self:script_instance, done:integer, total:integer)] Called every frame
+    * while the resources are being recreated.
     *
     * `self`
-    * : [type:object] The render script
+    * : [type:script_instance] The render script instance.
+    *
+    * `done`
+    * : [type:integer] The number of resources recreated so far.
+    *
+    * `total`
+    * : [type:integer] The total number of resources to recreate.
     *
     * @examples
     *
