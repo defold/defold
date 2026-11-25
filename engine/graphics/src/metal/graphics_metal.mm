@@ -78,6 +78,7 @@ namespace dmGraphics
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
+        m_BaseContext.m_DisableDepthStencil     = params.m_DisableDepthStencil;
         m_SwapInterval                          = params.m_SwapInterval;
         m_JobContext                            = params.m_JobContext;
         m_ResourceRetirementQueue               = new ResourceRetirementQueue<MetalResourceToDestroy>();
@@ -705,16 +706,19 @@ namespace dmGraphics
             MetalTexture* color         = new MetalTexture();
             memset(color, 0, sizeof(MetalTexture));
             rt->m_TextureColor[0]       = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, color, ASSET_TYPE_TEXTURE);
-            MetalTexture* depth         = new MetalTexture();
-            memset(depth, 0, sizeof(MetalTexture));
-            rt->m_TextureDepthStencil   = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, depth, ASSET_TYPE_TEXTURE);
+            if (!context->m_BaseContext.m_DisableDepthStencil)
+            {
+                MetalTexture* depth = new MetalTexture();
+                memset(depth, 0, sizeof(MetalTexture));
+                rt->m_TextureDepthStencil = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, depth, ASSET_TYPE_TEXTURE);
+            }
         }
 
         rt->m_Base.m_TextureColor[0]      = rt->m_TextureColor[0];
         rt->m_Base.m_TextureDepthStencil  = rt->m_TextureDepthStencil;
         rt->m_Base.m_ColorAttachmentCount = 1;
         rt->m_ColorFormat[0]              = MTL::PixelFormatBGRA8Unorm;
-        rt->m_DepthStencilFormat          = MTL::PixelFormatDepth32Float_Stencil8;
+        rt->m_DepthStencilFormat          = context->m_BaseContext.m_DisableDepthStencil ? MTL::PixelFormatInvalid : MTL::PixelFormatDepth32Float_Stencil8;
         rt->m_ColorAttachmentCount        = 1;
         rt->m_ColorBufferLoadOps[0] = ATTACHMENT_OP_CLEAR;
         rt->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
@@ -931,19 +935,23 @@ namespace dmGraphics
 
     static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
     {
-        if (context->m_MainDepthStencilTexture &&
-            context->m_MainDepthStencilTexture->width() == width &&
-            context->m_MainDepthStencilTexture->height() == height)
+        MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        if (main_rt->m_Width == width && main_rt->m_Height == height &&
+            (context->m_BaseContext.m_DisableDepthStencil || context->m_MainDepthStencilTexture))
         {
             SetMainRenderTargetSize(context, width, height);
             return;
         }
 
-        if (context->m_MainDepthStencilTexture)
+        if (!context->m_BaseContext.m_DisableDepthStencil)
         {
-            context->m_MainDepthStencilTexture->release();
+            if (context->m_MainDepthStencilTexture)
+            {
+                context->m_MainDepthStencilTexture->release();
+            }
+
+            context->m_MainDepthStencilTexture = CreateMainDepthStencilTexture(context, width, height);
         }
-        context->m_MainDepthStencilTexture = CreateMainDepthStencilTexture(context, width, height);
 
         if (context->m_MSAASampleCount > 1)
         {
@@ -959,7 +967,10 @@ namespace dmGraphics
                     frame.m_MSAADepthTexture->release();
                 }
                 frame.m_MSAAColorTexture = CreateMSAATexture(context, width, height, MTL::PixelFormatBGRA8Unorm, context->m_MSAASampleCount);
-                frame.m_MSAADepthTexture = CreateMSAATexture(context, width, height, MTL::PixelFormatDepth32Float_Stencil8, context->m_MSAASampleCount);
+                if (!context->m_BaseContext.m_DisableDepthStencil)
+                {
+                    frame.m_MSAADepthTexture = CreateMSAATexture(context, width, height, MTL::PixelFormatDepth32Float_Stencil8, context->m_MSAASampleCount);
+                }
             }
         }
 
@@ -1433,7 +1444,6 @@ namespace dmGraphics
 #endif
         GetDrawableSize(context, &window_width, &window_height);
 
-        SetMainRenderTargetSize(context, window_width, window_height);
         context->m_PolygonOffsetFactor = 0.0f;
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
@@ -1493,12 +1503,6 @@ namespace dmGraphics
             context->m_FrameResources[i].m_AutoReleasePool = 0;
             context->m_FrameResources[i].m_RenderCommandEncoder = 0;
             context->m_FrameResources[i].m_InFlight = 0;
-
-            if (context->m_MSAASampleCount > 1)
-            {
-                context->m_FrameResources[i].m_MSAAColorTexture = CreateMSAATexture(context, window_width, window_height, MTL::PixelFormatBGRA8Unorm, context->m_MSAASampleCount);
-                context->m_FrameResources[i].m_MSAADepthTexture = CreateMSAATexture(context, window_width, window_height, MTL::PixelFormatDepth32Float_Stencil8, context->m_MSAASampleCount);
-            }
 
             // This is just the starting point size for the constant scratch buffer;
             // the buffer can grow as needed.
@@ -1598,7 +1602,7 @@ namespace dmGraphics
         [native_view setWantsLayer:YES];
 #endif
 
-        context->m_MainDepthStencilTexture = CreateMainDepthStencilTexture(context, window_width, window_height);
+        ResizeMainFramebufferResources(context, window_width, window_height);
 
         return true;
     }
@@ -1928,6 +1932,7 @@ namespace dmGraphics
         // Track the active encoder
         frame.m_RenderCommandEncoder = encoder;
         context->m_CurrentRenderTarget = render_target;
+        context->m_BaseContext.m_OffscreenTargetBound = render_target != context->m_MainRenderTarget;
         context->m_RenderTargetBound = 1;
         ++context->m_RenderPassSerial;
         ResetRenderEncoderStateCache(context);
@@ -2031,14 +2036,17 @@ namespace dmGraphics
         MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_ResumePass = 0; // Do not resume the previous drawable's pass.
         MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
-        MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
         const uint32_t drawable_width = frame.m_Drawable->texture()->width();
         const uint32_t drawable_height = frame.m_Drawable->texture()->height();
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
-        ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
+        if (rt->m_TextureDepthStencil)
+        {
+            MetalTexture* ds_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            ds_tex->m_Texture = context->m_MainDepthStencilTexture;
+        }
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -4819,6 +4827,7 @@ namespace dmGraphics
         target->m_Base.m_CubeMapFace = params.m_CubeMapFace;
         target->m_ResumePass = 0;
         context->m_CurrentRenderTarget = new_rt;
+        context->m_BaseContext.m_OffscreenTargetBound = new_rt != context->m_MainRenderTarget;
         context->m_ViewportChanged = 1;
         context->m_ScissorChanged = 1;
     }

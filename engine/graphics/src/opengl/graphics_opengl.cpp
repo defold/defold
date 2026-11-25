@@ -478,6 +478,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
+    static void                         OpenGLSetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params);
 
     #if defined(DM_GRAPHICS_USE_OPENGLES)
     static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGLES);
@@ -636,6 +637,7 @@ static void LogFrameBufferError(GLenum status)
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
+        m_BaseContext.m_DisableDepthStencil     = params.m_DisableDepthStencil;
         m_JobContext                            = params.m_JobContext;
 
         // We need to have some sort of valid default filtering
@@ -811,7 +813,13 @@ static void LogFrameBufferError(GLenum status)
     static void ApplyPipelineState(OpenGLContext* context)
     {
         PipelineState& ps_applied = context->m_PipelineState;
-        PipelineState& ps_dirty   = context->m_PipelineStateDirty;
+        PipelineState ps_dirty    = context->m_PipelineStateDirty;
+        if (context->m_BaseContext.m_DisableDepthStencil && !context->m_BaseContext.m_OffscreenTargetBound)
+        {
+            // Window systems may supply a pixel format with depth/stencil even when zero bits were requested.
+            ps_dirty.m_DepthTestEnabled = 0;
+            ps_dirty.m_StencilEnabled   = 0;
+        }
 
         #define HAS_CHANGED(name) (ps_applied.name != ps_dirty.name)
 
@@ -2245,17 +2253,30 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLBeginFrame(HContext _context)
     {
-#if defined(ANDROID)
         OpenGLContext* context = (OpenGLContext*) _context;
+#if defined(ANDROID)
         dmPlatform::AndroidBeginFrame(context->m_BaseContext.m_Window);
 #endif
-        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+        if (context->m_CurrentRenderTarget)
+        {
+            OpenGLSetRenderTarget(_context, 0, RenderTargetBindingParams());
+        }
+        else
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+        }
     }
 
     static void OpenGLFlip(HContext _context)
     {
         DM_PROFILE(__FUNCTION__);
         OpenGLContext* context = (OpenGLContext*) _context;
+        // Resolve and discard offscreen attachments before the window system can rebind the framebuffer.
+        if (context->m_CurrentRenderTarget)
+        {
+            OpenGLSetRenderTarget(_context, 0, RenderTargetBindingParams());
+        }
+
         PostDeleteTextures(context, false);
         dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
         CHECK_GL_ERROR;
@@ -4957,6 +4978,12 @@ static void LogFrameBufferError(GLenum status)
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
 
+    static void RestoreRenderTargetFramebuffer(OpenGLContext* context)
+    {
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt ? GetGLHandle(context, rt->m_Id) : dmPlatform::OpenGLGetDefaultFramebufferId());
+    }
+
     static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         OpenGLContext* context        = (OpenGLContext*) _context;
@@ -5097,7 +5124,8 @@ static void LogFrameBufferError(GLenum status)
             CreateMultisampleRenderTargetAttachments(context, rt);
             CHECK_GL_FRAMEBUFFER_ERROR;
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+
+        RestoreRenderTargetFramebuffer(context);
         CHECK_GL_ERROR;
 
         // Serialize slot reuse and container growth with the texture worker.
@@ -5125,6 +5153,11 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+
+        if (context->m_CurrentRenderTarget == render_target)
+        {
+            OpenGLSetRenderTarget(_context, 0, RenderTargetBindingParams());
+        }
 
         GLuint handle = GetGLHandle(context, rt->m_Id);
         glDeleteFramebuffers(1, &handle);
@@ -5180,11 +5213,6 @@ static void LogFrameBufferError(GLenum status)
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
             context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
-        }
-
-        if (context->m_CurrentRenderTarget == render_target)
-        {
-            context->m_CurrentRenderTarget = 0;
         }
 
         delete rt;
@@ -5277,6 +5305,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;
         context->m_CurrentRenderTarget = render_target;
+        context->m_BaseContext.m_OffscreenTargetBound = rt != NULL;
 
     #if __EMSCRIPTEN__
         #define DRAW_BUFFERS_FN glDrawBuffers
@@ -5370,15 +5399,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_FRAMEBUFFER_ERROR;
         }
 
-        if (context->m_CurrentRenderTarget)
-        {
-            OpenGLRenderTarget* current_rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
-            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, current_rt->m_Id));
-        }
-        else
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
-        }
+        RestoreRenderTargetFramebuffer(context);
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
