@@ -345,6 +345,79 @@ namespace dmRender
         delete[] default_values;
     }
 
+    // A name can be reflected once per shader stage, so the n-th constant with a name maps to the n-th uniform with it.
+    static dmGraphics::HUniformLocation FindConstantUniformLocation(dmGraphics::HProgram program, uint32_t uniform_count, dmhash_t name_hash, uint32_t occurrence)
+    {
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            dmGraphics::Uniform uniform_desc;
+            dmGraphics::GetUniform(program, i, &uniform_desc);
+
+            if (uniform_desc.m_NameHash != name_hash || uniform_desc.m_Location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
+                continue;
+            }
+            if (uniform_desc.m_Type != dmGraphics::TYPE_FLOAT_VEC4 && uniform_desc.m_Type != dmGraphics::TYPE_FLOAT_MAT4)
+            {
+                continue;
+            }
+            if (occurrence == 0)
+            {
+                return uniform_desc.m_Location;
+            }
+            occurrence--;
+        }
+        return dmGraphics::INVALID_UNIFORM_LOCATION;
+    }
+
+    void UpdateProgramUniformLocations(dmGraphics::HProgram program, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
+    {
+        uint32_t uniform_count = dmGraphics::GetUniformCount(program);
+
+        name_hash_to_location.Clear();
+        if (uniform_count > name_hash_to_location.Capacity())
+        {
+            name_hash_to_location.SetCapacity(uniform_count, uniform_count * 2);
+        }
+
+        for (uint32_t i = 0; i < uniform_count; ++i)
+        {
+            dmGraphics::Uniform uniform_desc;
+            dmGraphics::GetUniform(program, i, &uniform_desc);
+            if (uniform_desc.m_Location != dmGraphics::INVALID_UNIFORM_LOCATION && IsUniformTypeSupported(uniform_desc.m_Type))
+            {
+                name_hash_to_location.Put(uniform_desc.m_NameHash, uniform_desc.m_Location);
+            }
+        }
+
+        uint32_t constant_count = constants.Size();
+        for (uint32_t i = 0; i < constant_count; ++i)
+        {
+            dmhash_t name_hash  = GetConstantName(constants[i].m_Constant);
+            uint32_t occurrence = 0;
+            for (uint32_t j = 0; j < i; ++j)
+            {
+                if (GetConstantName(constants[j].m_Constant) == name_hash)
+                {
+                    occurrence++;
+                }
+            }
+            SetConstantLocation(constants[i].m_Constant, FindConstantUniformLocation(program, uniform_count, name_hash, occurrence));
+        }
+
+        uint32_t sampler_count = samplers.Size();
+        for (uint32_t i = 0; i < sampler_count; ++i)
+        {
+            Sampler& s = samplers[i];
+            if (s.m_NameHash == 0)
+            {
+                continue;
+            }
+            dmGraphics::HUniformLocation* location = name_hash_to_location.Get(s.m_NameHash);
+            s.m_Location = location ? *location : dmGraphics::INVALID_UNIFORM_LOCATION;
+        }
+    }
+
     void SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HUniformLocation location, HConstant constant)
     {
         switch (type)

@@ -319,6 +319,21 @@ namespace dmRender
 
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
         material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
+        material->m_UniformLocationProgramVersion = dmGraphics::GetProgramVersion(material->m_Program);
+    }
+
+    // A reloaded program (hot reload, or a restored graphics context) can place its uniforms at new locations
+    static void UpdateMaterialUniformLocations(HMaterial material)
+    {
+        uint64_t version = dmGraphics::GetProgramVersion(material->m_Program);
+        if (material->m_UniformLocationProgramVersion == version)
+        {
+            return;
+        }
+        UpdateProgramUniformLocations(material->m_Program, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
+        material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
+        material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
+        material->m_UniformLocationProgramVersion = version;
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program)
@@ -524,6 +539,8 @@ namespace dmRender
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* render_object)
     {
+        UpdateMaterialUniformLocations(material);
+
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& constants = material->m_Constants;
 
@@ -537,6 +554,10 @@ namespace dmRender
                 continue;
             }
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
+                continue;
+            }
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
             SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, type, location, constant);
         }
