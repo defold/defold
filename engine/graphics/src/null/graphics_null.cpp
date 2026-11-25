@@ -78,6 +78,7 @@ namespace dmGraphics
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
+        m_BaseContext.m_DisableDepthStencil     = params.m_DisableDepthStencil;
         m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_JobContext              = params.m_JobContext;
 
@@ -183,6 +184,20 @@ namespace dmGraphics
         }
     }
 
+    static void AllocateMainFrameBuffer(NullContext* context, uint32_t buffer_size)
+    {
+        FrameBuffer& main = context->m_MainFrameBuffer;
+        main.m_ColorBuffer[0]     = new char[buffer_size];
+        main.m_ColorBufferSize[0] = buffer_size;
+        if (!context->m_BaseContext.m_DisableDepthStencil)
+        {
+            main.m_DepthBuffer       = new char[buffer_size];
+            main.m_DepthBufferSize   = buffer_size;
+            main.m_StencilBuffer     = new char[buffer_size];
+            main.m_StencilBufferSize = buffer_size;
+        }
+    }
+
     static bool NullInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
@@ -190,12 +205,7 @@ namespace dmGraphics
         NullContext* context = (NullContext*) _context;
         uint32_t buffer_size = 4 * dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window) * dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
-        context->m_MainFrameBuffer.m_ColorBuffer[0]     = new char[buffer_size];
-        context->m_MainFrameBuffer.m_ColorBufferSize[0] = buffer_size;
-        context->m_MainFrameBuffer.m_DepthBuffer        = new char[buffer_size];
-        context->m_MainFrameBuffer.m_StencilBuffer      = new char[buffer_size];
-        context->m_MainFrameBuffer.m_DepthBufferSize    = buffer_size;
-        context->m_MainFrameBuffer.m_StencilBufferSize  = buffer_size;
+        AllocateMainFrameBuffer(context, buffer_size);
         context->m_CurrentFrameBuffer                   = &context->m_MainFrameBuffer;
         context->m_Program                              = 0x0;
         context->m_PipelineState                        = GetDefaultPipelineState();
@@ -277,12 +287,7 @@ namespace dmGraphics
             context->m_BaseContext.m_Width = width;
             context->m_BaseContext.m_Height = height;
             uint32_t buffer_size = 4 * width * height;
-            main.m_ColorBuffer[0] = new char[buffer_size];
-            main.m_ColorBufferSize[0] = buffer_size;
-            main.m_DepthBuffer = new char[buffer_size];
-            main.m_DepthBufferSize = buffer_size;
-            main.m_StencilBuffer = new char[buffer_size];
-            main.m_StencilBufferSize = buffer_size;
+            AllocateMainFrameBuffer(context, buffer_size);
 
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
@@ -1470,8 +1475,12 @@ namespace dmGraphics
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
             rt = GetAssetFromContainer<NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
             if (rt)
+            {
                 rt->m_Base.m_CubeMapFace = params.m_CubeMapFace;
+            }
         }
+
+        context->m_BaseContext.m_OffscreenTargetBound = rt != 0;
         context->m_CurrentFrameBuffer = rt ?
             (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? &rt->m_CubeMapFrameBuffers[params.m_CubeMapFace] : &rt->m_FrameBuffer) :
             &context->m_MainFrameBuffer;
