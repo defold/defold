@@ -195,7 +195,7 @@ TEST_F(CocoaWindowTest, FocusLostBeforeFirstPoll)
     }
 }
 
-// Closing and quitting must give the engine a chance to finish the frame, including after a reboot.
+// Closing and quitting must let the engine finish the frame, and the reopened fullscreen window must still minimize.
 TEST_F(CocoaWindowTest, HiddenFocusMinimizeQuitAndReopen)
 {
     @autoreleasepool
@@ -222,8 +222,12 @@ TEST_F(CocoaWindowTest, HiddenFocusMinimizeQuitAndReopen)
         params.m_Fullscreen = true;
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
         native = dmPlatform::GetOSXNSWindow(window);
-        ASSERT_EQ((NSUInteger)NSWindowStyleMaskBorderless, (NSUInteger)native.styleMask);
+        ASSERT_FALSE(native.styleMask & NSWindowStyleMaskTitled);
         ASSERT_TRUE(NSEqualRects(native.frame, [NSScreen screens].firstObject.frame));
+        dmPlatform::ShowWindow(window);
+        WindowIconify(window);
+        ASSERT_TRUE(WaitFor(&events.m_Minimized, 1));
+        ASSERT_TRUE(native.miniaturized);
     }
 }
 

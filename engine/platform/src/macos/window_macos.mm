@@ -350,7 +350,7 @@ namespace dmPlatform
             if (params.m_Fullscreen && screen)
             {
                 rect = screen.frame;
-                style = NSWindowStyleMaskBorderless;
+                style = NSWindowStyleMaskBorderless | NSWindowStyleMaskMiniaturizable;
             }
 
             NSWindow* native = [[DMGameWindow alloc] initWithContentRect:rect styleMask:style backing:NSBackingStoreBuffered defer:NO];
