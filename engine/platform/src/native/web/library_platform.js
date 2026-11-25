@@ -101,7 +101,8 @@ var LibraryDefoldPlatform = {
 
     onKeydown: function(event) {
       var platform = DefoldPlatform;
-      if (!platform.isCanvasActive(event)) return;
+      // The first and last IME keydowns can report 229 outside isComposing.
+      if (event.isComposing || event.keyCode === 229 || !platform.isCanvasActive(event)) return;
       var key = platform.keyNumber(event);
       if (key) platform.keys[key] = 1;
       if (key === 32 || (key >= 283 && key <= 286)) {
@@ -123,7 +124,7 @@ var LibraryDefoldPlatform = {
     },
 
     onKeyPress: function(event) {
-      if (event.charCode && DefoldPlatform.callbacks.character && DefoldPlatform.isCanvasActive(event)) {
+      if (!event.isComposing && event.charCode && DefoldPlatform.callbacks.character && DefoldPlatform.isCanvasActive(event)) {
         {{{ makeDynCall('vii', 'DefoldPlatform.callbacks.character') }}}(event.charCode, 1);
       }
     },

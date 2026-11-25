@@ -3083,6 +3083,38 @@ function testKeyboardTranslation() {
     assert.deepStrictEqual(characters, [[32, 1], [0x1f600, 1]]);
 }
 
+// Candidate navigation belongs to the IME, including the boundary events only identified by keyCode 229.
+function testKeyboardComposition() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    context.document.activeElement = canvas;
+    const characters = [];
+    api.dmNativeSetCharCallback(codepoint => characters.push(codepoint));
+    const send = event => context.window.dispatchEvent({
+        target: canvas,
+        preventDefault() { assert.fail("IME input must retain its browser default"); },
+        stopPropagation() { assert.fail("IME input must propagate"); },
+        ...event
+    });
+
+    for (const [code, keyCode, nativeKey] of [["Space", 32, 32], ["ArrowDown", 40, 284], ["Enter", 13, 294]]) {
+        for (const flags of [{ isComposing: true, keyCode }, { isComposing: false, keyCode: 229 }]) {
+            send({ type: "keydown", key: "Process", code, ...flags });
+            assert.strictEqual(api.dmNativeGetKey(nativeKey), 0);
+            send({ type: "keyup", key: "Process", code, ...flags });
+        }
+    }
+    send({ type: "keypress", isComposing: true, charCode: 32 });
+    send({ type: "keypress", isComposing: false, charCode: 229, keyCode: 229 });
+    assert.deepStrictEqual(characters, [229]);
+
+    send({ type: "keydown", code: "ArrowDown", keyCode: 40, preventDefault() {}, stopPropagation() {} });
+    assert.strictEqual(api.dmNativeGetKey(284), 1);
+    send({ type: "keyup", code: "ArrowDown", keyCode: 229, isComposing: true });
+    assert.strictEqual(api.dmNativeGetKey(284), 0);
+}
+
 // Reopening the canvas must discard held input, old callbacks and gamepad allocations, then rediscover connected devices.
 function testPlatformReinitialization() {
     const context = loadPointerEnvironment();
@@ -3137,7 +3169,7 @@ function testWebGLFallbackAndRetry() {
 }
 
 async function runTests() {
-    for (const test of [testKeyboardTranslation, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
+    for (const test of [testKeyboardTranslation, testKeyboardComposition, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
                        testWebGLFallbackAndRetry, testWindowCloseAndReopen, testGraphicsFallbackCanvasListeners,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testRemappedModifierKeys,
                        testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput,
