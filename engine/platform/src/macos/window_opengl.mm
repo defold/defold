@@ -63,6 +63,7 @@ namespace dmPlatform
         window->m_Window.colorSpace = [NSColorSpace sRGBColorSpace];
         [window->m_Context setView:window->m_View];
         [window->m_Context makeCurrentContext];
+        SetSwapInterval(window, 1);
         return true;
     }
 

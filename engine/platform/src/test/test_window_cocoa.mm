@@ -15,6 +15,7 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #import <OpenGL/gl3.h>
+#import <objc/runtime.h>
 #include <pthread.h>
 #include <jc_test/jc_test.h>
 #include "test_window_focus.h"
@@ -706,6 +707,43 @@ static void* Upload(void* data)
         }
     }
     return 0;
+}
+
+static IMP g_InitOpenGLContext;
+
+static id InitContextWithoutVsync(id self, SEL selector, NSOpenGLPixelFormat* format, NSOpenGLContext* share)
+{
+    typedef id (*InitContext)(id, SEL, NSOpenGLPixelFormat*, NSOpenGLContext*);
+    NSOpenGLContext* context = ((InitContext)g_InitOpenGLContext)(self, selector, format, share);
+    GLint interval = 0;
+    [context setValues:&interval forParameter:NSOpenGLContextParameterSwapInterval];
+    return context;
+}
+
+// Each new main context starts with vsync enabled, even when the native context starts with a zero interval.
+TEST_F(CocoaWindowTest, DefaultOpenGLSwapInterval)
+{
+    @autoreleasepool
+    {
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        Method init = class_getInstanceMethod([NSOpenGLContext class], @selector(initWithFormat:shareContext:));
+        for (int i = 0; i < 2; ++i)
+        {
+            g_InitOpenGLContext = method_setImplementation(init, (IMP)InitContextWithoutVsync);
+            WindowResult result = dmPlatform::OpenWindow(window, params);
+            method_setImplementation(init, g_InitOpenGLContext);
+            ASSERT_EQ(WINDOW_RESULT_OK, result);
+            NSOpenGLContext* context = dmPlatform::GetOSXNSOpenGLContext(window);
+            ASSERT_NE((NSOpenGLContext*)nil, context);
+            GLint interval = -1;
+            [context getValues:&interval forParameter:NSOpenGLContextParameterSwapInterval];
+            EXPECT_EQ(1, interval);
+            dmPlatform::SetSwapInterval(window, 0);
+            [context getValues:&interval forParameter:NSOpenGLContextParameterSwapInterval];
+            EXPECT_EQ(0, interval);
+            dmPlatform::CloseWindow(window);
+        }
+    }
 }
 
 // A hidden OpenGL window must still wait for refresh intervals when vsync is enabled.
