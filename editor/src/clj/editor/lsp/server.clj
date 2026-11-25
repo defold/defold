@@ -454,7 +454,7 @@
                                        :formatting {:dynamicRegistration false}
                                        :rangeFormatting {:dynamicRegistration false}
                                        :signatureHelp {:dynamicRegistration false
-                                                       :signatureInformation {:documentationFormat ["plaintext"]
+                                                       :signatureInformation {:documentationFormat ["markdown" "plaintext"]
                                                                               :parameterInformation {:labelOffsetSupport true}
                                                                               :activeParameterSupport true}
                                                        :contextSupport false}}
@@ -866,13 +866,19 @@
     (bound-fn [result _]
       (when-let [signatures (not-empty (:signatures result))]
         {:active (min (dec (count signatures)) (max 0 (or (:activeSignature result) 0)))
-         :signatures (mapv (fn [{:keys [label parameters activeParameter]}]
-                             (let [parameter-label (:label (get parameters (or activeParameter (:activeParameter result) 0)))
+         :signatures (mapv (fn [{:keys [label parameters activeParameter documentation]}]
+                             (let [parameter (get parameters (or activeParameter (:activeParameter result) 0))
+                                   parameter-label (:label parameter)
                                    [start end] (if (string? parameter-label)
                                                  (when-let [i (string/index-of label parameter-label)]
                                                    [i (+ i (count parameter-label))])
-                                                 parameter-label)]
-                               {:label label :start start :end end}))
+                                                 parameter-label)
+                                   doc #(if (string? %) (->MarkupContent :plaintext %) (markup-content:lsp->editor %))]
+                               {:label label
+                                :start start
+                                :end end
+                                :doc (some-> documentation doc)
+                                :parameter-doc (some-> (:documentation parameter) doc)}))
                            signatures)}))))
 
 (defn- hover-response->region [range content]

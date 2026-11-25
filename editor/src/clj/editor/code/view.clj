@@ -1687,6 +1687,7 @@
                                                                (:completion-trigger-characters grammar)])))
   (property signature-help-trigger-characters g/Any (default #{}) (dynamic visible (g/constantly false)))
   (property signature-help g/Any (dynamic visible (g/constantly false)))
+  (property signature-help-docs g/Bool (default false) (dynamic visible (g/constantly false)))
   (property document-symbols g/Any (default []) (dynamic visible (g/constantly false)))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -2750,7 +2751,10 @@
 
 (handler/defhandler :code.show-signature-help :code-view
   (active? [editable] editable)
-  (run [view-node] (request-signature-help! view-node)))
+  (run [view-node]
+    (if (get-property view-node :signature-help)
+      (set-properties! view-node nil {:signature-help-docs (not (get-property view-node :signature-help-docs))})
+      (request-signature-help! view-node))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -4123,11 +4127,21 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- signature-help-popup-view [{:keys [canvas-repaint-info signature-help font-name font-size view-node]}]
+(defn- signature-help-popup-view [{:keys [canvas-repaint-info signature-help docs hint project font-name font-size view-node]}]
   (let [{:keys [^Canvas canvas]} canvas-repaint-info
         {:keys [active signatures]} signature-help
-        {:keys [label start end]} (signatures active)
+        {:keys [doc parameter-doc]} (signatures active)
         n (count signatures)
+        markdown (fn [{:keys [type value]}]
+                   (case type
+                     :plaintext (plaintext->markdown value)
+                     :markdown value))
+        doc-content (when docs
+                      (some->> [parameter-doc doc]
+                               (keep #(some-> % markdown))
+                               (remove string/blank?)
+                               not-empty
+                               (coll/join-to-string "\n\n<hr>\n\n")))
         text (fn [s fill bold]
                {:fx/type fx.text/lifecycle
                 :text s
@@ -4168,16 +4182,38 @@
          :children
          [{:fx/type fx.region/lifecycle
            :style-class "hover-background"}
-          {:fx/type fx.text-flow/lifecycle
-           :padding 6
-           :max-width 600
-           :children (cond->> (if start
-                                [(text (subs label 0 start) "#a2b0be" false)
-                                 (text (subs label start end) "#4cb1ff" true)
-                                 (text (subs label end) "#a2b0be" false)]
-                                [(text label "#a2b0be" false)])
-                       (< 1 n)
-                       (cons (text (str (inc active) "/" n "  ") "#6c7a88" false)))}]}]}}}))
+          {:fx/type fx.v-box/lifecycle
+           :children
+           (cond-> []
+             doc-content
+             (conj {:fx/type markdown-view/view
+                    :content doc-content
+                    :project project
+                    :max-width 600.0
+                    :max-height 400.0})
+             :always
+             (conj {:fx/type fx.text-flow/lifecycle
+                    :padding 6
+                    :max-width 600
+                    :children (into []
+                                    (comp
+                                      (map-indexed
+                                        (fn [i {:keys [label start end]}]
+                                          (cond->> (if (and start (= i active))
+                                                     [(text (subs label 0 start) "#a2b0be" false)
+                                                      (text (subs label start end) "#4cb1ff" true)
+                                                      (text (subs label end) "#a2b0be" false)]
+                                                     [(text label (if (= i active) "#a2b0be" "#6c7a88") false)])
+                                            (pos? i)
+                                            (cons (text "\n" "#6c7a88" false)))))
+                                      cat)
+                                    signatures)})
+             hint
+             (conj {:fx/type fx.text-flow/lifecycle
+                    :padding {:left 6 :right 6 :bottom 4}
+                    :children [{:fx/type fx.text/lifecycle
+                                :text (str hint ": Toggle docs")
+                                :fill "#6c7a88"}]}))}]}]}}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
@@ -4253,6 +4289,9 @@
             {:fx/type signature-help-popup-view
              :canvas-repaint-info canvas-repaint-info
              :signature-help signature-help
+             :docs (get-property view-node :signature-help-docs)
+             :hint (keymap/display-text (g/node-value view-node :keymap) :code.show-signature-help nil)
+             :project (g/node-value view-node :project)
              :font-name (get-property view-node :font-name)
              :font-size (get-property view-node :font-size)
              :view-node view-node}))
