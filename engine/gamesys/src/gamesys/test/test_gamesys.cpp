@@ -2472,6 +2472,35 @@ TEST_F(MeshVertexBufferTest, GraphicsContextRestored)
     Render(1, m_Mesh->m_BufferResource);
 }
 
+// The mesh restore after a lost graphics context must restore the mesh in place, keep the edits made to
+// its buffer at runtime and upload them into the same vertex buffer. Re-creating the mesh would release
+// the buffer, which reloads it from its file when nothing else keeps it.
+TEST_F(MeshVertexBufferTest, GraphicsContextRestoreKeepsBufferEdits)
+{
+    dmMeshDDF::MeshDesc* ddf = m_Mesh->m_MeshDDF;
+    dmGameSystem::MaterialResource* material = m_Mesh->m_Material;
+    dmGameSystem::BufferResource* buffer = m_Mesh->m_BufferResource;
+    dmGraphics::HVertexBuffer vertex_buffer = m_Mesh->m_VertexBuffer;
+    ASSERT_NE((dmGraphics::HVertexBuffer)0, vertex_buffer);
+    void* bytes;
+    uint32_t size;
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(buffer->m_Buffer, &bytes, &size));
+    const float position = 3.0f;
+    ASSERT_NE(0, memcmp(&position, bytes, sizeof(position)));
+    memcpy(bytes, &position, sizeof(position));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::UpdateContentVersion(buffer->m_Buffer));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, dmHashString64("/mesh/triangle.meshc")));
+    ASSERT_EQ(ddf, m_Mesh->m_MeshDDF);
+    ASSERT_EQ(material, m_Mesh->m_Material);
+    ASSERT_EQ(buffer, m_Mesh->m_BufferResource);
+    ASSERT_EQ(vertex_buffer, m_Mesh->m_VertexBuffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(m_Mesh->m_BufferResource->m_Buffer, &bytes, &size));
+    ASSERT_EQ(0, memcmp(&position, bytes, sizeof(position)));
+    ASSERT_EQ(size, dmGraphics::GetVertexBufferSize(vertex_buffer));
+    ASSERT_EQ(0, memcmp(bytes, dmGraphics::TestGetVertexBufferData(vertex_buffer), size));
+}
+
 // Disabled meshes must survive a buffer/material reload followed by destruction without another update.
 TEST_F(MeshVertexBufferTest, ReloadDisabledBeforeDestroy)
 {

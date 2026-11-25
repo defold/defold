@@ -385,6 +385,25 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params)
     {
+        if (params->m_IsContextRestore)
+        {
+            // Keep the referenced resources: releasing the buffer would reload it from its file and
+            // lose the edits made to it at runtime.
+            MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
+            BufferResource* br = mesh_resource->m_BufferResource;
+            if (mesh_resource->m_VertexBuffer && br->m_Buffer)
+            {
+                void* bytes;
+                uint32_t size;
+                if (dmBuffer::GetBytes(br->m_Buffer, &bytes, &size) != dmBuffer::RESULT_OK)
+                {
+                    return dmResource::RESULT_INVALID_DATA;
+                }
+                dmGraphics::SetVertexBufferData(mesh_resource->m_VertexBuffer, br->m_Stride * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+            return dmResource::RESULT_OK;
+        }
+
         dmMeshDDF::MeshDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
