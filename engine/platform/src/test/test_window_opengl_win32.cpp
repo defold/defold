@@ -40,7 +40,7 @@ static DWORD WINAPI Upload(void* data)
     return wglGetCurrentContext() != 0;
 }
 
-// A positive request below the driver's minimum must still select a multisampled default framebuffer.
+// WGL reports the original FSAA request even when the driver selects a different framebuffer sample count.
 TEST(Win32OpenGL, MinimumMultisampling)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -55,6 +55,7 @@ TEST(Win32OpenGL, MinimumMultisampling)
     dmPlatform::CloseWindow(window);
     params.m_Samples = 1;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ(1u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_FSAA_SAMPLES));
     GLint selected = 0;
     glGetIntegerv(0x80A9, &selected);
     if (supported > 1)
@@ -64,6 +65,11 @@ TEST(Win32OpenGL, MinimumMultisampling)
         EXPECT_EQ((uint32_t)selected, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT));
     }
 
+    dmPlatform::CloseWindow(window);
+    params.m_Samples = 0;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_FSAA_SAMPLES));
+    EXPECT_EQ(1u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT));
     dmPlatform::DeleteWindow(window);
 }
 

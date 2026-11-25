@@ -535,9 +535,12 @@ namespace dmPlatform
                 return window->m_Params.m_HighDPI;
             }
             case WINDOW_STATE_SAMPLE_COUNT:
-            case WINDOW_STATE_FSAA_SAMPLES:
             {
                 return window->m_Samples;
+            }
+            case WINDOW_STATE_FSAA_SAMPLES:
+            {
+                return window->m_Params.m_Samples;
             }
             case WINDOW_STATE_REFRESH_RATE:
             {
