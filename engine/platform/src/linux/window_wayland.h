@@ -28,8 +28,8 @@ struct LinuxOutput
     HWindow    m_Window;
     wl_output* m_Output;
     uint32_t   m_Name;
-    int        m_Scale, m_Refresh, m_WidthMM, m_Width;
-    bool       m_Entered;
+    int        m_Scale, m_Refresh, m_WidthMM, m_Width, m_Height;
+    bool       m_SwapAxes, m_Entered;
 };
 
 struct LinuxWayland

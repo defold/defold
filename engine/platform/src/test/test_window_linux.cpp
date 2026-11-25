@@ -914,6 +914,46 @@ TEST(LinuxWindow, WaylandDensityFollowsOutput)
     EXPECT_EQ(96.0f, dmPlatform::WaylandGetDisplayDensity(&wl));
 }
 
+// Hidden fullscreen windows need a drawable before the compositor configures the toplevel, even with an unspecified size.
+TEST(LinuxWindow, WaylandHiddenFullscreenSize)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_Hidden = p.m_Fullscreen = true;
+    const uint32_t sizes[][2] = { { 0, 0 }, { 320, 0 }, { 0, 240 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        p.m_Width = sizes[i][0];
+        p.m_Height = sizes[i][1];
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        EXPECT_FALSE(w->m_Wayland->m_Configured);
+        EXPECT_GT(dmPlatform::GetWindowWidth(w), 0u);
+        EXPECT_GT(dmPlatform::GetWindowHeight(w), 0u);
+        if (getenv("DM_TEST_WINDOW_BACKEND"))
+        {
+            // The test compositor exposes a single, unrotated output with integer scale.
+            const LinuxOutput* output = w->m_Wayland->m_Outputs[0];
+            EXPECT_EQ(output->m_Width, w->m_PixelWidth);
+            EXPECT_EQ(output->m_Height, w->m_PixelHeight);
+            EXPECT_EQ(output->m_Width / output->m_Scale, w->m_Width);
+            EXPECT_EQ(output->m_Height / output->m_Scale, w->m_Height);
+        }
+
+        dmPlatform::ShowWindow(w);
+        EXPECT_TRUE(w->m_Wayland->m_Configured);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // A hidden Vulkan window can query the output density before polling and stays unmapped until shown.
 TEST(LinuxWindow, WaylandHiddenVulkanWindow)
 {

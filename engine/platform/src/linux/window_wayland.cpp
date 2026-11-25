@@ -20,6 +20,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,6 +92,12 @@ namespace dmPlatform
 
     static void Resize(HWindow w, int width, int height)
     {
+        // A preferred scale can arrive before the initial fullscreen size.
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
         LinuxWayland* wl = w->m_Wayland;
         int integer_scale = 0;
         for (uint32_t i = 0; i < wl->m_Outputs.Size(); ++i)
@@ -178,17 +185,22 @@ namespace dmPlatform
     }
 
     static const wl_surface_listener g_Surface = { Enter, Leave };
-    static void Geometry(void* data, wl_output*, int32_t, int32_t, int32_t width_mm, int32_t, int32_t, const char*, const char*, int32_t)
+    static void Geometry(void* data, wl_output*, int32_t, int32_t, int32_t width_mm, int32_t, int32_t, const char*, const char*, int32_t transform)
     {
-        ((LinuxOutput*)data)->m_WidthMM = width_mm;
+        LinuxOutput* out = (LinuxOutput*)data;
+        out->m_WidthMM = width_mm;
+        out->m_SwapAxes = transform == WL_OUTPUT_TRANSFORM_90 || transform == WL_OUTPUT_TRANSFORM_270 ||
+                          transform == WL_OUTPUT_TRANSFORM_FLIPPED_90 || transform == WL_OUTPUT_TRANSFORM_FLIPPED_270;
     }
 
-    static void Mode(void* data, wl_output*, uint32_t flags, int32_t width, int32_t, int32_t refresh)
+    static void Mode(void* data, wl_output*, uint32_t flags, int32_t width, int32_t height, int32_t refresh)
     {
         if (flags & WL_OUTPUT_MODE_CURRENT)
         {
-            ((LinuxOutput*)data)->m_Refresh = (refresh + 500) / 1000;
-            ((LinuxOutput*)data)->m_Width = width;
+            LinuxOutput* out = (LinuxOutput*)data;
+            out->m_Refresh = (refresh + 500) / 1000;
+            out->m_Width = width;
+            out->m_Height = height;
         }
     }
 
@@ -711,15 +723,32 @@ namespace dmPlatform
         }
 
         wl->m_Unmapped = w->m_Params.m_Hidden;
-        if (wl->m_Unmapped)
+        if (wl->m_Unmapped || !w->m_Width || !w->m_Height)
         {
             // Output mode and geometry arrive after the registry binds. Map normally dispatches them.
             if (g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) < 0)
             {
                 return false;
             }
+
+            if (w->m_Params.m_Fullscreen)
+            {
+                // EGL needs a drawable even before the first xdg_toplevel configure.
+                const LinuxOutput* output = wl->m_Outputs.Empty() ? 0 : wl->m_Outputs[0];
+                int width = w->m_Width, height = w->m_Height;
+                float scale = w->m_Scale;
+                if (output && output->m_Width > 0 && output->m_Height > 0)
+                {
+                    scale = wl->m_PreferredScale ? wl->m_PreferredScale / 120.0f : (float)output->m_Scale;
+                    width = (int)lround((output->m_SwapAxes ? output->m_Height : output->m_Width) / scale);
+                    height = (int)lround((output->m_SwapAxes ? output->m_Width : output->m_Height) / scale);
+                }
+
+                LinuxUpdateSize(w, dmMath::Max(1, width), dmMath::Max(1, height), scale);
+            }
         }
-        else if (!Map(w))
+
+        if (!wl->m_Unmapped && !Map(w))
         {
             return false;
         }
