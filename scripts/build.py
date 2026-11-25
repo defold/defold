@@ -985,13 +985,33 @@ class Configuration(object):
             '-t', target,
         ] + packages
 
-    def _install_python_packages(self, packages):
-        target = join(self.ext, 'lib', 'python')
+    def _install_python_packages(self, packages, *, while_installing=None):
+        target = abspath(join(self.ext, 'lib', 'python'))
         self._mkdirs(target)
-        if packages:
-            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
-                self.tool_checks.invalidate('Python Protobuf')
-            run.env_command(self._form_env(), self._python_package_install_command(packages, target))
+        if not packages:
+            if while_installing:
+                while_installing()
+            return
+        if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
+            self.tool_checks.invalidate('Python Protobuf')
+        # SDK extraction can change the process working directory. Resolve pip's
+        # paths and environment before starting it, and give it a stable cwd.
+        env = self._form_env()
+        command = self._python_package_install_command(packages, target)
+
+        def install_wheels():
+            started = time.perf_counter()
+            run.env_command(env, command, cwd=self.defold_root)
+            return time.perf_counter() - started
+
+        if while_installing:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                wheels = executor.submit(install_wheels)
+                while_installing()
+                elapsed = wheels.result()
+        else:
+            elapsed = install_wheels()
+        self.build_tracker.record_step_time('Python wheels', elapsed)
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -1010,42 +1030,21 @@ class Configuration(object):
     def install_ext_packages(self, *, install_sdk=False):
         self.check_python()
         self.check_tar()
-        target = abspath(join(self.ext, 'lib', 'python'))
-        self._log("Installing Python wheels in parallel with dependency setup")
-        # Stage wheel files outside ext so archives and pip can never write to the same paths.
-        with tempfile.TemporaryDirectory(prefix='python-wheels-', dir=abspath(self.dynamo_home)) as staging:
-            env = self._form_env()
-            command = self._python_package_install_command(EXT_PYTHON_PACKAGES, staging)
 
-            def install_wheels():
-                started = time.perf_counter()
-                # SDK extraction temporarily changes the parent process's working directory.
-                run.env_command(env, command, cwd=self.defold_root)
-                return time.perf_counter() - started
+        def install_files():
+            if install_sdk:
+                with self.build_tracker.measure_step('SDK installation'):
+                    self.install_sdk()
+            self._install_ext_package_files()
 
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                wheels = executor.submit(install_wheels)
-                if install_sdk:
-                    with self.build_tracker.measure_step('SDK installation'):
-                        self.install_sdk()
-                self._install_ext_package_files()
-                self.build_tracker.record_step_time('Python wheels', wheels.result())
-
-            with self.build_tracker.measure_step('Python wheels'):
-                self._mkdirs(target)
-                self.tool_checks.invalidate('Python Protobuf')
-                for name in os.listdir(staging):
-                    destination = join(target, name)
-                    # Match pip --target --upgrade when replacing an existing entry.
-                    if os.path.exists(destination):
-                        if os.path.islink(destination):
-                            self._warn(f"Target directory {destination} is a link and will be kept")
-                            continue
-                        if os.path.isdir(destination):
-                            shutil.rmtree(destination)
-                        else:
-                            os.remove(destination)
-                    shutil.move(join(staging, name), destination)
+        if has_hook_module('build', self.target_platform):
+            # Private SDK and package hooks may supply files under ext/lib/python.
+            install_files()
+            self._install_python_packages(EXT_PYTHON_PACKAGES)
+        else:
+            # Public archives and SDKs install outside pip's target directory.
+            self._log("Installing Python wheels in parallel with dependency setup")
+            self._install_python_packages(EXT_PYTHON_PACKAGES, while_installing=install_files)
 
     def _install_files(self, title, files, *, extract=False):
         total = len(files)
