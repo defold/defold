@@ -85,6 +85,26 @@ typedef enum EngineWindowEventType
     ENGINE_WINDOW_EVENT_FOCUS_LOST   = 4,
 } EngineWindowEventType;
 
+/*# graphics context notification
+ * Identifier for EngineGraphicsContextEvent notifications.
+ * @constant
+ * @name ENGINE_GRAPHICS_CONTEXT_EVENT
+ */
+#define ENGINE_GRAPHICS_CONTEXT_EVENT ((dmhash_t)0x06646916bb1eef47ULL) // DM_HASH: dmHashString64("_dm_event_engine_graphics_context")
+
+/*# graphics context notification kind
+ * Identifies the graphics context change in EngineGraphicsContextEvent.
+ * @enum
+ * @name EngineGraphicsContextEventType
+ * @member ENGINE_GRAPHICS_CONTEXT_EVENT_LOST The graphics context was lost. Every GPU object is invalid, so make no graphics calls until the context is restored.
+ * @member ENGINE_GRAPHICS_CONTEXT_EVENT_RESTORED The graphics context is usable again. Recreate the GPU objects owned outside of the engine resources.
+ */
+typedef enum EngineGraphicsContextEventType
+{
+    ENGINE_GRAPHICS_CONTEXT_EVENT_LOST     = 0,
+    ENGINE_GRAPHICS_CONTEXT_EVENT_RESTORED = 1,
+} EngineGraphicsContextEventType;
+
 /*# input actions have been resolved
  * Event identifier for EngineInputActionsEvent notifications.
  * @constant
@@ -156,6 +176,23 @@ typedef struct EngineWindowEvent
         } m_Resized;
     } m_Data;
 } EngineWindowEvent;
+
+/*# graphics context event payload
+ * Payload for ENGINE_GRAPHICS_CONTEXT_EVENT with data_size equal to sizeof(EngineGraphicsContextEvent).
+ * The graphics context can be lost, for example when the browser drops the WebGL context on
+ * [icon:html5] or when the WebGPU device is lost. The lost notification is sent after rendering has
+ * been paused. The restored notification is sent when `render.reload_resources()` starts, after the
+ * context-level state has been restored and before the engine resources are recreated. A
+ * `render.reload_resources()` call without a preceding loss sends it as well.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
+ * @struct
+ * @name EngineGraphicsContextEvent
+ * @member m_Type [type:EngineGraphicsContextEventType] notification being delivered
+ */
+typedef struct EngineGraphicsContextEvent
+{
+    enum EngineGraphicsContextEventType m_Type;
+} EngineGraphicsContextEvent;
 
 /*# initialize a window event
  * Brace initializer for an EngineWindowEvent declaration, with zeroed event data.

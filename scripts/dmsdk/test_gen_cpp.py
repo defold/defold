@@ -137,7 +137,7 @@ class CppDocumentationTests(unittest.TestCase):
             info, None, state, [], docs)
         cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
         aliases = info['constant_aliases']
-        self.assertEqual(3, len(aliases))
+        self.assertEqual(4, len(aliases))
         for name in aliases:
             renamed = gen_cpp.rename_symbols(info['rename'], name)
             self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)

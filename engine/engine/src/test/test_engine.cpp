@@ -135,8 +135,45 @@ struct EngineEventObservations
 static EngineEventObservations g_EngineEvents = {};
 static bool g_ObserveEngineEvents = false;
 
+struct GraphicsContextEventObservations
+{
+    dmEngine::GraphicsContextEventType m_Types[4];
+    uint32_t                           m_Count;
+    uint32_t                           m_ComponentRestores;
+    uint32_t                           m_CountAtComponentRestore;
+    bool                               m_PayloadValid;
+};
+static GraphicsContextEventObservations g_GraphicsContextEvents = {};
+static bool g_ObserveGraphicsContextEvents = false;
+
+static void RecordGraphicsContextEvent(const void* data, uint32_t data_size)
+{
+    GraphicsContextEventObservations& events = g_GraphicsContextEvents;
+    bool valid = data && data_size == sizeof(dmEngine::GraphicsContextEvent) && events.m_Count < DM_ARRAY_SIZE(events.m_Types);
+    events.m_PayloadValid &= valid;
+    if (valid)
+    {
+        events.m_Types[events.m_Count++] = ((const dmEngine::GraphicsContextEvent*)data)->m_Type;
+    }
+}
+
+static void RecordComponentGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params)
+{
+    GraphicsContextEventObservations& events = g_GraphicsContextEvents;
+    events.m_PayloadValid &= params.m_Collection != 0 && params.m_World != 0;
+    if (events.m_ComponentRestores++ == 0)
+    {
+        events.m_CountAtComponentRestore = events.m_Count;
+    }
+}
+
 static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
+    if (event_id == dmEngine::EVENT_GRAPHICS_CONTEXT && g_ObserveGraphicsContextEvents)
+    {
+        RecordGraphicsContextEvent(data, data_size);
+        return;
+    }
     if (!g_ObserveEngineEvents)
     {
         return;
@@ -1781,6 +1818,62 @@ TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
     ASSERT_TRUE(events.m_PayloadValid);
     ASSERT_TRUE(events.m_WindowAccessorValid);
     ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+}
+
+// A graphics context loss detected by the graphics adapter must reach extensions as a lost event. The
+// restore waits for the resource reload, where it must reach the component worlds before extensions get
+// the restored event. Guards the engine forwarding of the render context events.
+TEST_F(EngineTest, GraphicsContextEvents)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+
+    memset(&g_GraphicsContextEvents, 0, sizeof(g_GraphicsContextEvents));
+    g_GraphicsContextEvents.m_PayloadValid = true;
+    dmGameObject::ComponentType* script_type = 0;
+    uint32_t count_after_loss = 0;
+    uint32_t count_after_platform_restore = 0;
+    bool reload_started = false;
+    HResourceType resource_type;
+    if (initialized && dmResource::GetTypeFromExtension(engine->m_Factory, "scriptc", &resource_type) == dmResource::RESULT_OK)
+    {
+        script_type = dmGameObject::FindComponentType(engine->m_Register, resource_type, 0);
+    }
+    if (script_type)
+    {
+        dmGameObject::ComponentTypeSetOnGraphicsContextRestoredFn(script_type, RecordComponentGraphicsContextRestored);
+        g_ObserveGraphicsContextEvents = true;
+
+        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+        graphics->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_LOST;
+        dmEngine::Step(engine);
+        count_after_loss = g_GraphicsContextEvents.m_Count;
+        graphics->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_RESTORED;
+        dmEngine::Step(engine);
+        count_after_platform_restore = g_GraphicsContextEvents.m_Count;
+
+        reload_started = dmRender::StartResourceReload(engine->m_RenderContext, 0, 0);
+        g_ObserveGraphicsContextEvents = false;
+    }
+    GraphicsContextEventObservations events = g_GraphicsContextEvents;
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_NE((dmGameObject::ComponentType*)0, script_type);
+    ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_EQ(1u, count_after_loss);
+    ASSERT_EQ(dmEngine::GRAPHICS_CONTEXT_EVENT_LOST, events.m_Types[0]);
+    ASSERT_EQ(1u, count_after_platform_restore);
+    ASSERT_TRUE(reload_started);
+    ASSERT_EQ(2u, events.m_Count);
+    ASSERT_EQ(dmEngine::GRAPHICS_CONTEXT_EVENT_RESTORED, events.m_Types[1]);
+    ASSERT_LT(0u, events.m_ComponentRestores);
+    ASSERT_EQ(1u, events.m_CountAtComponentRestore);
 }
 
 // Broadcasts during AppFinalize must not expose freed engine contexts after success or initialization failure.
