@@ -1233,13 +1233,15 @@ namespace dmPlatform
         if (w->m_Params.m_ResizeCallback)
         {
             jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
-            if (requests.Empty() && width == w->m_Width && height == w->m_Height)
+            if (requests.Empty())
             {
                 // An external resize may still be in the event queue. Only skip the native request
                 // when the server already has the requested size.
                 XWindowAttributes attrs;
                 if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.width == width && attrs.height == height)
                 {
+                    const uint32_t count = w->m_ResizeCallbackCount;
+                    LinuxUpdateSize(w, width, height, w->m_Scale);
                     // A pending move must settle before clamping the final client position.
                     w->m_X11->m_ClampAfterResize = true;
                     if (!w->m_X11->m_ConfigureSerial)
@@ -1247,7 +1249,10 @@ namespace dmPlatform
                         CompleteGeometryRequest(w);
                     }
 
-                    NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+                    if (w->m_ResizeCallbackCount == count)
+                    {
+                        NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+                    }
                     return;
                 }
             }

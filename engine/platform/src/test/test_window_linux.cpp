@@ -272,6 +272,18 @@ TEST(LinuxWindow, X11ConstrainedResize)
     XSync(w->m_Display, False);
     dmPlatform::PollEvents(w);
     EXPECT_EQ(5u, events.m_Count);
+    // The server already has the requested size, but its external resize is still queued.
+    XResizeWindow(manager, w->m_Xid, 450, 320);
+    XSync(manager, False);
+    dmPlatform::SetWindowSize(w, 450, 320);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(6u, events.m_Count);
+    EXPECT_EQ(450u, events.m_Width);
+    EXPECT_EQ(320u, events.m_Height);
+    dmPlatform::SetWindowSize(w, 450, 320);
+    EXPECT_EQ(7u, events.m_Count);
+    XSync(w->m_Display, False);
+    EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
     dmPlatform::DeleteWindow(w);
     XDestroyWindow(manager, parent);
     XCloseDisplay(manager);
