@@ -1623,6 +1623,7 @@
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
+  (output node-outline g/Any (g/constantly nil))
 
   ;; For files that can be edited as code, the `CursorRanges` that keep track of
   ;; text selections are stored in a `cursor-ranges` property alongside the
@@ -1770,6 +1771,11 @@
   (input invalidated-rows r/InvalidatedRows :substitute [])
   (input lines types/Lines :substitute [""])
   (input resource-properties g/Any)
+  (output displayed-node-properties g/Any
+          (g/fnk [selected-node-properties ^:try resource-properties]
+            (when (and (not (g/error-value? resource-properties))
+                       (coll/any? #(:visible % true) (coll/vals (:properties resource-properties))))
+              selected-node-properties)))
   (input regions r/Regions :substitute [])
 
   ;; Inputs from elsewhere.

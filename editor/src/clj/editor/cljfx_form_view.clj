@@ -95,6 +95,7 @@
 
 (g/defnode CljfxFormView
   (inherits view/WorkbenchView)
+  (output displayed-node-properties g/Any (g/constantly nil))
   (input form-data g/Any :substitute {})
   (property ui-state g/Any (default {:filter-term ""}))
   (property renderer g/Any)

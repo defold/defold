@@ -511,9 +511,6 @@
     #(stringify-lua-value rt to_string % localization-state)
     #(stringify-lua-value rt % localization-state)))
 
-(def ^:private ext-with-extra-props
-  (fx/make-ext-with-props {}))
-
 (def ^:private prop-instance-ref
   (fx/make-prop
     (fx.mutator/setter (fn [v a] (reset! a v)))
@@ -530,7 +527,7 @@
     :or {options []
          enabled true}}]
   (wrap-in-alignment-container
-    {:fx/type ext-with-extra-props
+    {:fx/type fxui/ext-with-extra-props
      :desc {:fx/type ui/ext-memo
             :fn create-select-box-to-string
             :args [rt to_string localization-state]

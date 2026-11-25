@@ -17,6 +17,8 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.view :as code-view]
             [editor.editor-tab :as editor-tab]
             [editor.scene :as scene]
             [editor.ui :as ui]
@@ -203,9 +205,6 @@
         (is (= {} (get (g/node-value app-view :open-views) view-id)))
         (is (not (contains? (set (g/node-value app-view :open-resource-nodes)) nil))))
 
-      (testing "it asks for no sidebar panes"
-        (is (= [] (get (g/node-value app-view :open-sidebar-panes) view-id))))
-
       (testing "opening it again selects the same tab"
         (is (identical? tab (open-test-tab! app-view)))
         (is (= [tab] (vec (tab-pane-tabs editor-tabs-split)))))
@@ -256,3 +255,73 @@
       (app-view/remove-invalid-tabs! (.getItems editor-tabs-split)
                                      (g/node-value app-view :open-views))
       (is (= [] (vec (tab-pane-tabs editor-tabs-split)))))))
+
+;; Resource views supply outline data, while both code/text views and views
+;; without a resource supply nil instead of relying on pane type checks.
+(deftest resource-view-outline-test
+  (test-util/with-loaded-project
+    (let [resource-node
+          (test-util/resource-node project "/logic/atlas_sprite.collection")
+
+          [scene-view code-view non-resource-view]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes [scene-view scene/SceneView
+                             code-view [code-view/CodeEditorView
+                                        :gutter-view (code-view/->CodeEditorGutterView)]
+                             _non-resource-view view/NonResourceWorkbenchView]
+                (view/connect-resource-node scene-view resource-node)
+                (view/connect-resource-node code-view resource-node))))]
+      (is (= (g/node-value resource-node :node-outline)
+             (g/node-value scene-view :node-outline)))
+      (is (nil? (g/node-value code-view :node-outline)))
+      (is (nil? (g/node-value non-resource-view :node-outline))))))
+
+(g/defnode TestViewPropertyData
+  (property selected-node-properties g/Any)
+  (property resource-properties g/Any)
+  (property preview-overrides g/Any))
+
+;; Views control property presentation without changing shared selection data;
+;; code/text eligibility, form suppression, and scene previews stay independent.
+(deftest view-displayed-properties-test
+  (test-util/with-loaded-project
+    (let [selected [{:node-id 1 :properties {:test {:value 7}}}]
+
+          [data scene-view code-view form-view]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes [data [TestViewPropertyData
+                                   :selected-node-properties selected
+                                   :resource-properties {:properties {:test {:visible false}}}]
+                             scene-view scene/SceneView
+                             code-view [code-view/CodeEditorView
+                                        :gutter-view (code-view/->CodeEditorGutterView)]
+                             form-view cljfx-form-view/CljfxFormView]
+                (g/connect data :selected-node-properties scene-view :selected-node-properties)
+                (g/connect data :selected-node-properties code-view :selected-node-properties)
+                (g/connect data :selected-node-properties form-view :selected-node-properties)
+                (g/connect data :resource-properties code-view :resource-properties)
+                (g/connect data :preview-overrides scene-view :preview-overrides))))]
+      (testing "A resource with hidden properties suppresses only code/text presentation"
+        (is (= selected (g/node-value scene-view :displayed-node-properties)))
+        (is (nil? (g/node-value code-view :displayed-node-properties)))
+        (is (nil? (g/node-value form-view :displayed-node-properties))))
+      (testing "A visible resource property forwards the original selection data"
+        (g/set-property! data :resource-properties {:properties {:test {}}})
+        (is (= selected (g/node-value code-view :displayed-node-properties)))
+        (is (nil? (g/node-value form-view :displayed-node-properties))))
+      (testing "Scene preview values affect presentation while selection data stays unchanged"
+        (g/set-property! data :preview-overrides {1 {:test 9}})
+        (is (= 9 (get-in (g/node-value scene-view :displayed-node-properties) [0 :properties :test :value])))
+        (is (= selected (g/node-value data :selected-node-properties)))
+        (is (= selected (g/node-value code-view :displayed-node-properties))))
+      (testing "An empty selection remains distinct from an unavailable properties pane"
+        (g/set-property! data :selected-node-properties [])
+        (is (= [] (g/node-value scene-view :displayed-node-properties)))
+        (is (= [] (g/node-value code-view :displayed-node-properties)))
+        (g/set-property! data :resource-properties nil)
+        (is (nil? (g/node-value code-view :displayed-node-properties))))
+      (testing "Resource property errors suppress code/text presentation"
+        (g/set-property! data :resource-properties (g/error-fatal "Invalid resource properties"))
+        (is (nil? (g/node-value code-view :displayed-node-properties)))))))

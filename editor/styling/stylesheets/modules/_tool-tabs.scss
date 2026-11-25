@@ -1,11 +1,6 @@
-#tool-tabs {
-    -fx-tab-min-height: 25px;
+.pane-tabs {
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 0 0;
-
-    > .tab-header-area > .headers-region > .tab {
-        -fx-padding: 0 10 5 10;
-    }
 
     .list-view {
         -fx-background-insets: 0;
@@ -35,11 +30,11 @@
         }
     }
 
-    > .tab-header-area > .headers-region > .console-tab-base {
-        -fx-background-position: 10 3;
+    &:top > .tab-header-area > .headers-region > .console-tab-base {
+        -fx-background-position: 10 center;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 17 17;
-        -fx-padding: 0 10 5 32;
+        -fx-padding: 4 10 4 32;
         -fx-spacing: 0;
     }
 }
@@ -62,7 +57,6 @@
 .curve-editor-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
-    -fx-background-position: 10 1 !important;
     &:selected {
         -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
     }
@@ -152,7 +146,6 @@
 
 .breakpoints-tab {
     @extend .console-tab-base;
-    -fx-background-position: 10 4 !important;
     -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
     &:selected {
         -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");

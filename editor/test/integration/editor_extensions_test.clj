@@ -18,6 +18,7 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.data :as data]
             [editor.code.view :as code-view]
@@ -58,11 +59,13 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.io StringWriter]
+  (:import [clojure.lang IRef]
+           [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
-           [javafx.scene Node]
+           [javafx.scene Node Scene]
            [javafx.scene.control Labeled]
+           [javafx.stage Stage]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -363,6 +366,8 @@
 (defn- fetch-libraries-noop! []
   (future/completed [[] true]))
 
+(defn- set-panes-noop! [_panes])
+
 (defn- make-invoke-bob-fn [project]
   (fn invoke-bob! [options commands]
     (future/io
@@ -373,15 +378,17 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs set-panes! web-server]
                                           :or {display-output! println
                                                fetch-libraries! fetch-libraries-noop!
                                                kind :all
                                                open-resource! open-resource-noop!
+                                               set-panes! set-panes-noop!
                                                web-server stopped-server}}]
   (extensions/reload! project kind
                       :prefs (or prefs (test-util/make-test-prefs))
                       :localization test-util/localization
+                      :set-panes! set-panes!
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
@@ -389,6 +396,20 @@
                       :fetch-libraries! fetch-libraries!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
+
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))
+        output-matches-expectation (= expected actual)]
+    (is output-matches-expectation (when-not output-matches-expectation (coll/join-to-string "\n" (diff/make-diff-output-lines expected actual 3))))))
 
 ;; Pane content resolves enclosing contexts, changes its root control,
 ;; and survives script reloads.
@@ -402,11 +423,11 @@
       "    return ui.label { text = path }"
       "end"
       "return {get_panes = function() return {editor.pane {"
-      "    id = 'test.details', title = 'Details', location = 'right',"
+      "    id = 'test.details', title = 'Details', location = 'right-bottom',"
       "    query = {selection = {type = 'resource', cardinality = 'one'}}, render = render"
       "}} end}"]}
-    (let [extensions (g/node-value project :editor-extensions)
-          pane (fn pane [] (first (g/node-value extensions :panes)))
+    (let [pane
+          (fn pane [] (first (:extension (g/node-value app-view :pane-definitions))))
 
           game-project
           (g/node-value (test-util/resource-node project "/game.project") :resource)
@@ -424,8 +445,8 @@
           text-of
           (fn text-of [component selector]
             (ui/run-now (.getText ^Labeled (.lookup ^Node (fx/instance component) selector))))]
-      (reload-editor-scripts! project)
-      (is (= [:test.details] (mapv :id (g/node-value extensions :panes))))
+      (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+      (is (= [:test.details] (mapv :id (:extension (g/node-value app-view :pane-definitions)))))
       (is (nil? (desc [script game-project])))
       (let [component
             (volatile! (ui/run-now (fx/create-component (desc [game-project]))))]
@@ -448,11 +469,111 @@
           (is (= "/game.project" (text-of @component ".ext-button")))
           (ui/run-now (vswap! component fx/advance-component (desc [script])))
           (is (= "/panes.editor_script" (text-of @component ".ext-label")))
-          (reload-editor-scripts! project)
+          (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
           (ui/run-now (vswap! component fx/advance-component (desc [game-project])))
           (is (= "/game.project" (text-of @component ".ext-button")))
           (finally
             (ui/run-now (fx/delete-component @component))))))))
+
+;; Hiding a script pane unmounts its component, so use_state initializes again
+;; on show instead of retaining a hidden component and its localization watch.
+(deftest editor-script-pane-unmount-test
+  (test-util/with-temp-project-content
+    {"/panes.editor_script"
+     ["local ui = editor.ui"
+      "local initializations = 0"
+      "local pane = ui.component(function()"
+      "    local value = ui.use_state(function()"
+      "        initializations = initializations + 1"
+      "        return initializations"
+      "    end)"
+      "    return ui.label {text = tostring(value)}"
+      "end)"
+      "return {get_panes = function() return {editor.pane {"
+      "    id = 'test.counter', title = 'Counter', location = 'bottom', render = pane"
+      "}} end}"]}
+    (let [prefs (test-util/make-test-prefs)
+
+          stage
+          (ui/run-now
+            (let [root (ui/load-fxml "editor.fxml")
+                  scene (Scene. root)]
+              (ui/context! root :global {:app-view app-view :prefs prefs} nil)
+              (g/transact (g/set-property app-view :scene scene))
+              (doto (Stage.) (.setScene scene))))
+
+          scene (.getScene ^Stage stage)
+
+          contexts
+          [(handler/->context :global {:main-stage stage :app-view app-view :prefs prefs})]
+
+          text
+          (fn text []
+            (ui/run-now (.getText ^Labeled (.lookup scene ".ext-label"))))]
+      (prefs/set! prefs [:window :hidden-panes] #{})
+      (prefs/set! prefs [:window :layout :hidden-panes] #{})
+      (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+      (ui/run-now
+        (.applyCss (.getRoot scene))
+        (.layout (.getRoot scene))
+        (app-view/initialize-panes! app-view scene prefs test-util/localization))
+      (try
+        (is (= "1" (text)))
+        (let [mounted-watches
+              (count (.getWatches ^IRef test-util/localization))]
+          (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
+          (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
+          (is (< (count (.getWatches ^IRef test-util/localization)) mounted-watches)))
+        (ui/run-now (app-view/show-pane! scene :test.counter))
+        (is (= "2" (text)))
+        (finally
+          (ui/run-now (ui/advance-ui-user-data-component! scene :editor.app-view/ui nil)))))))
+
+;; Conflicting pane registrations are excluded individually, including reserved
+;; built-ins and duplicate IDs across locations and scripts.
+(deftest editor-script-pane-registration-conflicts-test
+  (test-util/with-temp-project-content
+    {"/first.editor_script"
+     ["local function pane(id, location)"
+      "    return editor.pane {id = id, title = id, location = location,"
+      "        render = function() return editor.ui.label {text = id} end}"
+      "end"
+      "return {get_panes = function() return {"
+      "    pane('test.before', 'left-top'), pane('console', 'right-top'),"
+      "    pane('test.duplicate', 'left-bottom'), pane('outline', 'bottom'),"
+      "    pane('test.new-built-in', 'left-top'), pane('test.after', 'right-bottom')"
+      "} end}"]
+     "/second.editor_script"
+     ["return {get_panes = function() return {"
+      "    editor.pane {id = 'test.duplicate', title = 'Duplicate', location = 'bottom',"
+      "        render = function() return editor.ui.label {text = 'Duplicate'} end},"
+      "    editor.pane {id = 'test.other', title = 'Other', location = 'right-top',"
+      "        render = function() return editor.ui.label {text = 'Other'} end}"
+      "} end}"]}
+    (let [output (StringBuilder.)]
+      (app-view/set-built-in-panes! app-view
+                                    [{:id :console} {:id :outline} {:id :test.new-built-in}])
+      (reload-editor-scripts! project
+                              :set-panes! (partial app-view/set-extension-panes! app-view)
+                              :display-output! #(doto output (.append %2) (.append \newline)))
+      (is (= #{:test.before :test.after :test.other}
+             (set (mapv :id (:extension (g/node-value app-view :pane-definitions))))))
+      (expect-script-output
+        "Omitting conflicting editor pane :console defined in /first.editor_script (conflict with the editor's built-in panes)
+Omitting conflicting editor pane :outline defined in /first.editor_script (conflict with the editor's built-in panes)
+Omitting conflicting editor pane :test.duplicate defined in /first.editor_script and /second.editor_script
+Omitting conflicting editor pane :test.new-built-in defined in /first.editor_script (conflict with the editor's built-in panes)
+"
+        output)
+      (testing "Reload replaces the complete extension collection"
+        (doseq [path ["/first.editor_script" "/second.editor_script"]]
+          (test-util/set-code-editor-lines!
+            (test-util/resource-node project path)
+            ["return {get_panes = function() return {} end}"]))
+        (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+        (is (= [] (:extension (g/node-value app-view :pane-definitions))))
+        (is (= [:console :outline :test.new-built-in]
+               (mapv :id (:built-in (g/node-value app-view :pane-definitions)))))))))
 
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -890,20 +1011,6 @@
         (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
         (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
         (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
-
-(defn- normalize-pprint-output [output-string]
-  (let [hash->stable-id (volatile! {})]
-    (string/replace
-      output-string
-      #"0x[0-9a-f]+"
-      (fn [s]
-        (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
-
-(defn- expect-script-output [expected actual]
-  (let [actual (normalize-pprint-output (str actual))
-        output-matches-expectation (= expected actual)]
-    (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
 
 (def ^:private expected-resource-children-test-output
   "Root contains assets: true

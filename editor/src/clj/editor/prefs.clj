@@ -196,6 +196,11 @@
                                 :key {:type :keyword}
                                 :val {:type :array :item {:type :number}}}
               :hidden-panes {:type :set :item {:type :keyword}}
+              :layout {:type :object
+                       :properties {:hidden-panes {:type :set :item {:type :keyword}}
+                                    :selected-tabs {:type :object-of
+                                                    :key {:type :keyword}
+                                                    :val {:type :keyword}}}}
               :locale {:type :locale}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command

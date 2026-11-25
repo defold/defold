@@ -808,16 +808,15 @@
 (ui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context displayed-node-properties]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state properties-message)
-   :content {:fx/type fxui/scroll
-             :id "properties"
-             :content {:fx/type grid-view
-                       :localization-state localization-state
-                       :context context
-                       :properties displayed-node-properties}}})
+  (when displayed-node-properties
+    {:fx/type fxui/scroll
+     :id "properties"
+     :content {:fx/type grid-view
+               :localization-state localization-state
+               :context context
+               :properties displayed-node-properties}}))
 
-(g/defnk produce-pane-desc
+(g/defnk produce-pane-content-desc
   [workspace project app-view search-results-view displayed-node-properties prefs localization]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type properties-pane-view
@@ -840,7 +839,7 @@
   (input search-results-view g/NodeID)
   (input displayed-node-properties g/Any)
 
-  (output pane-desc g/Any :cached produce-pane-desc))
+  (output pane-content-desc g/Any :cached produce-pane-content-desc))
 
 (defn make-properties-view [workspace project app-view search-results-view prefs]
   (first
@@ -853,3 +852,10 @@
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
           (g/connect search-results-view :_node-id view :search-results-view))))))
+
+(defn pane-definition [properties-view]
+  {:id :properties
+   :title properties-message
+   :location :right-bottom
+   :content (fn describe-properties [{:keys [evaluation-context]}]
+              (g/maybe-node-value properties-view :pane-content-desc evaluation-context))})

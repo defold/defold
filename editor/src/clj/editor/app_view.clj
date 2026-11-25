@@ -237,9 +237,9 @@
         built-ins (:built-in definitions)
         scripts (:extension definitions)
         root (.getRoot scene)
-        preferences (:prefs (:env (ui/context root)))
-        hidden-regions (prefs/get preferences prefs-hidden-panes)
-        hidden (prefs/get preferences [:window :hidden-pane-ids])
+        prefs (:prefs (:env (ui/context root)))
+        hidden-regions (prefs/get prefs prefs-hidden-panes)
+        hidden (prefs/get prefs [:window :layout :hidden-panes])
 
         visible
         (fn visible [{:keys [id location]}]
@@ -270,7 +270,7 @@
                               (not built-in)
                               (assoc :contexts (get contexts (get-in panes/locations [location :scope]))))))))]
     {:fx/type panes/layout
-     :preferences preferences
+     :prefs prefs
      :localization localization
      :hidden-regions hidden-regions
      :assets-split (:assets-split controls)
@@ -382,10 +382,8 @@
   (let [{:keys [app-view prefs]} (:env (ui/context (.getRoot scene)))]
     (when (and app-view (g/node-value app-view :pane-controls))
       (when-let [{:keys [location]} (get (g/node-value app-view :pane-definitions-by-id) id)]
-        (prefs/set! prefs [:window :hidden-pane-ids]
-                    (disj (prefs/get prefs [:window :hidden-pane-ids]) id))
-        (prefs/set! prefs [:window :pane-selections]
-                    (assoc (prefs/get prefs [:window :pane-selections]) location id))
+        (prefs/update! prefs [:window :layout :hidden-panes] disj id)
+        (prefs/update! prefs [:window :layout :selected-tabs] assoc location id)
         (prefs/update! prefs prefs-hidden-panes disj
                        (get-in panes/locations [location :region]))
         (g/with-auto-evaluation-context evaluation-context
@@ -457,7 +455,7 @@
                (g/eager-tx-data
                  (concat
                    (g/set-property app-view :active-tab new-active-tab)
-                   (replace-connection basis new-resource-node-id :node-outline app-view :active-outline)
+                   (replace-connection basis new-view-node-id :node-outline app-view :active-outline)
                    (when properties-view
                      (replace-connection basis new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
                    (if (= :scene (some-> new-active-tab editor-tab/view-type-id))
@@ -2286,17 +2284,16 @@
            :extension (filterv #(not (contains? conflicts (:id %))) definitions)}))
       conflicts)))
 
-(defn initialize-panes! [app-view ^Scene scene preferences localization]
+(defn initialize-panes! [app-view ^Scene scene prefs localization]
   (let [root (.getRoot scene)
-        hidden (prefs/get preferences prefs-hidden-panes)
+        hidden (prefs/get prefs prefs-hidden-panes)
 
         controls
         (ui/collect-controls root
                              (into ["workbench" "left-pane" "right-pane" "bottom-pane"] split-ids))]
     (when (contains? hidden :changed-files)
-      (prefs/set! preferences [:window :hidden-pane-ids]
-                  (conj (prefs/get preferences [:window :hidden-pane-ids]) :changed-files))
-      (prefs/set! preferences prefs-hidden-panes (disj hidden :changed-files)))
+      (prefs/update! prefs [:window :layout :hidden-panes] conj :changed-files)
+      (prefs/update! prefs prefs-hidden-panes disj :changed-files))
     (doseq [[id ^SplitPane split] (select-keys controls (mapv keyword split-ids))]
       (.addEventFilter split MouseEvent/MOUSE_RELEASED
         (ui/event-handler event
@@ -2304,9 +2301,9 @@
             (when-let [divider (ui/closest-node-with-style "split-pane-divider" (.getTarget event))]
               (when (identical? split (ui/closest-node-of-type SplitPane divider))
                 (let [positions (vec (.getDividerPositions split))
-                      saved (prefs/get preferences prefs-split-positions)]
+                      saved (prefs/get prefs prefs-split-positions)]
                   (when (not= positions (get saved id))
-                    (prefs/set! preferences prefs-split-positions (assoc saved id positions))))))))))
+                    (prefs/update! prefs prefs-split-positions assoc id positions)))))))))
     (g/transact {:undoable false}
       [(g/set-property app-view :pane-controls controls)
        (g/set-property app-view :localization localization)])
@@ -3355,11 +3352,11 @@
 
 (defn- toggle-pane! [^Scene scene id]
   (let [{:keys [app-view prefs]} (:env (ui/context (.getRoot scene)))
-        hidden (prefs/get prefs [:window :hidden-pane-ids])]
+        hidden (prefs/get prefs [:window :layout :hidden-panes])]
     (if (contains? hidden id)
       (show-pane! scene id)
       (do
-        (prefs/set! prefs [:window :hidden-pane-ids] (conj hidden id))
+        (prefs/update! prefs [:window :layout :hidden-panes] conj id)
         (g/with-auto-evaluation-context evaluation-context
           (refresh-pane-layout! app-view scene evaluation-context))))))
 
@@ -3373,7 +3370,7 @@
               (into built-in extension)))))
   (state [prefs user-data]
     (when user-data
-      (not (contains? (prefs/get prefs [:window :hidden-pane-ids]) user-data))))
+      (not (contains? (prefs/get prefs [:window :layout :hidden-panes]) user-data))))
   (run [^Stage main-stage user-data]
     (toggle-pane! (.getScene main-stage) user-data)))
 

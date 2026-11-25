@@ -20,6 +20,8 @@
   (input resource-node g/NodeID)
   (input node-id+type+resource g/Any :substitute nil)
   (input dirty g/Bool :substitute false)
+  (input node-outline g/Any)
+  (output node-outline g/Any (gu/passthrough node-outline))
   (input selected-node-properties g/Any)
   (output displayed-node-properties g/Any (gu/passthrough selected-node-properties))
   (output view-data g/Any (g/fnk [_node-id node-id+type+resource]
@@ -42,4 +44,5 @@
   (concat
     (g/connect resource-node :_node-id view :resource-node)
     (g/connect resource-node :valid-node-id+type+resource view :node-id+type+resource)
-    (g/connect resource-node :dirty view :dirty)))
+    (g/connect resource-node :dirty view :dirty)
+    (g/connect resource-node :node-outline view :node-outline)))

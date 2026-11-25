@@ -23,7 +23,6 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.error-reporting :as error-reporting]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
@@ -226,7 +225,10 @@
     ret))
 
 (ui/defc outline-tree-view
-  {:compose [{:fx/type ui/ext-memo
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}
+             {:fx/type ui/ext-memo
               :fn decorate-outline
               :args [(:active-outline props)
                      (:hidden-node-outline-key-paths props)
@@ -246,7 +248,7 @@
                  :open-resource-nodes (set open-resource-nodes)})}
              {:fx/type fx/ext-recreate-on-key-changed
               :key (:active-resource-node props)}]}
-  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline]}]
+  [{:keys [tree-view app-view active-resource-node active-outline state swap-state decorated-outline]}]
   (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
         {:keys [outline]} decorated-outline
         selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
@@ -266,22 +268,22 @@
                                         ;; sync
                                         root)}
       :desc
-      {:fx/type ui/ext-value :value tree-view}}}))
+      {:fx/type ui/ext-value :value (when active-outline tree-view)}}}))
 
 (def ^:private outline-message (localization/message "pane.outline"))
 
-(ui/defc outline-pane-view
-  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [localization-state] :as props}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state outline-message)
-   :content (assoc props :fx/type outline-tree-view)})
-
-(g/defnk produce-pane-desc
+(g/defnk produce-pane-content-desc
   [tree-view selection active-outline hidden-node-outline-key-paths outline-name-paths
    localization app-view active-resource-node open-resource-nodes
    :as props]
-  (assoc props :fx/type outline-pane-view))
+  (assoc props :fx/type outline-tree-view))
+
+(defn pane-definition [outline-view]
+  {:id :outline
+   :title outline-message
+   :location :right-top
+   :content (fn describe-outline [{:keys [evaluation-context]}]
+              (g/maybe-node-value outline-view :pane-content-desc evaluation-context))})
 
 (defn- alt-selection [selection]
   (let [alt-selection (mapv (fn [item]
@@ -297,15 +299,14 @@
   (property tree-selection g/Any (default []))
 
   (input app-view g/NodeID)
-  (input outline-active g/Bool :substitute false)
-  (input active-outline g/Any :substitute {})
+  (input active-outline g/Any :substitute nil)
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input outline-name-paths scene-visibility/OutlineNamePaths)
 
-  (output pane-desc g/Any :cached produce-pane-desc))
+  (output pane-content-desc g/Any :cached produce-pane-content-desc))
 
 (handler/register-menu! ::outline-menu
   [menu-items/open-selected
@@ -385,7 +386,7 @@
      :selection-id)))
 
 (defn- outline-active? [outline-view evaluation-context]
-  (g/node-value outline-view :outline-active evaluation-context))
+  (some? (g/node-value outline-view :active-outline evaluation-context)))
 
 (handler/defhandler :edit.delete :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))

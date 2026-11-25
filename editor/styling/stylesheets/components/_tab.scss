@@ -135,7 +135,7 @@
 }
 
 
-.side-pane-tabs:top {
+.pane-tabs:top {
     -fx-tab-min-height: 32px;
     -fx-tab-max-height: 32px;
     -fx-background-radius: 0;
@@ -160,12 +160,15 @@
             &:selected {
                 -fx-background-color: -df-background-light;
                 -fx-border-color: transparent;
+                > .tab-container > .tab-label {
+                    -fx-text-fill: -df-text-selected;
+                }
             }
-            .tab-label {
+            > .tab-container > .tab-label {
                 -fx-text-fill: -df-text;
                 -fx-padding: 0;
             }
-            .focus-indicator {
+            > .tab-container > .focus-indicator {
                 -fx-border-width: 0;
                 -fx-border-color: transparent;
             }

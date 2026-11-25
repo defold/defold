@@ -1050,7 +1050,6 @@
           (is (= (g/node-value child :node-outline) (get-in instance-outline [:children 0 :children 0]))))))))
 
 (g/defnode OutlineCopyState
-  (property active g/Bool (default true))
   (property selection g/Any (default [])))
 
 ;; Copy must reject shared-node entries and mixed selections containing them,
@@ -1065,7 +1064,8 @@
                              state OutlineCopyState
                              outline-view outline-view/OutlineView]
                 (attach-shared-outline-node source child)
-                (g/connect state :active outline-view :outline-active)
+                (g/connect source :_node-id outline-view :active-resource-node)
+                (g/connect source :node-outline outline-view :active-outline)
                 (g/connect state :selection outline-view :selection))))
           decorated-outline (:outline (outline-view/decorate-outline
                                         (g/node-value source :node-outline) #{} #{} @test-util/localization []))]
