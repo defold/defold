@@ -36,6 +36,29 @@ class PlatformLinkTests(unittest.TestCase):
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
 
+    def write_dlib_link_project(self, root):
+        (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(mbedtls_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+# These tests inspect the build graph, so an empty archive satisfies the SDK import.
+file(WRITE "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}" "!<arch>\\n")
+add_library(defold_sdk INTERFACE)
+include(functions)
+include(features)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
+    dlib dlib_noasan mbedtls mbedtls_noasan)
+''')
+
     # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
     def test_server_groups_match_direct_target_locks(self):
         for platform in ('arm64-macos', 'x86_64-linux', 'x86_64-win32'):
@@ -158,24 +181,7 @@ add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
             with self.subTest(platform=platform, enabled=enabled, disabled=disabled, legacy=legacy), \
                     tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                (root / 'CMakeLists.txt').write_text('''
-cmake_minimum_required(VERSION 4.0)
-project(mbedtls_link_test LANGUAGES C CXX)
-set(DEFOLD_CMAKE_INCLUDED ON)
-set(DEFOLD_LANGUAGE_LIST C CXX)
-set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
-set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
-set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
-set(BUILD_TESTS OFF)
-list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
-include(functions)
-include(features)
-add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
-add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
-defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
-    dlib dlib_noasan mbedtls mbedtls_noasan)
-''')
+                self.write_dlib_link_project(root)
                 consumer = self.configure_target(
                     root, 'mbedtls_consumer', TARGET_PLATFORM=platform,
                     DEFOLD_ENABLE_FEATURES=enabled, DEFOLD_DISABLE_FEATURES=disabled, WITH_MBEDTLS=legacy)
@@ -184,6 +190,44 @@ defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
                 for library in ('dmbedtls', 'dmbedtls_noasan'):
                     self.assertEqual(expected, bool(re.search(r'\b(?:lib)?' + library + r'\.(?:a|lib)\b', libraries)),
                                      libraries)
+
+    # Prevent duplicate compilation in ordinary builds and ASan instrumentation in the JNI archives.
+    def test_dlib_static_archives_reuse_objects_only_without_asan(self):
+        for with_asan in ('OFF', 'ON'):
+            with self.subTest(with_asan=with_asan), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build = root / 'build'
+                self.write_dlib_link_project(root)
+                result = self.configure_project(root, TARGET_PLATFORM='x86_64-win32',
+                                                WITH_ASAN=with_asan, CMAKE_EXPORT_COMPILE_COMMANDS='ON')
+                self.assertEqual(0, result.returncode, result.stdout)
+                commands = {
+                    Path(entry['directory'], entry['output']).resolve(): entry
+                    for entry in json.loads((build / 'compile_commands.json').read_text())
+                }
+                archive_objects = {}
+                for name in ('dlib', 'dlib_noasan', 'mbedtls', 'mbedtls_noasan'):
+                    archive = self.read_target(root, name)['artifacts'][0]['path']
+                    graph = subprocess.check_output(['ninja', '-t', 'query', archive], cwd=build, text=True)
+                    inputs = graph.split('  outputs:', 1)[0]
+                    objects = {Path(build, line.strip()).resolve() for line in inputs.splitlines()
+                               if line.startswith('    ') and line.endswith(('.o', '.obj'))}
+                    self.assertTrue(objects, graph)
+                    archive_objects[name] = objects
+                    instrumented = with_asan == 'ON' and not name.endswith('_noasan')
+                    for obj in objects:
+                        command = commands[obj]['command']
+                        self.assertEqual(instrumented, 'fsanitize=address' in command, command)
+
+                for name in ('dlib', 'mbedtls'):
+                    normal = archive_objects[name]
+                    noasan = archive_objects[name + '_noasan']
+                    if with_asan == 'ON':
+                        self.assertTrue(normal.isdisjoint(noasan), name)
+                        self.assertEqual({commands[obj]['file'] for obj in normal},
+                                         {commands[obj]['file'] for obj in noasan})
+                    else:
+                        self.assertEqual(normal, noasan, name)
 
     # Host tools must compile and link for their own macOS minimum, even when the engine targets a newer OS.
     def test_macos_deployment_target_override(self):

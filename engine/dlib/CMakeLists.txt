@@ -240,15 +240,24 @@ if(DM_MBEDTLS_CUSTOM_NET)
   dlib_remove_matching(DLIB_MBEDTLS_SOURCES "/net_sockets\\.c$")
 endif()
 
-defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_SOURCES})
-set_target_properties(mbedtls PROPERTIES OUTPUT_NAME dmbedtls)
-target_include_directories(mbedtls PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
-target_compile_definitions(mbedtls PUBLIC ${DLIB_MBEDTLS_DEFINES})
+# Keep both static archives, but compile their common sources only once when
+# no sanitizer distinguishes the engine objects from the host tool objects.
+set(DLIB_MBEDTLS_STATIC_SOURCES ${DLIB_MBEDTLS_SOURCES})
+set(_mbedtls_targets mbedtls mbedtls_noasan)
+if(NOT _DEFOLD_ACTIVE_SANITIZER)
+  defold_add_library(mbedtls_objects OBJECT ${DLIB_MBEDTLS_SOURCES})
+  set(DLIB_MBEDTLS_STATIC_SOURCES $<TARGET_OBJECTS:mbedtls_objects>)
+  list(APPEND _mbedtls_targets mbedtls_objects)
+endif()
 
-defold_add_library(mbedtls_noasan STATIC ${DLIB_MBEDTLS_SOURCES})
+defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_STATIC_SOURCES})
+set_target_properties(mbedtls PROPERTIES OUTPUT_NAME dmbedtls)
+defold_add_library(mbedtls_noasan STATIC ${DLIB_MBEDTLS_STATIC_SOURCES})
 set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
-target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
-target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
+foreach(_mbedtls_target IN LISTS _mbedtls_targets)
+  target_include_directories(${_mbedtls_target} PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
+  target_compile_definitions(${_mbedtls_target} PUBLIC ${DLIB_MBEDTLS_DEFINES})
+endforeach()
 
 # Keep the LZ4 wrapper's compression and decompression independently removable.
 if(NOT MSVC_CL)
@@ -256,30 +265,31 @@ if(NOT MSVC_CL)
     COMPILE_OPTIONS "-ffunction-sections;-fdata-sections")
 endif()
 
-defold_add_library(dlib STATIC ${DLIB_SOURCES})
-target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
-target_compile_definitions(dlib
-  PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
-  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-defold_target_link_libraries(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC ${DLIB_DEPENDENCIES})
-defold_target_link_socket(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC)
-if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
-  foreach(_fw IN ITEMS CFNetwork Security)
-    target_link_options(dlib PUBLIC "-Wl,-framework,${_fw}")
-  endforeach()
+set(DLIB_STATIC_SOURCES ${DLIB_SOURCES})
+set(_dlib_targets dlib dlib_noasan)
+if(NOT _DEFOLD_ACTIVE_SANITIZER)
+  defold_add_library(dlib_objects OBJECT ${DLIB_SOURCES})
+  defold_target_link_libraries(dlib_objects "${TARGET_PLATFORM}" ${DLIB_DEPENDENCIES})
+  set(DLIB_STATIC_SOURCES $<TARGET_OBJECTS:dlib_objects>)
+  list(APPEND _dlib_targets dlib_objects)
 endif()
 
-defold_add_library(dlib_noasan STATIC ${DLIB_SOURCES})
-target_include_directories(dlib_noasan PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
-target_compile_definitions(dlib_noasan
-  PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
-  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
+defold_add_library(dlib STATIC ${DLIB_STATIC_SOURCES})
+defold_add_library(dlib_noasan STATIC ${DLIB_STATIC_SOURCES})
+defold_target_link_libraries(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC ${DLIB_DEPENDENCIES})
 defold_target_link_libraries(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${DLIB_NOASAN_DEPENDENCIES})
 set_target_properties(dlib_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
-defold_target_link_socket(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC)
+
+foreach(_dlib_target IN LISTS _dlib_targets)
+  target_include_directories(${_dlib_target} PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
+  target_compile_definitions(${_dlib_target}
+    PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+    PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
+  defold_target_link_socket(${_dlib_target} "${TARGET_PLATFORM}" SCOPE PUBLIC)
+endforeach()
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
-  foreach(_fw IN ITEMS CFNetwork Security)
-    target_link_options(dlib_noasan PUBLIC "-Wl,-framework,${_fw}")
+  foreach(_dlib_target IN ITEMS dlib dlib_noasan)
+    target_link_options(${_dlib_target} PUBLIC "-Wl,-framework,CFNetwork" "-Wl,-framework,Security")
   endforeach()
 endif()
 
