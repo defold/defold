@@ -18,25 +18,29 @@
 
 struct WorkerUpload
 {
-    HWindow m_Window;
-    GLuint  m_Texture;
+    HWindow   m_Window;
+    GLuint    m_Texture;
+    uintptr_t m_ProcBeforeAcquire, m_ProcWhileCurrent, m_ProcAfterRelease;
 };
 
 static DWORD WINAPI Upload(void* data)
 {
     WorkerUpload* upload = (WorkerUpload*)data;
+    upload->m_ProcBeforeAcquire = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     void* context = dmPlatform::AcquireAuxContext(upload->m_Window);
     if (!context)
     {
         return 1;
     }
 
+    upload->m_ProcWhileCurrent = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     const GLubyte pixel[] = { 11, 147, 206, 255 };
     glGenTextures(1, &upload->m_Texture);
     glBindTexture(GL_TEXTURE_2D, upload->m_Texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
     glFinish();
     dmPlatform::UnacquireAuxContext(upload->m_Window, context);
+    upload->m_ProcAfterRelease = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     return wglGetCurrentContext() != 0;
 }
 
@@ -106,7 +110,7 @@ TEST(Win32OpenGL, DriverDefaultProfile)
     dmPlatform::DeleteWindow(window);
 }
 
-// Verifies WGL shares real texture storage across threads and releases its context on close.
+// The upload worker can resolve GL functions only while its shared texture context is current.
 TEST(Win32OpenGL, SharedWorkerUpload)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -130,6 +134,9 @@ TEST(Win32OpenGL, SharedWorkerUpload)
     ASSERT_TRUE(GetExitCodeThread(worker, &result));
     CloseHandle(worker);
     ASSERT_EQ(0UL, result);
+    EXPECT_EQ((uintptr_t)0, upload.m_ProcBeforeAcquire);
+    EXPECT_NE((uintptr_t)0, upload.m_ProcWhileCurrent);
+    EXPECT_EQ((uintptr_t)0, upload.m_ProcAfterRelease);
     ASSERT_TRUE(glIsTexture(upload.m_Texture));
     GLubyte pixel[4] = {};
     glBindTexture(GL_TEXTURE_2D, upload.m_Texture);

@@ -1413,20 +1413,24 @@ struct TextureUpload
     __typeof__(&glTexParameteri) m_Parameter;
     __typeof__(&glTexImage2D)    m_Image;
     __typeof__(&glFinish)        m_Finish;
+    uintptr_t                    m_ProcBeforeAcquire, m_ProcWhileCurrent, m_ProcAfterRelease;
 };
 
 static void* UploadTexture(void* data)
 {
     TextureUpload* upload = (TextureUpload*)data;
+    upload->m_ProcBeforeAcquire = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     void* aux = dmPlatform::AcquireAuxContext(upload->m_Window);
     if (aux)
     {
+        upload->m_ProcWhileCurrent = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
         upload->m_Generate(1, &upload->m_Texture);
         upload->m_Bind(GL_TEXTURE_2D, upload->m_Texture);
         upload->m_Parameter(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         upload->m_Image(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload->m_Pixel);
         upload->m_Finish();
         dmPlatform::UnacquireAuxContext(upload->m_Window, aux);
+        upload->m_ProcAfterRelease = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     }
 
     return 0;
@@ -1534,6 +1538,7 @@ static void CheckDrawableSize(HWindow w, uint32_t client_width, uint32_t client_
 }
 
 // A texture uploaded on the resource worker must be readable by the render context after resize and reopen.
+// The worker can resolve GL functions only while its auxiliary context is current.
 TEST(LinuxWindow, SharedOpenGLContext)
 {
     HWindow w = dmPlatform::NewWindow();
@@ -1568,6 +1573,9 @@ TEST(LinuxWindow, SharedOpenGLContext)
         pthread_t worker;
         ASSERT_EQ(0, pthread_create(&worker, 0, UploadTexture, &upload));
         ASSERT_EQ(0, pthread_join(worker, 0));
+        EXPECT_EQ((uintptr_t)0, upload.m_ProcBeforeAcquire);
+        EXPECT_NE((uintptr_t)0, upload.m_ProcWhileCurrent);
+        EXPECT_EQ((uintptr_t)0, upload.m_ProcAfterRelease);
         GLuint texture = upload.m_Texture;
         ASSERT_NE(0u, texture);
         GLuint fbo = 0;

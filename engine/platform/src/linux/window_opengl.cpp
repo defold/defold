@@ -655,7 +655,12 @@ namespace dmPlatform
 
         if (g->m_XConfig)
         {
-            return (uintptr_t)g->m_glXGetProcAddressARB((const GLubyte*)name);
+            return g->m_glXGetCurrentContext() ? (uintptr_t)g->m_glXGetProcAddressARB((const GLubyte*)name) : 0;
+        }
+
+        if (!g->m_eglGetCurrentContext())
+        {
+            return 0;
         }
 
         // EGL 1.4 only guarantees extension entry points from eglGetProcAddress.

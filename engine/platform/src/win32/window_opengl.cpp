@@ -287,7 +287,7 @@ namespace dmPlatform
 
     uintptr_t GetProcAddress(HWindow window, const char* name)
     {
-        if (!window->m_Context)
+        if (!window->m_Context || !wglGetCurrentContext())
         {
             return 0;
         }
