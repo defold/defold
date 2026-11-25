@@ -42,11 +42,16 @@
 @implementation DMWindowDelegate
 - (BOOL)windowShouldClose:(NSWindow*)sender
 {
-    if (dmPlatform::TriggerCloseCallback(handle))
+    // The callback can close the sender and release its delegate, then reopen the same handle.
+    [self retain];
+    [sender retain];
+    if (dmPlatform::TriggerCloseCallback(handle) && sender.delegate == self)
     {
         dmPlatform::CloseWindow(handle);
     }
 
+    [sender release];
+    [self release];
     return NO;
 }
 

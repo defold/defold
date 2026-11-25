@@ -251,6 +251,50 @@ TEST_F(CocoaWindowTest, HiddenFocusMinimizeQuitAndReopen)
     }
 }
 
+struct CloseAction
+{
+    HWindow             window;
+    WindowCreateParams* reopen;
+    WindowResult        result;
+};
+
+static int ReopenOrDeleteOnClose(void* data)
+{
+    CloseAction* action = (CloseAction*)data;
+    if (action->reopen)
+    {
+        dmPlatform::CloseWindow(action->window);
+        action->result = dmPlatform::OpenWindow(action->window, *action->reopen);
+    }
+    else
+    {
+        dmPlatform::DeleteWindow(action->window);
+        action->window = 0;
+    }
+
+    return 1;
+}
+
+// A close callback can replace its native window or delete the handle before returning permission to close.
+TEST_F(CocoaWindowTest, CloseCallbackCanReplaceOrDeleteWindow)
+{
+    @autoreleasepool
+    {
+        CloseAction action = { dmPlatform::NewWindow(), &params, WINDOW_RESULT_WINDOW_OPEN_ERROR };
+        ASSERT_NE((HWindow)0, action.window);
+        params.m_CloseCallback = ReopenOrDeleteOnClose;
+        params.m_CloseCallbackUserData = &action;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action.window, params));
+        [dmPlatform::GetOSXNSWindow(action.window) performClose:nil];
+        ASSERT_EQ(WINDOW_RESULT_OK, action.result);
+        ASSERT_EQ(1u, dmPlatform::GetWindowStateParam(action.window, WINDOW_STATE_OPENED));
+
+        action.reopen = 0;
+        [dmPlatform::GetOSXNSWindow(action.window) performClose:nil];
+        EXPECT_EQ((HWindow)0, action.window);
+    }
+}
+
 // The Window menu must route Control-Command-F to AppKit's native fullscreen toggle.
 TEST_F(CocoaWindowTest, FullscreenShortcut)
 {
