@@ -67,6 +67,7 @@ namespace dmPlatform
 {
     bool    LinuxConnectX11(HWindow window);
     bool    LinuxConnectWayland(HWindow window);
+    float   WaylandGetDisplayDensity(const LinuxWayland* wl);
     HWindow LinuxActiveWindow();
     void    LinuxUpdateSize(HWindow window, int width, int height, float scale);
     void    LinuxFocus(HWindow window, bool focused);

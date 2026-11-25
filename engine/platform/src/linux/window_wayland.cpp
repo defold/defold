@@ -67,6 +67,27 @@ namespace dmPlatform
         return true;
     }
 
+    float WaylandGetDisplayDensity(const LinuxWayland* wl)
+    {
+        if (wl->m_Outputs.Empty())
+        {
+            return 96.0f;
+        }
+
+        // An unmapped surface has no entered output. Use the same first output as fullscreen startup.
+        const LinuxOutput* output = wl->m_Outputs[0];
+        for (uint32_t i = 1; i < wl->m_Outputs.Size(); ++i)
+        {
+            const LinuxOutput* candidate = wl->m_Outputs[i];
+            if (candidate->m_Entered && (!output->m_Entered || candidate->m_WidthMM > 0))
+            {
+                output = candidate;
+            }
+        }
+
+        return CalculateDisplayDensity(output->m_WidthMM, output->m_Width);
+    }
+
     static void Resize(HWindow w, int width, int height)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -83,11 +104,6 @@ namespace dmPlatform
             if (out->m_Refresh)
             {
                 w->m_RefreshRate = out->m_Refresh;
-            }
-
-            if (out->m_WidthMM > 0)
-            {
-                w->m_Density = out->m_Width * 25.4f / out->m_WidthMM;
             }
         }
 
@@ -643,7 +659,15 @@ namespace dmPlatform
         }
 
         wl->m_Unmapped = w->m_Params.m_Hidden;
-        if (!wl->m_Unmapped && !Map(w))
+        if (wl->m_Unmapped)
+        {
+            // Output mode and geometry arrive after the registry binds. Map normally dispatches them.
+            if (g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) < 0)
+            {
+                return false;
+            }
+        }
+        else if (!Map(w))
         {
             return false;
         }

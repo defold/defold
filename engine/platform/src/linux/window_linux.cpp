@@ -309,7 +309,7 @@ namespace dmPlatform
 
     float GetDisplayDensity(HWindow w)
     {
-        return w->m_Density;
+        return w->m_Wayland ? WaylandGetDisplayDensity(w->m_Wayland) : w->m_Density;
     }
 
     Window GetX11Window(HWindow w)

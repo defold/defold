@@ -895,7 +895,26 @@ TEST(LinuxWindow, WaylandFirstSwapAfterOpen)
     WindowDelete(w);
 }
 
-// Presenting into a hidden Vulkan surface must not map a desktop window until ShowWindow.
+// Density follows an entered output and falls back to the first one while the surface is unmapped.
+TEST(LinuxWindow, WaylandDensityFollowsOutput)
+{
+    LinuxWayland wl = {};
+    EXPECT_EQ(96.0f, dmPlatform::WaylandGetDisplayDensity(&wl));
+    LinuxOutput first = {}, second = {};
+    first.m_WidthMM = second.m_WidthMM = 254;
+    first.m_Width = 1000;
+    second.m_Width = 2000;
+    wl.m_Outputs.SetCapacity(2);
+    wl.m_Outputs.Push(&first);
+    wl.m_Outputs.Push(&second);
+    EXPECT_EQ(100.0f, dmPlatform::WaylandGetDisplayDensity(&wl));
+    second.m_Entered = true;
+    EXPECT_EQ(200.0f, dmPlatform::WaylandGetDisplayDensity(&wl));
+    second.m_WidthMM = 0;
+    EXPECT_EQ(96.0f, dmPlatform::WaylandGetDisplayDensity(&wl));
+}
+
+// A hidden Vulkan window can query the output density before polling and stays unmapped until shown.
 TEST(LinuxWindow, WaylandHiddenVulkanWindow)
 {
     HWindow w = dmPlatform::NewWindow();
@@ -912,6 +931,17 @@ TEST(LinuxWindow, WaylandHiddenVulkanWindow)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     ASSERT_TRUE(w->m_Surface);
     ASSERT_FALSE(w->m_Wayland->m_Frame || w->m_Wayland->m_Toplevel);
+    const float initial_density = WindowGetDisplayDensity(w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    if (!w->m_Wayland->m_Outputs.Empty())
+    {
+        const LinuxOutput* output = w->m_Wayland->m_Outputs[0];
+        EXPECT_FALSE(output->m_Entered);
+        const float expected = dmPlatform::CalculateDisplayDensity(output->m_WidthMM, output->m_Width);
+        EXPECT_EQ(expected, initial_density);
+        EXPECT_EQ(expected, WindowGetDisplayDensity(w));
+    }
+
     dmPlatform::ShowWindow(w);
     EXPECT_TRUE(w->m_Wayland->m_Configured);
     EXPECT_TRUE(w->m_Wayland->m_Frame || w->m_Wayland->m_Toplevel);
