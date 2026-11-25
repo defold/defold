@@ -18,6 +18,9 @@
 #include "../resources/res_rig_scene.h"
 #include <gamesys/model_ddf.h>
 
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+#include <sanitizer/allocator_interface.h>
+#endif
 
 using namespace dmVMath;
 
