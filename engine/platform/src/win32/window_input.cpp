@@ -292,7 +292,7 @@ namespace dmPlatform
 
     void Win32UpdateCursor(HWindow window, bool focused)
     {
-        bool capture = focused && window->m_CursorLocked && !window->m_CaptionAction;
+        bool capture = focused && window->m_CursorLocked && !window->m_CaptionAction && !window->m_InModalLoop;
         if (capture == window->m_CursorCaptured)
         {
             return;
@@ -461,7 +461,7 @@ namespace dmPlatform
                 if (!lp && window->m_CaptionAction)
                 {
                     window->m_CaptionAction = false;
-                    Win32UpdateCursor(window, GetFocus() == window->m_Window);
+                    Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
                 }
                 break;
             }
@@ -496,13 +496,15 @@ namespace dmPlatform
             case WM_ENTERSIZEMOVE:
             case WM_ENTERMENULOOP:
             {
+                window->m_InModalLoop = true;
                 Win32UpdateCursor(window, false);
                 break;
             }
             case WM_EXITSIZEMOVE:
             case WM_EXITMENULOOP:
             {
-                Win32UpdateCursor(window, GetFocus() == window->m_Window);
+                window->m_InModalLoop = false;
+                Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
                 break;
             }
         }
@@ -564,7 +566,7 @@ namespace dmPlatform
                 window->m_VirtualCursor = CursorPosition(window->m_Window);
             }
 
-            Win32UpdateCursor(window, GetFocus() == window->m_Window);
+            Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
         }
     }
 

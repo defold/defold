@@ -180,6 +180,41 @@ TEST(dmPlatform, WindowsShowWithFocusedChild)
     dmPlatform::DeleteWindow(window);
 }
 
+// A focused native child shares the game's cursor lock, including when focus leaves or returns directly to the child.
+TEST(dmPlatform, WindowsCursorLockWithFocusedChild)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    HWND child = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE, 0, 0, 40, 20, hwnd, 0, GetModuleHandleW(0), 0);
+    ASSERT_TRUE(child);
+    SetFocus(child);
+    ASSERT_EQ(child, GetFocus());
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    RECT client, clip;
+    GetClientRect(hwnd, &client);
+    MapWindowPoints(hwnd, 0, (POINT*)&client, 2);
+    GetClipCursor(&clip);
+    EXPECT_TRUE(EqualRect(&client, &clip));
+    SetFocus(hwnd);
+    SetFocus(child);
+    EXPECT_TRUE(window->m_CursorCaptured);
+    SetFocus(0);
+    dmPlatform::PollEvents(window);
+    EXPECT_FALSE(window->m_CursorCaptured);
+    GetClipCursor(&clip);
+    EXPECT_FALSE(EqualRect(&client, &clip));
+    SetFocus(child);
+    dmPlatform::PollEvents(window);
+    GetClipCursor(&clip);
+    EXPECT_TRUE(EqualRect(&client, &clip));
+    dmPlatform::DeleteWindow(window);
+}
+
 // Minimize and restore must each reach listeners before their corresponding resize.
 TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
 {

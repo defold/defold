@@ -185,11 +185,20 @@ namespace dmPlatform
 
                 break;
             }
+            case WM_ACTIVATE:
+            {
+                if (LOWORD(wp) == WA_INACTIVE)
+                {
+                    Win32UpdateCursor(window, false);
+                }
+
+                break;
+            }
             case WM_SETFOCUS:
             case WM_KILLFOCUS:
             {
                 const bool focused = message == WM_SETFOCUS;
-                Win32UpdateCursor(window, focused);
+                Win32UpdateCursor(window, focused || IsChild(hwnd, (HWND)wp));
                 if (!focused)
                 {
                     window->m_CaptionAction = false;
@@ -468,15 +477,31 @@ namespace dmPlatform
             }
         }
 
+        // A native child can gain or lose focus without sending a focus message to the game window.
+        HWND focus_root = GetAncestor(focus, GA_ROOT);
+        HWindow cursor_owner = 0;
         bool poll_gamepads = false;
         for (HWindow current = g_Windows; current; current = current->m_Next)
         {
             if (current->m_Ready && current->m_EventThread == thread)
             {
-                Win32CenterCursor(current);
                 UpdateWindowPlacement(current, false);
+                if (current->m_Window == focus_root && current->m_CursorLocked)
+                {
+                    cursor_owner = current;
+                }
+                else if (current->m_CursorCaptured)
+                {
+                    Win32UpdateCursor(current, false);
+                }
                 poll_gamepads |= current->m_Callbacks.m_Gamepad != 0;
             }
+        }
+
+        if (cursor_owner)
+        {
+            Win32UpdateCursor(cursor_owner, true);
+            Win32CenterCursor(cursor_owner);
         }
 
         Win32PollJoysticks(poll_gamepads);

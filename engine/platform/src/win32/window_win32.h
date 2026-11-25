@@ -52,7 +52,7 @@ struct dmWindow
     double              m_Wheel;
     uint16_t            m_HighSurrogate;
     uint8_t             m_Keys[349], m_Buttons[8];
-    bool                m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction;
+    bool                m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop;
 };
 
 namespace dmPlatform
