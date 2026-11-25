@@ -168,6 +168,47 @@ TEST(Win32Joystick, DiscoverBeforeFirstStateIsReady)
     g_Connected[0] = false;
 }
 
+// Unreadable XInput samples must release sticks, triggers, buttons and hats until a fresh sample arrives.
+TEST(Win32Joystick, FailedStateReleasesControls)
+{
+    HWindow window = dmPlatform::NewWindow();
+    g_Connected[0] = true;
+    g_State[0] = XINPUT_STATE();
+    float centered_axes[6] = {};
+    EXPECT_EQ(6u, dmPlatform::GetJoystickAxes(window, 0, centered_axes, 6));
+    XINPUT_GAMEPAD& pad = g_State[0].Gamepad;
+    pad.sThumbLX = 32767;
+    pad.bRightTrigger = 255;
+    pad.wButtons = XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_DPAD_UP;
+
+    float axes[6] = {};
+    uint8_t button = 0, hat = 0;
+    EXPECT_EQ(6u, dmPlatform::GetJoystickAxes(window, 0, axes, 6));
+    EXPECT_EQ(1.0f, axes[0]);
+    EXPECT_EQ(1.0f, axes[5]);
+    EXPECT_EQ(1u, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(1u, button);
+    EXPECT_EQ(1u, dmPlatform::GetJoystickHats(window, 0, &hat, 1));
+    EXPECT_EQ(1u, hat);
+
+    g_StateResult[0] = ERROR_GEN_FAILURE;
+    EXPECT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ(6u, dmPlatform::GetJoystickAxes(window, 0, axes, 6));
+    EXPECT_EQ(centered_axes[0], axes[0]);
+    EXPECT_EQ(-1.0f, axes[5]);
+    EXPECT_EQ(1u, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(0u, button);
+    EXPECT_EQ(1u, dmPlatform::GetJoystickHats(window, 0, &hat, 1));
+    EXPECT_EQ(0u, hat);
+
+    g_StateResult[0] = ERROR_SUCCESS;
+    EXPECT_EQ(1u, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(1u, button);
+    dmPlatform::DeleteWindow(window);
+    g_State[0] = XINPUT_STATE();
+    g_Connected[0] = false;
+}
+
 // Registering on an open window must let HID finish installing its driver before reporting existing gamepads.
 TEST(Win32Joystick, RegisterWithConnectedGamepad)
 {

@@ -357,6 +357,11 @@ namespace dmPlatform
             {
                 Disconnect(slot, notify);
             }
+            else
+            {
+                // Decode an idle pad so released triggers keep their native -1 axis value.
+                DecodeWin32XInput(XINPUT_GAMEPAD(), &device.m_Packet);
+            }
         }
     }
 
