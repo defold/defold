@@ -199,6 +199,51 @@
         (ui/run-now (fx/delete-component component))))
     (is (= watches-before (count (.getWatches ^IRef prefs/global-state))))))
 
+;; Automatic fallbacks preserve the preferred pane when its content disappears,
+;; while explicit selection replaces that preference.
+(deftest preferred-pane-selection-test
+  (ui/run-now
+    (let [prefs (test-util/make-test-prefs)
+          left (SplitPane.)
+          right (SplitPane.)
+          bottom (AnchorPane.)
+          label {:fx/type fx.label/lifecycle :text "Content"}
+
+          describe
+          (fn describe [properties-content]
+            {:fx/type panes/layout
+             :panes [{:id :properties :title "Properties" :location :right-bottom :content-desc properties-content}
+                     {:id :notes :title "Notes" :location :right-bottom :content-desc label}]
+             :hidden #{}
+             :localization test-util/localization
+             :prefs prefs
+             :assets-split left
+             :right-split right
+             :bottom-container bottom})
+
+          _ (prefs/set! prefs [:window :layout :selected-tabs] {:right-bottom :properties})
+          component (volatile! (fx/create-component (describe label)))
+          ^TabPane host (first (.getItems right))]
+      (try
+        (testing "An unavailable preferred pane is restored after a fallback"
+          (is (= "Properties" (.getText ^Tab (ui/selected-tab host))))
+          (vswap! component fx/advance-component (describe nil))
+          (is (= "Notes" (.getText ^Tab (ui/selected-tab host))))
+          (is (= :properties (get (prefs/get prefs [:window :layout :selected-tabs]) :right-bottom)))
+          (vswap! component fx/advance-component (describe label))
+          (is (= "Properties" (.getText ^Tab (ui/selected-tab host)))))
+        (testing "Explicit selection replaces the preferred pane"
+          (is (= [true false] (mapv #(.isSelected ^Tab %) (.getTabs host))))
+          (.selectNext (.getSelectionModel host))
+          (is (= "Notes" (.getText ^Tab (ui/selected-tab host))))
+          (is (= :notes (get (prefs/get prefs [:window :layout :selected-tabs]) :right-bottom)))
+          (vswap! component fx/advance-component (describe nil))
+          (vswap! component fx/advance-component (describe label))
+          (is (= "Notes" (.getText ^Tab (ui/selected-tab host))))
+          (is (= :notes (get (prefs/get prefs [:window :layout :selected-tabs]) :right-bottom))))
+        (finally
+          (fx/delete-component @component))))))
+
 ;; ID-based activation reveals the pane and its region while individual hiding
 ;; persists independently of region toggles and automatically empty regions.
 (deftest individual-pane-visibility-test

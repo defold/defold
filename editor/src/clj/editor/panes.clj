@@ -61,11 +61,10 @@
 (def ^:private prop-tab-selection
   (fx/make-prop
     (fx.mutator/setter
-      (fn apply-tab-selection! [^TabPane host {:keys [ids selected-id prefs location]}]
+      (fn apply-tab-selection! [^TabPane host {:keys [ids selected-id]}]
         (if selected-id
           (.select (.getSelectionModel host) (int (.indexOf ^List ids selected-id)))
-          (.clearSelection (.getSelectionModel host)))
-        (select-pane! prefs location selected-id)))
+          (.clearSelection (.getSelectionModel host)))))
     fx.lifecycle/scalar))
 
 (def ^:private prop-region-visible
@@ -132,7 +131,7 @@
             :min-height 100
             :tab-closing-policy :unavailable
             :tabs (mapv (fn [id] {:fx/type ui/ext-value :value (get instances id)}) ids)}
-     :props {prop-tab-selection {:ids ids :selected-id selected-id :prefs prefs :location location}}}))
+     :props {prop-tab-selection {:ids ids :selected-id selected-id}}}))
 
 (ui/defc layout
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
