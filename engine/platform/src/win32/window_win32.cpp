@@ -189,7 +189,7 @@ namespace dmPlatform
                     }
                 }
 
-                if (window->m_Ready && window->m_Params.m_FocusCallback)
+                if (window->m_Ready && window->m_FocusCallbackReady && window->m_Params.m_FocusCallback)
                 {
                     window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, focused);
                 }
@@ -401,6 +401,16 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
+        if (window->m_Ready && !window->m_FocusCallbackReady)
+        {
+            // Showing the HWND can grant focus inside OpenWindow, before extensions have a graphics context.
+            window->m_FocusCallbackReady = true;
+            if (GetFocus() == window->m_Window && window->m_Params.m_FocusCallback)
+            {
+                window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, 1);
+            }
+        }
+
         MSG msg;
         while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE))
         {

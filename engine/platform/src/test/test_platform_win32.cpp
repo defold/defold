@@ -52,6 +52,40 @@ TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
     dmPlatform::DeleteWindow(window);
 }
 
+static void CountFocus(void* data, uint32_t focused)
+{
+    ++((unsigned*)data)[focused];
+}
+
+// Extensions must receive startup focus after graphics initialization, including on engine reboot.
+TEST(dmPlatform, WindowsStartupFocusAfterOpen)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = CountFocus;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        unsigned events[2] = {};
+        params.m_FocusCallbackUserData = events;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        ASSERT_EQ(0u, events[1]);
+        dmPlatform::PollEvents(window);
+        dmPlatform::PollEvents(window);
+        ASSERT_EQ(1u, events[1]);
+        SetFocus(0);
+        ASSERT_EQ(1u, events[0]);
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
