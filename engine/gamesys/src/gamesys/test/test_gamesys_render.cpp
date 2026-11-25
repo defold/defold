@@ -1897,6 +1897,24 @@ TEST_F(ShaderTest, ComputeLightBuffer)
     dmResource::Release(m_Factory, (void*) compute_res);
 }
 
+// A compute program owns no GPU objects: its shader program and textures are restored as resources of
+// their own. Restoring the compute program itself would run its hot reload path, which takes its
+// textures again and counts them again on every context restore.
+TEST_F(ShaderTest, ComputeNotRestoredWithGraphicsContext)
+{
+    dmGameSystem::ComputeResource* compute_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_res));
+
+    uint8_t order;
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, dmHashString64("/shader/inputs.computec"), &order));
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) dmRender::GetComputeProgram(compute_res->m_Program), &program_path));
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, program_path, &order));
+    ASSERT_EQ((uint8_t)RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS, order);
+
+    dmResource::Release(m_Factory, (void*) compute_res);
+}
+
 TEST_F(ShaderTest, ComputeLightBufferAbsent)
 {
     dmGameSystem::ComputeResource* compute_res;
