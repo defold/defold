@@ -58,21 +58,20 @@ else()
   list(TRANSFORM _sdk_package_files PREPEND "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk/" OUTPUT_VARIABLE _sdk_package_sources)
   set(_sdk_stage_files ${_sdk_header_candidates} ${_sdk_package_files})
   set(_sdk_stage_sources ${DEFOLD_DMSDK_HEADER_SOURCES} ${_sdk_package_sources})
-  set(_sdk_stage_script "${CMAKE_CURRENT_BINARY_DIR}/stage_test_headers.cmake")
-  configure_file(stage_test_headers.cmake.in "${_sdk_stage_script}" @ONLY)
   # A removed header must invalidate consumers even if every surviving header keeps its timestamp.
   string(SHA256 _sdk_manifest_hash "${_sdk_stage_files}")
   string(SUBSTRING "${_sdk_manifest_hash}" 0 16 _sdk_manifest_id)
+  set(_sdk_stage_script "${CMAKE_CURRENT_BINARY_DIR}/stage_test_headers.cmake")
+  configure_file(stage_test_headers.cmake.in "${_sdk_stage_script}" @ONLY)
   set(_sdk_stage_root "${CMAKE_CURRENT_BINARY_DIR}/sdk-headers/$<IF:$<BOOL:$<CONFIG>>,$<CONFIG>,default>")
   set(SDK_TEST_HEADER_STAGE "${_sdk_stage_root}/${_sdk_manifest_id}")
   set(SDK_TEST_INCLUDE_DIR "${SDK_TEST_HEADER_STAGE}/sdk/include")
   set(_sdk_header_stamp "${SDK_TEST_HEADER_STAGE}/headers.stamp")
   list(TRANSFORM _sdk_stage_files PREPEND "${SDK_TEST_INCLUDE_DIR}/dmsdk/" OUTPUT_VARIABLE _sdk_staged_headers)
-  # Copying preserves source timestamps. Make needs a primary output that records completion.
+  # Unchanged copies keep their timestamps. Make needs a primary output that records completion.
   add_custom_command(
     OUTPUT "${_sdk_header_stamp}" ${_sdk_staged_headers}
-    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_sdk_stage_root}"
-    COMMAND "${CMAKE_COMMAND}" "-DINCLUDE_DIR=${SDK_TEST_INCLUDE_DIR}/dmsdk" -P "${_sdk_stage_script}"
+    COMMAND "${CMAKE_COMMAND}" "-DSTAGE_ROOT=${_sdk_stage_root}" -P "${_sdk_stage_script}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_sdk_header_stamp}"
     DEPENDS ${_sdk_stage_sources} "${_sdk_stage_script}"
     COMMENT "Staging public headers for SDK tests"

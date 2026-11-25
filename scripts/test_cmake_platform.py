@@ -126,6 +126,34 @@ add_subdirectory("${DEFOLD_HOME}/engine/sdk/src/test" sdk)
                 header.write_text('#include <dmsdk/replacement.h>\n#include <dmsdk/vectormath/package.h>\n')
                 subprocess.check_output(command)
 
+    # Ninja must recompile a changed header even when both source edits fall in the same second.
+    def test_sdk_header_staging_detects_subsecond_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_sdk_header_project(root)
+            header = root / 'public.h'
+            header.write_text('#pragma once\n')
+            os.utime(header, ns=(1_250_000_000, 1_250_000_000))
+            (root / 'unchanged.h').write_text('#pragma once\n')
+            result = self.configure_project(root, TARGET_PLATFORM='x86_64-linux', CMAKE_BUILD_TYPE='Debug')
+            self.assertEqual(0, result.returncode, result.stdout)
+            build = root / 'build'
+            command = ['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp']
+            subprocess.check_output(command)
+            stage = build / 'sdk/sdk-headers/Debug'
+            unchanged, = stage.rglob('unchanged.h')
+            before = unchanged.stat().st_mtime_ns
+
+            header.write_text('#error public_header_changed\n')
+            os.utime(header, ns=(1_750_000_000, 1_750_000_000))
+            # Force staging of these deliberately old inputs to exercise Ninja's output timestamp check.
+            stamp, = stage.rglob('headers.stamp')
+            stamp.unlink()
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertNotEqual(0, result.returncode, result.stdout)
+            self.assertIn('public_header_changed', result.stdout)
+            self.assertEqual(before, unchanged.stat().st_mtime_ns)
+
     # A test build must preserve the file list written by an actual SDK header component install.
     def test_sdk_header_staging_preserves_install_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
