@@ -328,6 +328,8 @@ class CmakeBuildOutputTests(unittest.TestCase):
         self.builddir = self.root / 'build'
         (self.root / 'task.py').write_text('''
 from pathlib import Path
+import json
+import os
 import sys
 if sys.argv[2] in ('fail', 'color-fail'):
     print('stdout from failing tool', flush=True)
@@ -336,6 +338,11 @@ if sys.argv[2] in ('fail', 'color-fail'):
         error = '\\x1b[31m' + error + '\\x1b[0m'
     print(error, file=sys.stderr, flush=True)
     sys.exit(7)
+if sys.argv[2] == 'bob':
+    timing_file = os.environ.get('DEFOLD_BOB_LIGHT_RECEIPT')
+    if timing_file:
+        Path(timing_file).write_text(json.dumps({'commands': {'Gradle bob-light': {'duration': 3}},
+                                                 'components': {}}))
 print('unrelated successful tool output')
 Path(sys.argv[1]).write_text('built')
 ''')
@@ -354,11 +361,6 @@ foreach(index RANGE 1 24)
 endforeach()
 add_custom_target(build_tests DEPENDS ${outputs})
 add_custom_target(success ALL DEPENDS ${outputs})
-add_custom_target(stage_bob_light_dependencies
-  COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/bob-light-dependencies.stamp")
-if(DEFOLD_SKIP_BOB_LIGHT)
-  add_custom_target(engine_content ALL DEPENDS "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-endif()
 add_custom_target(failure
   COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/task.py" ignored fail VERBATIM)
 add_dependencies(failure success)
@@ -368,6 +370,17 @@ add_dependencies(console_failure success)
 add_custom_target(color_failure
   COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/task.py" ignored color-fail VERBATIM)
 add_custom_target(run_tests COMMAND "${CMAKE_COMMAND}" -E echo "test suite completed")
+if(DEFOLD_SDK_ROOT)
+  set(jar "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
+  if(NOT DEFOLD_SKIP_BOB_LIGHT)
+    add_custom_target(bob_light
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+      COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/task.py" "${jar}" bob
+      BYPRODUCTS "${jar}" DEPENDS "${CMAKE_BINARY_DIR}/step1.stamp")
+    add_dependencies(run_tests bob_light)
+  endif()
+  add_custom_target(engine_content ALL DEPENDS "${jar}")
+endif()
 install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
 ''')
         self.env = os.environ.copy()
@@ -472,11 +485,11 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
         self.assertIn('unrelated successful tool output', text)
         self.assertIn('unrelated successful tool output', log)
 
-    # A native engine build stages Bob dependencies in the full graph before building Bob or the engine.
+    # One native build invocation schedules Bob with independent engine work, including when tests are disabled.
     def test_native_engine_bootstraps_bob_light_with_one_configure(self):
         configuration = build.Configuration(dynamo_home=str(self.root / 'sdk'),
                                             target_platform=build.get_host_platform(),
-                                            skip_docs=True, skip_builtins=True, no_colors=True)
+                                            skip_docs=True, skip_builtins=True, no_colors=True, channel='alpha')
         configuration.defold_root = str(self.root)
         configuration._cmake_top_build_dir = lambda platform: str(self.builddir)
         configuration._form_env = lambda: self.env.copy()
@@ -488,32 +501,53 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
         configuration._cmake_feature_defines = lambda: [f'-DPYTHON_EXECUTABLE={sys.executable}']
         bob_light_jar = self.root / 'sdk/share/java/bob-light.jar'
 
-        def build_bob_light():
-            self.assertTrue((self.builddir / 'bob-light-dependencies.stamp').is_file())
-            self.assertFalse((self.builddir / 'step1.stamp').exists())
-            self.assertFalse(bob_light_jar.exists())
-            bob_light_jar.parent.mkdir()
-            bob_light_jar.touch()
-
-        configuration.build_bob_light = mock.Mock(side_effect=build_bob_light)
+        configuration.build_bob_light = mock.Mock()
         with contextlib.redirect_stdout(io.StringIO()) as stream, \
                 mock.patch.object(configuration, '_run_cmake', wraps=configuration._run_cmake) as run_cmake, \
                 mock.patch.object(build, 'write_merged_platform_sdks'), \
                 mock.patch.dict(os.environ):
             configuration.build_engine()
 
-        configuration.build_bob_light.assert_called_once_with()
+        configuration.build_bob_light.assert_not_called()
         configure_args = run_cmake.call_args_list[0].args[0]
         self.assertIn('-DDEFOLD_ENGINE_LIB_SET=all', configure_args)
         self.assertIn('-DBUILD_TESTS=ON', configure_args)
-        self.assertIn('-DDEFOLD_SKIP_BOB_LIGHT:BOOL=ON', configure_args)
+        self.assertIn('-DDEFOLD_SKIP_BOB_LIGHT:BOOL=OFF', configure_args)
+        self.assertIn('-DDEFOLD_BOB_LIGHT_CHANNEL:STRING=alpha', configure_args)
+        self.assertIn('bob_light', run_cmake.call_args_list[1].args[0])
+        configuration.build_tracker.command_times.update.assert_called_once_with({'Gradle bob-light': {'duration': 3}})
+        self.assertEqual(run_cmake.call_args_list[1].kwargs['env']['DEFOLD_BOB_LIGHT_RECEIPT'],
+                         run_cmake.call_args_list[-1].kwargs['env']['DEFOLD_BOB_LIGHT_RECEIPT'])
         phases = [call.args[3] for call in run_cmake.call_args_list]
-        self.assertEqual(['configure', 'stage', 'build', 'install', 'tests'], phases)
+        self.assertEqual(['configure', 'build', 'install', 'tests'], phases)
         self.assertNotIn('unrelated successful tool output', stream.getvalue())
         self.assertNotIn('test suite completed', stream.getvalue())
         for phase in phases:
             self.assertTrue((self.builddir / 'logs' / f'engine_libs-{phase}.log').is_file(), phase)
         self.assertTrue((self.root / 'sdk/share/step1.stamp').is_file())
+        self.assertEqual('built', bob_light_jar.read_text())
+
+        configuration.build_options = ['--skip-build-tests']
+        for skip_bob in (False, True):
+            configuration.skip_bob_light = skip_bob
+            bob_light_jar.write_text('external')
+            with contextlib.redirect_stdout(io.StringIO()), mock.patch.dict(os.environ), \
+                    mock.patch.object(build, 'write_merged_platform_sdks'):
+                configuration.build_engine()
+            self.assertEqual('external' if skip_bob else 'built', bob_light_jar.read_text())
+
+    # Cross compilation installs host tools before Gradle and gives the target graph the resulting JAR.
+    def test_cross_engine_keeps_the_host_bob_bootstrap(self):
+        configuration = build.Configuration(dynamo_home=str(self.root / 'sdk'), target_platform='arm64-android',
+                                            skip_docs=True, skip_builtins=True)
+        calls = mock.Mock()
+        configuration._build_engine_libs_cmake = calls.cmake
+        configuration.build_bob_light = calls.bob
+        with contextlib.redirect_stdout(io.StringIO()), mock.patch.dict(os.environ), \
+                mock.patch.object(configuration, 'check_sdk'), mock.patch.object(build, 'write_merged_platform_sdks'):
+            configuration.build_engine()
+        self.assertEqual([mock.call.cmake('host_libs', 'host', configuration.host, skip_build_tests=True),
+                          mock.call.bob(), mock.call.cmake('engine_libs', 'target', 'arm64-android')], calls.mock_calls)
 
 
 if __name__ == '__main__':

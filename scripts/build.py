@@ -2192,17 +2192,16 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _run_cmake(self, args, builddir, name, phase, cwd=None):
+    def _run_cmake(self, args, builddir, name, phase, cwd=None, env=None):
         verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
         log_path = join(builddir, 'logs', f'{name}-{phase}.log')
         try:
-            build_output.command(self._form_env(), args, f'CMake {phase} {name}', log_path,
+            build_output.command(env if env is not None else self._form_env(), args, f'CMake {phase} {name}', log_path,
                                  cwd=cwd or self.defold_root, verbose=verbose)
         except run.ExecException as error:
             sys.exit(error.retcode)
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests=False,
-                                 use_external_bob_light=False, prepare_bob_light=False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests=False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -2216,6 +2215,7 @@ class Configuration(object):
             os.makedirs(builddir)
 
         is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
+        build_bob_light = lib_set == 'all' and not self.skip_bob_light
         test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
@@ -2243,7 +2243,9 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_external_bob_light) else "OFF"}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"OFF" if build_bob_light else "ON"}',
+            f'-DDEFOLD_BOB_LIGHT_CHANNEL:STRING={self.channel or ""}',
+            f'-DDEFOLD_BOB_LIGHT_VERBOSE:BOOL={"ON" if is_verbose else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
@@ -2288,29 +2290,28 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_config)
 
-        if prepare_bob_light:
-            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
-            self.build_tracker.start_command(log_cmd_stage)
-
-            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
-            if is_verbose:
-                cmake_stage_args.append('--verbose')
-            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
-
-            self.build_tracker.end_command(log_cmd_stage)
-            self.build_bob_light()
-
         # ***************************************************************************************
         # execute the build
         log_cmd_build = f'CMake build {name} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
         cmake_build_args = ['cmake', '--build', builddir, '--target', 'all']
+        build_env = self._form_env()
+        if build_bob_light:
+            cmake_build_args.append('bob_light')
+            # Both Ninja invocations below belong to one engine build.
+            bob_timings = join(os.environ['DM_BOB_ROOTFOLDER'], 'bob-light-times.json')
+            build_env['DEFOLD_BOB_LIGHT_RECEIPT'] = bob_timings
         if build_test:
             cmake_build_args.append(build_test)
         if is_verbose:
             cmake_build_args.append('--verbose')
-        self._run_cmake(cmake_build_args, builddir, name, 'build')
+        self._run_cmake(cmake_build_args, builddir, name, 'build', env=build_env)
+        if build_bob_light and os.path.isfile(bob_timings):
+            with open(bob_timings, encoding='utf-8') as timings_file:
+                timings = json.load(timings_file)
+            self.build_tracker.command_times.update(timings['commands'])
+            self.build_tracker.component_times.update(timings['components'])
 
         self.build_tracker.end_command(log_cmd_build)
 
@@ -2335,7 +2336,7 @@ class Configuration(object):
             cmake_test_args = ['cmake', '--build', builddir, '--target', 'run_tests']
             if is_verbose:
                 cmake_test_args.append('--verbose')
-            self._run_cmake(cmake_test_args, builddir, name, 'tests')
+            self._run_cmake(cmake_test_args, builddir, name, 'tests', env=build_env)
 
             self.build_tracker.end_command(log_cmd_tests)
 
@@ -2439,9 +2440,7 @@ class Configuration(object):
         self._build_engine_libs_cmake(
             'engine_libs',
             'all' if native_build else 'target',
-            target_platform,
-            use_external_bob_light=True,
-            prepare_bob_light=native_build and not self.skip_bob_light)
+            target_platform)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if not self.skip_docs:

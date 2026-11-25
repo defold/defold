@@ -13,21 +13,29 @@ project(${DEFOLD_SOLUTION_NAME} LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # Load full Defold CMake (platform flags, interface target, etc.)
 include("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/defold.cmake")
 
-set(DEFOLD_BOB_DIR "${CMAKE_CURRENT_LIST_DIR}/com.dynamo.cr/com.dynamo.cr.bob")
 set(DEFOLD_BOB_LIGHT_JAR "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar" CACHE FILEPATH "Path to generated bob-light.jar" FORCE)
-if(CMAKE_HOST_WIN32)
-  set(DEFOLD_GRADLEW "${DEFOLD_BOB_DIR}/gradlew.bat")
-else()
-  set(DEFOLD_GRADLEW "${DEFOLD_BOB_DIR}/gradlew")
-endif()
-get_filename_component(_DEFOLD_JAVA_BIN_DIR "${Java_JAVA_EXECUTABLE}" DIRECTORY)
-get_filename_component(DEFOLD_JAVA_HOME "${_DEFOLD_JAVA_BIN_DIR}/.." ABSOLUTE)
-unset(_DEFOLD_JAVA_BIN_DIR)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 option(DEFOLD_SKIP_BOB_LIGHT "Use a bob-light.jar supplied outside CMake" OFF)
+set(DEFOLD_BOB_LIGHT_CHANNEL "" CACHE STRING "Build channel for Bob Light")
+option(DEFOLD_BOB_LIGHT_VERBOSE "Show verbose Gradle output for Bob Light" OFF)
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
-  add_custom_target(bob_light DEPENDS "${DEFOLD_BOB_LIGHT_JAR}")
+  get_filename_component(_java_bin "${Java_JAVA_EXECUTABLE}" DIRECTORY)
+  get_filename_component(_java_home "${_java_bin}/.." ABSOLUTE)
+  if(DEFOLD_BOB_LIGHT_VERBOSE)
+    set(_bob_verbose --verbose)
+  endif()
+  # Gradle tracks Java, proto, resources and platform plugins, including removed inputs.
+  # Its install task preserves the JAR timestamp when its contents are unchanged.
+  add_custom_target(bob_light
+    COMMAND "${CMAKE_COMMAND}" -E env "JAVA_HOME=${_java_home}"
+      "DYNAMO_HOME=${DEFOLD_SDK_ROOT}" "DEFOLD_PYTHON=${Python3_EXECUTABLE}"
+      "${Python3_EXECUTABLE}" "${DEFOLD_HOME}/scripts/build_bob_light.py"
+      "${TARGET_PLATFORM}" "--channel=${DEFOLD_BOB_LIGHT_CHANNEL}" ${_bob_verbose}
+    BYPRODUCTS "${DEFOLD_BOB_LIGHT_JAR}"
+    WORKING_DIRECTORY "${DEFOLD_HOME}"
+    COMMENT "Building bob-light.jar"
+    VERBATIM)
 endif()
 if(TARGET build_tests AND TARGET bob_light)
   add_dependencies(build_tests bob_light)
@@ -232,16 +240,7 @@ endif()
 # CMake configurations cannot generate absolute /sdk, /lib, or /share paths.
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 
-set(_DEFOLD_BOB_LIGHT_DEPENDS
-  "${DEFOLD_BOB_DIR}/build.gradle"
-  "${DEFOLD_BOB_DIR}/artifacts.gradle"
-  "${DEFOLD_BOB_DIR}/archive-artifacts.json"
-  "${DEFOLD_BOB_DIR}/tools.json"
-  "${DEFOLD_BOB_DIR}/bob-light-tools.json"
-  "${DEFOLD_GRADLEW}")
-if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
-  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
-endif()
+set(_DEFOLD_BOB_LIGHT_DEPENDS)
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
 foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS dlib_shared texc_shared modelc_shared shaderc_shared fontc_shared shaderc_dxcompiler)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
@@ -312,19 +311,8 @@ add_custom_target(stage_bob_light_dependencies
   COMMENT "Staging Bob Light dependencies"
   VERBATIM)
 
-if(NOT DEFOLD_SKIP_BOB_LIGHT)
-  add_custom_command(
-    OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
-    COMMAND "${CMAKE_COMMAND}" -E env
-      "DEFOLD_HOME=${DEFOLD_HOME}"
-      "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-      "JAVA_HOME=${DEFOLD_JAVA_HOME}"
-      "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
-      "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" "-Ppython=${Python3_EXECUTABLE}" installBobLight
-    WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
-    DEPENDS stage_bob_light_dependencies ${_DEFOLD_BOB_LIGHT_DEPENDS}
-    COMMENT "Building bob-light.jar"
-    VERBATIM)
+if(TARGET bob_light)
+  add_dependencies(bob_light stage_bob_light_dependencies)
 endif()
 unset(_DEFOLD_BOB_LIGHT_DEPENDS)
 unset(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
