@@ -701,7 +701,7 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
 
-        dmRender::SetMaterialSampler(material_res->m_Material, name_hash, unit, sampler_info.m_UWrap, sampler_info.m_VWrap, sampler_info.m_WWrap, sampler_info.m_MinFilter, sampler_info.m_MagFilter, sampler_info.m_MaxAnisotropy);
+        dmRender::SetMaterialSamplerOptions(material_res->m_Material, name_hash, sampler_info);
 
         return 0;
     }

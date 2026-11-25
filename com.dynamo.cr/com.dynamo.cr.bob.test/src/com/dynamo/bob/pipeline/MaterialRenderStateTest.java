@@ -22,10 +22,6 @@ import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.ByteString;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
 import static org.junit.Assert.*;
 
 public class MaterialRenderStateTest {
@@ -158,22 +154,66 @@ public class MaterialRenderStateTest {
         assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
     }
 
-    // Array fallback aliases are generated from a reflected base sampler, not separate reflection entries.
+    // Native and fallback variants, including surplus editor aliases, describe the same logical sampler state.
     @Test
-    public void reflectedArraySamplerKeepsFallbackAliases() {
+    public void samplerAliasesDoNotAffectRenderHash() {
+        ShaderDesc.ShaderDataType[] samplerTypes = {
+            ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D,
+            ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY,
+            ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY
+        };
+        for (ShaderDesc.ShaderDataType samplerType : samplerTypes) {
+            ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
+            reflection.getTexturesBuilder(0).setType(type(samplerType));
+            MaterialDesc.Builder input = material();
+            MaterialDesc original = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+            input.getSamplersBuilder(0).addNameIndirections(MurmurHash.hash64("tex0_0"))
+                .addNameIndirections(MurmurHash.hash64("tex0_1"));
+            MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+            assertEquals(1, compiled.getRenderState().getSamplersCount());
+            assertEquals(MurmurHash.hash64("tex0"), compiled.getRenderState().getSamplers(0).getNameHash());
+            assertEquals(original.getRenderState(), compiled.getRenderState());
+            assertEquals(original.getRenderHash(), compiled.getRenderHash());
+            // The descriptor still retains the aliases needed to bind fallback shaders.
+            assertEquals(input.getSamplers(0).getNameIndirectionsList(), compiled.getSamplers(0).getNameIndirectionsList());
+            input.getSamplersBuilder(0).setMaxAnisotropy(8);
+            assertNotEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
+        }
+    }
+
+    // Bob and the editor share alias generation: only active arrays with a fallback variant get aliases.
+    @Test
+    public void fallbackAliasesFollowShaderVariantsAndReflection() {
+        MaterialDesc.Builder input = material().setMaxPageCount(2);
+        input.addSamplers(input.getSamplers(0).toBuilder().setName("array"));
+        input.addSamplers(input.getSamplers(0).toBuilder().setName("unused"));
         ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
-        reflection.getTexturesBuilder(0).setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY));
-        long slice0 = MurmurHash.hash64("tex0_0");
-        long slice1 = MurmurHash.hash64("tex0_1");
-        MaterialDesc.Builder input = material();
-        input.getSamplersBuilder(0).addNameIndirections(slice0).addNameIndirections(slice1);
-        MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
-        assertEquals(3, compiled.getRenderState().getSamplersCount());
-        Set<Long> names = new HashSet<>();
-        compiled.getRenderState().getSamplersList().forEach(sampler -> names.add(sampler.getNameHash()));
-        assertEquals(new HashSet<>(Arrays.asList(MurmurHash.hash64("tex0"), slice0, slice1)), names);
-        input.getSamplersBuilder(0).setMaxAnisotropy(8);
-        assertNotEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
+        reflection.addTextures(ShaderDesc.ResourceBinding.newBuilder().setName("array").setNameHash(MurmurHash.hash64("array"))
+            .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)));
+        ShaderDesc.Builder shader = ShaderDesc.newBuilder().setReflection(reflection)
+            .addShaders(ShaderDesc.Shader.newBuilder().setSource(ByteString.EMPTY)
+                .setShaderType(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT)
+                .setLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100).setVariantTextureArray(true));
+
+        for (MaterialDesc.Sampler.Builder sampler : input.getSamplersBuilderList()) {
+            sampler.addNameIndirections(MurmurHash.hash64("stale"));
+        }
+        MaterialBuilder.applyVariantTextureArray(input, shader.build());
+        assertEquals(0, input.getSamplers(0).getNameIndirectionsCount());
+        assertEquals(2, input.getSamplers(1).getNameIndirectionsCount());
+        assertEquals(MurmurHash.hash64("array_0"), input.getSamplers(1).getNameIndirections(0));
+        assertEquals(MurmurHash.hash64("array_1"), input.getSamplers(1).getNameIndirections(1));
+        assertEquals(0, input.getSamplers(2).getNameIndirectionsCount());
+        MaterialDesc fallback = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+
+        MaterialBuilder.applyVariantTextureArray(input, shader.build());
+        assertEquals(2, input.getSamplers(1).getNameIndirectionsCount());
+        shader.getShadersBuilder(0).setVariantTextureArray(false);
+        MaterialBuilder.applyVariantTextureArray(input, shader.build());
+        assertEquals(0, input.getSamplers(1).getNameIndirectionsCount());
+        MaterialDesc nativeArray = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+        assertEquals(fallback.getRenderState(), nativeArray.getRenderState());
+        assertEquals(fallback.getRenderHash(), nativeArray.getRenderHash());
     }
 
     // Omitted constants and explicitly authored zero defaults normalize to the same reflected value array.

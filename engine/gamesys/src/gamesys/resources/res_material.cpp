@@ -238,6 +238,7 @@ namespace dmGameSystem
             {
                 if (dmRender::SetMaterialSampler(material, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, wwrap, minfilter, magfilter, anisotropy))
                 {
+                    dmRender::SetMaterialSamplerLogicalName(material, sampler_unit, base_name_hash);
                     sampler_unit++;
                 }
             }
@@ -280,23 +281,22 @@ namespace dmGameSystem
             dmhash_t name_hash = dmHashString64(sampler.m_Name);
             if (dmRender::IsMaterialInternalSampler(name_hash))
                 continue;
+            uint32_t first_sampler_unit = sampler_count;
             if (dmRender::GetMaterialConstantLocation(material, name_hash) != dmGraphics::INVALID_UNIFORM_LOCATION)
-            {
-                // Base sampler indices address the resource's texture array.
-                // Array-emulation aliases below only address GPU sampler units.
-                if (sampler_count >= user_texture_count)
-                {
-                    dmLogError("Material '%s' places texture sampler '%s' in slot %u, but only %u ordinary texture slots are available alongside its internal resources.",
-                        ddf->m_Name, sampler.m_Name, sampler_count, user_texture_count);
-                    dmRender::DeleteMaterial(render_context, material);
-                    return 0;
-                }
                 ++sampler_count;
-            }
             for (uint32_t j = 0; j < sampler.m_NameIndirections.m_Count; ++j)
             {
                 if (dmRender::GetMaterialConstantLocation(material, sampler.m_NameIndirections[j]) != dmGraphics::INVALID_UNIFORM_LOCATION)
                     ++sampler_count;
+            }
+            // The first active binding addresses the resource's texture array,
+            // including when only fallback aliases exist in the program.
+            if (sampler_count != first_sampler_unit && first_sampler_unit >= user_texture_count)
+            {
+                dmLogError("Material '%s' places texture sampler '%s' in slot %u, but only %u ordinary texture slots are available alongside its internal resources.",
+                    ddf->m_Name, sampler.m_Name, first_sampler_unit, user_texture_count);
+                dmRender::DeleteMaterial(render_context, material);
+                return 0;
             }
         }
         return material;

@@ -44,6 +44,8 @@ namespace dmRender
     struct Sampler
     {
         dmhash_t                     m_NameHash;
+        // Array fallback bindings share the authored sampler's logical name.
+        dmhash_t                     m_LogicalNameHash;
         dmGraphics::TextureType      m_Type;
         dmGraphics::TextureFilter    m_MinFilter;
         dmGraphics::TextureFilter    m_MagFilter;
@@ -56,6 +58,7 @@ namespace dmRender
 
         Sampler()
             : m_NameHash(0)
+            , m_LogicalNameHash(0)
             , m_Type(dmGraphics::TEXTURE_TYPE_2D)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)

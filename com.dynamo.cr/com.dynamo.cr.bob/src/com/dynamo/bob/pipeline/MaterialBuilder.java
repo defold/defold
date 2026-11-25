@@ -153,10 +153,15 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return materialTaskBuilder.build();
     }
 
-    private static void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
-        for (ShaderDesc.Shader shader : shaderBuilder.getShadersList()) {
+    // Shared with the editor: aliases describe generated fallback bindings, not
+    // independent samplers. Rebuilding them also removes stale/editor-only aliases.
+    public static void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderDesc shaderDesc) {
+        for (MaterialDesc.Sampler.Builder sampler : materialBuilder.getSamplersBuilderList()) {
+            sampler.clearNameIndirections();
+        }
+        for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
             if (shader.getVariantTextureArray()) {
-                for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getTexturesList()) {
+                for (ShaderDesc.ResourceBinding resourceBinding : shaderDesc.getReflection().getTexturesList()) {
                     if (resourceBinding.getType().getShaderType() == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
                             resourceBinding.getType().getShaderType() == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY) {
 
@@ -241,7 +246,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         migrateTexturesToSamplers(materialBuilder);
         buildVertexAttributes(materialBuilder);
         buildSamplers(materialBuilder);
-        applyVariantTextureArray(materialBuilder, shaderBuilder);
+        applyVariantTextureArray(materialBuilder, shaderBuilder.build());
         buildPbrParameters(materialBuilder, shaderBuilder);
         return buildRenderState(materialBuilder.build(), shaderBuilder.getReflection());
     }

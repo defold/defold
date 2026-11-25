@@ -1329,6 +1329,66 @@ TEST_F(MaterialTest, InternalMaterialSamplersCannotBeChangedFromLua)
     dmResource::Release(m_Factory, resource);
 }
 
+// Lua partial sampler updates must resolve the logical array name and update every fallback binding.
+TEST_F(MaterialTest, LuaSamplerUpdatesConvergeAcrossFallbackBindings)
+{
+    TestShaderDesc shader("foo");
+    dmGraphics::ShaderDesc::ResourceBinding textures[2] = {};
+    const char* names[] = { "tex_0", "tex_1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    {
+        textures[i].m_Name = names[i];
+        textures[i].m_NameHash = dmHashString64(names[i]);
+        textures[i].m_Binding = i;
+        textures[i].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D;
+    }
+    shader.Get()->m_Reflection.m_Textures.m_Data = textures;
+    shader.Get()->m_Reflection.m_Textures.m_Count = DM_ARRAY_SIZE(textures);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+    uint64_t expected_hash = 0;
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        dmGraphics::TextureFilter min_filter = pass ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        {
+            ASSERT_TRUE(dmRender::SetMaterialSampler(material, textures[i].m_NameHash, i,
+                dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                min_filter, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+            dmRender::SetMaterialSamplerLogicalName(material, i, dmHashString64("tex"));
+        }
+        if (pass == 0)
+            expected_hash = dmRender::GetMaterialRenderHash(material);
+    }
+    ASSERT_NE(expected_hash, dmRender::GetMaterialRenderHash(material));
+
+    dmGameSystem::MaterialResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/material_constant_single.materialc", (void**)&resource));
+    dmRender::HMaterial original = resource->m_Material;
+    resource->m_Material = material;
+    bool updated = RunString(m_Scriptlibcontext.m_LuaState,
+        "material.set_samplers('/material/material_constant_single.materialc', {\n"
+        "    tex = { min_filter = graphics.TEXTURE_FILTER_LINEAR }\n"
+        "})\n");
+    resource->m_Material = original;
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(updated);
+    ASSERT_EQ(expected_hash, dmRender::GetMaterialRenderHash(material));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    {
+        dmRender::SamplerInfo actual;
+        ASSERT_TRUE(dmRender::GetSamplerInfo(dmRender::GetMaterialSampler(material, i), &actual));
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, actual.m_MinFilter);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, actual.m_MagFilter);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT, actual.m_UWrap);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT, actual.m_VWrap);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, actual.m_WWrap);
+        ASSERT_EQ(1.0f, actual.m_MaxAnisotropy);
+    }
+    dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(MiscTests, MaterialModule)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

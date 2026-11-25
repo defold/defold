@@ -274,8 +274,9 @@ namespace dmRender
         ApplyConstants(state, material.m_FragmentConstants.m_Data, material.m_FragmentConstants.m_Count);
         ApplyConstants(state, material.m_VertexConstants.m_Data, material.m_VertexConstants.m_Count);
 
-        // Record logical samplers, including array-emulation aliases. Their physical
-        // units and backend-specific types remain part of the runtime draw key.
+        // Record each logical sampler once. Generated array-emulation aliases are
+        // backend bindings, not independent material data. Their physical units
+        // and settings remain part of the runtime draw key.
         const uint32_t wraps[] = {dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE};
         for (uint32_t i = 0; i < material.m_Samplers.m_Count; ++i)
         {
@@ -306,11 +307,6 @@ namespace dmRender
             sampler.m_FilterMag = source.m_FilterMag == Desc::FILTER_MODE_MAG_DEFAULT ? 0 : source.m_FilterMag + 1;
             sampler.m_MaxAnisotropy = source.m_MaxAnisotropy;
             SetMaterialRenderSampler(state, sampler);
-            for (uint32_t j = 0; j < source.m_NameIndirections.m_Count; ++j)
-            {
-                sampler.m_NameHash = source.m_NameIndirections[j];
-                SetMaterialRenderSampler(state, sampler);
-            }
         }
         for (uint32_t i = 0; i < reflection.m_Inputs.m_Count; ++i)
         {

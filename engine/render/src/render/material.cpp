@@ -347,7 +347,16 @@ namespace dmRender
     {
         if (name_hash == 0 || IsMaterialInternalSampler(name_hash))
             return INVALID_SAMPLER_UNIT;
-        return GetProgramSamplerUnit(material->m_Samplers, name_hash);
+        uint32_t unit = GetProgramSamplerUnit(material->m_Samplers, name_hash);
+        if (unit != INVALID_SAMPLER_UNIT)
+            return unit;
+        // Array fallback programs only expose the generated slice uniforms.
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            if (material->m_Samplers[i].m_LogicalNameHash == name_hash)
+                return i;
+        }
+        return INVALID_SAMPLER_UNIT;
     }
 
     uint32_t GetMaterialUserTextureCount(HMaterial material)
@@ -726,12 +735,37 @@ namespace dmRender
         }
     }
 
-    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    static bool SamplerSettingsEqual(const Sampler& a, const Sampler& b)
     {
-        return SetMaterialSampler(material, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
+        return a.m_UWrap == b.m_UWrap && a.m_VWrap == b.m_VWrap && a.m_WWrap == b.m_WWrap &&
+            a.m_MinFilter == b.m_MinFilter && a.m_MagFilter == b.m_MagFilter && a.m_MaxAnisotropy == b.m_MaxAnisotropy;
     }
 
-    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    static void UpdateMaterialSamplerRenderState(HMaterial material, const Sampler& source)
+    {
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& binding = material->m_Samplers[i];
+            if (binding.m_LogicalNameHash == source.m_LogicalNameHash && !SamplerSettingsEqual(binding, source))
+            {
+                // A native caller may change just one physical binding. Such a
+                // state has no authored equivalent; the per-slot instancing hash
+                // keeps it separate until the entire logical group agrees again.
+                return;
+            }
+        }
+        dmRenderDDF::MaterialRenderState::Sampler sampler = {};
+        sampler.m_NameHash = source.m_LogicalNameHash;
+        sampler.m_WrapU = source.m_UWrap;
+        sampler.m_WrapV = source.m_VWrap;
+        sampler.m_WrapW = source.m_WWrap;
+        sampler.m_FilterMin = source.m_MinFilter;
+        sampler.m_FilterMag = source.m_MagFilter;
+        sampler.m_MaxAnisotropy = source.m_MaxAnisotropy;
+        SetMaterialRenderSampler(material->m_RenderState, sampler);
+    }
+
+    static bool SetMaterialSamplerBinding(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy, bool update_render_state)
     {
         if (IsMaterialInternalSampler(name_hash) || unit >= material->m_Samplers.Size())
             return false;
@@ -744,6 +778,7 @@ namespace dmRender
             return true;
         }
 
+        dmhash_t logical_name_hash = current_sampler.m_NameHash == name_hash ? current_sampler.m_LogicalNameHash : name_hash;
         // Descriptor order need not match reflection order, especially after
         // internal samplers have been removed from the ordinary texture slots.
         if (current_sampler.m_NameHash != name_hash)
@@ -768,16 +803,70 @@ namespace dmRender
         }
         if (!SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy))
             return false;
-        dmRenderDDF::MaterialRenderState::Sampler sampler = {};
-        sampler.m_NameHash = name_hash;
-        sampler.m_WrapU = u_wrap;
-        sampler.m_WrapV = v_wrap;
-        sampler.m_WrapW = w_wrap;
-        sampler.m_FilterMin = min_filter;
-        sampler.m_FilterMag = mag_filter;
-        sampler.m_MaxAnisotropy = max_anisotropy;
-        SetMaterialRenderSampler(material->m_RenderState, sampler);
+        material->m_Samplers[unit].m_LogicalNameHash = logical_name_hash;
+        if (update_render_state)
+            UpdateMaterialSamplerRenderState(material, material->m_Samplers[unit]);
         InvalidateMaterial(material);
+        return true;
+    }
+
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetMaterialSampler(material, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetMaterialSamplerBinding(material, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy, true);
+    }
+
+    void SetMaterialSamplerLogicalName(HMaterial material, uint32_t unit, dmhash_t logical_name_hash)
+    {
+        Sampler& sampler = material->m_Samplers[unit];
+        dmhash_t previous_name_hash = sampler.m_LogicalNameHash;
+        if (previous_name_hash == logical_name_hash)
+            return;
+        sampler.m_LogicalNameHash = logical_name_hash;
+
+        // The physical setter may have seeded a native material before its alias
+        // ownership was known. Remove that provisional entry once nothing owns it.
+        bool previous_name_in_use = false;
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+            previous_name_in_use |= material->m_Samplers[i].m_LogicalNameHash == previous_name_hash;
+        dmArray<dmRenderDDF::MaterialRenderState::Sampler>& state_samplers = material->m_RenderState->m_Samplers;
+        for (uint32_t i = 0; !previous_name_in_use && i < state_samplers.Size(); ++i)
+        {
+            if (state_samplers[i].m_NameHash == previous_name_hash)
+            {
+                // Keep the canonical array in name order.
+                for (uint32_t j = i + 1; j < state_samplers.Size(); ++j)
+                    state_samplers[j - 1] = state_samplers[j];
+                state_samplers.SetSize(state_samplers.Size() - 1);
+                break;
+            }
+        }
+        UpdateMaterialSamplerRenderState(material, sampler);
+        InvalidateMaterial(material);
+    }
+
+    bool SetMaterialSamplerOptions(HMaterial material, dmhash_t name_hash, const SamplerInfo& options)
+    {
+        uint32_t unit = GetMaterialSamplerUnit(material, name_hash);
+        if (unit == INVALID_SAMPLER_UNIT)
+            return false;
+        dmhash_t logical_name_hash = material->m_Samplers[unit].m_LogicalNameHash;
+        uint32_t version = material->m_Version;
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& sampler = material->m_Samplers[i];
+            if (sampler.m_LogicalNameHash == logical_name_hash)
+            {
+                SetMaterialSamplerBinding(material, sampler.m_NameHash, i, options.m_UWrap, options.m_VWrap, options.m_WWrap,
+                    options.m_MinFilter, options.m_MagFilter, options.m_MaxAnisotropy, false);
+            }
+        }
+        if (material->m_Version != version)
+            UpdateMaterialSamplerRenderState(material, material->m_Samplers[unit]);
         return true;
     }
 

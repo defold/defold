@@ -1568,6 +1568,121 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
 }
 
 
+// Native arrays and fallback aliases must converge with compiled state without losing physical-slot safety.
+TEST_F(dmRenderTest, ArraySamplerMutationsConverge)
+{
+    dmGraphics::ShaderDescBuilder native_shader;
+    native_shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    native_shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    native_shader.AddTexture("tex", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    dmGraphics::ShaderDescBuilder fallback_shader;
+    fallback_shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    fallback_shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    fallback_shader.AddTexture("tex_0", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    fallback_shader.AddTexture("tex_1", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmhash_t name = dmHashString64("tex");
+    dmhash_t aliases[] = { dmHashString64("tex_0"), dmHashString64("tex_1") };
+    dmRenderDDF::MaterialDesc::Sampler sampler = {};
+    sampler.m_Name = "tex";
+    sampler.m_NameIndirections.m_Data = aliases;
+    sampler.m_NameIndirections.m_Count = DM_ARRAY_SIZE(aliases);
+    dmRenderDDF::MaterialDesc desc = {};
+    desc.m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+    desc.m_Samplers.m_Data = &sampler;
+    desc.m_Samplers.m_Count = 1;
+
+    dmRender::SamplerInfo options[2] = {};
+    uint64_t compiled_hashes[2];
+    for (uint32_t fallback = 0; fallback < 2; ++fallback)
+    {
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext,
+            fallback ? fallback_shader.Get() : native_shader.Get(), 0, 0);
+        dmRender::HMaterial materials[2];
+        uint32_t sampler_count = fallback ? DM_ARRAY_SIZE(aliases) : 1;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+        {
+            sampler.m_WrapU = i ? dmRenderDDF::MaterialDesc::WRAP_MODE_REPEAT : dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE;
+            sampler.m_WrapV = i ? dmRenderDDF::MaterialDesc::WRAP_MODE_REPEAT : dmRenderDDF::MaterialDesc::WRAP_MODE_MIRRORED_REPEAT;
+            sampler.m_WrapW = i ? dmRenderDDF::MaterialDesc::WRAP_MODE_REPEAT : dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE;
+            sampler.m_FilterMin = i ? dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST : dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR;
+            sampler.m_FilterMag = i ? dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_NEAREST : dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR;
+            sampler.m_MaxAnisotropy = i ? 1.0f : 4.0f;
+            options[i].m_UWrap = i ? dmGraphics::TEXTURE_WRAP_REPEAT : dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+            options[i].m_VWrap = i ? dmGraphics::TEXTURE_WRAP_REPEAT : dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT;
+            options[i].m_WWrap = i ? dmGraphics::TEXTURE_WRAP_REPEAT : dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+            options[i].m_MinFilter = i ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+            options[i].m_MagFilter = i ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
+            options[i].m_MaxAnisotropy = sampler.m_MaxAnisotropy;
+
+            dmRender::MaterialRenderState state;
+            dmRender::BuildMaterialRenderState(desc, native_shader.Get()->m_Reflection, &state);
+            ASSERT_EQ(1u, state.m_Samplers.Size());
+            ASSERT_EQ(name, state.m_Samplers[0].m_NameHash);
+            compiled_hashes[i] = dmRender::HashMaterialRenderState(state);
+            materials[i] = dmRender::NewMaterial(m_Context, program);
+            const dmRender::SamplerInfo& settings = options[i];
+            for (uint32_t unit = 0; unit < sampler_count; ++unit)
+            {
+                ASSERT_TRUE(dmRender::SetMaterialSampler(materials[i], fallback ? aliases[unit] : name, unit,
+                    settings.m_UWrap, settings.m_VWrap, settings.m_WWrap,
+                    settings.m_MinFilter, settings.m_MagFilter, settings.m_MaxAnisotropy));
+                dmRender::SetMaterialSamplerLogicalName(materials[i], unit, name);
+            }
+            ASSERT_EQ(1u, materials[i]->m_RenderState->m_Samplers.Size());
+            ASSERT_EQ(compiled_hashes[i], dmRender::GetMaterialRenderHash(materials[i]));
+            dmRender::SetMaterialRenderState(materials[i], dmRender::GetMaterialRenderStateDDF(&state), compiled_hashes[i]);
+            // On fallback backends no physical uniform is named "tex".
+            ASSERT_EQ(0u, dmRender::GetMaterialSamplerUnit(materials[i], name));
+        }
+        ASSERT_NE(compiled_hashes[0], compiled_hashes[1]);
+        ASSERT_NE(dmRender::GetMaterialInstancingHash(materials[0]), dmRender::GetMaterialInstancingHash(materials[1]));
+
+        ASSERT_TRUE(dmRender::SetMaterialSamplerOptions(materials[1], name, options[0]));
+        ASSERT_EQ(compiled_hashes[0], dmRender::GetMaterialRenderHash(materials[1]));
+        ASSERT_EQ(dmRender::GetMaterialInstancingHash(materials[0]), dmRender::GetMaterialInstancingHash(materials[1]));
+        ASSERT_EQ(1u, materials[1]->m_RenderState->m_Samplers.Size());
+        for (uint32_t unit = 0; unit < sampler_count; ++unit)
+        {
+            const dmRender::Sampler& actual = materials[1]->m_Samplers[unit];
+            ASSERT_EQ(options[0].m_UWrap, actual.m_UWrap);
+            ASSERT_EQ(options[0].m_VWrap, actual.m_VWrap);
+            ASSERT_EQ(options[0].m_WWrap, actual.m_WWrap);
+            ASSERT_EQ(options[0].m_MinFilter, actual.m_MinFilter);
+            ASSERT_EQ(options[0].m_MagFilter, actual.m_MagFilter);
+            ASSERT_EQ(options[0].m_MaxAnisotropy, actual.m_MaxAnisotropy);
+        }
+        uint32_t version = dmRender::GetMaterialVersion(materials[1]);
+        ASSERT_TRUE(dmRender::SetMaterialSamplerOptions(materials[1], name, options[0]));
+        ASSERT_EQ(version, dmRender::GetMaterialVersion(materials[1]));
+
+        if (fallback)
+        {
+            // Native callers can still edit one physical alias without editing its siblings.
+            const dmRender::SamplerInfo& settings = options[1];
+            ASSERT_TRUE(dmRender::SetMaterialSampler(materials[1], aliases[0], 0,
+                settings.m_UWrap, settings.m_VWrap, settings.m_WWrap,
+                settings.m_MinFilter, settings.m_MagFilter, settings.m_MaxAnisotropy));
+            ASSERT_EQ(settings.m_MinFilter, materials[1]->m_Samplers[0].m_MinFilter);
+            ASSERT_EQ(options[0].m_MinFilter, materials[1]->m_Samplers[1].m_MinFilter);
+            ASSERT_EQ(compiled_hashes[0], dmRender::GetMaterialRenderHash(materials[1]));
+            ASSERT_NE(dmRender::GetMaterialInstancingHash(materials[0]), dmRender::GetMaterialInstancingHash(materials[1]));
+
+            // Once both slots agree again, physical edits and logical edits converge too.
+            ASSERT_TRUE(dmRender::SetMaterialSampler(materials[1], aliases[1], 1,
+                settings.m_UWrap, settings.m_VWrap, settings.m_WWrap,
+                settings.m_MinFilter, settings.m_MagFilter, settings.m_MaxAnisotropy));
+            ASSERT_EQ(compiled_hashes[1], dmRender::GetMaterialRenderHash(materials[1]));
+            ASSERT_TRUE(dmRender::SetMaterialSamplerOptions(materials[0], aliases[0], options[1]));
+            ASSERT_EQ(compiled_hashes[1], dmRender::GetMaterialRenderHash(materials[0]));
+            ASSERT_EQ(dmRender::GetMaterialInstancingHash(materials[0]), dmRender::GetMaterialInstancingHash(materials[1]));
+        }
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+            dmRender::DeleteMaterial(m_Context, materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+}
+
 // Unused sampler declarations must not split otherwise identical materials, including after mutation.
 TEST_F(dmMaterialInstancingHashTest, UnusedSamplersDoNotSplitBatches)
 {
@@ -1835,12 +1950,13 @@ TEST_F(dmMaterialInstancingHashTest, DuplicateSamplerSlotsStayConservative)
     dmhash_t name = dmHashString64("texture_sampler");
     for (uint32_t i = 0; i < 2; ++i)
     {
-        dmGraphics::TextureFilter filter = i ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[i], name, 0, dmGraphics::TEXTURE_WRAP_REPEAT,
-            dmGraphics::TEXTURE_WRAP_REPEAT, filter, filter, 1.0f));
+            dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[i], name, 1, dmGraphics::TEXTURE_WRAP_REPEAT,
             dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
     }
+    ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
     ASSERT_EQ(dmRender::GetMaterialRenderHash(m_Materials[0]), dmRender::GetMaterialRenderHash(m_Materials[1]));
     ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
 }

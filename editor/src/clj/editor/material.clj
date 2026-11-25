@@ -115,14 +115,17 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(defn- build-target-samplers [samplers max-page-count]
-  (mapv (fn [sampler]
-          (assoc sampler
-            :name-hash (murmur/hash64 (:name sampler))
-            :name-indirections (mapv (fn [slice-index]
-                                       (murmur/hash64 (str (:name sampler) "_" slice-index)))
-                                     (range max-page-count))))
-        samplers))
+(defn- build-target-samplers [samplers max-page-count shader-desc]
+  (let [material-builder (doto (Material$MaterialDesc/newBuilder)
+                           (.setMaxPageCount max-page-count)
+                           (.addAllSamplers
+                             (mapv (fn [sampler]
+                                     (protobuf/map->pb Material$MaterialDesc$Sampler
+                                                       (assoc sampler :name-hash (murmur/hash64 (:name sampler)))))
+                                   samplers)))]
+    (when shader-desc
+      (MaterialBuilder/applyVariantTextureArray material-builder shader-desc))
+    (mapv protobuf/pb->map-without-defaults (.getSamplersList material-builder))))
 
 (defn- attribute-info->error-values [{:keys [data-type error name normalize]} node-id label]
   (filterv some?
@@ -143,7 +146,7 @@
         (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
       (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
-            build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
+            build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count (get-in shader-desc-build-target [:user-data :shader-desc]))
             build-target-attributes (build-target-attributes attribute-infos)
             build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
             dep-build-targets [shader-desc-build-target]
