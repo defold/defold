@@ -193,6 +193,31 @@ add_subdirectory("${DEFOLD_HOME}/engine/sdk/src/test" sdk)
             self.assertEqual(1, len(list((build / 'sdk/sdk-headers/Debug').rglob('public.h'))))
             self.assertEqual([package / 'defold' / header], list(package.rglob('public.h')))
 
+    # Both resource executables must reuse the same compiled archive fixtures in focused builds.
+    def test_resource_archive_embeds_compile_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(resource_archive_objects LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+set(DEFOLD_RESOURCE_BINARY_DIR "${CMAKE_BINARY_DIR}/resource")
+file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_custom_target(build_tests)
+add_subdirectory("${DEFOLD_HOME}/engine/resource/src/test" resource-tests)
+''')
+            shared = self.configure_target(root, 'resource_test_archive_embeds', TARGET_PLATFORM='x86_64-linux')
+            self.assertEqual('OBJECT_LIBRARY', shared['type'])
+            self.assertTrue(any(src['path'].endswith('.embed.cpp') for src in shared['sources']))
+            for name in ('test_resource', 'test_resource_archive'):
+                target = self.read_target(root, name)
+                self.assertIn(shared['id'], [dep['id'] for dep in target['dependencies']])
+                self.assertFalse(any(src['path'].endswith('.embed.cpp') for src in target['sources']))
+
     # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
     def test_server_groups_match_direct_target_locks(self):
         for platform in ('arm64-macos', 'x86_64-linux', 'x86_64-win32'):
