@@ -41,6 +41,25 @@ if(SDK_EXTRA_INCLUDE_DIR)
     file(MAKE_DIRECTORY "${_extra_relative_dir}")
     configure_file("${_extra_header}" "${SDK_EXTRA_INCLUDE_DIR}/${_extra_relative}" COPYONLY)
   endforeach()
+  file(GLOB_RECURSE _sdk_header_candidates CONFIGURE_DEPENDS
+    RELATIVE "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk"
+    "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk/*.h"
+    "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk/*.hpp")
+else()
+  # Use the install manifest from the graph. Watching the live SDK would
+  # reconfigure Ninja whenever Bob's dependencies or the engine are installed.
+  set(_sdk_header_candidates ${DEFOLD_DMSDK_HEADER_NAMES})
+  set(SDK_TEST_HEADER_STAGE "${CMAKE_CURRENT_BINARY_DIR}/sdk-headers/$<CONFIG>")
+  set(_sdk_staged_headers ${_sdk_header_candidates})
+  list(TRANSFORM _sdk_staged_headers PREPEND "${SDK_TEST_HEADER_STAGE}/sdk/include/dmsdk/")
+  add_custom_command(
+    OUTPUT ${_sdk_staged_headers}
+    COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config "$<CONFIG>"
+      --prefix "${SDK_TEST_HEADER_STAGE}" --component defold_sdk_headers
+    DEPENDS ${DEFOLD_DMSDK_HEADER_SOURCES} "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+    COMMENT "Staging public headers for SDK tests"
+    VERBATIM)
+  add_custom_target(sdk_test_headers DEPENDS ${_sdk_staged_headers})
 endif()
 
 function(sdk_write_if_different path content)
@@ -74,6 +93,9 @@ function(sdk_apply_header_test_settings target)
     "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
   if(SDK_EXTRA_INCLUDE_DIR)
     target_include_directories(${target} PRIVATE "${SDK_EXTRA_INCLUDE_DIR}")
+  else()
+    target_include_directories(${target} BEFORE PRIVATE "${SDK_TEST_HEADER_STAGE}/sdk/include")
+    add_dependencies(${target} sdk_test_headers)
   endif()
   target_compile_definitions(${target} PRIVATE
     __STDC_LIMIT_MACROS
@@ -236,10 +258,6 @@ set(_sdk_c_includes
 
 file(READ "${SDK_TEST_ROOT}/test_include.cpp" _sdk_include_cpp_template)
 file(READ "${SDK_TEST_ROOT}/test_include.c" _sdk_include_c_template)
-file(GLOB_RECURSE _sdk_header_candidates CONFIGURE_DEPENDS
-  RELATIVE "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk"
-  "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk/*.h"
-  "${SDK_INSTALLED_INCLUDE_DIR}/dmsdk/*.hpp")
 
 set(_sdk_include_cpp_sources)
 set(_sdk_include_c_sources)

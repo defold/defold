@@ -692,7 +692,7 @@ class Configuration(object):
 
         cmake_cache = join(build_dir, 'CMakeCache.txt')
         if os.path.exists(cmake_cache) and not (
-                self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+                cmake_configure_state == previous_cmake_configure_state
                 and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)):
             self._clean_cmake_builddir(build_dir)
 
@@ -1983,58 +1983,6 @@ class Configuration(object):
             'defines': defines
         }
 
-    def _cmake_configure_state_matches(self, current, previous, allow_compatible_configure):
-        """
-        Returns True when the existing CMake build directory was configured with
-        the same effective inputs.
-
-        The compatibility mode exists for same-platform builds where the host
-        tool pass runs before the full engine pass. A previous "all" configure
-        is valid for a later "host" request because the full build graph already
-        contains the host targets. The opposite direction is intentionally not
-        accepted, since a host-only build graph may be missing engine targets.
-        """
-        if not previous:
-            return False
-        if current == previous:
-            return True
-        if not allow_compatible_configure:
-            return False
-
-        if current.get('builddir') != previous.get('builddir'):
-            return False
-        if current.get('defold_root') != previous.get('defold_root'):
-            return False
-        if current.get('dynamo_home') != previous.get('dynamo_home'):
-            return False
-        if current.get('cmake_inputs_mtime') != previous.get('cmake_inputs_mtime'):
-            return False
-
-        current_defines = dict(current.get('defines', {}))
-        previous_defines = dict(previous.get('defines', {}))
-        current_lib_set = current_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
-        previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
-        current_build_tests = current_defines.pop('BUILD_TESTS', None)
-        previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
-        current_skip_bob_light = current_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
-        previous_skip_bob_light = previous_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
-
-        if current_defines != previous_defines:
-            return False
-        if current_lib_set != 'host' or previous_lib_set != 'all':
-            return False
-        if current_build_tests != 'OFF':
-            return False
-        if (current_skip_bob_light not in ('OFF', 'ON')
-                or previous_skip_bob_light != 'ON'):
-            return False
-
-        # A same-platform host pass may reuse the previous full build graph even
-        # when that graph contains tests. The host pass only builds the default
-        # target, so test targets remain excluded. Installation is deferred to
-        # the subsequent full engine pass when reusing this configuration.
-        return previous_build_tests in ('OFF', 'ON')
-
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
             return False
@@ -2215,7 +2163,8 @@ class Configuration(object):
         except run.ExecException as error:
             sys.exit(error.retcode)
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests=False,
+                                 use_external_bob_light=False, prepare_bob_light=False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -2256,7 +2205,7 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_external_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
@@ -2286,19 +2235,11 @@ class Configuration(object):
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
 
-        configure_state_matches = self._cmake_configure_state_matches(
-            cmake_configure_state,
-            previous_cmake_configure_state,
-            allow_compatible_configure)
-        compatible_configure = (configure_state_matches
-                                and cmake_configure_state != previous_cmake_configure_state)
-        validation_configure_state = (previous_cmake_configure_state
-                                      if compatible_configure else cmake_configure_state)
         skip_configure = (
             os.path.exists(cmake_cache)
-            and configure_state_matches
-            and self._cmake_cache_matches_configure_state(cmake_cache, validation_configure_state)
-            and self._cmake_generated_install_matches_configure_state(validation_configure_state)
+            and cmake_configure_state == previous_cmake_configure_state
+            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
+            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
             and generated_outputs_match)
         if skip_configure:
             self._log_step(f'Skipping CMake configure {name}; configure state is unchanged')
@@ -2308,6 +2249,18 @@ class Configuration(object):
                 json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
         self.build_tracker.end_command(log_cmd_config)
+
+        if prepare_bob_light:
+            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
+            self.build_tracker.start_command(log_cmd_stage)
+
+            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
+            if is_verbose:
+                cmake_stage_args.append('--verbose')
+            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
+
+            self.build_tracker.end_command(log_cmd_stage)
+            self.build_bob_light()
 
         # ***************************************************************************************
         # execute the build
@@ -2323,34 +2276,17 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
-        if compatible_configure:
-            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
-            self.build_tracker.start_command(log_cmd_stage)
-
-            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
-            if is_verbose:
-                cmake_stage_args.append('--verbose')
-            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
-
-            self.build_tracker.end_command(log_cmd_stage)
-
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
-        # When a same-platform host pass reuses the full engine configuration,
-        # defer installation until the subsequent engine pass has built every
-        # target referenced by the full graph's install rules.
-        if compatible_configure:
-            self._log_step(f'Deferring CMake install {name}; reusing full engine configuration')
-        else:
-            log_cmd_install = f'CMake install {name}'
-            self.build_tracker.start_command(log_cmd_install)
+        log_cmd_install = f'CMake install {name}'
+        self.build_tracker.start_command(log_cmd_install)
 
-            cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
-            if is_verbose:
-                cmake_install_args.append('--verbose')
-            self._run_cmake(cmake_install_args, builddir, name, 'install')
+        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
+        if is_verbose:
+            cmake_install_args.append('--verbose')
+        self._run_cmake(cmake_install_args, builddir, name, 'install')
 
-            self.build_tracker.end_command(log_cmd_install)
+        self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -2449,26 +2385,25 @@ class Configuration(object):
 
         host = self.host
         target_platform = self.target_platform
+        native_build = host == target_platform
         self._log_step('Building engine libs with top-level CMake (incremental by default)')
 
-        # Make sure we build these for the host platform for the toolchain (bob light)
-        self.build_tracker.start_component('cmake_host_libs', host)
-        self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests = True, allow_compatible_configure = host == target_platform)
-        self.build_tracker.end_component('cmake_host_libs', host)
+        if not native_build:
+            # Cross-builds need a separate graph for the host toolchain.
+            self.build_tracker.start_component('cmake_host_libs', host)
+            self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests=True)
+            self.build_tracker.end_component('cmake_host_libs', host)
 
-        if not self.skip_bob_light:
-            # We must build bob-light, which builds content during the engine build
-            self.build_bob_light()
+            if not self.skip_bob_light:
+                self.build_bob_light()
 
-        reuse_builddir = host == target_platform
-        target_lib_set = 'all' if reuse_builddir else 'target'
         self.build_tracker.start_component('cmake_engine_libs', target_platform)
         self._build_engine_libs_cmake(
             'engine_libs',
-            target_lib_set,
+            'all' if native_build else 'target',
             target_platform,
-            reuse_builddir = reuse_builddir,
-            use_existing_bob_light = True)
+            use_external_bob_light=True,
+            prepare_bob_light=native_build and not self.skip_bob_light)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if not self.skip_docs:
@@ -2828,7 +2763,7 @@ class Configuration(object):
                     pass
 
             cmake_cache = join(builddir, 'CMakeCache.txt')
-            skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+            skip_configure = os.path.exists(cmake_cache) and cmake_configure_state == previous_cmake_configure_state
             if skip_configure:
                 self._log_step('Skipping CMake configure build_docs; configure state is unchanged')
             else:

@@ -25,7 +25,7 @@ get_filename_component(DEFOLD_JAVA_HOME "${_DEFOLD_JAVA_BIN_DIR}/.." ABSOLUTE)
 unset(_DEFOLD_JAVA_BIN_DIR)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-option(DEFOLD_SKIP_BOB_LIGHT "Use an existing bob-light.jar instead of building it" OFF)
+option(DEFOLD_SKIP_BOB_LIGHT "Use a bob-light.jar supplied outside CMake" OFF)
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
   add_custom_target(bob_light DEPENDS "${DEFOLD_BOB_LIGHT_JAR}")
 endif()

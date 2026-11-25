@@ -354,6 +354,11 @@ foreach(index RANGE 1 24)
 endforeach()
 add_custom_target(build_tests DEPENDS ${outputs})
 add_custom_target(success ALL DEPENDS ${outputs})
+add_custom_target(stage_bob_light_dependencies
+  COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/bob-light-dependencies.stamp")
+if(DEFOLD_SKIP_BOB_LIGHT)
+  add_custom_target(engine_content ALL DEPENDS "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
+endif()
 add_custom_target(failure
   COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/task.py" ignored fail VERBATIM)
 add_dependencies(failure success)
@@ -467,24 +472,46 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
         self.assertIn('unrelated successful tool output', text)
         self.assertIn('unrelated successful tool output', log)
 
-    # The engine build path routes configure, build, install, and tests through the compact runner.
-    def test_engine_cmake_phases_use_compact_output(self):
+    # A native engine build stages Bob dependencies in the full graph before building Bob or the engine.
+    def test_native_engine_bootstraps_bob_light_with_one_configure(self):
         configuration = build.Configuration(dynamo_home=str(self.root / 'sdk'),
-                                            target_platform=build.sdk.get_host_platform(), no_colors=True)
+                                            target_platform=build.get_host_platform(),
+                                            skip_docs=True, skip_builtins=True, no_colors=True)
         configuration.defold_root = str(self.root)
-        configuration._platform_build_home = lambda platform: str(self.root)
         configuration._cmake_top_build_dir = lambda platform: str(self.builddir)
         configuration._form_env = lambda: self.env.copy()
         configuration._can_run_tests = lambda: True
         configuration._log = lambda message: None
         configuration.build_tracker = mock.Mock()
+        configuration.check_sdk = mock.Mock()
         # The fixture does not use the engine's feature flags; pass its interpreter through the environment cache.
         configuration._cmake_feature_defines = lambda: [f'-DPYTHON_EXECUTABLE={sys.executable}']
-        with contextlib.redirect_stdout(io.StringIO()) as stream:
-            configuration._build_engine_libs_cmake('engine_libs', 'all', configuration.target_platform)
+        bob_light_jar = self.root / 'sdk/share/java/bob-light.jar'
+
+        def build_bob_light():
+            self.assertTrue((self.builddir / 'bob-light-dependencies.stamp').is_file())
+            self.assertFalse((self.builddir / 'step1.stamp').exists())
+            self.assertFalse(bob_light_jar.exists())
+            bob_light_jar.parent.mkdir()
+            bob_light_jar.touch()
+
+        configuration.build_bob_light = mock.Mock(side_effect=build_bob_light)
+        with contextlib.redirect_stdout(io.StringIO()) as stream, \
+                mock.patch.object(configuration, '_run_cmake', wraps=configuration._run_cmake) as run_cmake, \
+                mock.patch.object(build, 'write_merged_platform_sdks'), \
+                mock.patch.dict(os.environ):
+            configuration.build_engine()
+
+        configuration.build_bob_light.assert_called_once_with()
+        configure_args = run_cmake.call_args_list[0].args[0]
+        self.assertIn('-DDEFOLD_ENGINE_LIB_SET=all', configure_args)
+        self.assertIn('-DBUILD_TESTS=ON', configure_args)
+        self.assertIn('-DDEFOLD_SKIP_BOB_LIGHT:BOOL=ON', configure_args)
+        phases = [call.args[3] for call in run_cmake.call_args_list]
+        self.assertEqual(['configure', 'stage', 'build', 'install', 'tests'], phases)
         self.assertNotIn('unrelated successful tool output', stream.getvalue())
         self.assertNotIn('test suite completed', stream.getvalue())
-        for phase in ('configure', 'build', 'install', 'tests'):
+        for phase in phases:
             self.assertTrue((self.builddir / 'logs' / f'engine_libs-{phase}.log').is_file(), phase)
         self.assertTrue((self.root / 'sdk/share/step1.stamp').is_file())
 

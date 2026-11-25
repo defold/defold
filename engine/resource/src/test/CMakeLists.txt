@@ -17,11 +17,6 @@ if(NOT RESOURCE_PYTHON)
 endif()
 
 set(RESOURCE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-if(NOT EXISTS "${RESOURCE_BOB_LIGHT}")
-  if(NOT TARGET bob_light)
-    message(FATAL_ERROR "bob-light.jar not found and bob_light target is unavailable: ${RESOURCE_BOB_LIGHT}")
-  endif()
-endif()
 
 set(RESOURCE_ARCHIVE_BASE_SOURCES
   "archive_data/file4.ad"

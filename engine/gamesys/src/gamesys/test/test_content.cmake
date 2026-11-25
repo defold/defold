@@ -23,11 +23,6 @@ endfunction()
 # Build the runtime test content tree under the platform build root.
 # ---------------------------------------------------------------------------
 set(_GS_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-if(NOT EXISTS "${_GS_BOB_LIGHT}")
-  if(NOT TARGET bob_light)
-    message(FATAL_ERROR "bob-light.jar not found and bob_light target is unavailable: ${_GS_BOB_LIGHT}")
-  endif()
-endif()
 
 set(_GS_BOB_PLUGIN_JARS)
 if(COMMAND defold_append_platform_bob_plugin_jars)
