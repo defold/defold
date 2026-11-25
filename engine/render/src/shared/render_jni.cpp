@@ -38,7 +38,7 @@ JNIEXPORT jbyteArray JNICALL BuildMaterialRenderState(JNIEnv* env, jclass cls, j
             dmRenderDDF::MaterialDesc compiled = *material;
             dmRenderDDF::MaterialRenderState state_ddf = dmRender::GetMaterialRenderStateDDF(&state);
             compiled.m_RenderState = &state_ddf;
-            compiled.m_RenderHash = dmRender::HashMaterialRenderState(state, 0);
+            compiled.m_RenderHash = dmRender::HashMaterialRenderState(state);
             dmArray<uint8_t> bytes;
             if (dmDDF::SaveMessageToArray(&compiled, dmRenderDDF::MaterialDesc::m_DDFDescriptor, bytes) == dmDDF::RESULT_OK)
             {

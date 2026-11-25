@@ -33,7 +33,7 @@ namespace dmRender
 
     static void InvalidateMaterial(HMaterial material)
     {
-        material->m_RenderHashDirtyMask = 0xf;
+        material->m_RenderHashDirty = 1;
         ++material->m_Version;
     }
 
@@ -345,12 +345,28 @@ namespace dmRender
 
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
+        if (name_hash == 0 || IsMaterialInternalSampler(name_hash))
+            return INVALID_SAMPLER_UNIT;
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
+    }
+
+    uint32_t GetMaterialUserTextureCount(HMaterial material)
+    {
+        return RenderObject::MAX_TEXTURE_COUNT - material->m_HasSkinnedMatrixCache - material->m_HasMorphTargetsSampler;
+    }
+
+    uint32_t GetMaterialInternalTextureSlot(HMaterial material, dmhash_t name_hash)
+    {
+        if (name_hash == SAMPLER_POSE_MATRIX_CACHE && material->m_HasSkinnedMatrixCache)
+            return GetMaterialUserTextureCount(material);
+        if (name_hash == SAMPLER_MORPH_TARGETS && material->m_HasMorphTargetsSampler)
+            return RenderObject::MAX_TEXTURE_COUNT - 1;
+        return INVALID_SAMPLER_UNIT;
     }
 
     HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
-        if (unit < material->m_Samplers.Size())
+        if (unit < material->m_Samplers.Size() && material->m_Samplers[unit].m_NameHash)
         {
             return &material->m_Samplers[unit];
         }
@@ -376,25 +392,23 @@ namespace dmRender
     {
         CopyMaterialRenderState(state, material->m_RenderState);
         InvalidateMaterial(material);
-        material->m_RenderHashes[0] = render_hash;
-        material->m_RenderHashDirtyMask &= ~1u;
+        material->m_RenderHash = render_hash;
+        material->m_RenderHashDirty = 0;
     }
 
-    uint64_t GetMaterialRenderHash(HMaterial material, uint32_t flags)
+    uint64_t GetMaterialRenderHash(HMaterial material)
     {
-        assert(flags < DM_ARRAY_SIZE(material->m_RenderHashes));
-        uint32_t dirty_bit = 1u << flags;
-        if (material->m_RenderHashDirtyMask & dirty_bit)
+        if (material->m_RenderHashDirty)
         {
-            material->m_RenderHashes[flags] = HashMaterialRenderState(*material->m_RenderState, flags);
-            material->m_RenderHashDirtyMask &= ~dirty_bit;
+            material->m_RenderHash = HashMaterialRenderState(*material->m_RenderState);
+            material->m_RenderHashDirty = 0;
         }
-        return material->m_RenderHashes[flags];
+        return material->m_RenderHash;
     }
 
-    uint64_t GetMaterialInstancingHash(HMaterial material, uint32_t flags)
+    uint64_t GetMaterialInstancingHash(HMaterial material)
     {
-        uint64_t render_hash = GetMaterialRenderHash(material, flags);
+        uint64_t render_hash = GetMaterialRenderHash(material);
         HashState64 state;
         dmHashInit64(&state, false);
         dmHashUpdateBuffer64(&state, &render_hash, sizeof(render_hash));
@@ -405,7 +419,7 @@ namespace dmRender
         for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
         {
             const Sampler& sampler = material->m_Samplers[i];
-            if (!sampler.m_NameHash || IsMaterialRenderSamplerExcluded(sampler.m_NameHash, flags))
+            if (!sampler.m_NameHash || IsMaterialInternalSampler(sampler.m_NameHash))
                 continue;
             dmHashUpdateBuffer64(&state, &i, sizeof(i));
             dmHashUpdateBuffer64(&state, &sampler.m_NameHash, sizeof(sampler.m_NameHash));
@@ -719,16 +733,38 @@ namespace dmRender
 
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        if (unit < material->m_Samplers.Size())
+        if (IsMaterialInternalSampler(name_hash) || unit >= material->m_Samplers.Size())
+            return false;
+        const Sampler& current_sampler = material->m_Samplers[unit];
+        if (current_sampler.m_NameHash == name_hash && name_hash != 0 &&
+            current_sampler.m_UWrap == u_wrap && current_sampler.m_VWrap == v_wrap && current_sampler.m_WWrap == w_wrap &&
+            current_sampler.m_MinFilter == min_filter && current_sampler.m_MagFilter == mag_filter &&
+            current_sampler.m_MaxAnisotropy == max_anisotropy)
         {
-            const Sampler& sampler = material->m_Samplers[unit];
-            if (sampler.m_NameHash == name_hash && name_hash != 0 &&
-                sampler.m_UWrap == u_wrap && sampler.m_VWrap == v_wrap && sampler.m_WWrap == w_wrap &&
-                sampler.m_MinFilter == min_filter && sampler.m_MagFilter == mag_filter &&
-                sampler.m_MaxAnisotropy == max_anisotropy)
+            return true;
+        }
+
+        // Descriptor order need not match reflection order, especially after
+        // internal samplers have been removed from the ordinary texture slots.
+        if (current_sampler.m_NameHash != name_hash)
+        {
+            bool found = false;
+            uint32_t count = dmGraphics::GetUniformCount(material->m_Program);
+            for (uint32_t i = 0; i < count; ++i)
             {
-                return true;
+                dmGraphics::Uniform uniform;
+                dmGraphics::GetUniform(material->m_Program, i, &uniform);
+                if (uniform.m_NameHash == name_hash && dmGraphics::IsTypeTextureType(uniform.m_Type) &&
+                    uniform.m_Location != dmGraphics::INVALID_UNIFORM_LOCATION)
+                {
+                    material->m_Samplers[unit].m_Type = dmGraphics::TypeToTextureType(uniform.m_Type);
+                    material->m_Samplers[unit].m_UnitValueCount = uniform.m_Count;
+                    found = true;
+                    break;
+                }
             }
+            if (!found)
+                return false;
         }
         if (!SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy))
             return false;

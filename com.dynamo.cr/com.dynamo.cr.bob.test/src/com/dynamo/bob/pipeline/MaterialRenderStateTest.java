@@ -133,6 +133,31 @@ public class MaterialRenderStateTest {
         assertEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.clearSamplers().build(), noTextures).getRenderHash());
     }
 
+    // Engine-owned skinning and morph samplers use fixed draw settings, not authored material sampler state.
+    @Test
+    public void internalSamplersDoNotAffectRenderHash() {
+        ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
+        MaterialDesc.Builder input = material();
+        String[] internalSamplers = {"pose_matrix_cache", "morph_targets"};
+        for (String name : internalSamplers) {
+            reflection.addTextures(ShaderDesc.ResourceBinding.newBuilder().setName(name).setNameHash(MurmurHash.hash64(name))
+                .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D)));
+            input.addSamplers(input.getSamplers(0).toBuilder().setName(name)
+                .addNameIndirections(MurmurHash.hash64(name + "_0")));
+        }
+        MaterialDesc original = MaterialBuilder.buildRenderState(material().build(), reflection.build());
+        MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+        assertEquals(1, compiled.getRenderState().getSamplersCount());
+        assertEquals(original.getRenderHash(), compiled.getRenderHash());
+        for (int i = 1; i < input.getSamplersCount(); ++i) {
+            input.getSamplersBuilder(i).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
+                .setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST).setMaxAnisotropy(16);
+            assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
+        }
+        input.getSamplersBuilder(0).setMaxAnisotropy(16);
+        assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
+    }
+
     // Array fallback aliases are generated from a reflected base sampler, not separate reflection entries.
     @Test
     public void reflectedArraySamplerKeepsFallbackAliases() {

@@ -87,7 +87,7 @@ namespace dmRender
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
             m_Version = 1;
             m_AttributeVersion = 1;
-            m_RenderHashDirtyMask = 0xf;
+            m_RenderHashDirty = 1;
         }
 
         dmRender::HRenderContext                    m_RenderContext;
@@ -104,10 +104,7 @@ namespace dmRender
         dmArray<Sampler>                            m_Samplers;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         MaterialRenderState*                        m_RenderState;
-        // Indexed by the two MaterialInstancingHashFlags bits: 0 = full state,
-        // 1 = exclude pose cache sampler, 2 = exclude morph targets sampler,
-        // 3 = exclude both. Recompute each combination lazily after material changes.
-        uint64_t                                    m_RenderHashes[4];
+        uint64_t                                    m_RenderHash;
         uint32_t                                    m_Version;
         uint32_t                                    m_AttributeVersion;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
@@ -121,7 +118,7 @@ namespace dmRender
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
         uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
-        uint8_t                                     m_RenderHashDirtyMask : 4;
+        uint8_t                                     m_RenderHashDirty : 1;
     };
 
     struct ComputeProgram

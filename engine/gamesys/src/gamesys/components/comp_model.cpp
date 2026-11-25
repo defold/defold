@@ -164,23 +164,12 @@ namespace dmGameSystem
         uint16_t                         m_BindPoseCacheTextureCurrentHeight;
     };
 
-    struct ModelRenderObject : dmRender::RenderObject
-    {
-        dmRender::TextureSamplerOverride m_ModelSamplers[2];
-
-        void Init()
-        {
-            dmRender::RenderObject::Init();
-            m_SamplerOverrides = m_ModelSamplers;
-        }
-    };
-
     struct ModelWorld
     {
         dmRender::HRenderContext         m_RenderContext;
         dmRender::HRenderItemDispatch    m_RenderDispatch;
         dmObjectPool<ModelComponent*>    m_Components;
-        dmArray<ModelRenderObject>       m_RenderObjects;
+        dmArray<dmRender::RenderObject>   m_RenderObjects;
         DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_VertexDeclarationSkinned;
@@ -549,12 +538,10 @@ namespace dmGameSystem
         return texture_res;
     }
 
-    static int32_t FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
+    static bool FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index, dmRender::HMaterial render_material)
     {
         MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
-
-        int32_t first_free_index = -1;
-        bool first_free_index_set = false;
+        uint32_t user_texture_count = dmRender::GetMaterialUserTextureCount(render_material);
 
         for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
@@ -564,15 +551,15 @@ namespace dmGameSystem
                 texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
             }
 
-            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
-
-            if (ro->m_Textures[i] == 0 && !first_free_index_set)
+            if (texture_res && i >= user_texture_count)
             {
-                first_free_index_set = true;
-                first_free_index = i;
+                dmLogOnceError("Unable to bind model textures for component '%s': the render material reserves texture slot %u for internal resources.",
+                    dmHashReverseSafe64(dmGameObject::GetIdentifier(component->m_Instance)), i);
+                return false;
             }
+            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
         }
-        return first_free_index;
+        return true;
     }
 
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
@@ -580,12 +567,11 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
     }
 
-    static uint32_t HashEffectiveTextures(HashState32* state, const ModelComponent* component, uint32_t material_index)
+    static void HashEffectiveTextures(HashState32* state, const ModelComponent* component, uint32_t material_index)
     {
         MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
         const MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
 
-        uint32_t free_texture_count = 0;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             TextureResource* texture_resource = component->m_Textures[i];
@@ -596,9 +582,7 @@ namespace dmGameSystem
 
             dmGraphics::HTexture texture = texture_resource ? texture_resource->m_Texture : 0;
             dmHashUpdateBuffer32(state, &texture, sizeof(texture));
-            free_texture_count += texture == 0;
         }
-        return free_texture_count;
     }
 
     static void GetRenderItemMorphWeights(const ModelComponent* component, const MeshRenderItem* render_item, const float** weights_out, uint32_t* weights_count_out)
@@ -634,21 +618,12 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
 
-        uint32_t free_texture_count = HashEffectiveTextures(state, component, item.m_MaterialIndex);
+        HashEffectiveTextures(state, component, item.m_MaterialIndex);
 
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
-            // Only ignore sampler state that this mesh replaces while preparing its draw.
-            uint32_t sampler_flags = 0;
-            if (free_texture_count && IsRenderItemSkinned(component, &item) && dmRender::GetMaterialHasSkinnedMatrixCache(material))
-            {
-                sampler_flags |= dmRender::MATERIAL_INSTANCING_HASH_SKIP_POSE_CACHE;
-                --free_texture_count;
-            }
-            if (free_texture_count && item.m_Mesh->m_MorphTargetCount && dmRender::GetMaterialHasMorphTargetsSampler(material))
-                sampler_flags |= dmRender::MATERIAL_INSTANCING_HASH_SKIP_MORPH_TARGETS;
-            uint64_t material_hash = dmRender::GetMaterialInstancingHash(material, sampler_flags);
+            uint64_t material_hash = dmRender::GetMaterialInstancingHash(material);
             dmHashUpdateBuffer32(state, &material_hash, sizeof(material_hash));
 
             // We need to hash the mesh pointer for instance grouping
@@ -1486,58 +1461,13 @@ namespace dmGameSystem
     }
     #endif
 
-    static bool SetModelSampler(dmRender::RenderObject* ro, dmRender::HMaterial material, dmhash_t name, uint32_t unit)
+    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture)
     {
-        if (dmRender::GetMaterialConstantLocation(material, name) == dmGraphics::INVALID_UNIFORM_LOCATION)
-            return false;
-        assert(ro->m_SamplerOverrideCount < 2);
-        dmRender::TextureSamplerOverride& sampler = ro->m_SamplerOverrides[ro->m_SamplerOverrideCount++];
-        sampler.m_NameHash = name;
-        sampler.m_TextureIndex = unit;
-        sampler.m_UWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-        sampler.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-        sampler.m_WWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
-        sampler.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        sampler.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        sampler.m_MaxAnisotropy = 0.0f;
-        return true;
-    }
-
-    static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
-    {
-        if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
+        uint32_t unit = dmRender::GetMaterialInternalTextureSlot(material, dmRender::SAMPLER_POSE_MATRIX_CACHE);
+        if (unit != dmRender::INVALID_SAMPLER_UNIT)
         {
-            if (first_free_index >= 0)
-            {
-                if (SetModelSampler(&ro, material, dmRender::SAMPLER_POSE_MATRIX_CACHE, first_free_index))
-                {
-                    ro.m_Textures[first_free_index] = cache_texture;
-                }
-                else
-                {
-                    dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', does the shader(s) have a sampler named '%s'?",
-                        dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)),
-                        dmHashReverseSafe64(dmRender::SAMPLER_POSE_MATRIX_CACHE));
-                }
-            }
-            else
-            {
-                dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', no free texture slot available.",
-                    dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
-            }
+            ro.m_Textures[unit] = cache_texture;
         }
-    }
-
-    static int32_t FindNextFreeTextureSlot(dmRender::RenderObject* ro)
-    {
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (ro->m_Textures[i] == 0)
-            {
-                return (int32_t)i;
-            }
-        }
-        return -1;
     }
 
     static void FillMorphWeightsVector4Slots(const float* weights, uint32_t weight_count, dmVMath::Vector4* out, uint32_t num_vec4_slots)
@@ -1563,27 +1493,14 @@ namespace dmGameSystem
     }
 
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
-        ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HInstance log_instance)
+        ModelComponent* component, const MeshRenderItem* render_item)
     {
         if (!MorphTargetsNeedShaderData(render_item, material))
         {
             return;
         }
 
-        int32_t unit = FindNextFreeTextureSlot(ro);
-        if (unit < 0)
-        {
-            dmLogOnceError("Unable to bind morph_targets texture for component '%s', no free texture slot available.",
-                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
-            return;
-        }
-
-        if (!SetModelSampler(ro, material, dmRender::SAMPLER_MORPH_TARGETS, (uint32_t) unit))
-        {
-            dmLogOnceError("Unable to bind morph_targets texture for component '%s', does the material declare sampler 'morph_targets'?",
-                dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
-            return;
-        }
+        uint32_t unit = dmRender::GetMaterialInternalTextureSlot(material, dmRender::SAMPLER_MORPH_TARGETS);
         ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
 
         if (dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
@@ -1765,7 +1682,7 @@ namespace dmGameSystem
         uint8_t* instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-        ModelRenderObject& ro = world->m_RenderObjects.Back();
+        dmRender::RenderObject& ro = world->m_RenderObjects.Back();
 
         ro.Init();
         ro.m_Material                                     = GetComponentMaterial(component, component->m_Resource, material_index);
@@ -1789,7 +1706,11 @@ namespace dmGameSystem
         const bool               use_transform_layout = GetInstanceTransformLayout(material_infos, &transform_layout);
         const bool               share_batch_vertex_data = use_transform_layout && CanShareVertexData(material_infos);
 
-        int32_t                  first_free_index = FillTextures(&ro, component, material_index);
+        if (!FillTextures(&ro, component, material_index, render_material))
+        {
+            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size() - 1);
+            return;
+        }
         MeshAttributeRenderData  shared_attribute_data;
         bool                     has_shared_attribute_data = false;
         bool                     shared_attributes_bound = false;
@@ -1947,7 +1868,7 @@ namespace dmGameSystem
 
         // The cache sampler is draw-wide, including batches with custom instance attributes.
         if (IsRenderItemSkinned(component, render_item))
-            SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
+            SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
 
         // If the material supports PBR data, we need to use the render item's constants.
         // Otherwise, each render item will overwrite the component render constants with new values
@@ -1969,7 +1890,7 @@ namespace dmGameSystem
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
-        ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
+        ApplyMorphToRenderObject(world, &ro, render_material, component, render_item);
 
         dmRender::AddToRender(render_context, &ro);
 
@@ -2004,7 +1925,7 @@ namespace dmGameSystem
             dmGraphics::HVertexDeclaration vx_decl_base = GetBaseVertexDeclaration(world, component_material, has_skin_data);
 
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-            ModelRenderObject& ro = world->m_RenderObjects.Back();
+            dmRender::RenderObject& ro = world->m_RenderObjects.Back();
             ro.Init();
             ro.m_Material              = component_material;
             ro.m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
@@ -2062,12 +1983,16 @@ namespace dmGameSystem
                 }
             }
 
-            int32_t first_free_index = FillTextures(&ro, component, material_index);
+            if (!FillTextures(&ro, component, material_index, render_material))
+            {
+                world->m_RenderObjects.SetSize(world->m_RenderObjects.Size() - 1);
+                continue;
+            }
             HComponentRenderConstants constants = component->m_RenderConstants;
 
             if (IsRenderItemSkinned(component, render_item))
             {
-                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, component->m_Instance);
+                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
 
                 // We need individual constants here, otherwise we will overwrite the values in the buffer.
                 // If the component doesn't have their own constant buffer, we need to retrieve a temporary constant buffer from the world.
@@ -2115,7 +2040,7 @@ namespace dmGameSystem
                 dmGameSystem::EnableRenderObjectConstants(&ro, constants);
             }
 
-            ApplyMorphToRenderObject(world, &ro, render_material, component, render_item, component->m_Instance);
+            ApplyMorphToRenderObject(world, &ro, render_material, component, render_item);
 
             dmRender::AddToRender(render_context, &ro);
 
@@ -2338,7 +2263,7 @@ namespace dmGameSystem
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-        ModelRenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
+        dmRender::RenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
 
         ro.Init();
         ro.m_Material              = GetComponentMaterial(component, component->m_Resource, material_index);
@@ -2349,7 +2274,11 @@ namespace dmGameSystem
         ro.m_VertexCount           = vx_count;
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
-        FillTextures(&ro, component, material_index);
+        if (!FillTextures(&ro, component, material_index, material))
+        {
+            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size() - 1);
+            return;
+        }
 
         if (component->m_RenderConstants)
         {

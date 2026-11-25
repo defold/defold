@@ -38,8 +38,8 @@ namespace dmRender
     void CopyMaterialRenderState(const dmRenderDDF::MaterialRenderState& source, MaterialRenderState* state);
     // Returns a borrowed view, valid while state remains alive and unmodified.
     dmRenderDDF::MaterialRenderState GetMaterialRenderStateDDF(MaterialRenderState* state);
-    uint64_t HashMaterialRenderState(const MaterialRenderState& state, uint32_t sampler_exclusions);
-    bool IsMaterialRenderSamplerExcluded(dmhash_t name_hash, uint32_t sampler_exclusions);
+    uint64_t HashMaterialRenderState(const MaterialRenderState& state);
+    bool IsMaterialInternalSampler(dmhash_t name_hash);
 
     void AddMaterialRenderConstant(MaterialRenderState* state, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type, uint32_t count);
     void SetMaterialRenderConstantType(MaterialRenderState* state, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);

@@ -190,19 +190,6 @@ namespace dmRender
     };
 
 
-    // Draw-local sampler settings, independent of persistent material state.
-    struct TextureSamplerOverride
-    {
-        dmhash_t m_NameHash;
-        uint32_t m_TextureIndex;
-        dmGraphics::TextureWrap m_UWrap;
-        dmGraphics::TextureWrap m_VWrap;
-        dmGraphics::TextureWrap m_WWrap;
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-        float m_MaxAnisotropy;
-    };
-
     /*#
      * The maximum number of textures the render object can hold (16)
      * @constant
@@ -256,9 +243,6 @@ namespace dmRender
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
-        // Borrowed draw-local settings. Must remain alive until the draw completes.
-        TextureSamplerOverride*         m_SamplerOverrides;
-        uint32_t                        m_SamplerOverrideCount;
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;

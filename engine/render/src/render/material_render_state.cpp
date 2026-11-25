@@ -137,6 +137,8 @@ namespace dmRender
 
     void SetMaterialRenderSampler(MaterialRenderState* state, const StateDDF::Sampler& sampler)
     {
+        if (IsMaterialInternalSampler(sampler.m_NameHash))
+            return;
         Put(&state->m_Samplers, sampler);
     }
 
@@ -279,6 +281,9 @@ namespace dmRender
         {
             const Desc::Sampler& source = material.m_Samplers[i];
             dmhash_t name_hash = dmHashString64(source.m_Name);
+            // These textures and their fixed sampling settings are engine-owned.
+            if (IsMaterialInternalSampler(name_hash))
+                continue;
             bool reflected = false;
             for (uint32_t j = 0; j < reflection.m_Textures.m_Count; ++j)
             {
@@ -332,10 +337,11 @@ namespace dmRender
         }
     }
 
-    bool IsMaterialRenderSamplerExcluded(dmhash_t name, uint32_t flags)
+    bool IsMaterialInternalSampler(dmhash_t name)
     {
-        return ((flags & 1) && name == dmHashString64("pose_matrix_cache")) ||
-               ((flags & 2) && name == dmHashString64("morph_targets"));
+        static const dmhash_t pose_matrix_cache = dmHashString64("pose_matrix_cache");
+        static const dmhash_t morph_targets = dmHashString64("morph_targets");
+        return name == pose_matrix_cache || name == morph_targets;
     }
 
     static void HashU32(HashState64* hash, uint32_t value)
@@ -359,7 +365,7 @@ namespace dmRender
         HashU32(hash, bits);
     }
 
-    uint64_t HashMaterialRenderState(const MaterialRenderState& state, uint32_t flags)
+    uint64_t HashMaterialRenderState(const MaterialRenderState& state)
     {
         HashState64 hash;
         dmHashInit64(&hash, false);
@@ -383,12 +389,12 @@ namespace dmRender
         }
         uint32_t sampler_count = 0;
         for (uint32_t i = 0; i < state.m_Samplers.Size(); ++i)
-            sampler_count += !IsMaterialRenderSamplerExcluded(state.m_Samplers[i].m_NameHash, flags);
+            sampler_count += !IsMaterialInternalSampler(state.m_Samplers[i].m_NameHash);
         HashU32(&hash, sampler_count);
         for (uint32_t i = 0; i < state.m_Samplers.Size(); ++i)
         {
             const StateDDF::Sampler& sampler = state.m_Samplers[i];
-            if (IsMaterialRenderSamplerExcluded(sampler.m_NameHash, flags))
+            if (IsMaterialInternalSampler(sampler.m_NameHash))
                 continue;
             HashU64(&hash, sampler.m_NameHash);
             HashU32(&hash, sampler.m_WrapU);

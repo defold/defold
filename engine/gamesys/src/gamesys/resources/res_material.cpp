@@ -96,14 +96,24 @@ namespace dmGameSystem
         // We assume that the textures[8] are always sorted in the sampler appearance.
         // however, the order of samplers here may be different from the order in the actual material!
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
+        uint32_t texture_index = 0;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
-            resources->m_SamplerNames[i] = sampler[i].m_NameHash;
+            if (dmRender::IsMaterialInternalSampler(sampler[i].m_NameHash))
+                continue;
+            if (texture_index == dmRender::RenderObject::MAX_TEXTURE_COUNT)
+            {
+                dmLogError("Material has more than %u ordinary texture samplers.", dmRender::RenderObject::MAX_TEXTURE_COUNT);
+                ReleaseResources(factory, resources);
+                return dmResource::RESULT_FORMAT_ERROR;
+            }
+            uint32_t index = texture_index++;
+            resources->m_SamplerNames[index] = sampler[i].m_NameHash;
             const char* texture_path = sampler[i].m_Texture;
             if (*texture_path != 0)
             {
-                factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
-                resources->m_TextureResourcePaths[i] = dmHashString64(texture_path);
+                factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[index]);
+                resources->m_TextureResourcePaths[index] = dmHashString64(texture_path);
 
                 if ( factory_e != dmResource::RESULT_OK)
                 {
@@ -209,6 +219,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
             dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
+            if (dmRender::IsMaterialInternalSampler(base_name_hash))
+                continue;
             dmGraphics::TextureWrap uwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapU);
             dmGraphics::TextureWrap vwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapV);
             dmGraphics::TextureWrap wwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapW);
@@ -239,6 +251,8 @@ namespace dmGameSystem
         // Now we need to sort the textures based on sampler appearance
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
+            if (dmRender::IsMaterialInternalSampler(resources->m_SamplerNames[i]))
+                continue;
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
             if (unit == dmRender::INVALID_SAMPLER_UNIT)
             {
@@ -252,13 +266,38 @@ namespace dmGameSystem
         dmRender::SetMaterialRenderState(material, *ddf->m_RenderState, ddf->m_RenderHash);
     }
 
-    static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmResource::HFactory factory, dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)
+    static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)
     {
         dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_Program);
         if (!material)
-        {
-            dmResource::Release(factory, (void*)resources.m_Program);
             return 0;
+
+        uint32_t sampler_count = 0;
+        uint32_t user_texture_count = dmRender::GetMaterialUserTextureCount(material);
+        for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; ++i)
+        {
+            const dmRenderDDF::MaterialDesc::Sampler& sampler = ddf->m_Samplers[i];
+            dmhash_t name_hash = dmHashString64(sampler.m_Name);
+            if (dmRender::IsMaterialInternalSampler(name_hash))
+                continue;
+            if (dmRender::GetMaterialConstantLocation(material, name_hash) != dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
+                // Base sampler indices address the resource's texture array.
+                // Array-emulation aliases below only address GPU sampler units.
+                if (sampler_count >= user_texture_count)
+                {
+                    dmLogError("Material '%s' places texture sampler '%s' in slot %u, but only %u ordinary texture slots are available alongside its internal resources.",
+                        ddf->m_Name, sampler.m_Name, sampler_count, user_texture_count);
+                    dmRender::DeleteMaterial(render_context, material);
+                    return 0;
+                }
+                ++sampler_count;
+            }
+            for (uint32_t j = 0; j < sampler.m_NameIndirections.m_Count; ++j)
+            {
+                if (dmRender::GetMaterialConstantLocation(material, sampler.m_NameIndirections[j]) != dmGraphics::INVALID_UNIFORM_LOCATION)
+                    ++sampler_count;
+            }
         }
         return material;
     }
@@ -271,10 +310,12 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(render_context, resources, ddf);
 
             if (!material)
             {
+                ReleaseResources(params->m_Factory, &resources);
+                dmDDF::FreeMessage(ddf);
                 return dmResource::RESULT_DDF_ERROR;
             }
 
@@ -334,14 +375,15 @@ namespace dmGameSystem
             MaterialResource* resource = (MaterialResource*) dmResource::GetResource(params->m_Resource);
             dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
 
-            ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
-
-            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(render_context, resources, ddf);
             if (!material)
             {
+                ReleaseResources(params->m_Factory, &resources);
+                dmDDF::FreeMessage(ddf);
                 return dmResource::RESULT_DDF_ERROR;
             }
 
+            ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
             resource->m_Material = material;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
         }
@@ -368,6 +410,8 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
+            if (dmRender::IsMaterialInternalSampler(sampler[i].m_NameHash))
+                continue;
             if (sampler[i].m_Texture && sampler[i].m_Texture[0] != 0)
                 dmResource::PreloadHint(params->m_HintInfo, sampler[i].m_Texture);
         }
