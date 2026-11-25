@@ -1859,6 +1859,267 @@ struct UniformBufferRestoreTest : ITest
     }
 };
 
+// Run with "opengl render-target-restore". Render targets of each attachment kind are drawn to and
+// shown on screen, before and after a simulated context loss, and a restore without a loss keeps
+// their content. Guards the render target restore, which runs the code that creates them.
+struct RenderTargetRestoreTest : ITest
+{
+    enum { TARGET_COUNT = 5, TARGET_SIZE = 64, DEPTH_ONLY_TARGET = 4 };
+
+    dmGraphics::ShaderDesc         m_ShaderDesc;
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HTexture           m_White;
+    dmGraphics::HRenderTarget      m_Targets[TARGET_COUNT];
+    uint32_t                       m_FrameIndex;
+
+    RenderTargetRestoreTest()
+    : m_ShaderDesc(), m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_White(0), m_FrameIndex(0)
+    {
+        memset(m_Targets, 0, sizeof(m_Targets));
+    }
+
+    void UploadWhite(dmGraphics::HContext context)
+    {
+        const uint8_t white[4] = { 255, 255, 255, 255 };
+        dmGraphics::TextureParams params;
+        params.m_Width     = 1;
+        params.m_Height    = 1;
+        params.m_Format    = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_Data      = white;
+        params.m_DataSize  = sizeof(white);
+        params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        dmGraphics::SetTexture(context, m_White, params);
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            dmLogError("Render target restore test requires the OpenGL adapter");
+            engine->m_Failed = true;
+            return;
+        }
+
+        const char* vertex_source =
+            "#version 330\n"
+            "in vec2 pos;\n"
+            "out vec2 uv;\n"
+            "void main() { uv = pos * 0.5 + 0.5; gl_Position = vec4(pos, 0.0, 1.0); }\n";
+        const char* fragment_source =
+            "#version 330\n"
+            "uniform sampler2D tex;\n"
+            "in vec2 uv;\n"
+            "out vec4 out_color;\n"
+            "void main() { out_color = texture(tex, uv); }\n";
+        AddShaderWithType(&m_ShaderDesc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                          (uint8_t*) vertex_source, strlen(vertex_source));
+        AddShaderWithType(&m_ShaderDesc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                          (uint8_t*) fragment_source, strlen(fragment_source));
+        AddShaderResource(&m_ShaderDesc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&m_ShaderDesc, "tex", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D, 0, 0, BINDING_TYPE_TEXTURE, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &m_ShaderDesc, error_buffer, sizeof(error_buffer));
+        if (!m_Program)
+        {
+            dmLogError("Render target restore test program creation failed: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        // The triangle covers the viewport
+        const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+
+        dmGraphics::TextureCreationParams white_params;
+        white_params.m_Width  = 1;
+        white_params.m_Height = 1;
+        m_White = dmGraphics::NewTexture(context, white_params);
+        UploadWhite(context);
+
+        // Color only, packed depth and stencil buffer, depth texture, multisampled, depth texture only
+        for (uint32_t i = 0; i < TARGET_COUNT; ++i)
+        {
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_ColorBufferParams[0].m_Format         = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width          = TARGET_SIZE;
+            params.m_ColorBufferParams[0].m_Height         = TARGET_SIZE;
+            params.m_ColorBufferCreationParams[0].m_Width  = TARGET_SIZE;
+            params.m_ColorBufferCreationParams[0].m_Height = TARGET_SIZE;
+            params.m_DepthBufferParams.m_Format            = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width             = TARGET_SIZE;
+            params.m_DepthBufferParams.m_Height            = TARGET_SIZE;
+            params.m_DepthBufferCreationParams.m_Width     = TARGET_SIZE;
+            params.m_DepthBufferCreationParams.m_Height    = TARGET_SIZE;
+            params.m_StencilBufferParams.m_Format          = dmGraphics::TEXTURE_FORMAT_STENCIL;
+            params.m_StencilBufferParams.m_Width           = TARGET_SIZE;
+            params.m_StencilBufferParams.m_Height          = TARGET_SIZE;
+            params.m_StencilBufferCreationParams.m_Width   = TARGET_SIZE;
+            params.m_StencilBufferCreationParams.m_Height  = TARGET_SIZE;
+            params.m_DepthTexture                          = i == 2 || i == DEPTH_ONLY_TARGET;
+            params.m_SampleCount                           = i == 3 ? 4 : 1;
+            m_Targets[i] = dmGraphics::NewRenderTarget(context, GetFlags(i), params);
+        }
+    }
+
+    static uint32_t GetFlags(uint32_t target)
+    {
+        const uint32_t flags[TARGET_COUNT] = {
+            dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+            dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+            dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT,
+            dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT,
+            dmGraphics::BUFFER_TYPE_DEPTH_BIT,
+        };
+        return flags[target];
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        // RGBA. The white draw at depth 0.5 is hidden by a depth attachment cleared to 0.25.
+        const uint8_t clear_colors[TARGET_COUNT][4] = { { 255, 0, 0, 255 }, { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 0, 0, 0, 255 } };
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "tex"), 0);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+        dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
+        for (uint32_t i = 0; i < TARGET_COUNT; ++i)
+        {
+            dmGraphics::SetRenderTarget(context, m_Targets[i], dmGraphics::RenderTargetBindingParams());
+            dmGraphics::SetViewport(context, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const uint8_t* color = clear_colors[i];
+            dmGraphics::Clear(context, GetFlags(i), color[0], color[1], color[2], color[3], 0.25f, 0);
+            dmGraphics::EnableTexture(context, 0, 0, m_White);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DisableTexture(context, 0, m_White);
+        }
+
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        if (m_FrameIndex == 3)
+        {
+            // A restore without a loss keeps the live render targets and what was drawn to them
+            dmGraphics::RecreateGraphicsHandles(context);
+        }
+
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / TARGET_COUNT;
+        const uint32_t height = dmGraphics::GetWindowHeight(context);
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
+        for (uint32_t i = 0; i < TARGET_COUNT; ++i)
+        {
+            dmGraphics::BufferType buffer = i == DEPTH_ONLY_TARGET ? dmGraphics::BUFFER_TYPE_DEPTH_BIT : dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(context, m_Targets[i], buffer);
+            dmGraphics::SetViewport(context, i * cell_width, 0, cell_width, height);
+            dmGraphics::EnableTexture(context, 0, 0, texture);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DisableTexture(context, 0, texture);
+        }
+
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+
+        // RGBA. The depth texture is sampled as its red channel, 0.25.
+        const uint8_t expected[TARGET_COUNT][4] = { { 255, 255, 255, 255 }, { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 64, 0, 0, 255 } };
+        for (uint32_t i = 0; i < TARGET_COUNT; ++i)
+        {
+            uint8_t bgra[4] = {};
+            dmGraphics::ReadPixels(context, i * cell_width + cell_width / 2, height / 2, 1, 1, bgra, sizeof(bgra));
+            const uint8_t rgba[4] = { bgra[2], bgra[1], bgra[0], bgra[3] };
+            bool match = true;
+            for (uint32_t c = 0; c < 4; ++c)
+            {
+                match = match && abs((int) rgba[c] - (int) expected[i][c]) <= 2;
+            }
+
+            if (!match)
+            {
+                dmLogError("Render target restore frame %u, target %u: expected RGBA %u,%u,%u,%u, got %u,%u,%u,%u", m_FrameIndex, i,
+                           expected[i][0], expected[i][1], expected[i][2], expected[i][3], rgba[0], rgba[1], rgba[2], rgba[3]);
+                engine->m_Failed = true;
+            }
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        ++m_FrameIndex;
+        if (m_FrameIndex == 2)
+        {
+            // The live desktop context keeps the old GL objects; only the handles are dropped, as on a WebGL loss
+            dmGraphics::InvalidateGraphicsHandles(context);
+            dmGraphics::RecreateGraphicsHandles(context);
+            char error_buffer[1024] = {};
+            if (!dmGraphics::ReloadProgram(context, m_Program, &m_ShaderDesc, error_buffer, sizeof(error_buffer)))
+            {
+                dmLogError("Render target restore test program reload failed: %s", error_buffer);
+                engine->m_Failed = true;
+            }
+
+            const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+            dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            UploadWhite(context);
+        }
+
+        if (engine->m_Failed || m_FrameIndex == 5)
+        {
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Render target restore: render targets restored after a simulated context loss");
+            }
+
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t i = 0; i < TARGET_COUNT; ++i)
+        {
+            if (m_Targets[i])
+            {
+                dmGraphics::DeleteRenderTarget(context, m_Targets[i]);
+            }
+        }
+
+        if (m_White)
+        {
+            dmGraphics::DeleteTexture(context, m_White);
+        }
+
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(context, m_Program);
+        }
+
+        DeleteShaderDesc(&m_ShaderDesc);
+    }
+};
+
 struct ReadPixelsTest : ITest
 {
     uint8_t m_Buffer[512 * 512 * 4];
@@ -3153,6 +3414,11 @@ static void* EngineCreate(int argc, char** argv)
         dmLogInfo("test_app_graphics: running UniformBufferRestoreTest");
         engine->m_Test = new UniformBufferRestoreTest();
     }
+    else if (HasArgument("render-target-restore"))
+    {
+        dmLogInfo("test_app_graphics: running RenderTargetRestoreTest");
+        engine->m_Test = new RenderTargetRestoreTest();
+    }
     else if (HasArgument("depth-only-render-target"))
     {
         dmLogInfo("test_app_graphics: running DepthOnlyRenderTargetTest");
@@ -3470,7 +3736,7 @@ int main(int argc, char **argv)
         return 1;
     jc_test_init(&argc, argv);
     int result = jc_test_run_all();
-    if (HasArgument("buffer-replacement") || HasArgument("uniform-buffer-restore"))
+    if (HasArgument("buffer-replacement") || HasArgument("uniform-buffer-restore") || HasArgument("render-target-restore"))
     {
         printf("GRAPHICS_BUFFER_REPLACEMENT_RESULT=%d\n", result);
         fflush(stdout);

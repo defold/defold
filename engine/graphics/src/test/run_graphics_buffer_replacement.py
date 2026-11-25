@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2020-2026 The Defold Foundation
 # Licensed under the Defold License version 1.0 (https://www.defold.com/license).
-"""Run buffer replacement and uniform buffer restore regressions using the graphics CI platform policy."""
+"""Run buffer replacement and graphics context restore regressions using the graphics CI platform policy."""
 import argparse
 from contextlib import nullcontext
 from pathlib import Path
@@ -10,7 +10,8 @@ import subprocess
 import sys
 
 MODES = (('buffer-replacement', ('metal', 'opengl')),
-         ('uniform-buffer-restore', ('opengl',)))
+         ('uniform-buffer-restore', ('opengl',)),
+         ('render-target-restore', ('opengl',)))
 
 
 def main(argv=None):

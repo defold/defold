@@ -700,6 +700,31 @@ static inline bool IsNativeContextLost()
         return handle;
     }
 
+    static inline GLuint EnsureGLFramebuffer(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0)
+        {
+            glGenFramebuffers(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+
+        return handle;
+    }
+
+    // Returns 0 without vertex array object support
+    static inline GLuint EnsureGLVertexArray(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0 && glGenVertexArrays)
+        {
+            glGenVertexArrays(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+
+        return handle;
+    }
+
     // Uniform buffers have no resource to reload them from, so a regenerated buffer is filled
     // with the content last written to it. Returns 0 while the context is still lost.
     static GLuint EnsureGLUniformBuffer(OpenGLContext* context, OpenGLUniformBuffer* ubo)
@@ -2239,12 +2264,8 @@ static inline bool IsNativeContextLost()
             }
         }
 
-        if (glGenVertexArrays)
-        {
-            GLuint handle;
-            glGenVertexArrays(1, &handle);
-            context->m_GlobalVAO = AddNewGLHandle(context, handle);
-        }
+        context->m_GlobalVAO = AddNewGLHandle(context, 0);
+        EnsureGLVertexArray(context, context->m_GlobalVAO);
 
         SetSwapInterval(_context, params.m_SwapInterval);
 
@@ -4897,10 +4918,7 @@ static inline bool IsNativeContextLost()
         {
             case ATTACHMENT_TYPE_BUFFER:
             {
-                GLuint handle = 0;
-                glGenRenderbuffers(1, &handle);
-                attachment.m_Buffer = AddNewGLHandle(context, handle);
-                CHECK_GL_ERROR;
+                attachment.m_Buffer = AddNewGLHandle(context, 0);
                 break;
             }
             case ATTACHMENT_TYPE_TEXTURE:
@@ -5124,19 +5142,9 @@ static inline bool IsNativeContextLost()
         PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, sample_count, format, width, height);
     }
 
-    // On context restore the GL renderbuffer is regenerated into the existing handle slot.
-    static void CreateMultisampleRenderbuffer(OpenGLContext* context, HOpenglID& buffer, bool restore, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height, GLenum attachment)
+    static void CreateMultisampleRenderbuffer(OpenGLContext* context, HOpenglID buffer, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height, GLenum attachment)
     {
-        GLuint handle = 0;
-        glGenRenderbuffers(1, &handle);
-        if (restore)
-        {
-            SetGLHandle(context, buffer, handle);
-        }
-        else
-        {
-            buffer = AddNewGLHandle(context, handle);
-        }
+        GLuint handle = EnsureGLRenderbuffer(context, buffer);
         SetMultisampleRenderbufferStorage(context, buffer, sample_count, format, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, handle);
         CHECK_GL_ERROR;
@@ -5164,14 +5172,14 @@ static inline bool IsNativeContextLost()
         }
     }
 
-    static void CreateMultisampleRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool restore)
+    static void CreateMultisampleRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt)
     {
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
             {
                 GLenum renderbuffer_format = GetOpenGLRenderbufferFormat(context, rt->m_Base.m_ColorTextureParams[i].m_Format);
-                CreateMultisampleRenderbuffer(context, rt->m_MultisampleColorBuffers[i], restore, rt->m_Base.m_SampleCount, renderbuffer_format,
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleColorBuffers[i], rt->m_Base.m_SampleCount, renderbuffer_format,
                     rt->m_Base.m_ColorTextureParams[i].m_Width, rt->m_Base.m_ColorTextureParams[i].m_Height, GL_COLOR_ATTACHMENT0 + i);
             }
         }
@@ -5180,7 +5188,7 @@ static inline bool IsNativeContextLost()
         const bool has_stencil = (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) != 0;
         if (has_depth && has_stencil && context->m_PackedDepthStencilSupport)
         {
-            CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthStencilBuffer, restore, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL,
+            CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL,
                 rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height, GL_DEPTH_ATTACHMENT);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer));
             CHECK_GL_ERROR;
@@ -5189,22 +5197,69 @@ static inline bool IsNativeContextLost()
         {
             if (has_depth)
             {
-                CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthBuffer, restore, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context),
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthBuffer, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context),
                     rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height, GL_DEPTH_ATTACHMENT);
             }
             if (has_stencil)
             {
-                CreateMultisampleRenderbuffer(context, rt->m_MultisampleStencilBuffer, restore, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8,
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8,
                     rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height, GL_STENCIL_ATTACHMENT);
             }
         }
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
 
+    // Creates the framebuffers of a render target and the storage of its attachments, into handle
+    // slots allocated by OpenGLNewRenderTarget. The same code restores the render target after a
+    // lost context, from the params kept on it, so every engine-visible handle stays stable.
+    static void CreateRenderTargetGLObjects(OpenGLContext* context, OpenGLRenderTarget* rt)
+    {
+        const bool multisample = rt->m_Base.m_SampleCount > 1;
+        glBindFramebuffer(GL_FRAMEBUFFER, EnsureGLFramebuffer(context, multisample ? rt->m_ResolveId : rt->m_Id));
+        CHECK_GL_ERROR;
+
+        // Nothing is attached to a new framebuffer
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            rt->m_ColorAttachments[i].m_Attached = false;
+        }
+
+        rt->m_DepthAttachment.m_Attached        = false;
+        rt->m_StencilAttachment.m_Attached      = false;
+        rt->m_DepthStencilAttachment.m_Attached = false;
+
+        ApplyRenderTargetAttachments((HContext) context, rt, false);
+
+        // Disable color buffer
+        if (rt->m_Base.m_ColorAttachmentCount == 0)
+        {
+        #if !defined(GL_ES_VERSION_2_0)
+            // TODO: Not available in OpenGL ES.
+            // According to this thread it should not be required but honestly I don't quite understand
+            // https://devforums.apple.com/message/495216#495216
+            glDrawBuffer(GL_NONE);
+            CHECK_GL_ERROR;
+            glReadBuffer(GL_NONE);
+            CHECK_GL_ERROR;
+        #endif
+        }
+
+        CHECK_GL_FRAMEBUFFER_ERROR;
+
+        if (multisample)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, EnsureGLFramebuffer(context, rt->m_Id));
+            CreateMultisampleRenderTargetAttachments(context, rt);
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+        CHECK_GL_ERROR;
+    }
+
     static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         OpenGLContext* context        = (OpenGLContext*) _context;
-        bool any_color_attachment_set = false;
         bool use_depth_attachment     = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         bool use_stencil_attachment   = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
         bool depth_texture            = params.m_DepthTexture;
@@ -5260,19 +5315,20 @@ static inline bool IsNativeContextLost()
         rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "OpenGL");
         rt->m_Base.m_TextureType = params.m_TextureType;
 
-        GLuint handle = 0;
-        glGenFramebuffers(1, &handle);
+        rt->m_Id = AddNewGLHandle(context, 0);
         if (rt->m_Base.m_SampleCount > 1)
         {
-            rt->m_ResolveId = AddNewGLHandle(context, handle);
+            // Every multisample renderbuffer gets a slot, a GL object only the ones in use
+            rt->m_ResolveId = AddNewGLHandle(context, 0);
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                rt->m_MultisampleColorBuffers[i] = AddNewGLHandle(context, 0);
+            }
+
+            rt->m_MultisampleDepthBuffer        = AddNewGLHandle(context, 0);
+            rt->m_MultisampleStencilBuffer      = AddNewGLHandle(context, 0);
+            rt->m_MultisampleDepthStencilBuffer = AddNewGLHandle(context, 0);
         }
-        else
-        {
-            rt->m_Id = AddNewGLHandle(context, handle);
-        }
-        CHECK_GL_ERROR;
-        glBindFramebuffer(GL_FRAMEBUFFER, handle);
-        CHECK_GL_ERROR;
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -5281,7 +5337,6 @@ static inline bool IsNativeContextLost()
                 uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
                 CreateRenderTargetAttachment(context, rt->m_ColorAttachments[i], ATTACHMENT_TYPE_TEXTURE, rt->m_Base.m_ColorTextureParams[color_buffer_index], params.m_ColorBufferCreationParams[color_buffer_index], &rt->m_Base.m_TextureColor[color_buffer_index]);
                 ++rt->m_Base.m_ColorAttachmentCount;
-                any_color_attachment_set = true;
             }
         }
 
@@ -5314,35 +5369,7 @@ static inline bool IsNativeContextLost()
             }
         }
 
-        ApplyRenderTargetAttachments(_context, rt, false);
-
-        // Disable color buffer
-        if (!any_color_attachment_set)
-        {
-        #if !defined(GL_ES_VERSION_2_0)
-            // TODO: Not available in OpenGL ES.
-            // According to this thread it should not be required but honestly I don't quite understand
-            // https://devforums.apple.com/message/495216#495216
-            glDrawBuffer(GL_NONE);
-            CHECK_GL_ERROR;
-            glReadBuffer(GL_NONE);
-            CHECK_GL_ERROR;
-        #endif
-        }
-
-        CHECK_GL_FRAMEBUFFER_ERROR;
-
-        if (rt->m_Base.m_SampleCount > 1)
-        {
-            GLuint multisample_handle = 0;
-            glGenFramebuffers(1, &multisample_handle);
-            rt->m_Id = AddNewGLHandle(context, multisample_handle);
-            glBindFramebuffer(GL_FRAMEBUFFER, multisample_handle);
-            CreateMultisampleRenderTargetAttachments(context, rt, false);
-            CHECK_GL_FRAMEBUFFER_ERROR;
-        }
-        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
-        CHECK_GL_ERROR;
+        CreateRenderTargetGLObjects(context, rt);
 
         // Serialize slot reuse and container growth with the texture worker.
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -5380,35 +5407,17 @@ static inline bool IsNativeContextLost()
             glDeleteFramebuffers(1, &handle);
             CleanupGLHandle(context, rt->m_ResolveId);
 
-            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            // Every multisample renderbuffer has a slot, the unused ones hold no GL object
+            HOpenglID renderbuffers[MAX_BUFFER_COLOR_ATTACHMENTS + 3];
+            memcpy(renderbuffers, rt->m_MultisampleColorBuffers, sizeof(rt->m_MultisampleColorBuffers));
+            renderbuffers[MAX_BUFFER_COLOR_ATTACHMENTS]     = rt->m_MultisampleDepthBuffer;
+            renderbuffers[MAX_BUFFER_COLOR_ATTACHMENTS + 1] = rt->m_MultisampleStencilBuffer;
+            renderbuffers[MAX_BUFFER_COLOR_ATTACHMENTS + 2] = rt->m_MultisampleDepthStencilBuffer;
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(renderbuffers); ++i)
             {
-                if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
-                {
-                    handle = GetGLHandle(context, rt->m_MultisampleColorBuffers[i]);
-                    glDeleteRenderbuffers(1, &handle);
-                    CleanupGLHandle(context, rt->m_MultisampleColorBuffers[i]);
-                }
-            }
-            if ((rt->m_BufferTypeFlags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) == (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT) && context->m_PackedDepthStencilSupport)
-            {
-                handle = GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer);
+                handle = GetGLHandle(context, renderbuffers[i]);
                 glDeleteRenderbuffers(1, &handle);
-                CleanupGLHandle(context, rt->m_MultisampleDepthStencilBuffer);
-            }
-            else
-            {
-                if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
-                {
-                    handle = GetGLHandle(context, rt->m_MultisampleDepthBuffer);
-                    glDeleteRenderbuffers(1, &handle);
-                    CleanupGLHandle(context, rt->m_MultisampleDepthBuffer);
-                }
-                if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
-                {
-                    handle = GetGLHandle(context, rt->m_MultisampleStencilBuffer);
-                    glDeleteRenderbuffers(1, &handle);
-                    CleanupGLHandle(context, rt->m_MultisampleStencilBuffer);
-                }
+                CleanupGLHandle(context, renderbuffers[i]);
             }
         }
 
@@ -5436,14 +5445,10 @@ static inline bool IsNativeContextLost()
 
     // Context-loss recovery for render targets. Unlike textures/buffers/programs they are not
     // resource-backed in general (render scripts create them at runtime) and their contents are
-    // transient (re-rendered every frame), so they are restored wholesale here instead of through
-    // the resource reload worklist: regenerate the FBO name into the same handle slot, then re-run
-    // the attachment setup, which re-allocates texture/renderbuffer storage from the creation
-    // params retained on the render target and re-attaches everything to the fresh FBO. Every
-    // engine-visible handle (HRenderTarget, attachment HTextures, HOpenglID slots) stays stable.
+    // transient (re-rendered every frame), so they are recreated wholesale here instead of through
+    // the resource reload worklist.
     static void OpenGLRestoreRenderTargets(OpenGLContext* context)
     {
-        bool any_restored = false;
         dmArray<HRenderTarget>& render_targets = context->m_BaseContext.m_RenderTargets;
         for (uint32_t i = 0; i < render_targets.Size(); ++i)
         {
@@ -5453,55 +5458,7 @@ static inline bool IsNativeContextLost()
                 continue; // reload without a preceding context loss
             }
 
-            const bool multisample = rt->m_Base.m_SampleCount > 1;
-            GLuint handle = 0;
-            glGenFramebuffers(1, &handle);
-            SetGLHandle(context, multisample ? rt->m_ResolveId : rt->m_Id, handle);
-            CHECK_GL_ERROR;
-            glBindFramebuffer(GL_FRAMEBUFFER, handle);
-            CHECK_GL_ERROR;
-
-            // Nothing is attached to the fresh FBO yet.
-            for (int j = 0; j < MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
-            {
-                rt->m_ColorAttachments[j].m_Attached = false;
-            }
-            rt->m_DepthAttachment.m_Attached        = false;
-            rt->m_StencilAttachment.m_Attached      = false;
-            rt->m_DepthStencilAttachment.m_Attached = false;
-
-            ApplyRenderTargetAttachments((HContext) context, rt, false);
-
-            if (rt->m_Base.m_ColorAttachmentCount == 0)
-            {
-            #if !defined(GL_ES_VERSION_2_0)
-                // See the matching block in OpenGLNewRenderTarget.
-                glDrawBuffer(GL_NONE);
-                CHECK_GL_ERROR;
-                glReadBuffer(GL_NONE);
-                CHECK_GL_ERROR;
-            #endif
-            }
-
-            CHECK_GL_FRAMEBUFFER_ERROR;
-
-            if (multisample)
-            {
-                // The multisample renderbuffers lost their GL objects together with the context.
-                GLuint multisample_handle = 0;
-                glGenFramebuffers(1, &multisample_handle);
-                SetGLHandle(context, rt->m_Id, multisample_handle);
-                glBindFramebuffer(GL_FRAMEBUFFER, multisample_handle);
-                CreateMultisampleRenderTargetAttachments(context, rt, true);
-                CHECK_GL_FRAMEBUFFER_ERROR;
-            }
-            any_restored = true;
-        }
-
-        if (any_restored)
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
-            CHECK_GL_ERROR;
+            CreateRenderTargetGLObjects(context, rt);
         }
     }
 
@@ -6646,15 +6603,9 @@ static inline bool IsNativeContextLost()
 #endif
 
         // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
-        // recreate paths. Here we only restore objects the resource layer never touches. The global
-        // VAO is created with the same glGenVertexArrays guard; the zero-check keeps a reload without
-        // a preceding context loss from leaking the live VAO.
-        if (glGenVertexArrays && GetGLHandle(context, context->m_GlobalVAO) == 0)
-        {
-            GLuint vao = 0;
-            glGenVertexArrays(1, &vao);
-            SetGLHandle(context, context->m_GlobalVAO, vao);
-        }
+        // recreate paths. Here we only restore objects the resource layer never touches, with the
+        // code that creates them at initialization. A live VAO is kept by a reload without a loss.
+        EnsureGLVertexArray(context, context->m_GlobalVAO);
 
         // Render targets (and the attachment storage they own) are restored wholesale — runtime-created
         // ones have no resource recreate path, and their contents are transient. This runs before the
