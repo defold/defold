@@ -97,18 +97,7 @@
         memset(handle->m_Buttons, 0, sizeof(handle->m_Buttons));
     }
 
-    if (handle->m_Params.m_FocusCallback)
-    {
-        // AppKit can grant focus inside OpenWindow on reboot, before extensions have a graphics context.
-        if (!handle->m_Ready || handle->m_FocusCallbackPending)
-        {
-            handle->m_FocusCallbackPending = focused;
-        }
-        else
-        {
-            handle->m_Params.m_FocusCallback(handle->m_Params.m_FocusCallbackUserData, focused);
-        }
-    }
+    dmPlatform::WindowFocusChanged(handle->m_Focus, handle->m_Params, focused);
 }
 
 - (void)windowDidBecomeKey:(NSNotification*)notification {
@@ -486,10 +475,9 @@ namespace dmPlatform
                 return;
             }
 
-            if (window->m_FocusCallbackPending)
+            if (window->m_Ready)
             {
-                window->m_FocusCallbackPending = false;
-                window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, 1);
+                PollWindowFocus(window->m_Focus, window->m_Params);
             }
 
             NSEvent* event;

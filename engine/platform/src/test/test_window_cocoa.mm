@@ -58,7 +58,7 @@
 
 struct WindowEvents
 {
-    int      m_Closes, m_Focus, m_Minimized;
+    int      m_Closes, m_Focus, m_FocusCount, m_Minimized;
     uint32_t m_DrawableWidth, m_DrawableHeight;
     bool     m_AllowClose;
     int      m_Characters[4];
@@ -74,7 +74,9 @@ static int CloseRequest(void* data)
 
 static void Focus(void* data, uint32_t value)
 {
-    ((WindowEvents*)data)->m_Focus = value;
+    WindowEvents* events = (WindowEvents*)data;
+    events->m_Focus = value;
+    ++events->m_FocusCount;
 }
 
 static void Minimize(void* data, uint32_t value)
@@ -163,6 +165,33 @@ TEST_F(CocoaWindowTest, OpenVisibleWindow)
             ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
             dmPlatform::CloseWindow(window);
         }
+    }
+}
+
+// If another window becomes key before the rebooted engine polls, both focus changes must reach the game.
+TEST_F(CocoaWindowTest, FocusLostBeforeFirstPoll)
+{
+    @autoreleasepool
+    {
+        params.m_Hidden = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        dmPlatform::CloseWindow(window);
+
+        events.m_FocusCount = 0;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        NSWindow* game = dmPlatform::GetOSXNSWindow(window);
+        ASSERT_TRUE(game.keyWindow);
+        NSWindow* other = [[[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 120, 80) styleMask:NSWindowStyleMaskTitled
+                            backing:NSBackingStoreBuffered defer:NO] autorelease];
+        [other setReleasedWhenClosed:NO];
+        [other makeKeyAndOrderFront:nil];
+        EXPECT_FALSE(game.keyWindow);
+        EXPECT_EQ(0, events.m_FocusCount);
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(2, events.m_FocusCount);
+        EXPECT_EQ(0, events.m_Focus);
+        [other close];
     }
 }
 

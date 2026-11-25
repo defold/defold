@@ -41,6 +41,7 @@ struct dmWindow
     WindowPlacement*               m_Placement;
     WindowCreateParams             m_Params;
     WindowInputCallbacks           m_InputCallbacks;
+    dmPlatform::WindowFocusState   m_Focus;
     double                         m_Scroll;
     NSPoint                        m_VirtualCursor;
     NSPoint                        m_SavedCursor;
@@ -53,7 +54,6 @@ struct dmWindow
     bool                           m_CursorLocked;
     bool                           m_CursorDisabled;
     bool                           m_Ready;
-    bool                           m_FocusCallbackPending;
 };
 
 namespace dmPlatform
