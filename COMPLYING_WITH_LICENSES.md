@@ -69,7 +69,6 @@ The following third party software has licenses which does not require inclusion
   * ZLib
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
-    * [GLFW (Android initialization and shutdown)](engine/platform/src/native/android/android_init.c) - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
     * SDL - Sam Lantinga (slouken@libsdl.org)
 
