@@ -2438,6 +2438,37 @@ TEST_F(MeshVertexBufferTest, ReloadLocalSpace)
     }
 }
 
+// Local space vertex buffers are uploaded only when the buffer changes, so a restored graphics context
+// must upload them again: without it the content lost with the context is never replaced.
+TEST_F(MeshVertexBufferTest, GraphicsContextRestored)
+{
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/mesh/profile_counts.goc", dmHashString64("mesh")));
+    Update();
+    Render(1, m_Mesh->m_BufferResource);
+
+    dmRender::HRenderContext context = (dmRender::HRenderContext)m_RenderContext;
+    dmRender::RenderListBegin(m_RenderContext);
+    ASSERT_TRUE(dmGameObject::Render(m_Collection));
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1u, dmRender::TestGetRenderObjectCount(context));
+    dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer)dmRender::TestGetRenderObject(context, 0)->m_VertexBuffer;
+    dmRender::ClearRenderObjects(m_RenderContext);
+
+    const uint32_t size = dmGraphics::GetVertexBufferSize(buffer);
+    ASSERT_GT(size, 0u);
+    uint8_t* zeros = (uint8_t*)calloc(size, 1);
+    dmGraphics::SetVertexBufferData(buffer, size, zeros, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    Update();
+    Render(1);
+    ASSERT_EQ(0, memcmp(zeros, dmGraphics::TestGetVertexBufferData(buffer), size));
+    free(zeros);
+
+    dmGameObject::DispatchGraphicsContextRestored(m_Register);
+    Update();
+    Render(1, m_Mesh->m_BufferResource);
+}
+
 // Disabled meshes must survive a buffer/material reload followed by destruction without another update.
 TEST_F(MeshVertexBufferTest, ReloadDisabledBeforeDestroy)
 {

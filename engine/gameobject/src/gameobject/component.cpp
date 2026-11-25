@@ -124,6 +124,7 @@ void ComponentTypeSetPostUpdateFn(HComponentType type, ComponentsPostUpdate fn) 
 void ComponentTypeSetOnMessageFn(HComponentType type, ComponentOnMessage fn)                { type->m_OnMessageFunction = fn; }
 void ComponentTypeSetOnInputFn(HComponentType type, ComponentOnInput fn)                    { type->m_OnInputFunction = fn; }
 void ComponentTypeSetOnReloadFn(HComponentType type, ComponentOnReload fn)                  { type->m_OnReloadFunction = fn; }
+void ComponentTypeSetOnGraphicsContextRestoredFn(HComponentType type, ComponentOnGraphicsContextRestored fn) { type->m_OnGraphicsContextRestoredFunction = fn; }
 void ComponentTypeSetSetPropertiesFn(HComponentType type, ComponentSetProperties fn)        { type->m_SetPropertiesFunction = fn; }
 void ComponentTypeSetGetPropertyFn(HComponentType type, ComponentGetProperty fn)            { type->m_GetPropertyFunction = fn; }
 void ComponentTypeSetSetPropertyFn(HComponentType type, ComponentSetProperty fn)            { type->m_SetPropertyFunction = fn; }

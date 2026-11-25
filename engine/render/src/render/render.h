@@ -302,7 +302,7 @@ namespace dmRender
 
     /**
      * Native listener for graphics context loss/restore, used by the engine to forward the events
-     * to extensions. CONTEXT_LOST is dispatched right after rendering has been paused and the
+     * to the component worlds and extensions. CONTEXT_LOST is dispatched right after rendering has been paused and the
      * graphics handles invalidated. CONTEXT_RESTORED is dispatched at the point where the context
      * is safe to use again — after the context-level objects (extensions, VAO, render targets)
      * have been recreated at the start of a resource reload — NOT at the raw platform restore

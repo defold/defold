@@ -368,12 +368,17 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
-    // Forwards graphics context loss/restore to extensions owning private GPU state (outside the
-    // engine's asset handles): CONTEXT_LOST right after rendering was paused; CONTEXT_RESTORED at
-    // the safe point where the context is usable again (see SetRenderContextEventListener).
+    // Forwards graphics context loss/restore to the component worlds and to extensions owning private
+    // GPU state (outside the engine's asset handles): CONTEXT_LOST right after rendering was paused;
+    // CONTEXT_RESTORED at the safe point where the context is usable again (see SetRenderContextEventListener).
     static void OnRenderContextEvent(void* user_data, dmRender::RenderContextEvent event_type)
     {
         Engine* engine = (Engine*)user_data;
+        if (event_type == dmRender::CONTEXT_RESTORED)
+        {
+            dmGameObject::DispatchGraphicsContextRestored(engine->m_Register);
+        }
+
         ScopedExtensionParams params(engine);
 
         dmExtension::Event event;

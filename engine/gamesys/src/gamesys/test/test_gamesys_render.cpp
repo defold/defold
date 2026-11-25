@@ -4197,6 +4197,59 @@ TEST_F(ModelTest, DynamicVertexAttributes)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+static void UpdateAndRenderCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmRender::HRenderContext render_context)
+{
+    ASSERT_TRUE(dmGameObject::Update(collection, update_context));
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+    dmRender::RenderListEnd(render_context);
+    dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+}
+
+// The custom vertex attributes are uploaded only when they change, so a restored graphics context
+// must upload them again: without it the content lost with the context is never replaced.
+TEST_F(ModelTest, DynamicVertexAttributesGraphicsContextRestored)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    dmGraphics::HVertexBuffer vx_buffer;
+    dmGraphics::HVertexDeclaration vx_decl;
+    dmGraphics::HVertexDeclaration inst_decl;
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
+    ASSERT_NE((dmGraphics::HVertexBuffer)0, vx_buffer);
+
+    const uint32_t size = dmGraphics::GetVertexBufferSize(vx_buffer);
+    ASSERT_GT(size, 0u);
+    uint8_t* expected = (uint8_t*)malloc(size);
+    memcpy(expected, dmGraphics::TestGetVertexBufferData(vx_buffer), size);
+    uint8_t* zeros = (uint8_t*)calloc(size, 1);
+    ASSERT_NE(0, memcmp(expected, zeros, size));
+    dmGraphics::SetVertexBufferData(vx_buffer, size, zeros, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+    ASSERT_EQ(0, memcmp(zeros, dmGraphics::TestGetVertexBufferData(vx_buffer), size));
+
+    dmGameObject::DispatchGraphicsContextRestored(m_Register);
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+
+    dmGraphics::HVertexBuffer restored_buffer;
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &restored_buffer, &vx_decl, &inst_decl);
+    ASSERT_EQ(vx_buffer, restored_buffer);
+    ASSERT_EQ(0, memcmp(expected, dmGraphics::TestGetVertexBufferData(vx_buffer), size));
+
+    free(zeros);
+    free(expected);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, MeshAttributeRenderDataPurge)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

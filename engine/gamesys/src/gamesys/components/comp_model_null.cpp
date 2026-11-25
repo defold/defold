@@ -70,6 +70,9 @@ namespace dmGameSystem
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     { }
 
+    void CompModelOnGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params)
+    { }
+
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         return dmGameObject::PROPERTY_RESULT_OK;

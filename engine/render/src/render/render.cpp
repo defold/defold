@@ -2201,8 +2201,9 @@ namespace dmRender
         // through an extension on WebGL1) and regenerates the global VAO.
         dmGraphics::RecreateGraphicsHandles(context->m_GraphicsContext);
 
-        // The context is safe to use from here on — tell the engine (which forwards to extensions
-        // owning private GPU state) before the resource worklist starts re-uploading content.
+        // The context is safe to use from here on — tell the engine (which forwards to the component
+        // worlds and to extensions owning private GPU state) before the resource worklist starts
+        // re-uploading content.
         if (context->m_ContextEventListener)
         {
             context->m_ContextEventListener(context->m_ContextEventListenerUserData, CONTEXT_RESTORED);

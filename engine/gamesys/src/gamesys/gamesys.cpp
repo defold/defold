@@ -300,6 +300,7 @@ namespace dmGameSystem
                 0, CompModelGetProperty, CompModelSetProperty,
                 0, CompModelIterProperties,
                 0);
+        dmGameObject::ComponentTypeSetOnGraphicsContextRestoredFn(dmGameObject::FindComponentType(regist, type, 0), CompModelOnGraphicsContextRestored);
 
         // prio: 725  comp_mesh.cpp
 
