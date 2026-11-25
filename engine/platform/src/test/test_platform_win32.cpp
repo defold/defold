@@ -295,7 +295,7 @@ TEST(dmPlatform, WindowsInputMessages)
     dmPlatform::DeleteWindow(window);
 }
 
-// Independent Left Ctrl and Right Alt transitions queued before one poll must not be filtered as AltGr.
+// Independent Ctrl and Right Alt transitions survive different timestamps or an intervening mouse message.
 TEST(dmPlatform, WindowsSeparateCtrlAndRightAlt)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -325,6 +325,20 @@ TEST(dmPlatform, WindowsSeparateCtrlAndRightAlt)
         EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
         EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RALT));
     }
+
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0x001d0001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_MENU, 0x01380001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    ASSERT_TRUE(PostMessageW(hwnd, WM_MOUSEMOVE, 0, 0));
+    ASSERT_TRUE(PostMessageW(hwnd, WM_KEYUP, VK_MENU, 0xc1380001));
+    // Give the synchronous Ctrl release the queued Alt release's message time.
+    MSG alt;
+    ASSERT_TRUE(PeekMessageW(&alt, hwnd, WM_KEYUP, WM_KEYUP, PM_NOREMOVE));
+    ASSERT_EQ(alt.time, (DWORD)GetMessageTime());
+    SendMessageW(hwnd, WM_KEYUP, VK_CONTROL, 0xc01d0001);
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RALT));
 
     dmPlatform::DeleteWindow(window);
 }

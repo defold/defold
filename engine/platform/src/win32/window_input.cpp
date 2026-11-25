@@ -177,7 +177,8 @@ namespace dmPlatform
         // Peeking updates the thread's message time even when the message stays queued.
         DWORD time = (DWORD)GetMessageTime();
         MSG next;
-        if (!PeekMessageW(&next, 0, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE))
+        // Windows queues the synthetic Ctrl and Right Alt messages for AltGr next to each other.
+        if (!PeekMessageW(&next, 0, 0, 0, PM_NOREMOVE))
         {
             return false;
         }
