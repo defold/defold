@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 4.0)
+
+# Stage the public include tree without changing the SDK component's install manifest.
+set(sources [==[@_sdk_stage_sources@]==])
+set(names [==[@_sdk_stage_files@]==])
+file(MAKE_DIRECTORY "${INCLUDE_DIR}")
+foreach(source name IN ZIP_LISTS sources names)
+  cmake_path(GET name PARENT_PATH subdir)
+  file(COPY "${source}" DESTINATION "${INCLUDE_DIR}/${subdir}")
+endforeach()
