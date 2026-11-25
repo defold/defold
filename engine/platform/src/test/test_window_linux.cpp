@@ -1117,6 +1117,25 @@ TEST(LinuxWindow, WaylandFallbackFrame)
     dmPlatform::DeleteWindow(w);
 }
 
+// The editor must only restore or capture floating geometry after a Wayland configure.
+TEST(LinuxWindow, WaylandFloatingPlacement)
+{
+    dmWindow w = {};
+    LinuxWayland wl = {};
+    w.m_Wayland = &wl;
+    uint32_t constrained[] = { XDG_TOPLEVEL_STATE_TILED_LEFT, XDG_TOPLEVEL_STATE_FULLSCREEN, XDG_TOPLEVEL_STATE_MAXIMIZED };
+    for (uint32_t state : constrained)
+    {
+        wl_array states = { sizeof(state), sizeof(state), &state };
+        dmPlatform::g_WaylandToplevelListener.configure(&w, 0, 1200, 900, &states);
+        EXPECT_FALSE(dmPlatform::NormalPlacementWindow(&w));
+
+        wl_array floating = {};
+        dmPlatform::g_WaylandToplevelListener.configure(&w, 0, 640, 400, &floating);
+        EXPECT_TRUE(dmPlatform::NormalPlacementWindow(&w));
+    }
+}
+
 // A covered window can still be maximized. Suspending repaint must leave simulation and audio running.
 TEST(LinuxWindow, WaylandSuspendedWindowIsNotIconified)
 {

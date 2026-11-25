@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_linux.h"
+#include "window_wayland.h"
 #include <dlib/math.h>
 
 namespace dmPlatform
@@ -29,7 +29,9 @@ namespace dmPlatform
 
     bool NormalPlacementWindow(HWindow w)
     {
-        return !w->m_Params.m_Fullscreen && !w->m_Iconified && !w->m_Maximized;
+        const LinuxWayland* wl = w->m_Wayland;
+        return !w->m_Params.m_Fullscreen && !w->m_Iconified && !w->m_Maximized &&
+               (!wl || (!wl->m_ShellFullscreen && !wl->m_ShellTiled));
     }
 
     void ApplyPlacementSize(HWindow w, int width, int height)

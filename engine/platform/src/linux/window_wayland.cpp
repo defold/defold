@@ -304,8 +304,7 @@ namespace dmPlatform
         const LinuxWayland* wl = w->m_Wayland;
         // A restored floating window gets its size from the existing Defold placement
         // code, which also handles changes to game.project and Reset Resolution.
-        return !wl->m_Configured && wl->m_SessionRestored &&
-               !w->m_Maximized && !wl->m_ShellFullscreen && !wl->m_ShellTiled;
+        return !wl->m_Configured && wl->m_SessionRestored && NormalPlacementWindow(w);
     }
 
     static void Configure(void* data, xdg_surface* surface, uint32_t serial)
