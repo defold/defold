@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_wayland.h"
+#include "xdg-session-management-v1-client-protocol.h"
 #include <libdecor-0/libdecor.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -148,6 +149,7 @@ namespace dmPlatform
     static void Enter(void* data, wl_surface*, wl_output* output)
     {
         HWindow w = (HWindow)data;
+        w->m_Wayland->m_SurfaceEntered = true;
         for (uint32_t i = 0; i < w->m_Wayland->m_Outputs.Size(); ++i)
         {
             LinuxOutput* out = w->m_Wayland->m_Outputs[i];
@@ -224,7 +226,7 @@ namespace dmPlatform
         BIND(wl_compositor, m_Compositor, 4u)
         BIND(wl_subcompositor, m_Subcompositor, 1u)
         BIND(wl_shm, m_Shm, 1u)
-        BIND(xdg_wm_base, m_Shell, 1u)
+        BIND(xdg_wm_base, m_Shell, 2u)
         BIND(zxdg_decoration_manager_v1, m_DecorManager, 1u)
         BIND(wp_viewporter, m_Viewporter, 1u)
         BIND(wp_fractional_scale_manager_v1, m_ScaleManager, 1u)
@@ -232,6 +234,7 @@ namespace dmPlatform
         BIND(zwp_pointer_constraints_v1, m_Constraints, 1u)
         BIND(zwp_idle_inhibit_manager_v1, m_IdleManager, 1u)
         BIND(xdg_activation_v1, m_Activation, 1u)
+        BIND(xdg_session_manager_v1, m_SessionManager, 1u)
 #undef BIND
         if (!strcmp(type, "wl_data_device_manager") && version >= 2 && !wl->m_DataManager)
         {
@@ -295,14 +298,33 @@ namespace dmPlatform
     }
 
     static const wl_registry_listener g_Registry = { Global, Remove };
+
+    static bool UsePlayerSizeForRestoredWindow(HWindow w)
+    {
+        const LinuxWayland* wl = w->m_Wayland;
+        // A restored floating window gets its size from the existing Defold placement
+        // code, which also handles changes to game.project and Reset Resolution.
+        return !wl->m_Configured && wl->m_SessionRestored &&
+               !w->m_Maximized && !wl->m_ShellFullscreen && !wl->m_ShellTiled;
+    }
+
     static void Configure(void* data, xdg_surface* surface, uint32_t serial)
     {
         HWindow w = (HWindow)data;
         LinuxWayland* wl = w->m_Wayland;
         xdg_surface_ack_configure(surface, serial);
-        wl->m_Configured = true;
         int width = wl->m_PendingWidth, height = wl->m_PendingHeight;
-        WaylandFrameContentSize(w, &width, &height);
+        if (UsePlayerSizeForRestoredWindow(w))
+        {
+            width = w->m_Width;
+            height = w->m_Height;
+        }
+        else
+        {
+            WaylandFrameContentSize(w, &width, &height);
+        }
+
+        wl->m_Configured = true;
         Resize(w, width > 0 ? width : w->m_Width, height > 0 ? height : w->m_Height);
     }
 
@@ -313,7 +335,7 @@ namespace dmPlatform
         w->m_Wayland->m_PendingWidth = width;
         w->m_Wayland->m_PendingHeight = height;
         w->m_Maximized = false;
-        w->m_Wayland->m_ShellFullscreen = false;
+        w->m_Wayland->m_ShellFullscreen = w->m_Wayland->m_ShellTiled = false;
         uint32_t* values = (uint32_t*)states->data;
         for (size_t i = 0; i < states->size / sizeof(*values); ++i)
         {
@@ -321,9 +343,15 @@ namespace dmPlatform
             {
                 w->m_Maximized = true;
             }
+
             if (values[i] == XDG_TOPLEVEL_STATE_FULLSCREEN)
             {
                 w->m_Wayland->m_ShellFullscreen = true;
+            }
+
+            if (values[i] >= XDG_TOPLEVEL_STATE_TILED_LEFT && values[i] <= XDG_TOPLEVEL_STATE_TILED_BOTTOM)
+            {
+                w->m_Wayland->m_ShellTiled = true;
             }
         }
     }
@@ -357,9 +385,15 @@ namespace dmPlatform
         {
             w->m_Maximized = state & LIBDECOR_WINDOW_STATE_MAXIMIZED;
             w->m_Wayland->m_ShellFullscreen = state & LIBDECOR_WINDOW_STATE_FULLSCREEN;
+            w->m_Wayland->m_ShellTiled = state & (LIBDECOR_WINDOW_STATE_TILED_LEFT | LIBDECOR_WINDOW_STATE_TILED_RIGHT |
+                                                  LIBDECOR_WINDOW_STATE_TILED_TOP | LIBDECOR_WINDOW_STATE_TILED_BOTTOM);
         }
 
-        g_Decor.libdecor_configuration_get_content_size_(cfg, frame, &width, &height);
+        if (!UsePlayerSizeForRestoredWindow(w))
+        {
+            g_Decor.libdecor_configuration_get_content_size_(cfg, frame, &width, &height);
+        }
+
         DecorSize(w, width > 0 ? width : w->m_Width, height > 0 ? height : w->m_Height, cfg);
         w->m_Wayland->m_Configured = true;
     }
@@ -498,13 +532,21 @@ namespace dmPlatform
 
     static void ReleaseRole(LinuxWayland* wl)
     {
+        if (!wl->m_SurfaceEntered || !wl->m_Configured)
+        {
+            // A startup that fails before its first frame must not replace saved placement.
+            WaylandReleaseSession(wl);
+        }
+
         WaylandDestroyFrame(wl);
         DROP(m_Frame, g_Decor.libdecor_frame_unref_)
         DROP(m_Decoration, zxdg_toplevel_decoration_v1_destroy)
         DROP(m_Toplevel, xdg_toplevel_destroy)
         DROP(m_XdgSurface, xdg_surface_destroy)
+        // Keep the session active until the compositor unmanages the toplevel and records its state.
+        WaylandReleaseSession(wl);
         wl->m_Configured = false;
-        wl->m_ClientDecorated = wl->m_ShellFullscreen = false;
+        wl->m_ClientDecorated = wl->m_ShellFullscreen = wl->m_ShellTiled = false;
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
     }
 
@@ -573,11 +615,16 @@ namespace dmPlatform
         ApplyAppId(wl);
         ApplyTitle(wl);
         bool map_frame = wl->m_Frame != 0;
+        const bool restore_session = WaylandSessionEnabled(w);
         if (!map_frame)
         {
             if (w->m_Params.m_Fullscreen)
             {
                 xdg_toplevel_set_fullscreen(wl->m_Toplevel, FullscreenOutput(wl));
+            }
+            else if (restore_session)
+            {
+                WaylandRestoreSession(w, wl->m_Toplevel);
             }
 
             wl_surface_commit(w->m_Surface);
@@ -586,12 +633,18 @@ namespace dmPlatform
         const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         while (!wl->m_Configured && Dispatch(w))
         {
-            // libdecor creates the toplevel asynchronously. Set fullscreen before mapping so the first drawable gets its configured size.
-            if (map_frame && (!w->m_Params.m_Fullscreen || g_Decor.libdecor_frame_get_xdg_toplevel_(wl->m_Frame)))
+            // libdecor creates the toplevel asynchronously. Fullscreen and session requests
+            // need the toplevel before the first surface commit.
+            xdg_toplevel* toplevel = map_frame ? g_Decor.libdecor_frame_get_xdg_toplevel_(wl->m_Frame) : 0;
+            if (map_frame && (toplevel || (!w->m_Params.m_Fullscreen && !restore_session)))
             {
                 if (w->m_Params.m_Fullscreen)
                 {
                     g_Decor.libdecor_frame_set_fullscreen_(wl->m_Frame, FullscreenOutput(wl));
+                }
+                else if (restore_session)
+                {
+                    WaylandRestoreSession(w, toplevel);
                 }
 
                 g_Decor.libdecor_frame_map_(wl->m_Frame);
@@ -757,6 +810,7 @@ namespace dmPlatform
         }
 
         w->m_Surface = 0;
+        wl->m_SurfaceEntered = false;
         for (uint32_t i = 0; i < wl->m_Outputs.Size(); ++i)
         {
             LinuxOutput* out = wl->m_Outputs[i];
@@ -766,6 +820,7 @@ namespace dmPlatform
         wl->m_PreferredScale = wl->m_EnterSerial = wl->m_NextRepeat = 0;
         wl->m_PointerSurface = 0;
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
+        wl->m_SessionReplaced = false;
     }
 
     static void Disconnect(HWindow w)
@@ -794,6 +849,7 @@ namespace dmPlatform
         DROP(m_Viewporter, wp_viewporter_destroy)
         DROP(m_IdleManager, zwp_idle_inhibit_manager_v1_destroy)
         DROP(m_Activation, xdg_activation_v1_destroy)
+        DROP(m_SessionManager, xdg_session_manager_v1_destroy)
         DROP(m_RelativeManager, zwp_relative_pointer_manager_v1_destroy)
         DROP(m_Constraints, zwp_pointer_constraints_v1_destroy)
         DROP(m_DecorManager, zxdg_decoration_manager_v1_destroy)

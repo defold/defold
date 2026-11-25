@@ -13,6 +13,8 @@ set(_wayland_xml
     "${_wayland_protocols}/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml"
     "${_wayland_protocols}/unstable/idle-inhibit/idle-inhibit-unstable-v1.xml"
     "${_wayland_protocols}/staging/xdg-activation/xdg-activation-v1.xml"
+    # Bundled from wayland-protocols 1.50 so older build hosts can use it at runtime.
+    "${CMAKE_CURRENT_LIST_DIR}/xdg-session-management-v1.xml"
     "${CMAKE_CURRENT_LIST_DIR}/fractional-scale-v1.xml")
 foreach(_xml IN LISTS _wayland_xml)
     get_filename_component(_name "${_xml}" NAME_WE)

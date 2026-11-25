@@ -19,6 +19,10 @@
 #include "window_linux.h"
 #include <dlib/array.h>
 
+struct xdg_session_manager_v1;
+struct xdg_session_v1;
+struct xdg_toplevel_session_v1;
+
 struct LinuxOutput
 {
     HWindow    m_Window;
@@ -47,6 +51,11 @@ struct LinuxWayland
     uint32_t                         m_SeatName;
     dmArray<LinuxOutput*>            m_Outputs;
 
+    xdg_session_manager_v1*  m_SessionManager;
+    xdg_session_v1*          m_Session;
+    xdg_toplevel_session_v1* m_ToplevelSession;
+    bool                     m_SessionRestored, m_SessionReplaced;
+
     xdg_surface*                 m_XdgSurface;
     xdg_toplevel*                m_Toplevel;
     zxdg_toplevel_decoration_v1* m_Decoration;
@@ -63,10 +72,10 @@ struct LinuxWayland
     } m_FrameParts[4];
     dmArray<wl_buffer*>          m_FrameBuffers;
     int                          m_FrameWidth, m_FrameHeight, m_FramePointerX, m_FramePointerY;
-    bool                         m_ClientDecorated, m_ShellFullscreen;
+    bool                         m_ClientDecorated, m_ShellFullscreen, m_ShellTiled;
     int                          m_PendingWidth, m_PendingHeight;
     uint32_t                     m_PreferredScale;
-    bool                         m_Configured, m_Unmapped, m_Lost;
+    bool                         m_Configured, m_Unmapped, m_SurfaceEntered, m_Lost;
 
     wl_keyboard*               m_Keyboard;
     xkb_context*               m_Xkb;
@@ -114,5 +123,9 @@ namespace dmPlatform
     void WaylandDestroyFrame(LinuxWayland* wl);
     const char* WaylandFrameCursor(LinuxWayland* wl);
     void        WaylandFrameButton(HWindow window, uint32_t serial, uint32_t button);
+
+    bool        WaylandSessionEnabled(HWindow window);
+    void        WaylandRestoreSession(HWindow window, xdg_toplevel* toplevel);
+    void        WaylandReleaseSession(LinuxWayland* wl);
 }
 #endif

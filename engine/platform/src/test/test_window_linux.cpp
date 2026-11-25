@@ -950,6 +950,115 @@ TEST(LinuxWindow, WaylandHiddenVulkanWindow)
     dmPlatform::DeleteWindow(w);
 }
 
+class WaylandSessionTest : public jc_test_base_class
+{
+    protected:
+    HWindow m_Window;
+    char*   m_PreviousPrefix;
+    char    m_Directory[64];
+
+    void SetUp()
+    {
+        m_Window = dmPlatform::NewWindow();
+        const char* prefix = getenv("DM_WINDOW_STATE");
+        m_PreviousPrefix = prefix ? strdup(prefix) : 0;
+        m_Directory[0] = 0;
+    }
+
+    void TearDown()
+    {
+        dmPlatform::DeleteWindow(m_Window);
+        if (m_PreviousPrefix)
+        {
+            setenv("DM_WINDOW_STATE", m_PreviousPrefix, 1);
+            free(m_PreviousPrefix);
+        }
+        else
+        {
+            unsetenv("DM_WINDOW_STATE");
+        }
+
+        if (m_Directory[0])
+        {
+            const char* files[] = { "player-wayland.ini", "player-wayland.ini.session", "reset-size" };
+            for (const char* file : files)
+            {
+                char path[128];
+                snprintf(path, sizeof(path), "%s/%s", m_Directory, file);
+                unlink(path);
+            }
+
+            rmdir(m_Directory);
+        }
+    }
+
+    bool Present()
+    {
+        dmPlatform::SetSwapInterval(m_Window, 0);
+        dmPlatform::SwapBuffers(m_Window);
+        const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+        while (!m_Window->m_Wayland->m_SurfaceEntered && dmTime::GetMonotonicTime() < deadline)
+        {
+            dmPlatform::PollEvents(m_Window);
+        }
+
+        return m_Window->m_Wayland->m_SurfaceEntered && g_WaylandClient.wl_display_roundtrip_(m_Window->m_WlDisplay) >= 0;
+    }
+
+    bool RecreateWindow()
+    {
+        dmPlatform::CloseWindow(m_Window);
+        bool closed = g_WaylandClient.wl_display_roundtrip_(m_Window->m_WlDisplay) >= 0;
+        dmPlatform::DeleteWindow(m_Window);
+        m_Window = dmPlatform::NewWindow();
+        return closed && m_Window && m_Window->m_Wayland;
+    }
+
+};
+
+// The compositor restores the same player across connections and Reset Resolution still controls its size.
+TEST_F(WaylandSessionTest, RestorePlayerAndResetSize)
+{
+    if (!m_Window || !m_Window->m_Wayland || !m_Window->m_Wayland->m_SessionManager)
+    {
+        SKIP();
+    }
+
+    strcpy(m_Directory, "test-wayland-session.XXXXXX");
+    ASSERT_TRUE(mkdtemp(m_Directory));
+    char path[128];
+    snprintf(path, sizeof(path), "%s/player", m_Directory);
+    ASSERT_EQ(0, setenv("DM_WINDOW_STATE", path, 1));
+    WindowCreateParams p = Params();
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, p));
+    EXPECT_FALSE(m_Window->m_Wayland->m_SessionRestored);
+    dmPlatform::ShowWindow(m_Window);
+    ASSERT_TRUE(Present());
+    dmPlatform::SetWindowSize(m_Window, 450, 350);
+    ASSERT_TRUE(Present());
+
+    ASSERT_TRUE(RecreateWindow());
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, p));
+    EXPECT_TRUE(m_Window->m_Wayland->m_SessionRestored);
+    EXPECT_EQ(450, m_Window->m_Width);
+    EXPECT_EQ(350, m_Window->m_Height);
+    dmPlatform::ShowWindow(m_Window);
+    ASSERT_TRUE(Present());
+    ASSERT_TRUE(RecreateWindow());
+
+    snprintf(path, sizeof(path), "%s/reset-size", m_Directory);
+    FILE* reset = fopen(path, "wb");
+    ASSERT_TRUE(reset);
+    fputs("deadbeef-1234", reset);
+    ASSERT_EQ(0, fclose(reset));
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, p));
+    EXPECT_TRUE(m_Window->m_Wayland->m_SessionRestored);
+    dmPlatform::ShowWindow(m_Window);
+    ASSERT_TRUE(Present());
+    EXPECT_EQ((int)p.m_Width, m_Window->m_Width);
+    EXPECT_EQ((int)p.m_Height, m_Window->m_Height);
+}
+
 static int CountClose(void* data)
 {
     ++*(unsigned*)data;

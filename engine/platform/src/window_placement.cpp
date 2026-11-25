@@ -91,6 +91,12 @@ namespace dmPlatform
         PlacementStorage(window) = placement;
     }
 
+    const char* GetWindowPlacementPath(HWindow window)
+    {
+        WindowPlacement* placement = PlacementStorage(window);
+        return placement ? placement->m_Path : 0;
+    }
+
     bool RestoreWindowPlacement(HWindow window)
     {
         WindowPlacement* placement = PlacementStorage(window);

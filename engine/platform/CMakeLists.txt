@@ -103,6 +103,7 @@ elseif(TARGET_PLATFORM_OS STREQUAL "linux")
         "${PLAT_SRC_DIR}/linux/window_wayland.cpp"
         "${PLAT_SRC_DIR}/linux/window_wayland_frame.cpp"
         "${PLAT_SRC_DIR}/linux/window_wayland_input.cpp"
+        "${PLAT_SRC_DIR}/linux/window_wayland_session.cpp"
         "${PLAT_SRC_DIR}/linux/window_placement.cpp"
         "${PLAT_SRC_DIR}/linux/window_opengl.cpp"
         $<TARGET_OBJECTS:platform_wayland_protocols>)
