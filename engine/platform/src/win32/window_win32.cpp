@@ -17,6 +17,7 @@
 
 #include <dbt.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <stdlib.h>
 
 // Hybrid laptop drivers read these exports from the executable at startup.
@@ -316,6 +317,8 @@ namespace dmPlatform
             rect.right = rect.left + width;
             rect.bottom = rect.top + height;
             Win32AdjustFrame(&rect, style, WS_EX_APPWINDOW, (UINT)(window->m_Scale * 96 + 0.5f));
+            // Keep the title bar accessible when the centered client leaves too little room for its frame.
+            OffsetRect(&rect, dmMath::Max(0L, info.rcWork.left - rect.left), dmMath::Max(0L, info.rcWork.top - rect.top));
         }
 
         HWND hwnd = CreateWindowExW(WS_EX_APPWINDOW, WIN32_WINDOW_CLASS, L"", style, rect.left, rect.top,

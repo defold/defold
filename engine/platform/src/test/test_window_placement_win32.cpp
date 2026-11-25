@@ -129,6 +129,29 @@ TEST(Win32Desktop, DpiResizeCallback)
     }
 }
 
+// A client as tall as the work area must open with its title bar inside the work area.
+TEST(Win32Desktop, TallWindowStartsWithVisibleTitleBar)
+{
+    HWindow window = dmPlatform::NewWindow();
+    POINT origin = {};
+    HMONITOR primary = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO info = { sizeof(info) };
+    ASSERT_TRUE(GetMonitorInfoW(primary, &info));
+    float scale = dmPlatform::Win32MonitorScale(primary);
+    ASSERT_GT(scale, 0.0f);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Height = (uint32_t)((info.rcWork.bottom - info.rcWork.top) / scale);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    TITLEBARINFO title = { sizeof(title) };
+    ASSERT_TRUE(GetTitleBarInfo(dmPlatform::GetWindowsHWND(window), &title));
+    EXPECT_GE(title.rcTitleBar.top, info.rcWork.top);
+    EXPECT_GT(title.rcTitleBar.bottom, title.rcTitleBar.top);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Showing without focus must preserve the maximized or minimized placement across a hide.
 TEST(Win32Desktop, ShowWithoutFocusPreservesPlacement)
 {
