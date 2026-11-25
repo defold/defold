@@ -931,8 +931,8 @@ static void RecordGraphicsContextRestored(const dmGameObject::ComponentOnGraphic
     test->m_RestoredCollectionCount++;
 }
 
-// A restored graphics context must reach each world of the component types that handle it once,
-// in every collection, and skip the types without the callback.
+// A restored graphics context must reach the world of a component type that handles it once in every
+// collection. The other registered types have no callback, so the dispatch must not call them.
 TEST_F(ComponentTest, GraphicsContextRestored)
 {
     HResourceType resource_type;
