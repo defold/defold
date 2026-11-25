@@ -305,6 +305,7 @@ target_include_directories(test_engine PRIVATE
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
   "${DEFOLD_HOME}/engine/dlib/src"
+  "${DEFOLD_HOME}/engine/platform/src/service"
   "${DEFOLD_HOME}/engine/resource/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")

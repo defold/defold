@@ -648,7 +648,7 @@ file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/tools.txt"
             tools = (root / 'build/tools.txt').read_text().split(';')
             self.assertEqual([(sdk_lib / name).as_posix() for name in ('hid.lib', 'dmbedtls.lib')], tools)
 
-    # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
+    # The service uses private headers and must work with headless and standalone graphics builds.
     def test_platform_service_graphics_headers_preserve_headless_linking(self):
         for in_tree in ('OFF', 'ON'):
             with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
@@ -676,6 +676,9 @@ add_executable(headless_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.cpp")
 defold_target_link_libraries(headless_consumer "${TARGET_PLATFORM}" platform_service graphics_null platform_null)
 ''')
                 service = self.configure_target(root, 'platform_service', IN_TREE_GRAPHICS=in_tree)
+                platform_headers = root / 'build/platform/include/platform'
+                self.assertTrue((platform_headers / 'platform_app.h').is_file())
+                self.assertEqual([], list(platform_headers.glob('platform_service*.h')))
                 dependencies = [dependency['id'].split('::')[0]
                                 for dependency in service.get('dependencies', [])]
                 self.assertEqual(in_tree == 'ON', 'graphics_sdk_headers' in dependencies, dependencies)

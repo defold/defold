@@ -15,7 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <test/http_service_test.h>
-#include "../platform_service.h"
+#include "../service/platform_service.h"
 #include "../window.hpp"
 #include <dlib/json.hpp>
 #include <dlib/math.h>

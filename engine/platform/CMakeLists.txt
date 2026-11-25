@@ -13,7 +13,18 @@ set(PLATFORM_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
 set(PLATFORM_DEPENDENCIES dlib)
 
 file(MAKE_DIRECTORY "${PLATFORM_GENERATED_INCLUDE_DIR}/platform")
-file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
+set(_DEFOLD_PLATFORM_HEADERS
+    "${PLAT_SRC_DIR}/platform_app.h"
+    "${PLAT_SRC_DIR}/platform_window_android.h"
+    "${PLAT_SRC_DIR}/platform_window_constants.h"
+    "${PLAT_SRC_DIR}/platform_window_ios.h"
+    "${PLAT_SRC_DIR}/platform_window_linux.h"
+    "${PLAT_SRC_DIR}/platform_window_opengl.h"
+    "${PLAT_SRC_DIR}/platform_window_osx.h"
+    "${PLAT_SRC_DIR}/platform_window_vulkan.h"
+    "${PLAT_SRC_DIR}/platform_window_win32.h"
+    "${PLAT_SRC_DIR}/window.h"
+    "${PLAT_SRC_DIR}/window.hpp")
 if(NOT TARGET_PLATFORM_OS MATCHES "^(macos|win32)$")
     list(APPEND _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/window_placement.h")
 endif()
@@ -21,8 +32,6 @@ foreach(_platform_header IN LISTS _DEFOLD_PLATFORM_HEADERS)
     get_filename_component(_platform_header_name "${_platform_header}" NAME)
     configure_file("${_platform_header}" "${PLATFORM_GENERATED_INCLUDE_DIR}/platform/${_platform_header_name}" COPYONLY)
 endforeach()
-configure_file("${PLAT_SRC_DIR}/window.h" "${PLATFORM_GENERATED_INCLUDE_DIR}/platform/window.h" COPYONLY)
-configure_file("${PLAT_SRC_DIR}/window.hpp" "${PLATFORM_GENERATED_INCLUDE_DIR}/platform/window.hpp" COPYONLY)
 
 # Select platform sources (centralized)
 set(PLATFORM_USE_LINUX OFF)
@@ -161,9 +170,9 @@ endfunction()
 # Debug HTTP service. The final engine chooses platform/platform_vulkan/platform_null;
 # linking a concrete backend here would pull a native window into headless engines.
 defold_add_library(platform_service STATIC
-  "${PLAT_SRC_DIR}/platform_service.cpp"
-  "${PLAT_SRC_DIR}/platform_service_extension.cpp")
-target_include_directories(platform_service PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
+  "${PLAT_SRC_DIR}/service/platform_service.cpp"
+  "${PLAT_SRC_DIR}/service/platform_service_extension.cpp")
+target_include_directories(platform_service PRIVATE "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
 target_compile_definitions(platform_service PRIVATE DLIB_LOG_DOMAIN="PLATFORM")
 defold_target_link_libraries(platform_service "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 
@@ -246,18 +255,12 @@ if (TARGET platform_vulkan)
             RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 
-# Install public platform headers (platform_*.h) into include/platform
-if(_DEFOLD_PLATFORM_HEADERS)
-    install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
-endif()
+install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
 
 defold_add_sdk_headers_target(platform_public_sdk_headers
     DESTINATION include/platform
     SOURCE_ROOT "${PLAT_SRC_DIR}"
-    FILES
-        ${_DEFOLD_PLATFORM_HEADERS}
-        "${PLAT_SRC_DIR}/window.h"
-        "${PLAT_SRC_DIR}/window.hpp"
+    FILES ${_DEFOLD_PLATFORM_HEADERS}
     DEPENDS platform)
 defold_add_sdk_headers_target(platform_dmsdk_sdk_headers
     DESTINATION sdk/include/dmsdk
@@ -270,11 +273,6 @@ set_target_properties(platform PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk
 if(TARGET platform_vulkan)
     set_target_properties(platform_vulkan PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 endif()
-
-install(FILES
-    "${PLAT_SRC_DIR}/window.h"
-    "${PLAT_SRC_DIR}/window.hpp"
-    DESTINATION include/platform)
 
 install(FILES
     "${PLAT_SRC_DIR}/dmsdk/platform/window.h"

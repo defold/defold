@@ -22,7 +22,7 @@
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <test/http_service_test.h>
-#include <platform/platform_service.h>
+#include "platform_service.h"
 #include <dlib/math.h>
 #include <dlib/testutil.h>
 #include <dlib/webserver.h>
