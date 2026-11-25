@@ -263,11 +263,16 @@ namespace dmPlatform
             return;
         }
 
+        WindowPlacementSizeRequested(w);
+        if (w->m_X11 && w->m_Shown)
+        {
+            X11RequestWindowSize(w, width, height);
+            return;
+        }
+
         const bool same_size = width == (uint32_t)w->m_Width && height == (uint32_t)w->m_Height;
         const uint32_t count = w->m_ResizeCallbackCount;
-        WindowPlacementSizeRequested(w);
         w->m_Ops->m_Size(w, width, height);
-        // A new X11 size is reported asynchronously when the window manager applies it.
         if (same_size && w->m_ResizeCallbackCount == count)
         {
             NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);

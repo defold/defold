@@ -26,11 +26,19 @@
 #include <dlib/math.h>
 #include <cmath>
 #include <dlib/array.h>
+#include <jc/ringbuffer.h>
 #include <limits.h>
 #include <unistd.h>
 #include <poll.h>
 #include <locale.h>
 #include <dlib/time.h>
+
+struct X11ResizeRequest
+{
+    unsigned long m_Serial;
+    int           m_Width, m_Height;
+    uint32_t      m_Count;
+};
 
 struct LinuxX11
 {
@@ -52,6 +60,8 @@ struct LinuxX11
     Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
     Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
     dmArray<char> m_Text;
+
+    jc::RingBuffer<X11ResizeRequest> m_ResizeRequests;
 };
 
 namespace dmPlatform
@@ -426,12 +436,34 @@ namespace dmPlatform
         WindowPlacementChanged(w);
     }
 
+    static void ReportSize(HWindow w, int width, int height, unsigned long serial, bool synthetic)
+    {
+        jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
+        bool changed = width != w->m_Width || height != w->m_Height;
+        uint32_t acknowledgements = 0;
+        // A manager that declines a resize sends a synthetic ConfigureNotify with the retained size.
+        if ((changed || synthetic) && !requests.Empty() && serial >= requests[0].m_Serial)
+        {
+            acknowledgements = requests.Pop().m_Count;
+            if (changed)
+            {
+                --acknowledgements; // LinuxUpdateSize reports the size change itself.
+            }
+        }
+
+        LinuxUpdateSize(w, width, height, w->m_Scale);
+        for (uint32_t i = 0; i < acknowledgements; ++i)
+        {
+            NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+        }
+    }
+
     void X11ReadSize(HWindow w)
     {
         XWindowAttributes attrs;
         if (w->m_Xid && XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
         {
-            LinuxUpdateSize(w, attrs.width, attrs.height, w->m_Scale);
+            ReportSize(w, attrs.width, attrs.height, LastKnownRequestProcessed(w->m_Display), false);
         }
     }
 
@@ -874,7 +906,7 @@ namespace dmPlatform
                 }
                 case ConfigureNotify:
                 {
-                    LinuxUpdateSize(w, e.xconfigure.width, e.xconfigure.height, w->m_Scale);
+                    ReportSize(w, e.xconfigure.width, e.xconfigure.height, e.xconfigure.serial, e.xconfigure.send_event);
                     if (x->m_ConfigureSerial && e.xconfigure.serial >= x->m_ConfigureSerial)
                     {
                         CompleteGeometryRequest(w);
@@ -1128,6 +1160,7 @@ namespace dmPlatform
         }
 
         x->m_Text.SetSize(0);
+        x->m_ResizeRequests.Clear();
         x->m_ConfigureSerial = 0;
         x->m_ClampAfterResize = false;
         XSync(w->m_Display, False);
@@ -1193,6 +1226,53 @@ namespace dmPlatform
         XResizeWindow(w->m_Display, w->m_Xid, width, height);
         XFlush(w->m_Display);
         WindowPlacementChanged(w);
+    }
+
+    void X11RequestWindowSize(HWindow w, int width, int height)
+    {
+        if (w->m_Params.m_ResizeCallback)
+        {
+            jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
+            if (requests.Empty() && width == w->m_Width && height == w->m_Height)
+            {
+                // An external resize may still be in the event queue. Only skip the native request
+                // when the server already has the requested size.
+                XWindowAttributes attrs;
+                if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.width == width && attrs.height == height)
+                {
+                    // A pending move must settle before clamping the final client position.
+                    w->m_X11->m_ClampAfterResize = true;
+                    if (!w->m_X11->m_ConfigureSerial)
+                    {
+                        CompleteGeometryRequest(w);
+                    }
+
+                    NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+                    return;
+                }
+            }
+
+            if (!requests.Empty())
+            {
+                X11ResizeRequest& last = requests[requests.Size() - 1];
+                if (last.m_Width == width && last.m_Height == height)
+                {
+                    // X11 can omit a second event for two requests for the same dimensions.
+                    ++last.m_Count;
+                    return;
+                }
+            }
+
+            if (requests.Full())
+            {
+                requests.OffsetCapacity(4);
+            }
+
+            X11ResizeRequest request = { NextRequest(w->m_Display), width, height, 1 };
+            requests.Push(request);
+        }
+
+        Size(w, width, height);
     }
 
     static void Iconify(HWindow w)

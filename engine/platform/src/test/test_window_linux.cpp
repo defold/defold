@@ -175,7 +175,20 @@ static HWindow NewX11TestWindow()
     return window;
 }
 
-// The game thread submits a resize even when the manager chooses different dimensions.
+struct X11ResizeEvents
+{
+    uint32_t m_Count, m_Width, m_Height;
+};
+
+static void OnX11Resize(void* data, uint32_t width, uint32_t height)
+{
+    X11ResizeEvents* events = (X11ResizeEvents*)data;
+    ++events->m_Count;
+    events->m_Width = width;
+    events->m_Height = height;
+}
+
+// Each explicit resize must report the dimensions the manager accepts, including when it declines a request.
 TEST(LinuxWindow, X11ConstrainedResize)
 {
     HWindow w = NewX11TestWindow();
@@ -184,9 +197,12 @@ TEST(LinuxWindow, X11ConstrainedResize)
         SKIP();
     }
 
+    X11ResizeEvents events = {};
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
+    p.m_ResizeCallback = OnX11Resize;
+    p.m_ResizeCallbackUserData = &events;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     dmPlatform::SetWindowSize(w, 375, 255);
     EXPECT_EQ(375u, dmPlatform::GetWindowWidth(w));
@@ -203,6 +219,8 @@ TEST(LinuxWindow, X11ConstrainedResize)
     dmPlatform::ShowWindow(w);
     XSelectInput(manager, parent, SubstructureRedirectMask);
     XSync(manager, False);
+    dmPlatform::PollEvents(w);
+    events.m_Count = 0;
     g_ResizeWaits = 0;
     g_ResizeFd = ConnectionNumber(w->m_Display);
     dmPlatform::SetWindowSize(w, 427, 311);
@@ -214,9 +232,46 @@ TEST(LinuxWindow, X11ConstrainedResize)
     EXPECT_EQ(427, request.xconfigurerequest.width);
     XResizeWindow(manager, w->m_Xid, 420, 300);
     XSync(manager, False);
+    XSync(w->m_Display, False);
     dmPlatform::PollEvents(w);
     EXPECT_EQ(420u, dmPlatform::GetWindowWidth(w));
     EXPECT_EQ(300u, dmPlatform::GetWindowHeight(w));
+    EXPECT_EQ(1u, events.m_Count);
+    EXPECT_EQ(420u, events.m_Width);
+    EXPECT_EQ(300u, events.m_Height);
+
+    dmPlatform::SetWindowSize(w, 420, 300);
+    EXPECT_EQ(2u, events.m_Count);
+    dmPlatform::SetWindowSize(w, 450, 320);
+    dmPlatform::SetWindowSize(w, 450, 320);
+    dmPlatform::SetWindowSize(w, 460, 320);
+    EXPECT_EQ(2u, events.m_Count);
+    XSync(w->m_Display, False);
+    XEvent reply = {};
+    reply.xconfigure.type = ConfigureNotify;
+    reply.xconfigure.event = reply.xconfigure.window = w->m_Xid;
+    reply.xconfigure.width = 420;
+    reply.xconfigure.height = 300;
+    for (int width = 450; width <= 460; width += 10)
+    {
+        ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+        EXPECT_EQ(width, request.xconfigurerequest.width);
+        ASSERT_TRUE(XSendEvent(manager, w->m_Xid, False, StructureNotifyMask, &reply));
+    }
+
+    XSync(manager, False);
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(5u, events.m_Count);
+    EXPECT_EQ(420u, events.m_Width);
+    EXPECT_EQ(300u, events.m_Height);
+
+    // A later position-only notification must not acknowledge any of those requests again.
+    ASSERT_TRUE(XSendEvent(manager, w->m_Xid, False, StructureNotifyMask, &reply));
+    XSync(manager, False);
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(5u, events.m_Count);
     dmPlatform::DeleteWindow(w);
     XDestroyWindow(manager, parent);
     XCloseDisplay(manager);

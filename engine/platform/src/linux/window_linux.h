@@ -78,6 +78,7 @@ namespace dmPlatform
     void    LinuxPollJoysticks();
     void    LinuxCloseJoysticks();
 
+    void X11RequestWindowSize(HWindow window, int width, int height);
     void X11SetPosition(HWindow window, int x, int y);
     void X11GetPosition(HWindow window, int* x, int* y);
     bool X11QueryPointer(HWindow window, int* x, int* y);
