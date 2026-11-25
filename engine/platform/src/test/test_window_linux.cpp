@@ -19,6 +19,7 @@
 #include <vulkan/vulkan.h>
 #include "../platform_window_vulkan.h"
 #include <dlib/hash.h>
+#include <dlib/math.h>
 #include <dlib/time.h>
 #include <GL/glext.h>
 #include <EGL/egl.h>
@@ -49,8 +50,70 @@ static const char* EGLAPIENTRY NoEGLExtensions(EGLDisplay display, EGLint query)
     return query == EGL_EXTENSIONS ? "" : eglQueryString(display, query);
 }
 
+// Model two otherwise identical X11 window configs, with a pbuffer only on the second visual.
+static bool g_TestEGLPbuffer;
+static EGLint g_TestVisuals[] = { 1, 2 };
+
+static EGLBoolean EGLAPIENTRY ChooseTestEGLConfigs(EGLDisplay, const EGLint*, EGLConfig* configs, EGLint capacity, EGLint* count)
+{
+    *count = configs ? dmMath::Min(capacity, 2) : 2;
+    for (EGLint i = 0; configs && i < *count; ++i)
+    {
+        configs[i] = &g_TestVisuals[i];
+    }
+
+    return EGL_TRUE;
+}
+
+static EGLBoolean EGLAPIENTRY GetTestEGLConfigAttrib(EGLDisplay, EGLConfig config, EGLint attribute, EGLint* value)
+{
+    const EGLint visual = *(EGLint*)config;
+    switch (attribute)
+    {
+        case EGL_NATIVE_VISUAL_ID:
+        {
+            *value = visual;
+            break;
+        }
+        case EGL_SURFACE_TYPE:
+        {
+            *value = EGL_WINDOW_BIT | (visual == 2 ? EGL_PBUFFER_BIT : 0);
+            break;
+        }
+        case EGL_SAMPLES:
+        {
+            *value = 0;
+            break;
+        }
+        case EGL_DEPTH_SIZE:
+        {
+            *value = 24;
+            break;
+        }
+        default:
+        {
+            *value = 8;
+            break;
+        }
+    }
+
+    return EGL_TRUE;
+}
+
 extern "C" void* __wrap_dlsym(void* handle, const char* name)
 {
+    if (g_TestEGLPbuffer)
+    {
+        if (!strcmp(name, "eglChooseConfig"))
+        {
+            return (void*)ChooseTestEGLConfigs;
+        }
+
+        if (!strcmp(name, "eglGetConfigAttrib"))
+        {
+            return (void*)GetTestEGLConfigAttrib;
+        }
+    }
     if (g_NoEGLExtensions && !strcmp(name, "eglQueryString"))
     {
         return (void*)NoEGLExtensions;
@@ -1241,6 +1304,28 @@ TEST(LinuxWindow, FramebufferPrecisionFallback)
         dmPlatform::CloseWindow(w);
     }
 
+    dmPlatform::DeleteWindow(w);
+}
+
+// An equally precise pbuffer-capable format must win even when an exact window-only match is listed first.
+TEST(LinuxWindow, PreferEGLPbufferForSharedContext)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    w->m_Params = Params();
+    w->m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    w->m_Params.m_Samples = 0;
+    VisualID visual = 0;
+    g_TestEGLPbuffer = true;
+    bool prepared = dmPlatform::LinuxPrepareGL(w, &visual);
+    g_TestEGLPbuffer = false;
+    EXPECT_TRUE(prepared);
+    EXPECT_EQ(2u, visual);
+    dmPlatform::LinuxCloseGL(w);
     dmPlatform::DeleteWindow(w);
 }
 

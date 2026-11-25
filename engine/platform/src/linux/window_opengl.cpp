@@ -333,13 +333,15 @@ namespace dmPlatform
                 continue;
             }
 
-            FormatScore score = ScoreFormat(w, 0, config, false);
+            EGLint surface_types = 0;
+            g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_SURFACE_TYPE, &surface_types);
+            FormatScore score = ScoreFormat(w, 0, config, (surface_types & EGL_PBUFFER_BIT) != 0);
             if (BetterFormat(score, best))
             {
                 best = score;
                 g->m_EConfig = config;
                 *visual = id;
-                if (!best.m_MissingBits && !best.m_SampleError)
+                if (!best.m_MissingBits && !best.m_SampleError && best.m_Pbuffer)
                 {
                     break;
                 }
