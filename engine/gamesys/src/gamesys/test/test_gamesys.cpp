@@ -2439,9 +2439,12 @@ TEST_F(MeshVertexBufferTest, ReloadLocalSpace)
 }
 
 // Local space vertex buffers are uploaded only when the buffer changes, so a restored graphics context
-// must upload them again: without it the content lost with the context is never replaced.
+// must upload them again: without it the content lost with the context is never replaced. The buffer
+// resource itself is not recreated from its file, which would drop the edits made at runtime.
 TEST_F(MeshVertexBufferTest, GraphicsContextRestored)
 {
+    uint8_t order;
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, m_Mesh->m_BufferResource->m_NameHash, &order));
     ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/mesh/profile_counts.goc", dmHashString64("mesh")));
     Update();
     Render(1, m_Mesh->m_BufferResource);
