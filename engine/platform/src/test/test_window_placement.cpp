@@ -402,16 +402,21 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
 }
 
 #if defined(__linux__)
-// Restored drawable dimensions are available during startup, but resize callbacks require an initialized renderer.
-TEST_F(WindowPlacementTest, DeferredRestoreResize)
+static bool SaveResizedPlacement(const char* path, const WindowCreateParams& params)
 {
     dmWindowState::State saved = {};
-    saved.m_ConfigWidth = m_Params.m_Width;
-    saved.m_ConfigHeight = m_Params.m_Height;
+    saved.m_ConfigWidth = params.m_Width;
+    saved.m_ConfigHeight = params.m_Height;
     saved.m_Rect = { 0, 0, 501, 351 };
     saved.m_Monitor.m_WorkArea = { 0, 0, 1280, 1024 };
     saved.m_Monitor.m_ScaleX = saved.m_Monitor.m_ScaleY = 1;
-    ASSERT_TRUE(dmWindowState::Save(m_Path, saved));
+    return dmWindowState::Save(path, saved);
+}
+
+// Restored drawable dimensions are available during startup, but resize callbacks require an initialized renderer.
+TEST_F(WindowPlacementTest, DeferredRestoreResize)
+{
+    ASSERT_TRUE(SaveResizedPlacement(m_Path, m_Params));
     m_Params.m_ResizeCallback = OnResize;
     m_Params.m_ResizeCallbackUserData = &m_ResizeEvents;
     m_ResizeEvents.m_Count = 0;
@@ -435,6 +440,47 @@ TEST_F(WindowPlacementTest, DeferredRestoreResize)
     dmPlatform::PollEvents(m_Window);
     EXPECT_EQ(1u, m_ResizeEvents.m_Count);
     EXPECT_EQ(WindowGetWidth(m_Window), m_ResizeEvents.m_Width);
+}
+
+struct WindowsToDelete
+{
+    HWindow m_Current;
+    HWindow m_Next;
+};
+
+static void DeleteOnResize(void* data, uint32_t, uint32_t)
+{
+    WindowsToDelete* windows = (WindowsToDelete*)data;
+    dmPlatform::DeleteWindow(windows->m_Current);
+    dmPlatform::DeleteWindow(windows->m_Next);
+    windows->m_Current = windows->m_Next = 0;
+}
+
+// Deleting both the dispatching window and its successor must still deliver the surviving window's restore event.
+TEST_F(WindowPlacementTest, DeleteWindowsDuringRestoreResize)
+{
+    ASSERT_TRUE(SaveResizedPlacement(m_Path, m_Params));
+    m_ResizeEvents.m_Count = 0;
+    m_Params.m_ResizeCallback = OnResize;
+    m_Params.m_ResizeCallbackUserData = &m_ResizeEvents;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+
+    WindowsToDelete windows;
+    windows.m_Next = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, windows.m_Next);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(windows.m_Next, m_Params));
+    windows.m_Current = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, windows.m_Current);
+    m_Params.m_ResizeCallback = DeleteOnResize;
+    m_Params.m_ResizeCallbackUserData = &windows;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(windows.m_Current, m_Params));
+
+    dmPlatform::PollEvents(windows.m_Current);
+    EXPECT_EQ((HWindow)0, windows.m_Current);
+    EXPECT_EQ(m_Window, dmPlatform::LinuxActiveWindow());
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
 }
 #endif
 

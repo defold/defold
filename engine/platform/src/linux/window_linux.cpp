@@ -24,7 +24,13 @@ namespace dmPlatform
 
     HWindow LinuxActiveWindow()
     {
-        return g_Windows;
+        HWindow w = g_Windows;
+        while (w && w->m_DeletePending)
+        {
+            w = w->m_Next;
+        }
+
+        return w;
     }
 
     HWindow NewWindow()
@@ -47,6 +53,18 @@ namespace dmPlatform
     {
         if (!w)
         {
+            return;
+        }
+
+        if (w->m_Polling)
+        {
+            // Native dispatch still owns the display and may deliver more events before it returns.
+            w->m_DeletePending = true;
+            w->m_Params.m_ResizeCallback = 0;
+            w->m_Params.m_FocusCallback = 0;
+            w->m_Params.m_IconifyCallback = 0;
+            w->m_Params.m_CloseCallback = 0;
+            w->m_Char = 0;
             return;
         }
 
@@ -217,25 +235,45 @@ namespace dmPlatform
         }
 
         pthread_t thread = pthread_self();
-        for (HWindow current = g_Windows; current; current = current->m_Next)
+        HWindow current = g_Windows;
+        while (current)
         {
-            if (pthread_equal(current->m_EventThread, thread))
+            if (!pthread_equal(current->m_EventThread, thread) || current->m_Polling)
             {
-                current->m_Ops->m_Poll(current);
-                if (current->m_PendingRestoreResize)
+                current = current->m_Next;
+                continue;
+            }
+
+            current->m_Polling = true;
+            current->m_Ops->m_Poll(current);
+            if (current->m_PendingRestoreResize && !current->m_DeletePending)
+            {
+                current->m_PendingRestoreResize = false;
+                // A resize already delivered since open includes the current drawable dimensions.
+                if (!current->m_ResizeCallbackCount)
                 {
-                    current->m_PendingRestoreResize = false;
-                    // A resize already delivered since open includes the current drawable dimensions.
-                    if (!current->m_ResizeCallbackCount)
-                    {
-                        NotifyWindowResize(current, current->m_Params, current->m_ResizeCallbackCount);
-                    }
+                    NotifyWindowResize(current, current->m_Params, current->m_ResizeCallbackCount);
                 }
+            }
+
+            if (!current->m_DeletePending)
+            {
                 UpdateWindowPlacement(current, false);
+            }
+
+            current->m_Polling = false;
+            HWindow polled = current;
+            current = current->m_Next;
+            if (polled->m_DeletePending)
+            {
+                DeleteWindow(polled);
             }
         }
 
-        LinuxPollJoysticks();
+        if (LinuxActiveWindow())
+        {
+            LinuxPollJoysticks();
+        }
     }
 
     void ShowWindow(HWindow w)
