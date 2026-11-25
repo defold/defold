@@ -1306,6 +1306,89 @@ TEST_F(MaterialTest, PartiallyFailedConstantUpdateInvalidatesInstancingHash)
     dmResource::Release(m_Factory, resource);
 }
 
+// Internal texture bindings have fixed sampler settings and are not material
+// edits; Lua must reject both setters without invalidating persistent state.
+TEST_F(MaterialTest, InternalMaterialSamplersCannotBeChangedFromLua)
+{
+    dmGameSystem::MaterialResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/material_constant_single.materialc", (void**)&resource));
+    uint64_t original_hash = dmRender::GetMaterialRenderHash(resource->m_Material);
+    uint32_t original_version = dmRender::GetMaterialVersion(resource->m_Material);
+    uint32_t original_resource_version = resource->m_Version;
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
+        "local path = '/material/material_constant_single.materialc'\n"
+        "for _, name in ipairs({'pose_matrix_cache', 'morph_targets'}) do\n"
+        "    local ok, err = pcall(material.set_samplers, path, {[name] = {}})\n"
+        "    assert(not ok and string.find(err, 'reserved for internal resources', 1, true))\n"
+        "    ok, err = pcall(material.set_textures, path, {[name] = '/missing.texturec'})\n"
+        "    assert(not ok and string.find(err, 'reserved for internal resources', 1, true))\n"
+        "end\n"));
+    ASSERT_EQ(original_hash, dmRender::GetMaterialRenderHash(resource->m_Material));
+    ASSERT_EQ(original_version, dmRender::GetMaterialVersion(resource->m_Material));
+    ASSERT_EQ(original_resource_version, resource->m_Version);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Lua partial sampler updates must resolve the logical array name and update every fallback binding.
+TEST_F(MaterialTest, LuaSamplerUpdatesConvergeAcrossFallbackBindings)
+{
+    TestShaderDesc shader("foo");
+    dmGraphics::ShaderDesc::ResourceBinding textures[2] = {};
+    const char* names[] = { "tex_0", "tex_1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    {
+        textures[i].m_Name = names[i];
+        textures[i].m_NameHash = dmHashString64(names[i]);
+        textures[i].m_Binding = i;
+        textures[i].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D;
+    }
+    shader.Get()->m_Reflection.m_Textures.m_Data = textures;
+    shader.Get()->m_Reflection.m_Textures.m_Count = DM_ARRAY_SIZE(textures);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+    uint64_t expected_hash = 0;
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        dmGraphics::TextureFilter min_filter = pass ? dmGraphics::TEXTURE_FILTER_NEAREST : dmGraphics::TEXTURE_FILTER_LINEAR;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        {
+            ASSERT_TRUE(dmRender::SetMaterialSampler(material, textures[i].m_NameHash, i,
+                dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                min_filter, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+            dmRender::SetMaterialSamplerLogicalName(material, i, dmHashString64("tex"));
+        }
+        if (pass == 0)
+            expected_hash = dmRender::GetMaterialRenderHash(material);
+    }
+    ASSERT_NE(expected_hash, dmRender::GetMaterialRenderHash(material));
+
+    dmGameSystem::MaterialResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/material_constant_single.materialc", (void**)&resource));
+    dmRender::HMaterial original = resource->m_Material;
+    resource->m_Material = material;
+    bool updated = RunString(m_Scriptlibcontext.m_LuaState,
+        "material.set_samplers('/material/material_constant_single.materialc', {\n"
+        "    tex = { min_filter = graphics.TEXTURE_FILTER_LINEAR }\n"
+        "})\n");
+    resource->m_Material = original;
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(updated);
+    ASSERT_EQ(expected_hash, dmRender::GetMaterialRenderHash(material));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    {
+        dmRender::SamplerInfo actual;
+        ASSERT_TRUE(dmRender::GetSamplerInfo(dmRender::GetMaterialSampler(material, i), &actual));
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, actual.m_MinFilter);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, actual.m_MagFilter);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT, actual.m_UWrap);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT, actual.m_VWrap);
+        ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, actual.m_WWrap);
+        ASSERT_EQ(1.0f, actual.m_MaxAnisotropy);
+    }
+    dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(MiscTests, MaterialModule)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -3158,6 +3241,13 @@ public:
 
     void DrawAndAssertBatches(uint32_t expected_batches)
     {
+        uint64_t hashes[2];
+        uint32_t versions[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            hashes[i] = dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material);
+            versions[i] = dmRender::GetMaterialVersion(m_Materials[i]->m_Material);
+        }
         dmRender::ClearRenderObjects(m_RenderContext);
         dmGraphics::ResetDrawCount();
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3174,6 +3264,12 @@ public:
         for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
             instance_count += context->m_RenderObjects[i]->m_InstanceCount;
         ASSERT_EQ(2u, instance_count);
+        // Temporary morph/pose samplers must not mutate persistent material state.
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(hashes[i], dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material));
+            ASSERT_EQ(versions[i], dmRender::GetMaterialVersion(m_Materials[i]->m_Material));
+        }
     }
 
     void SetVertexAttribute(uint32_t material_index, const Vector4& value, dmGraphics::VertexAttribute::VectorType vector_type)
@@ -3225,6 +3321,55 @@ public:
         }
     }
 };
+
+// Morph textures occupy the material's reserved tail slot without taking a user
+// sampler slot or mutating its persistent hash/version during model preparation.
+TEST_F(ModelInstancingCompatibilityTest, InternalMorphTextureUsesReservedSlot)
+{
+    DrawAndAssertBatches(1);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    const dmRender::RenderObject& ro = *context->m_RenderObjects[0];
+    uint32_t morph_slot = dmRender::GetMaterialInternalTextureSlot(ro.m_Material, dmRender::SAMPLER_MORPH_TARGETS);
+    ASSERT_EQ(dmRender::RenderObject::MAX_TEXTURE_COUNT - 1u, morph_slot);
+    ASSERT_EQ(morph_slot, dmRender::GetMaterialUserTextureCount(ro.m_Material));
+    ASSERT_EQ(0u, dmRender::GetMaterialSamplerUnit(ro.m_Material, dmHashString64("tex0")));
+    ASSERT_NE((dmGraphics::HTexture)0, ro.m_Textures[0]);
+    ASSERT_NE((dmGraphics::HTexture)0, ro.m_Textures[morph_slot]);
+    for (uint32_t i = 1; i < morph_slot; ++i)
+        ASSERT_EQ((dmGraphics::HTexture)0, ro.m_Textures[i]);
+}
+
+// A render-script override can replace per-instance morph weights with uniforms.
+// Keep each model's weights and the override's instance layout in separate draws.
+TEST_F(ModelInstancingCompatibilityTest, UniformMorphMaterialOverride)
+{
+    dmGameSystem::MaterialResource* override_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/morph_instanced_legacy.materialc", (void**)&override_resource));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint32_t component_type;
+        dmGameObject::HComponent component;
+        dmGameObject::HComponentWorld world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(m_Instances[i], dmHashString64("model"), &component_type, &component, &world));
+        float weights[] = {i ? 0.75f : 0.25f, 0.5f};
+        dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*)component, weights, DM_ARRAY_SIZE(weights));
+    }
+    DrawAndAssertBatches(1);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint64_t hash = dmRender::GetMaterialRenderHash(override_resource->m_Material);
+    uint32_t version = dmRender::GetMaterialVersion(override_resource->m_Material);
+    context->m_Material = override_resource->m_Material;
+    DrawAndAssertBatches(2);
+    for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+    {
+        ASSERT_EQ(1u, context->m_RenderObjects[i]->m_InstanceCount);
+        ASSERT_NE((dmGraphics::HVertexDeclaration)0, context->m_RenderObjects[i]->m_VertexDeclarations[1]);
+    }
+    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(override_resource->m_Material));
+    ASSERT_EQ(version, dmRender::GetMaterialVersion(override_resource->m_Material));
+    context->m_Material = 0;
+    dmResource::Release(m_Factory, override_resource);
+}
 
 // Native sampler changes must split existing batches and allow distinct materials
 // to batch again when their state matches, including restoring the original state.

@@ -365,15 +365,13 @@ namespace dmRender
 
     // Material
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
-    enum MaterialInstancingHashFlags
-    {
-        MATERIAL_INSTANCING_HASH_SKIP_POSE_CACHE    = 1,
-        MATERIAL_INSTANCING_HASH_SKIP_MORPH_TARGETS = 2,
-    };
     // Hash of shared draw state. Attribute values and textures are resolved by the component.
-    // Exclude internal samplers only when the component replaces their bindings for the draw.
+    // Engine-owned skinning and morph samplers are not persistent material state.
     // Mutate material constants through the material setters to invalidate the cached hash.
-    uint64_t                        GetMaterialInstancingHash(HMaterial material, uint32_t flags = 0);
+    uint64_t                        GetMaterialInstancingHash(HMaterial material);
+    // Portable material settings, shared with the compiler. Not a complete draw key.
+    uint64_t                        GetMaterialRenderHash(HMaterial material);
+    void                            SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash);
     uint32_t                        GetMaterialVersion(HMaterial material);
     uint32_t                        GetMaterialAttributeVersion(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
@@ -395,6 +393,11 @@ namespace dmRender
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
     bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
     bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
+    bool                            IsMaterialInternalSampler(dmhash_t name_hash);
+    // Internal samplers reserve tail entries only when reflected in this material.
+    // These are RenderObject texture indices, not physical GPU texture units.
+    uint32_t                        GetMaterialUserTextureCount(HMaterial material);
+    uint32_t                        GetMaterialInternalTextureSlot(HMaterial material, dmhash_t name_hash);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -430,6 +433,10 @@ namespace dmRender
     bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    // Resource loading associates active fallback bindings with their authored sampler.
+    void                            SetMaterialSamplerLogicalName(HMaterial material, uint32_t unit, dmhash_t logical_name_hash);
+    // Updates one logical sampler and every active binding generated from it.
+    bool                            SetMaterialSamplerOptions(HMaterial material, dmhash_t name_hash, const SamplerInfo& options);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
