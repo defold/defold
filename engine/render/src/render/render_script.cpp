@@ -3299,6 +3299,96 @@ namespace dmRender
         return 0;
     }
 
+   /*# recreate graphics resources after a context restore
+    * Recreates, in chunks across several frames, all GPU resources that were created from resource
+    * files (textures, shaders, buffers, meshes, render targets). Intended to be called after the
+    * graphics context has been restored (see [ref:render.set_listener] and
+    * `render.CONTEXT_EVENT_CONTEXT_RESTORED`), for example after a WebGL context restore on HTML5.
+    *
+    * Rendering stays paused while the resources are being recreated and is automatically resumed once
+    * the process has finished. The work is spread across frames so the application stays responsive.
+    * Calling it while the context is lost is an error. A context loss during the reload cancels it
+    * without invoking its callbacks, so call it again after the next restore.
+    *
+    * With WebGPU, a lost device is reported through the same events. The engine requests a new
+    * device on its own and sends `render.CONTEXT_EVENT_CONTEXT_RESTORED` once it is ready.
+    *
+    * Render targets are restored as well, including ones created at runtime with
+    * [ref:render.render_target] — their contents are transient and are re-rendered by the next frame.
+    *
+    * Resources created at runtime from memory (for example textures made with
+    * `resource.create_texture`) have no file to reload from: their handles stay valid, but the
+    * application must upload the content again itself (e.g. with `resource.set_texture`) — the
+    * finish callback is a good place to trigger that.
+    *
+    * @name render.reload_resources
+    * @param finish_callback [type:fun(self:script_instance)] Called once when all resources have been recreated.
+    * @param [progress_callback] [type:fun(self:script_instance, done:integer, total:integer)] Called every frame
+    * while the resources are being recreated.
+    *
+    * `self`
+    * : [type:script_instance] The render script instance.
+    *
+    * `done`
+    * : [type:integer] The number of resources recreated so far.
+    *
+    * `total`
+    * : [type:integer] The total number of resources to recreate.
+    *
+    * @examples
+    *
+    * ```lua
+    * --- custom.render_script
+    * function init(self)
+    *    render.set_listener(function(self, event_type)
+    *        if event_type == render.CONTEXT_EVENT_CONTEXT_RESTORED then
+    *            render.reload_resources(function(self)
+    *                print("All resources recreated")
+    *            end, function(self, done, total)
+    *                print("Recreated " .. done .. "/" .. total)
+    *            end)
+    *        end
+    *    end)
+    * end
+    * ```
+    */
+    static int RenderScript_ReloadResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
+
+        if (lua_type(L, 1) != LUA_TFUNCTION)
+        {
+            return DM_LUA_ERROR("argument 1 to render.reload_resources() must be a function (finish_callback)");
+        }
+
+        int progress_type = lua_type(L, 2);
+        if (progress_type != LUA_TNONE && progress_type != LUA_TNIL && progress_type != LUA_TFUNCTION)
+        {
+            return DM_LUA_ERROR("argument 2 to render.reload_resources() must be a function or nil (progress_callback)");
+        }
+
+        if (script_instance->m_RenderContext->m_IsContextLost)
+        {
+            return DM_LUA_ERROR("render.reload_resources() must be called after render.CONTEXT_EVENT_CONTEXT_RESTORED");
+        }
+
+        dmScript::LuaCallbackInfo* finish   = dmScript::CreateCallback(L, 1);
+        dmScript::LuaCallbackInfo* progress = progress_type == LUA_TFUNCTION ? dmScript::CreateCallback(L, 2) : 0x0;
+
+        if (!dmRender::StartResourceReload(script_instance->m_RenderContext, finish, progress))
+        {
+            dmScript::DestroyCallback(finish);
+            if (progress)
+            {
+                dmScript::DestroyCallback(progress);
+            }
+            return DM_LUA_ERROR("render.reload_resources() is already in progress");
+        }
+        return 0;
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -3340,6 +3430,7 @@ namespace dmRender
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
         {"set_listener",                    RenderScript_SetListener},
+        {"reload_resources",                RenderScript_ReloadResources},
         {0, 0}
     };
 

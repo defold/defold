@@ -72,6 +72,14 @@ namespace dmEngine
      */
     static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;
 
+    /*# graphics context notification
+     * Identifier for GraphicsContextEvent notifications.
+     * @constant
+     * @name EVENT_GRAPHICS_CONTEXT
+     * @language C++
+     */
+    static const dmhash_t EVENT_GRAPHICS_CONTEXT = ENGINE_GRAPHICS_CONTEXT_EVENT;
+
     /*# input actions have been resolved
      * Event identifier for InputActionsEvent notifications.
      * @constant
@@ -109,6 +117,18 @@ namespace dmEngine
     static const WindowEventType WINDOW_EVENT_RESTORED = ::ENGINE_WINDOW_EVENT_RESTORED;
     static const WindowEventType WINDOW_EVENT_FOCUS_GAINED = ::ENGINE_WINDOW_EVENT_FOCUS_GAINED;
     static const WindowEventType WINDOW_EVENT_FOCUS_LOST = ::ENGINE_WINDOW_EVENT_FOCUS_LOST;
+
+    /*# graphics context notification kind
+     * Identifies the graphics context change in GraphicsContextEvent.
+     * @enum
+     * @name GraphicsContextEventType
+     * @language C++
+     * @member  GRAPHICS_CONTEXT_EVENT_LOST The graphics context was lost. Every GPU object is invalid, so make no graphics calls until the context is restored.
+     * @member  GRAPHICS_CONTEXT_EVENT_RESTORED The graphics context is usable again. Recreate the GPU objects owned outside of the engine resources.
+     */
+    typedef ::EngineGraphicsContextEventType GraphicsContextEventType;
+    static const GraphicsContextEventType GRAPHICS_CONTEXT_EVENT_LOST = ::ENGINE_GRAPHICS_CONTEXT_EVENT_LOST;
+    static const GraphicsContextEventType GRAPHICS_CONTEXT_EVENT_RESTORED = ::ENGINE_GRAPHICS_CONTEXT_EVENT_RESTORED;
 
     /*# resolved input actions
      * Published once per completed input update after application bindings are
@@ -160,6 +180,21 @@ namespace dmEngine
      */
     typedef EngineWindowEvent WindowEvent;
 
+    /*# graphics context event payload
+     * Payload for EVENT_GRAPHICS_CONTEXT with data_size equal to sizeof(GraphicsContextEvent).
+     * The graphics context can be lost, for example when the browser drops the WebGL context on
+     * [icon:html5] or when the WebGPU device is lost. The lost notification is sent after rendering has
+     * been paused. The restored notification is sent when `render.reload_resources()` starts, after the
+     * context-level state has been restored and before the engine resources are recreated. A
+     * `render.reload_resources()` call without a preceding loss sends it as well.
+     * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
+     * @struct
+     * @name GraphicsContextEvent
+     * @language C++
+     * @member m_Type [type:GraphicsContextEventType] notification being delivered
+     */
+    typedef EngineGraphicsContextEvent GraphicsContextEvent;
+
 
 } // namespace dmEngine
 
@@ -197,6 +232,22 @@ namespace dmEngine
  * @member  ENGINE_WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
+ */
+
+/*# graphics context notification
+ * Identifier for EngineGraphicsContextEvent notifications.
+ * @constant
+ * @name ENGINE_GRAPHICS_CONTEXT_EVENT
+ * @language C
+ */
+
+/*# graphics context notification kind
+ * Identifies the graphics context change in EngineGraphicsContextEvent.
+ * @enum
+ * @name EngineGraphicsContextEventType
+ * @language C
+ * @member  ENGINE_GRAPHICS_CONTEXT_EVENT_LOST The graphics context was lost. Every GPU object is invalid, so make no graphics calls until the context is restored.
+ * @member  ENGINE_GRAPHICS_CONTEXT_EVENT_RESTORED The graphics context is usable again. Recreate the GPU objects owned outside of the engine resources.
  */
 
 /*# input actions have been resolved
@@ -251,6 +302,20 @@ namespace dmEngine
  * @member m_Type [type:EngineWindowEventType] notification selecting the valid payload
  * @member  m_Data.m_Resized.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED
  * @member  m_Data.m_Resized.m_Height [type:uint32_t] physical framebuffer height; valid only for ENGINE_WINDOW_EVENT_RESIZED
+ */
+
+/*# graphics context event payload
+ * Payload for ENGINE_GRAPHICS_CONTEXT_EVENT with data_size equal to sizeof(EngineGraphicsContextEvent).
+ * The graphics context can be lost, for example when the browser drops the WebGL context on
+ * [icon:html5] or when the WebGPU device is lost. The lost notification is sent after rendering has
+ * been paused. The restored notification is sent when `render.reload_resources()` starts, after the
+ * context-level state has been restored and before the engine resources are recreated. A
+ * `render.reload_resources()` call without a preceding loss sends it as well.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
+ * @struct
+ * @name EngineGraphicsContextEvent
+ * @language C
+ * @member m_Type [type:EngineGraphicsContextEventType] notification being delivered
  */
 
 /*# initialize a window event

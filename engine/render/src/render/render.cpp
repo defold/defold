@@ -14,6 +14,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include <float.h>
 #include <algorithm>
 
@@ -21,8 +22,11 @@
 #include <dlib/hashtable.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
+#include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/intersection.h>
+
+#include <resource/resource.h>
 
 #include <ddf/ddf.h>
 
@@ -178,6 +182,9 @@ namespace dmRender
         InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
         context->m_Recording.m_ScriptWorld = dmScript::NewScriptWorld(context->m_Recording.m_ScriptContext);
         context->m_Recording.m_CallbackInfo = 0x0;
+        context->m_ResourceReload = 0x0;
+        context->m_ContextEventListener = 0x0;
+        context->m_ContextEventListenerUserData = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0)
@@ -194,6 +201,7 @@ namespace dmRender
         context->m_MultiBufferingRequired = 0;
 
         context->m_IsRenderPaused = 0;
+        context->m_IsContextLost = 0;
 
         // TODO: This should be a "context property" or something similar.
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
@@ -229,12 +237,54 @@ namespace dmRender
         return context;
     }
 
+    // Chunked recreation of GPU resources after a graphics context restore (e.g. WebGL on HTML5).
+    // Defined here (rather than near the driver below) so DeleteRenderContext can tear the state down.
+    struct ResourceReloadItem
+    {
+        dmhash_t m_NameHash;
+        uint8_t  m_Bucket; // recreation order bucket, see GetReloadBucket
+    };
+
+    struct ResourceReloadState
+    {
+        dmArray<ResourceReloadItem> m_Worklist;        // sorted by m_Bucket
+        uint32_t                    m_Cursor;          // index of the next item to recreate
+        uint32_t                    m_Total;
+        dmScript::LuaCallbackInfo*  m_FinishCallback;
+        dmScript::LuaCallbackInfo*  m_ProgressCallback; // may be 0
+        dmResource::HFactory        m_Factory;
+    };
+
+    static void CancelResourceReload(HRenderContext render_context)
+    {
+        ResourceReloadState* state = render_context->m_ResourceReload;
+        if (state == 0x0)
+        {
+            return;
+        }
+
+        if (state->m_FinishCallback)
+        {
+            dmScript::DestroyCallback(state->m_FinishCallback);
+        }
+
+        if (state->m_ProgressCallback)
+        {
+            dmScript::DestroyCallback(state->m_ProgressCallback);
+        }
+
+        delete state;
+        render_context->m_ResourceReload = 0x0;
+    }
+
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
         if (render_context == 0x0)
         {
             return RESULT_INVALID_CONTEXT;
         }
+
+        CancelResourceReload(render_context);
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
         {
@@ -2018,6 +2068,217 @@ namespace dmRender
         return RESULT_OK;
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Chunked recreation of GPU resources after a graphics context restore (e.g. WebGL on HTML5).
+    // (ResourceReloadItem / ResourceReloadState are defined near NewRenderContext above.)
+    // ---------------------------------------------------------------------------------------------
+
+    static bool CollectResourceHashCallback(const dmResource::IteratorResource& resource, void* user_ctx)
+    {
+        dmArray<dmhash_t>* hashes = (dmArray<dmhash_t>*) user_ctx;
+        if (hashes->Full())
+        {
+            hashes->OffsetCapacity(128);
+        }
+        hashes->Push(resource.m_Id);
+        return true;
+    }
+
+    static int CompareReloadItems(const void* a, const void* b)
+    {
+        return (int) ((const ResourceReloadItem*) a)->m_Bucket - (int) ((const ResourceReloadItem*) b)->m_Bucket;
+    }
+
+    static void BuildReloadWorklist(dmResource::HFactory factory, ResourceReloadState* state)
+    {
+        // Collect all resource hashes first; classification calls back into the factory (which locks
+        // the same mutex IterateResources holds), so it must happen after iteration completes.
+        dmArray<dmhash_t> all_hashes;
+        dmResource::IterateResources(factory, CollectResourceHashCallback, &all_hashes);
+
+        for (uint32_t i = 0; i < all_hashes.Size(); ++i)
+        {
+            dmhash_t name_hash = all_hashes[i];
+            // A type takes part in the reload by opting in with ResourceTypeSetGraphicsRestoreOrder
+            // (the engine types register their buckets in dmGameSystem::RegisterResourceTypes,
+            // extensions do the same for theirs). Rendering stays paused until the whole worklist is
+            // processed, so the bucket order only matters for recreate functions that read a sibling
+            // asset's GL state. Notable non-participants: materialc and computec own no re-readable
+            // GPU bytes, since their shader programs and textures are resources of their own (and
+            // swapping a material's HMaterial would break handles cached by components);
+            // render targets — resource-backed and runtime-created alike — are restored in place by
+            // RecreateGraphicsHandles at the start of the reload, since their contents are transient.
+            uint8_t bucket;
+            if (!dmResource::GetResourceTypeGraphicsRestoreOrder(factory, name_hash, &bucket))
+            {
+                continue;
+            }
+            // Resources created directly from memory (render target attachment wrappers, textures made
+            // with resource.create_texture, ...) have no byte source in any mount, so recreate-by-hash
+            // can never succeed for them. Render target attachments are restored wholesale by
+            // RecreateGraphicsHandles; other memory-created resources remain their owners' concern.
+            if (dmResource::IsResourceCreatedFromMemory(factory, name_hash))
+            {
+                continue;
+            }
+            if (state->m_Worklist.Full())
+            {
+                state->m_Worklist.OffsetCapacity(64);
+            }
+            ResourceReloadItem item;
+            item.m_NameHash = name_hash;
+            item.m_Bucket   = (uint8_t) bucket;
+            state->m_Worklist.Push(item);
+        }
+
+        if (state->m_Worklist.Size() > 1)
+        {
+            qsort(state->m_Worklist.Begin(), state->m_Worklist.Size(), sizeof(ResourceReloadItem), CompareReloadItems);
+        }
+    }
+
+    static void InvokeReloadProgress(dmScript::LuaCallbackInfo* cbk, uint32_t done, uint32_t total)
+    {
+        if (cbk == 0 || !dmScript::IsCallbackValid(cbk))
+        {
+            return;
+        }
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+        if (!dmScript::SetupCallback(cbk))
+        {
+            return;
+        }
+        lua_pushinteger(L, done);
+        lua_pushinteger(L, total);
+        dmScript::PCall(L, 3, 0); // self + done + total
+        dmScript::TeardownCallback(cbk);
+    }
+
+    static void InvokeReloadFinish(dmScript::LuaCallbackInfo* cbk)
+    {
+        if (cbk == 0 || !dmScript::IsCallbackValid(cbk))
+        {
+            return;
+        }
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+        if (!dmScript::SetupCallback(cbk))
+        {
+            return;
+        }
+        dmScript::PCall(L, 1, 0); // self
+        dmScript::TeardownCallback(cbk);
+    }
+
+    bool StartResourceReload(HRenderContext context, dmScript::LuaCallbackInfo* finish_callback, dmScript::LuaCallbackInfo* progress_callback)
+    {
+        // Objects recreated before the restore would belong to the lost context.
+        if (context->m_ResourceReload != 0 || context->m_IsContextLost)
+        {
+            return false;
+        }
+
+        dmResource::HFactory factory = dmScript::GetResourceFactory(context->m_Recording.m_ScriptContext);
+        if (factory == 0)
+        {
+            return false;
+        }
+
+        ResourceReloadState* state = new ResourceReloadState();
+        state->m_Cursor           = 0;
+        state->m_FinishCallback   = finish_callback;
+        state->m_ProgressCallback = progress_callback;
+        state->m_Factory          = factory;
+
+        BuildReloadWorklist(factory, state);
+        state->m_Total = state->m_Worklist.Size();
+
+        context->m_ResourceReload = state;
+
+        // Restore context-owned graphics state up front, BEFORE any resource is recreated: on the web
+        // this re-fetches the WebGL extension objects invalidated with the lost context (texture
+        // re-uploads need the compressed-texture formats back, and the VAO regeneration below routes
+        // through an extension on WebGL1) and regenerates the global VAO.
+        dmGraphics::RecreateGraphicsHandles(context->m_GraphicsContext);
+
+        // The context is safe to use from here on — tell the engine (which forwards to the component
+        // worlds and to extensions owning private GPU state) before the resource worklist starts
+        // re-uploading content.
+        if (context->m_ContextEventListener)
+        {
+            context->m_ContextEventListener(context->m_ContextEventListenerUserData, CONTEXT_RESTORED);
+        }
+        return true;
+    }
+
+    void UpdateResourceReload(HRenderContext context, float dt)
+    {
+        ResourceReloadState* state = context->m_ResourceReload;
+        if (state == 0)
+        {
+            return;
+        }
+
+        DM_PROFILE("UpdateResourceReload");
+
+        const uint64_t budget_us = 4000; // ~4 ms/frame to keep a single-threaded (HTML5) page responsive
+        uint64_t start = dmTime::GetMonotonicTime();
+
+        while (state->m_Cursor < state->m_Total)
+        {
+            const ResourceReloadItem& item = state->m_Worklist[state->m_Cursor];
+            dmResource::Result r = dmResource::RecreateResource(state->m_Factory, item.m_NameHash);
+            if (r == dmResource::RESULT_PENDING)
+            {
+                // Another recreate of this resource is in flight, retry it next frame.
+                break;
+            }
+            if (r != dmResource::RESULT_OK)
+            {
+                // Don't abort the whole restore over a single failing resource.
+                dmLogWarning("Failed to recreate resource %s during context restore (%d)", dmHashReverseSafe64(item.m_NameHash), r);
+            }
+            state->m_Cursor++;
+
+            // Always make progress (at least one item), then stop once the frame budget is spent.
+            if ((dmTime::GetMonotonicTime() - start) >= budget_us)
+            {
+                break;
+            }
+        }
+
+        if (state->m_ProgressCallback)
+        {
+            InvokeReloadProgress(state->m_ProgressCallback, state->m_Cursor, state->m_Total);
+        }
+
+        if (state->m_Cursor >= state->m_Total)
+        {
+            // Context-owned graphics state was already restored in StartResourceReload (it must
+            // precede the resource re-uploads); every GPU object is back now, so resume rendering.
+            SetRenderPause(context, 0u);
+
+            dmScript::LuaCallbackInfo* finish   = state->m_FinishCallback;
+            dmScript::LuaCallbackInfo* progress = state->m_ProgressCallback;
+
+            // Clear state before invoking the finish callback so it may start another reload if desired.
+            context->m_ResourceReload = 0;
+            delete state;
+
+            InvokeReloadFinish(finish);
+
+            if (finish)
+            {
+                dmScript::DestroyCallback(finish);
+            }
+            if (progress)
+            {
+                dmScript::DestroyCallback(progress);
+            }
+        }
+    }
+
     void SetupContextEventCallback(void* context, ContextEventCallback callback)
     {
         PlatformSetupContextEventCallback(context, callback);
@@ -2028,8 +2289,28 @@ namespace dmRender
         RenderContext* render_context = (RenderContext*)context;
         if (event_type == dmRender::CONTEXT_LOST)
         {
+            render_context->m_IsContextLost = 1;
+            // A reload in flight recreates into the lost context; the restore starts a new one.
+            CancelResourceReload(render_context);
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+            if (render_context->m_ContextEventListener)
+            {
+                render_context->m_ContextEventListener(render_context->m_ContextEventListenerUserData, CONTEXT_LOST);
+            }
+            // NOTE: the matching CONTEXT_RESTORED is dispatched from StartResourceReload once the
+            // context is actually safe to use again, not at the raw platform restore event.
+        }
+        else if (event_type == dmRender::CONTEXT_RESTORED)
+        {
+            if (render_context->m_IsContextLost)
+            {
+                // Updates keep running while the context is lost, and objects created or uploaded then
+                // got names of the lost context (WebGL hands out invalidated objects). Drop them too, so
+                // they are created again on the restored context.
+                dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+            }
+            render_context->m_IsContextLost = 0;
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
@@ -2053,6 +2334,33 @@ namespace dmRender
             (void)ret;
             dmScript::TeardownCallback(cbk);
         }
+    }
+
+    void UpdateContextEvents(HRenderContext context)
+    {
+        switch (dmGraphics::PollContextEvent(context->m_GraphicsContext))
+        {
+            case dmGraphics::CONTEXT_EVENT_LOST:
+            {
+                OnContextEvent(context, CONTEXT_LOST);
+                break;
+            }
+            case dmGraphics::CONTEXT_EVENT_RESTORED:
+            {
+                OnContextEvent(context, CONTEXT_RESTORED);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
+    void SetRenderContextEventListener(HRenderContext context, RenderContextEventListener listener, void* user_data)
+    {
+        context->m_ContextEventListener = listener;
+        context->m_ContextEventListenerUserData = user_data;
     }
 
     void SetRenderPause(HRenderContext context, uint8_t is_paused)

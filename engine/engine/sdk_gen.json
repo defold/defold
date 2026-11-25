@@ -14,6 +14,7 @@
                     "constant_aliases": {
                         "ENGINE_STATE_EVENT": "dmhash_t",
                         "ENGINE_WINDOW_EVENT": "dmhash_t",
+                        "ENGINE_GRAPHICS_CONTEXT_EVENT": "dmhash_t",
                         "ENGINE_EVENT_INPUT_ACTIONS": "dmhash_t"
                     },
                     "rename": {
@@ -21,6 +22,10 @@
                         "ENGINE_WINDOW_EVENT": "EVENT_WINDOW",
                         "EngineWindowEventType": "WindowEventType",
                         "EngineWindowEvent": "WindowEvent",
+                        "ENGINE_GRAPHICS_CONTEXT_EVENT_": "GRAPHICS_CONTEXT_EVENT_",
+                        "ENGINE_GRAPHICS_CONTEXT_EVENT": "EVENT_GRAPHICS_CONTEXT",
+                        "EngineGraphicsContextEventType": "GraphicsContextEventType",
+                        "EngineGraphicsContextEvent": "GraphicsContextEvent",
                         "ENGINE_STATE_EVENT": "EVENT_STATE",
                         "ENGINE_STATE_": "STATE_",
                         "EngineStateEvent": "StateEvent",
@@ -36,7 +41,8 @@
                     },
                     "enum_aliases": [
                         "EngineState",
-                        "EngineWindowEventType"
+                        "EngineWindowEventType",
+                        "EngineGraphicsContextEventType"
                     ]
                 }
             }

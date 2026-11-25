@@ -664,6 +664,198 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// The moved layout puts every uniform at another location, as relinking a program in a new graphics context may do
+static void AddRelocatableUniforms(dmGraphics::ShaderDescBuilder& builder, bool moved)
+{
+    uint32_t vec4_size = dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddTypeMember("tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddTypeMember("tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddUniformBuffer("tint_a", moved ? 1 : 0, 0, vec4_size);
+    builder.AddUniformBuffer("tint_b", moved ? 0 : 1, 1, vec4_size);
+    builder.AddTexture("texture_sampler", moved ? 3 : 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+}
+
+// A material must apply its constant values and sampler at the new locations of its reloaded program, while keeping
+// its constants and sampler settings. Guards against drawing with the locations of the program lost with the graphics context.
+TEST_F(dmRenderMaterialTest, ProgramReloadUpdatesUniformLocations)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    AddRelocatableUniforms(builder, false);
+
+    dmGraphics::ShaderDescBuilder moved_builder;
+    moved_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    moved_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    AddRelocatableUniforms(moved_builder, true);
+
+    const dmhash_t tint_a          = dmHashString64("tint_a");
+    const dmhash_t tint_b          = dmHashString64("tint_b");
+    const dmhash_t texture_sampler = dmHashString64("texture_sampler");
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+
+    Vector4 value_a(1.0f, 0.0f, 0.0f, 1.0f);
+    Vector4 value_b(0.0f, 1.0f, 0.0f, 1.0f);
+    dmRender::SetMaterialProgramConstant(material, tint_a, &value_a, 1);
+    dmRender::SetMaterialProgramConstant(material, tint_b, &value_b, 1);
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material, texture_sampler, 0, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 2.0f));
+
+    dmRender::HConstant constant_a;
+    ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, tint_a, constant_a));
+    dmGraphics::HUniformLocation old_location_a = dmGraphics::FindUniformLocation(program, tint_a);
+
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, moved_builder.Get(), 0, 0));
+
+    dmGraphics::HUniformLocation location_a       = dmGraphics::FindUniformLocation(program, tint_a);
+    dmGraphics::HUniformLocation location_b       = dmGraphics::FindUniformLocation(program, tint_b);
+    dmGraphics::HUniformLocation location_sampler = dmGraphics::FindUniformLocation(program, texture_sampler);
+    ASSERT_NE(old_location_a, location_a);
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmRender::ApplyMaterialConstants(m_RenderContext, material, &ro);
+
+    const Vector4& applied_a = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, location_a);
+    ASSERT_EQ(1.0f, applied_a.getX());
+    ASSERT_EQ(0.0f, applied_a.getY());
+    const Vector4& applied_b = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, location_b);
+    ASSERT_EQ(0.0f, applied_b.getX());
+    ASSERT_EQ(1.0f, applied_b.getY());
+
+    dmRender::HConstant reloaded_constant_a;
+    ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, tint_a, reloaded_constant_a));
+    ASSERT_EQ(constant_a, reloaded_constant_a);
+    ASSERT_EQ(location_a, dmRender::GetMaterialConstantLocation(material, tint_a));
+
+    dmRender::SamplerInfo sampler_info;
+    ASSERT_TRUE(dmRender::GetSamplerInfo(dmRender::GetMaterialSampler(material, 0), &sampler_info));
+    ASSERT_EQ(location_sampler, sampler_info.m_Location);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, sampler_info.m_MinFilter);
+    ASSERT_EQ(2.0f, sampler_info.m_MaxAnisotropy);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A constant whose uniform the reloaded program no longer has must not be written to, and the name lookup must grow
+// to the uniforms the program gained. Guards against writes through an invalid location after a shader hot reload.
+TEST_F(dmRenderMaterialTest, ProgramReloadDropsRemovedUniforms)
+{
+    static const char* added_names[] = { "added_0", "added_1", "added_2", "added_3", "added_4", "added_5" };
+    uint32_t vec4_size = dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    AddRelocatableUniforms(builder, false);
+
+    dmGraphics::ShaderDescBuilder changed_builder;
+    changed_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    changed_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    changed_builder.AddTypeMember("tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    changed_builder.AddUniformBuffer("tint_a", 0, 0, vec4_size);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(added_names); ++i)
+    {
+        changed_builder.AddTypeMember(added_names[i], dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        changed_builder.AddUniformBuffer(added_names[i], i + 1, i + 1, vec4_size);
+    }
+    changed_builder.AddTexture("texture_sampler", DM_ARRAY_SIZE(added_names) + 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    const dmhash_t tint_a = dmHashString64("tint_a");
+    const dmhash_t tint_b = dmHashString64("tint_b");
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+
+    Vector4 value_a(1.0f, 0.0f, 0.0f, 1.0f);
+    Vector4 value_b(0.0f, 1.0f, 0.0f, 1.0f);
+    dmRender::SetMaterialProgramConstant(material, tint_a, &value_a, 1);
+    dmRender::SetMaterialProgramConstant(material, tint_b, &value_b, 1);
+
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, changed_builder.Get(), 0, 0));
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmRender::ApplyMaterialConstants(m_RenderContext, material, &ro);
+
+    const Vector4& applied_a = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, dmGraphics::FindUniformLocation(program, tint_a));
+    ASSERT_EQ(1.0f, applied_a.getX());
+    ASSERT_EQ(0.0f, applied_a.getY());
+
+    dmRender::HConstant constant_b;
+    ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, tint_b, constant_b));
+    ASSERT_EQ(dmGraphics::INVALID_UNIFORM_LOCATION, dmRender::GetConstantLocation(constant_b));
+    ASSERT_EQ(dmGraphics::INVALID_UNIFORM_LOCATION, dmRender::GetMaterialConstantLocation(material, tint_b));
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(added_names); ++i)
+    {
+        dmhash_t name_hash = dmHashString64(added_names[i]);
+        ASSERT_EQ(dmGraphics::FindUniformLocation(program, name_hash), dmRender::GetMaterialConstantLocation(material, name_hash));
+    }
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A compute program must apply its constant values and sampler at the new locations of its reloaded program.
+// Guards against dispatching with the locations of the program lost with the graphics context.
+TEST_F(dmRenderComputeTest, ProgramReloadUpdatesUniformLocations)
+{
+    const char* shader_src = "#version 430\n";
+
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
+    AddRelocatableUniforms(builder, false);
+
+    dmGraphics::ShaderDescBuilder moved_builder;
+    moved_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
+    AddRelocatableUniforms(moved_builder, true);
+
+    const dmhash_t tint_a          = dmHashString64("tint_a");
+    const dmhash_t tint_b          = dmHashString64("tint_b");
+    const dmhash_t texture_sampler = dmHashString64("texture_sampler");
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, program);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);
+
+    Vector4 value_a(1.0f, 0.0f, 0.0f, 1.0f);
+    Vector4 value_b(0.0f, 1.0f, 0.0f, 1.0f);
+    dmRender::SetComputeProgramConstant(compute_program, tint_a, &value_a, 1);
+    dmRender::SetComputeProgramConstant(compute_program, tint_b, &value_b, 1);
+    ASSERT_TRUE(dmRender::SetComputeProgramSampler(compute_program, texture_sampler, 0, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, moved_builder.Get(), 0, 0));
+
+    dmGraphics::HUniformLocation location_a       = dmGraphics::FindUniformLocation(program, tint_a);
+    dmGraphics::HUniformLocation location_b       = dmGraphics::FindUniformLocation(program, tint_b);
+    dmGraphics::HUniformLocation location_sampler = dmGraphics::FindUniformLocation(program, texture_sampler);
+
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmRender::ApplyComputeProgramConstants(m_RenderContext, compute_program);
+
+    const Vector4& applied_a = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, location_a);
+    ASSERT_EQ(1.0f, applied_a.getX());
+    ASSERT_EQ(0.0f, applied_a.getY());
+    const Vector4& applied_b = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, location_b);
+    ASSERT_EQ(0.0f, applied_b.getX());
+    ASSERT_EQ(1.0f, applied_b.getY());
+
+    dmRender::SamplerInfo sampler_info;
+    ASSERT_TRUE(dmRender::GetSamplerInfo(dmRender::GetComputeProgramSampler(compute_program, 0), &sampler_info));
+    ASSERT_EQ(location_sampler, sampler_info.m_Location);
+
+    dmGraphics::DisableProgram(m_GraphicsContext);
+    dmRender::DeleteComputeProgram(m_RenderContext, compute_program);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

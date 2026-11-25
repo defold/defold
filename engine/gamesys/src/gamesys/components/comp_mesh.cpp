@@ -232,6 +232,19 @@ namespace dmGameSystem
         }
     }
 
+    static void ResetVertexBufferVersion(void*, const dmhash_t*, VertexBufferInfo* info)
+    {
+        info->m_Version = 0;
+    }
+
+    // The local space vertex buffers are uploaded only when the buffer version changes, so reset
+    // them to the version of a new buffer to upload the current buffer contents again.
+    static void CompMeshOnGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params)
+    {
+        MeshWorld* world = (MeshWorld*)params.m_World;
+        world->m_ResourceToVertexBuffer.Iterate(ResetVertexBufferVersion, (void*)0);
+    }
+
     static const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
@@ -1173,6 +1186,7 @@ namespace dmGameSystem
         ComponentTypeSetRenderFn(type, CompMeshRender);
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
         ComponentTypeSetOnReloadFn(type, CompMeshOnReload);
+        ComponentTypeSetOnGraphicsContextRestoredFn(type, CompMeshOnGraphicsContextRestored);
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
         ComponentTypeSetGetFn(type, CompMeshGetComponent);

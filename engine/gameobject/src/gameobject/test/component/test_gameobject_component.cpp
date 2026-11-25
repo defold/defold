@@ -40,6 +40,7 @@ protected:
     void SetUp() override
     {
         m_UpdateCount = 0;
+        m_RestoredCollectionCount = 0;
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
@@ -206,6 +207,9 @@ public:
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
 
     bool m_CallbackHandlesValid;
+
+    dmGameObject::HCollection m_RestoredCollections[4];
+    uint32_t                  m_RestoredCollectionCount;
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
@@ -916,6 +920,45 @@ TEST_F(ComponentTest, FinalCallsFinal)
     ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::DeleteCollection(collection);
+    dmGameObject::PostUpdate(m_Register);
+}
+
+static void RecordGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params)
+{
+    ComponentTest* test = (ComponentTest*)params.m_Context;
+    if (test->m_RestoredCollectionCount < DM_ARRAY_SIZE(test->m_RestoredCollections))
+        test->m_RestoredCollections[test->m_RestoredCollectionCount] = params.m_Collection;
+    test->m_RestoredCollectionCount++;
+}
+
+// A restored graphics context must reach the world of a component type that handles it once in every
+// collection. The other registered types have no callback, so the dispatch must not call them.
+TEST_F(ComponentTest, GraphicsContextRestored)
+{
+    HResourceType resource_type;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "a", &resource_type));
+    dmGameObject::ComponentType* type = dmGameObject::FindComponentType(m_Register, resource_type, 0);
+    ASSERT_NE((dmGameObject::ComponentType*)0, type);
+    dmGameObject::ComponentTypeSetOnGraphicsContextRestoredFn(type, RecordGraphicsContextRestored);
+
+    dmGameObject::HCollection first = dmGameObject::NewCollection("restored_first", m_Factory, m_Register, 1, 0x0);
+    dmGameObject::HCollection second = dmGameObject::NewCollection("restored_second", m_Factory, m_Register, 1, 0x0);
+    dmGameObject::DispatchGraphicsContextRestored(m_Register);
+
+    // m_Collection was created before type "a" was registered, so only the new collections are checked.
+    ASSERT_LE(m_RestoredCollectionCount, DM_ARRAY_SIZE(m_RestoredCollections));
+    uint32_t first_count = 0;
+    uint32_t second_count = 0;
+    for (uint32_t i = 0; i < m_RestoredCollectionCount; ++i)
+    {
+        first_count += m_RestoredCollections[i] == first;
+        second_count += m_RestoredCollections[i] == second;
+    }
+    ASSERT_EQ(1u, first_count);
+    ASSERT_EQ(1u, second_count);
+
+    dmGameObject::DeleteCollection(first);
+    dmGameObject::DeleteCollection(second);
     dmGameObject::PostUpdate(m_Register);
 }
 

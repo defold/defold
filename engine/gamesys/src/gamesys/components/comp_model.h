@@ -45,6 +45,8 @@ namespace dmGameSystem
 
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
+    void CompModelOnGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params);
+
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params);

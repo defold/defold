@@ -20,6 +20,20 @@
 
 namespace dmRender
 {
+    // Also gives the program's LightBuffer binding the layout of the engine light buffer
+    static void SetupComputeProgramLightBuffer(HComputeProgram compute_program)
+    {
+        bool has_light_buffer;
+        uint16_t light_buffer_set      = 0;
+        uint16_t light_buffer_binding  = 0;
+        uint16_t light_buffer_capacity = 0;
+        GetProgramLightBufferBinding(compute_program->m_RenderContext, compute_program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
+        compute_program->m_HasLightBuffer      = has_light_buffer;
+        compute_program->m_LightBufferSet      = light_buffer_set;
+        compute_program->m_LightBufferBinding  = light_buffer_binding;
+        compute_program->m_LightBufferCapacity = light_buffer_capacity;
+    }
+
     HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram compute_program)
     {
         if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
@@ -54,22 +68,28 @@ namespace dmRender
         }
 
         SetProgramConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
-
-        bool has_light_buffer;
-        uint16_t light_buffer_set;
-        uint16_t light_buffer_binding;
-        uint16_t light_buffer_capacity;
-        GetProgramLightBufferBinding(render_context, program->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
-        program->m_HasLightBuffer       = has_light_buffer;
-        program->m_LightBufferSet       = light_buffer_set;
-        program->m_LightBufferBinding   = light_buffer_binding;
-        program->m_LightBufferCapacity  = light_buffer_capacity;
+        program->m_UniformLocationProgramVersion = dmGraphics::GetProgramVersion(program->m_Program);
+        SetupComputeProgramLightBuffer(program);
 
         return (HComputeProgram) program;
     }
 
+    static void UpdateComputeProgramUniformLocations(HComputeProgram compute_program)
+    {
+        uint64_t version = dmGraphics::GetProgramVersion(compute_program->m_Program);
+        if (compute_program->m_UniformLocationProgramVersion == version)
+        {
+            return;
+        }
+        UpdateProgramUniformLocations(compute_program->m_Program, compute_program->m_NameHashToLocation, compute_program->m_Constants, compute_program->m_Samplers);
+        SetupComputeProgramLightBuffer(compute_program);
+        compute_program->m_UniformLocationProgramVersion = version;
+    }
+
     void ApplyComputeProgramConstants(dmRender::HRenderContext render_context, HComputeProgram compute_program)
     {
+        UpdateComputeProgramUniformLocations(compute_program);
+
         dmGraphics::HContext graphics_context           = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& render_constants = compute_program->m_Constants;
 
@@ -81,6 +101,10 @@ namespace dmRender
             const RenderConstant& material_constant      = render_constants[i];
             const HConstant constant                     = material_constant.m_Constant;
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
+                continue;
+            }
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
             SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, type, location, constant);
         }

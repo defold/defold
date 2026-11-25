@@ -915,6 +915,12 @@ namespace dmRender
         }
     }
 
+    void InvalidateFontMapCache(HFontMap font_map)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        font_map->m_IsCacheSizeDirty = 1;
+    }
+
     void PrepareVectorCache(HFontMap font_map, uint32_t frame)
     {
         UpdateCacheTexture(font_map);

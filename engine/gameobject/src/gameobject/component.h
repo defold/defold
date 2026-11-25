@@ -28,6 +28,30 @@ namespace dmGameObject
     };
 
     /*#
+     * Parameters to the ComponentOnGraphicsContextRestored callback.
+     */
+    struct ComponentOnGraphicsContextRestoredParams
+    {
+        HCollection m_Collection;
+        void*       m_Context;
+        void*       m_World;
+    };
+
+    /*#
+     * Called for each world of the component type once a lost graphics context can be used again.
+     * GPU data that the world uploads only when it changes is gone and must be uploaded again.
+     */
+    typedef void (*ComponentOnGraphicsContextRestored)(const ComponentOnGraphicsContextRestoredParams& params);
+
+    void ComponentTypeSetOnGraphicsContextRestoredFn(HComponentType type, ComponentOnGraphicsContextRestored fn);
+
+    /*#
+     * Calls the graphics context restored callback for every component world in every collection.
+     * @param regist Game object register
+     */
+    void DispatchGraphicsContextRestored(HRegister regist);
+
+    /*#
      * Collection of component registration data.
      */
     struct ComponentType
@@ -54,6 +78,7 @@ namespace dmGameObject
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
         ComponentOnReload       m_OnReloadFunction;
+        ComponentOnGraphicsContextRestored m_OnGraphicsContextRestoredFunction;
         ComponentSetProperties  m_SetPropertiesFunction;
         ComponentGetProperty    m_GetPropertyFunction;
         ComponentSetProperty    m_SetPropertyFunction;

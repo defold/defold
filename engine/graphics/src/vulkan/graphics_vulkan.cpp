@@ -6721,6 +6721,16 @@ namespace dmGraphics
         // NOP
     }
 
+    static void VulkanRecreateGraphicsHandles(HContext context)
+    {
+        // NOP
+    }
+
+    static ContextEvent VulkanPollContextEvent(HContext context)
+    {
+        return CONTEXT_EVENT_NONE;
+    }
+
     ///////////////////////////////////
     // dmsdk / graphics_vulkan.h impls:
     ///////////////////////////////////

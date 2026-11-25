@@ -576,6 +576,24 @@ namespace dmGraphics
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
     void        InvalidateGraphicsHandles(HContext context);
+    // Recreate the GPU objects the resource layer never touches after a graphics context has been
+    // restored: context-owned objects (e.g. the global VAO) and all live render targets (restored
+    // wholesale — they are not resource-backed in general and their contents are transient).
+    // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
+    // recreate paths.
+    void        RecreateGraphicsHandles(HContext context);
+
+    enum ContextEvent
+    {
+        CONTEXT_EVENT_NONE     = 0,
+        CONTEXT_EVENT_LOST     = 1,
+        CONTEXT_EVENT_RESTORED = 2,
+    };
+
+    // Returns the next context loss or restore detected by the adapter itself (e.g. a lost WebGPU
+    // device), as opposed to the platform events delivered for a WebGL canvas. Polled once per frame,
+    // also while rendering is paused, since the adapter may advance its own recovery from here.
+    ContextEvent PollContextEvent(HContext context);
 
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded

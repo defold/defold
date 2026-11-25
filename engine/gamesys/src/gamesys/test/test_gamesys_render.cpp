@@ -1461,6 +1461,60 @@ TEST_F(MaterialTest, TestLightBufferSmallerThanProjectMax)
     dmResource::Release(m_Factory, material_res);
 }
 
+struct LightBufferBindingLayout
+{
+    uint16_t                        m_Set;
+    uint16_t                        m_Binding;
+    dmGraphics::UniformBufferLayout m_Layout;
+};
+
+static void GetLightBufferBindingLayoutCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, dmGraphics::UniformBufferLayout* layout, void* user_data)
+{
+    LightBufferBindingLayout* result = (LightBufferBindingLayout*) user_data;
+    if (set == result->m_Set && binding == result->m_Binding)
+    {
+        result->m_Layout = *layout;
+    }
+}
+
+static dmGraphics::UniformBufferLayout GetLightBufferBindingLayout(dmGraphics::HProgram program, const dmRender::TestLightBufferInfo& info)
+{
+    LightBufferBindingLayout result = { info.m_Set, info.m_Binding, 0 };
+    dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, GetLightBufferBindingLayoutCallback, &result);
+    return result.m_Layout;
+}
+
+// Recreating a shader program (a restored graphics context, or hot reload) builds its uniform buffer layouts
+// again from the shader reflection. Verifies that the material gives its LightBuffer binding the engine light
+// buffer layout again. Guards against the light buffer being rejected as incompatible after
+// render.reload_resources(), which left lit materials black.
+TEST_F(MaterialResourceTest, LightBufferLayoutAfterProgramRecreate)
+{
+    dmGameSystem::MaterialResource* material_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    dmRender::HMaterial material = material_res->m_Material;
+    dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+    const dmGraphics::UniformBufferLayout light_buffer_layout = GetLightBufferBindingLayout(program, dmRender::TestGetMaterialLightBufferInfo(material));
+    ASSERT_NE(0u, light_buffer_layout);
+
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) program, &program_path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, program_path));
+    ASSERT_EQ(program, dmRender::GetMaterialProgram(material));
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmRender::ApplyMaterialConstants(m_RenderContext, material, &ro);
+    dmGraphics::DisableProgram(m_GraphicsContext);
+
+    ASSERT_TRUE(dmRender::TestGetMaterialLightBufferInfo(material).m_Enabled);
+    ASSERT_EQ(32u, dmRender::TestGetMaterialLightBufferInfo(material).m_Capacity);
+    ASSERT_EQ(light_buffer_layout, GetLightBufferBindingLayout(program, dmRender::TestGetMaterialLightBufferInfo(material)));
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
 {
     // Spawns ambient and point-light components, updates their persistent instance data, renders the
@@ -1716,6 +1770,33 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
     dmResource::Release(m_Factory, (void*) compute_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+// Same as LightBufferLayoutAfterProgramRecreate, for a compute program dispatched after its shader program
+// was recreated. Guards against compute programs keeping a light buffer binding that is rejected as incompatible.
+TEST_F(MaterialResourceTest, ComputeLightBufferLayoutAfterProgramRecreate)
+{
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
+    dmGameSystem::ComputeResource* compute_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/light_buffer.computec", (void**) &compute_res));
+    dmRender::HComputeProgram compute_program = compute_res->m_Program;
+    dmGraphics::HProgram program = dmRender::GetComputeProgram(compute_program);
+    const dmGraphics::UniformBufferLayout light_buffer_layout = GetLightBufferBindingLayout(program, dmRender::TestGetComputeLightBufferInfo(compute_program));
+    ASSERT_NE(0u, light_buffer_layout);
+
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) program, &program_path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, program_path));
+    ASSERT_EQ(program, dmRender::GetComputeProgram(compute_program));
+
+    dmRender::TestSetComputeProgram(render_ctx, compute_program);
+    dmRender::DispatchCompute(m_RenderContext, 1, 1, 1, 0);
+    dmRender::TestSetComputeProgram(render_ctx, 0);
+
+    ASSERT_TRUE(dmRender::TestGetComputeLightBufferInfo(compute_program).m_Enabled);
+    ASSERT_EQ(light_buffer_layout, GetLightBufferBindingLayout(program, dmRender::TestGetComputeLightBufferInfo(compute_program)));
+
+    dmResource::Release(m_Factory, (void*) compute_res);
+}
 #endif // DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
 #endif // !defined(DM_PLATFORM_VENDOR)
@@ -1896,6 +1977,24 @@ TEST_F(ShaderTest, ComputeLightBuffer)
         }
     }
     ASSERT_TRUE(found_light_buffer);
+
+    dmResource::Release(m_Factory, (void*) compute_res);
+}
+
+// A compute program owns no GPU objects: its shader program and textures are restored as resources of
+// their own. Restoring the compute program itself would run its hot reload path, which takes its
+// textures again and counts them again on every context restore.
+TEST_F(ShaderTest, ComputeNotRestoredWithGraphicsContext)
+{
+    dmGameSystem::ComputeResource* compute_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_res));
+
+    uint8_t order;
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, dmHashString64("/shader/inputs.computec"), &order));
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) dmRender::GetComputeProgram(compute_res->m_Program), &program_path));
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, program_path, &order));
+    ASSERT_EQ((uint8_t)RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS, order);
 
     dmResource::Release(m_Factory, (void*) compute_res);
 }
@@ -2278,6 +2377,74 @@ TEST_F(ModelTest, ModelBuffersValidation)
     params.m_BufferSize = 4;
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersPreload(&params));
     free(bytes);
+    dmResource::Release(m_Factory, model);
+}
+
+// A graphics context restore must upload the shared geometry once into the handles all mesh ranges hold,
+// and refuse bytes whose layout differs from the uploaded buffers instead of writing past them.
+TEST_F(ModelTest, ModelBuffersContextRestore)
+{
+    dmGameSystem::ModelResource* model;
+    dmGameSystem::ModelResource* other;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/several_meshes.modelc", (void**)&model));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/valid.modelc", (void**)&other));
+    ASSERT_GT(model->m_Meshes.Size(), 1u);
+
+    const dmhash_t buffers_path = dmHashString64(model->m_Model->m_Buffers);
+    uint8_t order;
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, buffers_path, &order));
+    ASSERT_EQ((uint8_t)RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS, order);
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(m_Factory, dmHashString64("/model/several_meshes.modelc"), &order));
+
+    const dmGraphics::HVertexBuffer vertex_buffer = model->m_Meshes[0].m_Buffers->m_VertexBuffer;
+    const dmGraphics::HIndexBuffer index_buffer = model->m_Meshes[0].m_Buffers->m_IndexBuffer;
+    const uint32_t vertex_size = dmGraphics::GetVertexBufferSize(vertex_buffer);
+    const uint32_t index_size = dmGraphics::GetIndexBufferSize(index_buffer);
+    ASSERT_GT(vertex_size, 0u);
+    ASSERT_GT(index_size, 0u);
+
+    uint8_t* vertices = (uint8_t*)malloc(vertex_size);
+    uint8_t* indices = (uint8_t*)malloc(index_size);
+    memcpy(vertices, dmGraphics::TestGetVertexBufferData(vertex_buffer), vertex_size);
+    memcpy(indices, dmGraphics::TestGetIndexBufferData(index_buffer), index_size);
+
+    uint8_t* zeros = (uint8_t*)calloc(dmMath::Max(vertex_size, index_size), 1);
+    dmGraphics::SetVertexBufferData(vertex_buffer, vertex_size, zeros, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    dmGraphics::SetIndexBufferData(index_buffer, index_size, zeros, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    free(zeros);
+    const uint32_t uploads = dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount;
+
+    dmResource::HDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(m_Factory, model->m_Model->m_Buffers, &descriptor));
+    void* other_bytes;
+    uint32_t other_size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, other->m_Model->m_Buffers, &other_bytes, &other_size));
+    dmResource::ResourceRecreateParams params = {};
+    params.m_Factory = m_Factory;
+    params.m_Context = m_GraphicsContext;
+    params.m_Buffer = other_bytes;
+    params.m_BufferSize = other_size;
+    params.m_Resource = descriptor;
+    params.m_IsContextRestore = 1;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersRecreate(&params));
+    free(other_bytes);
+    ASSERT_EQ(uploads, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, buffers_path));
+    ASSERT_EQ(uploads + 1, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i)
+    {
+        ASSERT_EQ(vertex_buffer, model->m_Meshes[i].m_Buffers->m_VertexBuffer);
+        ASSERT_EQ(index_buffer, model->m_Meshes[i].m_Buffers->m_IndexBuffer);
+    }
+    ASSERT_EQ(vertex_size, dmGraphics::GetVertexBufferSize(vertex_buffer));
+    ASSERT_EQ(index_size, dmGraphics::GetIndexBufferSize(index_buffer));
+    ASSERT_EQ(0, memcmp(vertices, dmGraphics::TestGetVertexBufferData(vertex_buffer), vertex_size));
+    ASSERT_EQ(0, memcmp(indices, dmGraphics::TestGetIndexBufferData(index_buffer), index_size));
+
+    free(vertices);
+    free(indices);
+    dmResource::Release(m_Factory, other);
     dmResource::Release(m_Factory, model);
 }
 
@@ -4351,6 +4518,59 @@ TEST_F(ModelTest, DynamicVertexAttributes)
 
     dmGraphics::UnmapVertexBuffer(m_GraphicsContext, vx_buffer);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void UpdateAndRenderCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmRender::HRenderContext render_context)
+{
+    ASSERT_TRUE(dmGameObject::Update(collection, update_context));
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    dmRender::RenderListBegin(render_context);
+    dmGameObject::Render(collection);
+    dmRender::RenderListEnd(render_context);
+    dmRender::DrawRenderList(render_context, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+}
+
+// The custom vertex attributes are uploaded only when they change, so a restored graphics context
+// must upload them again: without it the content lost with the context is never replaced.
+TEST_F(ModelTest, DynamicVertexAttributesGraphicsContextRestored)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    dmGraphics::HVertexBuffer vx_buffer;
+    dmGraphics::HVertexDeclaration vx_decl;
+    dmGraphics::HVertexDeclaration inst_decl;
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
+    ASSERT_NE((dmGraphics::HVertexBuffer)0, vx_buffer);
+
+    const uint32_t size = dmGraphics::GetVertexBufferSize(vx_buffer);
+    ASSERT_GT(size, 0u);
+    uint8_t* expected = (uint8_t*)malloc(size);
+    memcpy(expected, dmGraphics::TestGetVertexBufferData(vx_buffer), size);
+    uint8_t* zeros = (uint8_t*)calloc(size, 1);
+    ASSERT_NE(0, memcmp(expected, zeros, size));
+    dmGraphics::SetVertexBufferData(vx_buffer, size, zeros, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+    ASSERT_EQ(0, memcmp(zeros, dmGraphics::TestGetVertexBufferData(vx_buffer), size));
+
+    dmGameObject::DispatchGraphicsContextRestored(m_Register);
+    UpdateAndRenderCollection(m_Collection, &m_UpdateContext, m_RenderContext);
+
+    dmGraphics::HVertexBuffer restored_buffer;
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &restored_buffer, &vx_decl, &inst_decl);
+    ASSERT_EQ(vx_buffer, restored_buffer);
+    ASSERT_EQ(0, memcmp(expected, dmGraphics::TestGetVertexBufferData(vx_buffer), size));
+
+    free(zeros);
+    free(expected);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

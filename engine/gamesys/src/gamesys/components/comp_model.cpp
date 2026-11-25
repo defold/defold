@@ -2762,6 +2762,23 @@ namespace dmGameSystem
         return false;
     }
 
+    // The custom vertex attribute buffers are uploaded once and then only on attribute changes.
+    // Their source data is CPU-side, so marking every render item dirty makes the existing dispatch
+    // path upload it again into the same buffer handles the next time the items are drawn.
+    void CompModelOnGraphicsContextRestored(const dmGameObject::ComponentOnGraphicsContextRestoredParams& params)
+    {
+        ModelWorld* world = (ModelWorld*)params.m_World;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
+        for (uint32_t i = 0; i < components.Size(); ++i)
+        {
+            dmArray<MeshRenderItem>& render_items = components[i]->m_RenderItems;
+            for (uint32_t j = 0; j < render_items.Size(); ++j)
+            {
+                render_items[j].m_DynamicVertexAttributesDirty = 1;
+            }
+        }
+    }
+
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;

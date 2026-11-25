@@ -3302,11 +3302,35 @@ namespace dmGraphics
             return 0;
         }
 
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
+        HRenderTarget render_target = g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
+        if (render_target)
+        {
+            GraphicsContext* graphics_context = (GraphicsContext*) context;
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(graphics_context->m_AssetHandleContainerMutex);
+            if (graphics_context->m_RenderTargets.Full())
+            {
+                graphics_context->m_RenderTargets.OffsetCapacity(8);
+            }
+            graphics_context->m_RenderTargets.Push(render_target);
+        }
+        return render_target;
     }
 
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
+        GraphicsContext* graphics_context = (GraphicsContext*) context;
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(graphics_context->m_AssetHandleContainerMutex);
+            dmArray<HRenderTarget>& render_targets = graphics_context->m_RenderTargets;
+            for (uint32_t i = 0; i < render_targets.Size(); ++i)
+            {
+                if (render_targets[i] == render_target)
+                {
+                    render_targets.EraseSwap(i);
+                    break;
+                }
+            }
+        }
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
 
@@ -3506,6 +3530,16 @@ namespace dmGraphics
     void InvalidateGraphicsHandles(HContext context)
     {
         g_functions.m_InvalidateGraphicsHandles(context);
+    }
+
+    void RecreateGraphicsHandles(HContext context)
+    {
+        g_functions.m_RecreateGraphicsHandles(context);
+    }
+
+    ContextEvent PollContextEvent(HContext context)
+    {
+        return g_functions.m_PollContextEvent(context);
     }
 
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)

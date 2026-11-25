@@ -992,6 +992,15 @@ namespace dmGameSystem
 
     static dmResource::Result ResFontRecreate(const dmResource::ResourceRecreateParams* params)
     {
+        if (params->m_IsContextRestore)
+        {
+            // The font keeps only glyph caches on the GPU, filled again as the glyphs are drawn.
+            // Keep the font map and the state set on it at runtime.
+            FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
+            dmRender::InvalidateFontMapCache(font->m_FontMap);
+            return dmResource::RESULT_OK;
+        }
+
         dmRenderDDF::FontMap* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
@@ -1286,7 +1295,7 @@ namespace dmGameSystem
         memset(font_context, 0, sizeof(*font_context));
         font_context->m_RenderContext = (dmRender::HRenderContext) render_context;
 
-        return (ResourceResult)dmResource::SetupType(ctx,
+        ResourceResult result = (ResourceResult)dmResource::SetupType(ctx,
                                            type,
                                            font_context,
                                            ResFontPreload,
@@ -1294,6 +1303,11 @@ namespace dmGameSystem
                                            ResFontPostCreate,
                                            ResFontDestroy,
                                            ResFontRecreate);
+        if (result == RESOURCE_RESULT_OK)
+        {
+            ResourceTypeSetGraphicsRestoreOrder(type, RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES);
+        }
+        return result;
     }
 
     static ResourceResult DeregisterResourceType_Font(HResourceTypeContext ctx, HResourceType type)

@@ -5926,7 +5926,17 @@ namespace dmGraphics
 
     static void MetalInvalidateGraphicsHandles(HContext _context)
     {
+        // NOP
+    }
 
+    static void MetalRecreateGraphicsHandles(HContext _context)
+    {
+        // NOP
+    }
+
+    static ContextEvent MetalPollContextEvent(HContext _context)
+    {
+        return CONTEXT_EVENT_NONE;
     }
 
     static void MetalSetSwapInterval(HContext _context, uint32_t swap_interval)

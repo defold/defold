@@ -34,6 +34,7 @@
 #include "render/render_ddf.h"
 
 #include <graphics/test_graphics_util.h>
+#include <graphics/null/graphics_null_private.h>
 
 using namespace dmVMath;
 
@@ -278,6 +279,113 @@ TEST_F(dmRenderScriptTest, TestNewDelete)
 {
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
     ASSERT_NE((void*)0, render_script);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+static void TestRenderContextEventListener(void* user_data, dmRender::RenderContextEvent event)
+{
+    int* counters = (int*) user_data;
+    counters[event == dmRender::CONTEXT_LOST ? 0 : 1]++;
+}
+
+TEST_F(dmRenderScriptTest, ContextEventListenerDispatch)
+{
+    // A context loss is forwarded to the native listener (the engine forwards it on to extensions)
+    // right after rendering has been paused. The RESTORED counterpart is dispatched from
+    // StartResourceReload once the context is safe to use again; that path needs a resource
+    // factory and is exercised at the engine level.
+    int counters[2] = {0, 0};
+    dmRender::SetRenderContextEventListener(m_Context, TestRenderContextEventListener, counters);
+    dmRender::OnContextEvent((void*) m_Context, dmRender::CONTEXT_LOST);
+    ASSERT_EQ(1, counters[0]);
+    ASSERT_EQ(0, counters[1]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+    dmRender::SetRenderPause(m_Context, 0u);
+    dmRender::SetRenderContextEventListener(m_Context, 0, 0);
+}
+
+// Updates keep running while the context is lost, so GPU objects are created and uploaded then (a skinned
+// model writes its pose texture every frame), and on WebGL they get names of the lost context. Verifies that
+// the restore invalidates them again, and that the next upload makes them valid on the restored context.
+// Guards against skinned models vanishing after a real WebGL context loss.
+TEST_F(dmRenderScriptTest, ObjectsMadeWhileLostAreInvalidatedByRestore)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width          = 2;
+    creation_params.m_Height         = 2;
+    creation_params.m_OriginalWidth  = 2;
+    creation_params.m_OriginalHeight = 2;
+    uint8_t data[4] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data     = data;
+    params.m_DataSize = sizeof(data);
+    params.m_Width    = 2;
+    params.m_Height   = 2;
+    params.m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    dmGraphics::HTexture uploaded = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+
+    dmRender::OnContextEvent((void*) m_Context, dmRender::CONTEXT_LOST);
+    dmGraphics::SetTexture(m_GraphicsContext, uploaded, params);
+    dmGraphics::HTexture created = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+    dmRender::OnContextEvent((void*) m_Context, dmRender::CONTEXT_RESTORED);
+
+    dmGraphics::NullTexture* null_uploaded = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, uploaded);
+    dmGraphics::NullTexture* null_created = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, created);
+    ASSERT_NE(null_context->m_GpuGeneration, null_uploaded->m_GpuGeneration);
+    ASSERT_NE(null_context->m_GpuGeneration, null_created->m_GpuGeneration);
+
+    dmGraphics::SetTexture(m_GraphicsContext, uploaded, params);
+    ASSERT_EQ(null_context->m_GpuGeneration, null_uploaded->m_GpuGeneration);
+
+    dmRender::SetRenderPause(m_Context, 0u);
+    dmGraphics::DeleteTexture(m_GraphicsContext, created);
+    dmGraphics::DeleteTexture(m_GraphicsContext, uploaded);
+}
+
+// Context events detected by the graphics adapter (a lost WebGPU device) reach the same handling as
+// the WebGL canvas events, and render.reload_resources() is refused until the restore. Guards against
+// an adapter-side loss not pausing rendering, and against recreating resources into a lost context.
+TEST_F(dmRenderScriptTest, AdapterContextEventsAreForwarded)
+{
+    const char* script =
+        "function update(self)\n"
+        "    local ok, err = pcall(render.reload_resources, function() end)\n"
+        "    assert(not ok)\n"
+        "    assert(string.find(err, \"CONTEXT_RESTORED\"))\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    int counters[2] = { 0, 0 };
+    dmRender::SetRenderContextEventListener(m_Context, TestRenderContextEventListener, counters);
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(0, counters[0]);
+    ASSERT_FALSE(dmRender::IsRenderPaused(m_Context));
+
+    null_context->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_LOST;
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(1, counters[0]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+    ASSERT_FALSE(dmRender::StartResourceReload(m_Context, 0, 0));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(1, counters[0]);
+
+    // The native listener is told about the restore by the reload, once the context is usable
+    null_context->m_PendingContextEvent = dmGraphics::CONTEXT_EVENT_RESTORED;
+    dmRender::UpdateContextEvents(m_Context);
+    ASSERT_EQ(0u, m_Context->m_IsContextLost);
+    ASSERT_EQ(0, counters[1]);
+    ASSERT_TRUE(dmRender::IsRenderPaused(m_Context));
+
+    dmRender::SetRenderPause(m_Context, 0u);
+    dmRender::SetRenderContextEventListener(m_Context, 0, 0);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 

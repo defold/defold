@@ -960,6 +960,7 @@ namespace dmResource
             descriptor.m_ResourceType = type;
             descriptor.m_ReferenceCount = 1;
             descriptor.m_ResourceSizeOnDisc = load->m_FileSize;
+            descriptor.m_CreatedFromMemory = load->m_Provided;
             ResourceCreateParams params = {};
             params.m_Factory = context->m_Factory;
             params.m_Type = type;

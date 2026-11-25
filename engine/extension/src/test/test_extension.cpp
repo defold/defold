@@ -656,10 +656,14 @@ TEST(dmExtension, BuiltinEventHashes)
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESTORED == dmEngine::WINDOW_EVENT_RESTORED, Engine_Window_RESTORED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_FOCUS_GAINED == dmEngine::WINDOW_EVENT_FOCUS_GAINED, Engine_Window_FOCUS_GAINED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_FOCUS_LOST == dmEngine::WINDOW_EVENT_FOCUS_LOST, Engine_Window_FOCUS_LOST_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_GRAPHICS_CONTEXT_EVENT == dmEngine::EVENT_GRAPHICS_CONTEXT, Engine_Graphics_Context_Event_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_GRAPHICS_CONTEXT_EVENT_LOST == dmEngine::GRAPHICS_CONTEXT_EVENT_LOST, Engine_Graphics_Context_LOST_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_GRAPHICS_CONTEXT_EVENT_RESTORED == dmEngine::GRAPHICS_CONTEXT_EVENT_RESTORED, Engine_Graphics_Context_RESTORED_Mismatch);
 
     EXPECT_EQ(dmHashString64("_dm_event_engine_state"), dmEngine::EVENT_STATE);
     EXPECT_EQ(dmHashString64("_dm_event_engine_window"), dmEngine::EVENT_WINDOW);
     EXPECT_EQ(dmHashString64("_dm_event_input_actions"), dmEngine::EVENT_INPUT_ACTIONS);
+    EXPECT_EQ(dmHashString64("_dm_event_engine_graphics_context"), dmEngine::EVENT_GRAPHICS_CONTEXT);
     EventTestContext context;
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));

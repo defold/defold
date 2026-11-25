@@ -117,12 +117,14 @@ namespace dmGraphics
     struct OpenGLUniformBuffer
     {
         UniformBuffer m_BaseUniformBuffer;
+        uint8_t*      m_Data; // Written content, uploaded again after a lost context
         HOpenglID     m_Id;
     };
 
     struct OpenGLStorageBuffer
     {
         StorageBuffer m_BaseStorageBuffer;
+        uint8_t*      m_Data; // Android only: content uploaded from the CPU, uploaded again after a lost context
         HOpenglID     m_Id;
     };
 

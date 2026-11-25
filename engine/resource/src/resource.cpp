@@ -1006,9 +1006,46 @@ static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
     return result;
 }
 
+// Loads the full original bytes of a resource addressed by its content hash. Unlike LoadResource(),
+// it does not require a canonical path string: the mounts (and the bundled archive in particular)
+// are keyed by the content hash, so this works in release builds where the hash->filename table is
+// unavailable. The 'name' argument is best-effort and only used by mount providers that need a path
+// (the dev file provider); archive mounts ignore it.
+static Result LoadResourceByHash(HFactory factory, dmhash_t name_hash, const char* name, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
+{
+    uint32_t file_size;
+    Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, name_hash, name, &file_size);
+    if (r != RESULT_OK)
+    {
+        return r;
+    }
+
+    if (buffer->Capacity() < file_size)
+    {
+        buffer->SetCapacity(file_size);
+    }
+    buffer->SetSize(file_size);
+
+    if (file_size > 0)
+    {
+        r = dmResourceMounts::ReadResource(factory->m_Mounts, name_hash, name, (uint8_t*) buffer->Begin(), buffer->Size());
+        if (r != RESULT_OK)
+        {
+            buffer->SetSize(0);
+            return r;
+        }
+    }
+
+    *buffer_size   = file_size;
+    *resource_size = file_size;
+    return RESULT_OK;
+}
+
 // Keep callbacks under scheduler ownership, with table locks only around lookup
 // and publication. Recreate may synchronously load a new dependency on any caller.
-static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+// With context_restore set, the GPU resources are re-created from the unchanged original bytes after a
+// lost graphics context, so recreate functions may restore GPU objects in place.
+static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor, bool context_restore)
 {
     RecreateContext* recreate = BeginResourceRecreate(GetLoadContext(factory), path_hash);
     if (!recreate)
@@ -1019,6 +1056,7 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
     }
     ResourceDescriptor descriptor = {};
     ResourceDescriptor* rd;
+    const char* restore_name = 0;
     {
         DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
         rd = factory->m_Resources->Get(path_hash);
@@ -1026,6 +1064,13 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
         {
             IncRef(factory, rd);
             descriptor = *rd;
+        }
+        if (rd && context_restore)
+        {
+            // Best-effort name: authoritative path from the reload table if present (dev), otherwise the
+            // reverse-hashed string. Only used for logging and by the dev file provider; archive reads by hash.
+            const char** s = factory->m_ResourceHashToFilename ? factory->m_ResourceHashToFilename->Get(path_hash) : 0;
+            restore_name = s ? *s : dmHashReverseSafe64(path_hash);
         }
         if (out_descriptor)
             *out_descriptor = rd;
@@ -1051,6 +1096,11 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
         result = LoadResourceToBuffer(factory, filename, filename, preload_size, &resource_size, &buffer_size, &buffer);
         data = buffer.Begin();
     }
+    else if (result == RESULT_OK && context_restore)
+    {
+        result = LoadResourceByHash(factory, path_hash, restore_name, &resource_size, &buffer_size, &buffer);
+        data = buffer.Begin();
+    }
     if (result == RESULT_OK)
     {
         ResourceRecreateParams params = {};
@@ -1063,8 +1113,9 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
         params.m_FileSize = resource_size;
         params.m_IsBufferPartial = buffer_size != resource_size;
         params.m_Resource = &descriptor;
-        params.m_Filename = filename;
+        params.m_Filename = context_restore ? restore_name : filename;
         params.m_FilenameHash = path_hash;
+        params.m_IsContextRestore = context_restore;
         descriptor.m_PrevResource = 0;
         {
             DM_PROFILE("ResourceRecreate");
@@ -1086,7 +1137,7 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
             rd->m_Resource = descriptor.m_Resource;
             rd->m_PrevResource = descriptor.m_PrevResource;
             rd->m_ResourceSize = descriptor.m_ResourceSize;
-            if (filename)
+            if (filename || context_restore)
             {
                 rd->m_Version = IncreaseVersion(factory);
                 rd->m_ResourceSizeOnDisc = buffer_size;
@@ -1096,7 +1147,9 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
     }
     if (result == RESULT_OK)
     {
-        if (factory->m_ResourceReloadedCallbacks)
+        // Context restore does not notify reload listeners: they are unavailable in release builds and
+        // component correctness relies on the graphics handle indirection, not on reload notifications.
+        if (factory->m_ResourceReloadedCallbacks && !context_restore)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
             {
@@ -1131,7 +1184,7 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
     dmResourceMounts::InvalidateFileCache(factory->m_Mounts, dmHashString64(canonical_path), canonical_path);
-    Result result = DoRecreateResource(factory, dmHashString64(canonical_path), name, 0, 0, 0, out_descriptor);
+    Result result = DoRecreateResource(factory, dmHashString64(canonical_path), name, 0, 0, 0, out_descriptor, false);
 
     switch (result)
     {
@@ -1159,19 +1212,53 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
     return result;
 }
 
+Result RecreateResource(HFactory factory, dmhash_t name_hash)
+{
+    return DoRecreateResource(factory, name_hash, 0, 0, 0, 0, 0, true);
+}
+
+dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    if (rd == 0x0)
+    {
+        return 0;
+    }
+    return ((ResourceType*) rd->m_ResourceType)->m_ExtensionHash;
+}
+
+bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    return rd != 0x0 && rd->m_CreatedFromMemory;
+}
+
+bool GetResourceTypeGraphicsRestoreOrder(HFactory factory, dmhash_t name_hash, uint8_t* out_order)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    if (rd == 0x0)
+    {
+        return false;
+    }
+    return ResourceTypeGetGraphicsRestoreOrder((ResourceType*) rd->m_ResourceType, out_order);
+}
+
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
     DM_PROFILE(__FUNCTION__);
     assert(data);
     assert(datasize > 0);
-    return DoRecreateResource(factory, hashed_name, 0, data, datasize, 0, 0);
+    return DoRecreateResource(factory, hashed_name, 0, data, datasize, 0, 0, false);
 }
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 {
     DM_PROFILE(__FUNCTION__);
     assert(message);
-    return DoRecreateResource(factory, hashed_name, 0, 0, 0, message, 0);
+    return DoRecreateResource(factory, hashed_name, 0, 0, 0, message, 0, false);
 }
 
 Result GetType(HFactory factory, void* resource, HResourceType* type)

@@ -3580,6 +3580,27 @@ namespace dmGameObject
         return result;
     }
 
+    void DispatchGraphicsContextRestored(HRegister regist)
+    {
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+        for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
+        {
+            Collection* collection = regist->m_Collections[i];
+            for (uint32_t j = 0; j < collection->m_ComponentWorldsCreated; ++j)
+            {
+                const ComponentType& type = regist->m_ComponentTypes[j];
+                if (type.m_OnGraphicsContextRestoredFunction)
+                {
+                    ComponentOnGraphicsContextRestoredParams params;
+                    params.m_Collection = collection->m_HCollection;
+                    params.m_Context = type.m_Context;
+                    params.m_World = collection->m_ComponentWorlds[j];
+                    type.m_OnGraphicsContextRestoredFunction(params);
+                }
+            }
+        }
+    }
+
     static UpdateResult DispatchInputAction(Collection* collection, InputAction& input_action)
     {
         if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)

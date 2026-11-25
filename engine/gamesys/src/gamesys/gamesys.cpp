@@ -171,6 +171,29 @@ namespace dmGameSystem
 
 #undef REGISTER_RESOURCE_TYPE
 
+        // Opt the GPU-backed types into recreation after a graphics context restore
+        // (render.reload_resources). Types not listed here either own no GPU objects (compute
+        // programs reference their shader programs and textures as resources of their own), are
+        // restored elsewhere (render targets — by RecreateGraphicsHandles), set their order in
+        // their own type register functions (fonts), or must keep their handles unswapped
+        // (materials). Extensions opt their own types in the same way from their type register
+        // functions.
+#define SET_GRAPHICS_RESTORE_ORDER(extension, order)\
+    {\
+        HResourceType type;\
+        if (ResourceGetTypeFromExtension(factory, extension, &type) == RESOURCE_RESULT_OK)\
+        {\
+            ResourceTypeSetGraphicsRestoreOrder(type, order);\
+        }\
+    }\
+
+        SET_GRAPHICS_RESTORE_ORDER("texturec",      RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES);
+        SET_GRAPHICS_RESTORE_ORDER("spc",           RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS);
+        SET_GRAPHICS_RESTORE_ORDER("meshc",         RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+        SET_GRAPHICS_RESTORE_ORDER("modelbuffersc", RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+
+#undef SET_GRAPHICS_RESTORE_ORDER
+
         return e;
     }
 
@@ -277,6 +300,7 @@ namespace dmGameSystem
                 0, CompModelGetProperty, CompModelSetProperty,
                 0, CompModelIterProperties,
                 0);
+        dmGameObject::ComponentTypeSetOnGraphicsContextRestoredFn(dmGameObject::FindComponentType(regist, type, 0), CompModelOnGraphicsContextRestored);
 
         // prio: 725  comp_mesh.cpp
 
