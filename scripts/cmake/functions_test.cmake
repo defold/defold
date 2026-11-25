@@ -127,6 +127,7 @@ endfunction()
 #
 # Usage:
 #   defold_register_test_target(<target> [run_flag] [run_workdir]
+#                               [EXCLUDE_FROM_BUILD_TESTS]
 #                               [CONFIGFILE <configfile>]
 #                               [IOS_INFO_PLIST <plist>]
 #                               [IOS_BUNDLE_RESOURCES <path> ...]
@@ -137,6 +138,8 @@ endfunction()
 #   - run_flag: ON/OFF (default ON). If ON, creates a per-test run target and
 #               adds it to global run_tests
 #   - run_workdir: optional working directory for executing the test
+#   - EXCLUDE_FROM_BUILD_TESTS: omit the executable and its runtime dependencies
+#                               from the build_tests aggregate
 #   - CONFIGFILE: optional config file path relative to run_workdir
 #   - IOS_INFO_PLIST: optional complete test app Info.plist, used by both Xcode
 #                     and device/simulator runners. The runners supply bundle identity.
@@ -647,13 +650,10 @@ function(defold_register_test_target target_name)
   endif()
   _defold_force_load_ios_testmain(${target_name})
 
-  # Keep tests out of the default 'all' build. They are built via build_tests
-  # or when directly requested. This mirrors typical Waf behavior.
+  # Keep test executables out of the default 'all' build.
   set_target_properties(${target_name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-  add_dependencies(build_tests ${target_name})
-
-  set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
+  set(_known_keywords EXCLUDE_FROM_BUILD_TESTS CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
   set(_legacy_args "")
   set(_keyword_args "")
   set(_in_keyword_args FALSE)
@@ -675,7 +675,10 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: expected at most [run_flag] [run_workdir] before keyword arguments")
   endif()
 
-  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;ENVIRONMENT;STAGE_FILES" ${_keyword_args})
+  cmake_parse_arguments(DEFOLD_TEST "EXCLUDE_FROM_BUILD_TESTS" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;ENVIRONMENT;STAGE_FILES" ${_keyword_args})
+  if(NOT DEFOLD_TEST_EXCLUDE_FROM_BUILD_TESTS)
+    add_dependencies(build_tests ${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
+  endif()
 
   if(DEFOLD_TEST_IOS_INFO_PLIST)
     get_filename_component(_info_plist "${DEFOLD_TEST_IOS_INFO_PLIST}" ABSOLUTE)
@@ -688,7 +691,6 @@ function(defold_register_test_target target_name)
 
   set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
   if(DEFOLD_TEST_RUNTIME_DEPENDS)
-    add_dependencies(build_tests ${DEFOLD_TEST_RUNTIME_DEPENDS})
     # Xcode Run schemes and Visual Studio startup projects build the executable
     # directly, bypassing run_* targets.
     # iOS resource staging also runs in the executable's POST_BUILD step.

@@ -229,6 +229,71 @@ add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
                     else:
                         self.assertEqual(normal, noasan, name)
 
+    # Keep the default build limited to the font tools used by each CI test suite.
+    def test_font_tools_follow_enabled_test_suites(self):
+        generator = 'test_font_bitmap_gen'
+        generators = {generator, generator + '_skribidi', generator + '_plain', generator + '_skribidi_plain'}
+        benchmarks = {'benchmark_text_layout', 'benchmark_text_layout_null'}
+        tools = generators | benchmarks | {'fontviewer'}
+        cli = 'run_test_font_images_python'
+        viewer = 'run_test_fontviewer_color'
+        images = 'generate_font_test_images'
+        cases = (
+            ('x86_64-win32', '0', set(), set()),
+            ('arm64-macos', '0', set(), set()),
+            ('x86_64-linux', '1', {generator, 'fontviewer'}, {cli, viewer}),
+            ('arm64-linux', '0', generators, {cli, images}),
+            ('x86_64-linux', '0', generators | {'fontviewer'}, {cli, viewer, images}),
+        )
+        for platform, skip_images, expected_tools, expected_checks in cases:
+            with self.subTest(platform=platform, skip_images=skip_images), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build = root / 'build'
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(font_test_graph LANGUAGES C CXX)
+set(ENV{GITHUB_ACTIONS} true)
+set(ENV{DEFOLD_SKIP_FONT_IMAGE_TESTS} "${SKIP_FONT_IMAGES}")
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_TEST_JOBS 2)
+set(FONT_RENDERER_IS_DESKTOP ON)
+set(FONT_RENDER_SRC_DIR "${DEFOLD_HOME}/engine/font/src/render")
+set(FONTC_SRC_DIR "${DEFOLD_HOME}/engine/font/src/fontc")
+set(DEFOLD_BOB_LIGHT_JAR "${CMAKE_BINARY_DIR}/bob-light.jar")
+file(WRITE "${DEFOLD_BOB_LIGHT_JAR}" "")
+# This configure-only graph probe stands in for the compiler DLL and SDK libraries.
+file(WRITE "${CMAKE_BINARY_DIR}/fontc.cpp" "")
+add_library(fontc_shared SHARED "${CMAKE_BINARY_DIR}/fontc.cpp")
+add_library(basis_transcoder INTERFACE)
+add_library(defold_sdk INTERFACE)
+add_custom_target(build_tests)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_subdirectory("${DEFOLD_HOME}/engine/font/src/test" font-tests)
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform, SKIP_FONT_IMAGES=skip_images)
+                self.assertEqual(0, result.returncode, result.stdout)
+
+                def built_tools(*targets):
+                    commands = subprocess.check_output(['ninja', '-t', 'commands', *targets], cwd=build, text=True)
+                    commands = commands.replace('\\', '/')
+                    return {tool for tool in tools if f'CMakeFiles/{tool}.dir/' in commands}
+
+                self.assertEqual(expected_tools, built_tools('all', 'build_tests'))
+                self.assertEqual(expected_tools, built_tools('run_tests'))
+                manifest = json.loads(next(build.glob('defold_run_tests_*.json')).read_text())
+                scheduled_checks = {test['name'] for test in manifest}
+                self.assertEqual(expected_checks, scheduled_checks & {cli, viewer, images})
+                self.assertIn('run_test_font', scheduled_checks)
+
+                if platform == 'x86_64-win32':
+                    self.assertEqual({generator}, built_tools(cli))
+                    self.assertEqual(generators, built_tools(images))
+                    self.assertEqual({'fontviewer'}, built_tools(viewer))
+                    self.assertEqual(benchmarks, built_tools(*sorted(benchmarks)))
+
     # Host tools must compile and link for their own macOS minimum, even when the engine targets a newer OS.
     def test_macos_deployment_target_override(self):
         cases = (('', '', '12.0'), ('11.0', '', '11.0'), ('13.0', '11.0', '11.0'))
