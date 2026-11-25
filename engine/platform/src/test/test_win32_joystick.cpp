@@ -20,6 +20,7 @@
 
 static bool g_Connected[XUSER_MAX_COUNT];
 static XINPUT_STATE g_State[XUSER_MAX_COUNT];
+static DWORD g_StateResult[XUSER_MAX_COUNT];
 static IDirectInput8W* g_DirectInput;
 static IDirectInputDevice8W g_DirectDevice;
 static HRESULT g_DirectStatus, g_DirectRead;
@@ -27,7 +28,7 @@ static HRESULT g_DirectStatus, g_DirectRead;
 static DWORD WINAPI State(DWORD user, XINPUT_STATE* state)
 {
     *state = g_State[user];
-    return g_Connected[user] ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+    return g_Connected[user] ? g_StateResult[user] : ERROR_DEVICE_NOT_CONNECTED;
 }
 
 static DWORD WINAPI Capabilities(DWORD user, DWORD, XINPUT_CAPABILITIES* caps)
@@ -137,6 +138,34 @@ TEST(Win32Joystick, HotplugAndIdentity)
     EXPECT_EQ(1U, events.m_Disconnected[0]);
     EXPECT_EQ(2U, events.m_Disconnected[1]);
     dmPlatform::DeleteWindow(window);
+}
+
+// A newly connected controller must recover from an unavailable first sample without another device change.
+TEST(Win32Joystick, DiscoverBeforeFirstStateIsReady)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    GamepadEvents events = {};
+    dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
+    g_Connected[0] = true;
+    g_StateResult[0] = ERROR_NOT_READY;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ(1u, events.m_Connected[0]);
+    EXPECT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+
+    g_StateResult[0] = ERROR_SUCCESS;
+    g_State[0].Gamepad.wButtons = XINPUT_GAMEPAD_A;
+    dmPlatform::PollEvents(window);
+    uint8_t button = 0;
+    EXPECT_EQ(1u, dmPlatform::GetJoystickButtons(window, 0, &button, 1));
+    EXPECT_EQ(1u, button);
+    EXPECT_EQ(1u, events.m_Connected[0]);
+    dmPlatform::DeleteWindow(window);
+    g_State[0] = XINPUT_STATE();
+    g_Connected[0] = false;
 }
 
 // Registering on an open window must let HID finish installing its driver before reporting existing gamepads.

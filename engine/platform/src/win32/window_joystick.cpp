@@ -142,9 +142,7 @@ namespace dmPlatform
 
         int slot = FreeIndex();
         XINPUT_CAPABILITIES caps = {};
-        XINPUT_STATE state;
-        if (slot < 0 || g_Joysticks.m_Drivers.m_Capabilities(user, 0, &caps) != ERROR_SUCCESS ||
-            g_Joysticks.m_Drivers.m_State(user, &state) != ERROR_SUCCESS)
+        if (slot < 0 || g_Joysticks.m_Drivers.m_Capabilities(user, 0, &caps) != ERROR_SUCCESS)
         {
             return;
         }
@@ -152,7 +150,6 @@ namespace dmPlatform
         Joystick& device = g_Joysticks.m_Devices[slot];
         device.m_Connected = true;
         device.m_User = user;
-        DecodeWin32XInput(state.Gamepad, &device.m_Packet);
         dmStrlCpy(device.m_Name, XInputName(caps), sizeof(device.m_Name));
         Win32XInputCapabilities ex = {};
         if (g_Joysticks.m_Drivers.m_Extended && g_Joysticks.m_Drivers.m_Extended(1, user, 0, &ex) == ERROR_SUCCESS && ex.m_Vendor && ex.m_Product)
@@ -467,7 +464,8 @@ namespace dmPlatform
         {
             Win32PollJoysticks(true);
         }
-        else if (g_Joysticks.m_Devices[index].m_Connected)
+
+        if (g_Joysticks.m_Devices[index].m_Connected)
         {
             // A presence, identity, or input query can be the first operation after unplugging.
             PollDevice(index);
