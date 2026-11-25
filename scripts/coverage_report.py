@@ -1,7 +1,11 @@
 """Merge raw profiles from a WITH_COVERAGE engine build and write coverage reports.
 
-Writes, into the output directory: html/, lcov.info, summary.json, report.txt and
-summary.md (per engine library totals, suitable for a CI job summary).
+Writes, into the output directory: html/, lcov.info, summary.json, report.txt,
+meta.json (commit and source root, for use as a later baseline), and summary.md
+(per engine library totals, suitable for a CI job summary). With --baseline, the
+summary includes changes against an earlier report; with --diff-base or a
+baseline commit, it also reports coverage of the lines changed since that commit
+and writes changed_lines.json.
 """
 
 import argparse
@@ -114,41 +118,179 @@ def run(command, stdout=None):
     subprocess.run(command, check=True, stdout=stdout)
 
 
-def library_name(source_root, filename):
+METRICS = ('lines', 'functions', 'branches')
+
+
+def relative_path(source_root, filename):
     try:
-        parts = Path(filename).resolve().relative_to(source_root).parts
+        return Path(filename).resolve().relative_to(source_root).as_posix()
     except ValueError:
+        return Path(filename).as_posix()
+
+
+def library_name(path):
+    if path.startswith('/'):
         return 'other'
-    if len(parts) > 1 and parts[0] == 'engine':
+    parts = path.split('/')
+    if len(parts) > 2 and parts[0] == 'engine':
         return parts[1]
-    return parts[0] if parts else 'other'
+    return parts[0] if len(parts) > 1 else 'other'
+
+
+def read_summary(path, source_root):
+    """Returns {relative file: {metric: (covered, count)}} from llvm-cov export -summary-only."""
+    data = json.loads(Path(path).read_text(encoding='utf-8'))['data'][0]
+    return {relative_path(source_root, entry['filename']):
+            {key: (entry['summary'][key]['covered'], entry['summary'][key]['count']) for key in METRICS}
+            for entry in data['files']}
+
+
+def group_totals(files, key=library_name):
+    groups = {}
+    for path, metrics in files.items():
+        totals = groups.setdefault(key(path), {metric: [0, 0] for metric in METRICS})
+        for metric in METRICS:
+            totals[metric][0] += metrics[metric][0]
+            totals[metric][1] += metrics[metric][1]
+    return groups
+
+
+def ratio(covered, count):
+    return 100.0 * covered / count if count else None
 
 
 def percent(covered, count):
-    return '%.1f%%' % (100.0 * covered / count) if count else '-'
+    value = ratio(covered, count)
+    return '-' if value is None else '%.1f%%' % value
 
 
-def write_markdown_summary(summary_path, source_root, output):
-    data = json.loads(summary_path.read_text(encoding='utf-8'))['data'][0]
-    keys = ('lines', 'functions', 'branches')
-    libraries = {}
-    for entry in data['files']:
-        totals = libraries.setdefault(library_name(source_root, entry['filename']),
-                                      {key: [0, 0] for key in keys})
-        for key in keys:
-            totals[key][0] += entry['summary'][key]['covered']
-            totals[key][1] += entry['summary'][key]['count']
-    lines = ['## C/C++ code coverage', '',
-             '| Library | Lines | Functions | Branches |', '|---|---:|---:|---:|']
-    for name in sorted(libraries):
-        totals = libraries[name]
+def delta(current, baseline):
+    if baseline is None:
+        return ''
+    now, before = ratio(*current), ratio(*baseline)
+    if now is None or before is None:
+        return ''
+    return ' %+.1f' % (now - before)
+
+
+def read_lcov(path, source_root):
+    """Returns {relative file: {line: execution count}} for instrumented lines."""
+    lines = {}
+    current = None
+    for line in Path(path).read_text(encoding='utf-8', errors='replace').splitlines():
+        if line.startswith('SF:'):
+            current = lines.setdefault(relative_path(source_root, line[3:]), {})
+        elif line.startswith('DA:') and current is not None:
+            number, count = line[3:].split(',')[:2]
+            current[int(number)] = max(current.get(int(number), 0), int(count))
+        elif line == 'end_of_record':
+            current = None
+    return lines
+
+
+def parse_changed_lines(diff):
+    """Returns {path: set of added or modified line numbers} from git diff --unified=0."""
+    changed = {}
+    current = None
+    for line in diff.splitlines():
+        if line.startswith('+++ '):
+            target = line[4:]
+            current = None if target == '/dev/null' else changed.setdefault(target[2:] if target.startswith('b/') else target, set())
+        elif line.startswith('@@') and current is not None:
+            match = re.match(r'^@@ -\S+ \+(\d+)(?:,(\d+))? @@', line)
+            if match:
+                start = int(match.group(1))
+                count = 1 if match.group(2) is None else int(match.group(2))
+                current.update(range(start, start + count))
+    return {path: lines for path, lines in changed.items() if lines}
+
+
+def changed_line_coverage(lcov, changed):
+    """Coverage of changed lines that are instrumented; other changed lines are not executable code."""
+    files = {}
+    for path, numbers in sorted(changed.items()):
+        counts = lcov.get(path)
+        if not counts:
+            continue
+        executable = sorted(number for number in numbers if number in counts)
+        if executable:
+            files[path] = {'covered': [n for n in executable if counts[n] > 0],
+                           'uncovered': [n for n in executable if counts[n] == 0]}
+    covered = sum(len(entry['covered']) for entry in files.values())
+    count = covered + sum(len(entry['uncovered']) for entry in files.values())
+    return {'covered': covered, 'count': count, 'files': files}
+
+
+def line_ranges(numbers, limit=None):
+    ranges = []
+    for number in numbers:
+        if ranges and number == ranges[-1][1] + 1:
+            ranges[-1][1] = number
+        else:
+            ranges.append([number, number])
+    text = ', '.join(str(a) if a == b else '%d-%d' % (a, b) for a, b in ranges[:limit])
+    if limit is not None and len(ranges) > limit:
+        text += ', … (%d more)' % (len(ranges) - limit)
+    return text
+
+
+def git(source_root, *args):
+    return subprocess.run(['git', '-C', str(source_root), *args], check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          encoding='utf-8', errors='replace').stdout
+
+
+def short_ref(ref):
+    return ref[:12] if ref and re.fullmatch(r'[0-9a-f]{40}', ref) else ref
+
+
+def markdown_summary(files, baseline=None, baseline_commit=None, changed=None, diff_base=None, limit=20):
+    lines = ['## C/C++ code coverage', '']
+    if baseline is not None:
+        lines += ['Changes are in percentage points against %s.' % (short_ref(baseline_commit) or 'the baseline'), '']
+    lines += ['| Library | Lines | Functions | Branches |', '|---|---:|---:|---:|']
+    groups = group_totals(files)
+    before = group_totals(baseline) if baseline is not None else {}
+    for name in sorted(groups):
         lines.append('| %s | %s |' % (name, ' | '.join(
-            '%s (%d/%d)' % (percent(*totals[key]), *totals[key]) for key in keys)))
-    total = data['totals']
+            '%s%s (%d/%d)' % (percent(*groups[name][m]), delta(groups[name][m], before.get(name, {}).get(m)),
+                              *groups[name][m]) for m in METRICS)))
+    total = group_totals(files, key=lambda path: 'total').get('total', {m: [0, 0] for m in METRICS})
+    total_before = group_totals(baseline, key=lambda path: 'total').get('total') if baseline is not None else None
     lines.append('| **Total** | %s |' % ' | '.join(
-        '**%s** (%d/%d)' % (percent(total[key]['covered'], total[key]['count']),
-                            total[key]['covered'], total[key]['count']) for key in keys))
-    output.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+        '**%s**%s (%d/%d)' % (percent(*total[m]), delta(total[m], total_before and total_before[m]), *total[m])
+        for m in METRICS))
+
+    if baseline is not None:
+        changes = []
+        for path in set(files) | set(baseline):
+            now = ratio(*files[path]['lines']) if path in files else None
+            then = ratio(*baseline[path]['lines']) if path in baseline else None
+            if now != then and not (now is not None and then is not None and abs(now - then) < 0.05):
+                changes.append((path, then, now))
+        if changes:
+            changes.sort(key=lambda change: ((change[2] or 0) - (change[1] or 0), change[0]))
+            lines += ['', '### Largest line coverage changes', '', '| File | Before | After |', '|---|---:|---:|']
+            for path, then, now in changes[:limit]:
+                lines.append('| `%s` | %s | %s |' % (path, '-' if then is None else '%.1f%%' % then,
+                                                     'removed' if now is None else '%.1f%%' % now))
+
+    if changed is not None:
+        lines += ['', '### Changed lines since %s' % short_ref(diff_base), '']
+        if changed['count']:
+            lines.append('%s of changed executable lines are covered (%d/%d).' % (
+                percent(changed['covered'], changed['count']), changed['covered'], changed['count']))
+            uncovered = [(path, entry) for path, entry in changed['files'].items() if entry['uncovered']]
+            if uncovered:
+                uncovered.sort(key=lambda item: (-len(item[1]['uncovered']), item[0]))
+                lines += ['', '| File | Covered | Uncovered lines |', '|---|---:|---|']
+                for path, entry in uncovered[:limit]:
+                    total_lines = len(entry['covered']) + len(entry['uncovered'])
+                    lines.append('| `%s` | %d/%d | %s |' % (path, len(entry['covered']), total_lines,
+                                                             line_ranges(entry['uncovered'], 12)))
+        else:
+            lines.append('No changed executable lines in the reported sources.')
+    return '\n'.join(lines) + '\n'
 
 
 def main():
@@ -158,6 +300,10 @@ def main():
     parser.add_argument('--config', help='Configuration of the coverage object list, for multi-config generators')
     parser.add_argument('--out', type=Path, help='Output directory (default: <build-dir>/coverage/report)')
     parser.add_argument('--llvm-bin', help='Directory containing llvm-profdata and llvm-cov')
+    parser.add_argument('--baseline', type=Path,
+                        help='Directory with summary.json and meta.json of an earlier report to compare against')
+    parser.add_argument('--diff-base', help='Git commit to report changed-line coverage against, such as the '
+                        'merge base with dev (default: the baseline commit)')
     args = parser.parse_args()
 
     if not args.build_dir:
@@ -202,7 +348,41 @@ def main():
         run([llvm_cov, 'export', *common, '-summary-only'], stdout=json_summary)
     with (output / 'report.txt').open('wb') as report:
         run([llvm_cov, 'report', *common], stdout=report)
-    write_markdown_summary(summary, source_root, output / 'summary.md')
+
+    commit = None
+    try:
+        commit = git(source_root, 'rev-parse', 'HEAD').strip()
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    (output / 'meta.json').write_text(json.dumps({'commit': commit, 'source_root': source_root.as_posix()}, indent=2) + '\n',
+                                      encoding='utf-8')
+
+    files = read_summary(summary, source_root)
+    baseline = baseline_commit = None
+    if args.baseline:
+        meta_path = args.baseline / 'meta.json'
+        meta = json.loads(meta_path.read_text(encoding='utf-8')) if meta_path.is_file() else {}
+        baseline_root = Path(meta.get('source_root') or source_root)
+        baseline = read_summary(args.baseline / 'summary.json', baseline_root)
+        baseline_commit = meta.get('commit')
+
+    changed = None
+    diff_base = args.diff_base or baseline_commit
+    if diff_base:
+        try:
+            # Compares against the working tree, so local uncommitted changes count too.
+            diff = git(source_root, 'diff', '--unified=0', '--no-color', '--no-ext-diff',
+                       '--src-prefix=a/', '--dst-prefix=b/', diff_base, '--', 'engine')
+        except (OSError, subprocess.CalledProcessError) as error:
+            print('warning: cannot diff against %s, skipping changed-line coverage: %s'
+                  % (diff_base, getattr(error, 'stderr', error)), file=sys.stderr)
+        else:
+            changed = changed_line_coverage(read_lcov(output / 'lcov.info', source_root), parse_changed_lines(diff))
+            (output / 'changed_lines.json').write_text(json.dumps(dict(changed, base=diff_base), indent=2) + '\n',
+                                                       encoding='utf-8')
+
+    (output / 'summary.md').write_text(markdown_summary(files, baseline, baseline_commit, changed, diff_base),
+                                       encoding='utf-8')
     print((output / 'summary.md').read_text(encoding='utf-8'))
     print('Coverage report: %s' % (output / 'html' / 'index.html'))
     return 0

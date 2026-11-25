@@ -19,7 +19,9 @@ The report is written to `engine/build/<platform>/coverage/report/`. Pass `--out
 | `lcov.info` | lcov tracefile for Codecov, IDE plugins, or `genhtml` |
 | `summary.json` | `llvm-cov export -summary-only` per-file and total counts |
 | `report.txt` | `llvm-cov report` text table |
-| `summary.md` | Per-library totals, used for the CI job summary |
+| `summary.md` | Per-library totals and, when requested, changes and changed-line coverage; used for the CI job summary |
+| `meta.json` | Commit and source root, so this report can serve as a later baseline |
+| `changed_lines.json` | Covered and uncovered changed lines per file, with `--baseline` or `--diff-base` |
 
 To focus on a few libraries, configure CMake directly with the same option, as described in the [CMake guide](../../scripts/cmake/README.md):
 
@@ -33,6 +35,21 @@ python scripts/coverage_report.py --build-dir engine/build/arm64-macos
 `run_tests` deletes the old profiles before it starts. If you run individual `run_<test>` targets instead, delete `coverage/profraw` in the build directory yourself after rebuilding, so that profiles from older binaries are not merged.
 
 Building any test target copies public headers into `DEFOLD_SDK_ROOT`. From a git worktree without its own `tmp/dynamo_home`, point `DEFOLD_SDK_ROOT` at a copy rather than the main checkout's SDK, so the build does not overwrite headers there.
+
+## Comparing builds
+
+Two options compare a report with earlier work:
+
+- **`--baseline <dir>`** reads `summary.json` and `meta.json` from an earlier report directory. `summary.md` then shows the change in percentage points next to each library and the total, followed by the files whose line coverage changed most, drops first. Files are matched by path relative to each report's source root, so a baseline from another checkout or machine works.
+- **`--diff-base <commit>`** reports coverage of the lines added or modified since that commit: how many of the changed executable lines ran at least once, and the uncovered line ranges per file. Without it, the baseline commit from `meta.json` is used. The diff is taken against the working tree, so uncommitted edits count. Changed lines that are not executable code (comments, declarations) or that are in excluded files are not counted.
+
+```bash
+python scripts/coverage_report.py --platform=arm64-macos --out tmp/coverage-before   # on the old commit
+python scripts/coverage_report.py --platform=arm64-macos --baseline tmp/coverage-before
+python scripts/coverage_report.py --platform=arm64-macos --diff-base "$(git merge-base origin/dev HEAD)"
+```
+
+`--diff-base` diffs directly against the given commit, so pass a merge base rather than a branch that has moved on, or its newer changes show up as changed lines.
 
 ## How it works
 
@@ -62,11 +79,13 @@ Building any test target copies public headers into `DEFOLD_SDK_ROOT`. From a gi
 The `bld-eng-coverage-linux-x64` job in [engine-nightly.yml](../../.github/workflows/engine-nightly.yml) runs nightly. It can also be started by hand with `workflow_dispatch` and target `coverage`.
 
 1. Builds `x86_64-linux` with `ci/ci.sh --with-coverage … engine`, using Clang 20 installed by `ci.sh install`.
-2. Runs `coverage_report.py --llvm-bin=/usr/lib/llvm-20/bin`.
-3. Appends `summary.md` to the job summary.
-4. Uploads the HTML, lcov, and JSON files as the `coverage-x86_64-linux` artifact, kept for 14 days.
+2. Downloads the baseline: the newest unexpired `coverage-summary-x86_64-linux` artifact from an earlier run on `dev`, found through the artifacts API with `gh`. It then fetches the baseline commit with `--depth=1`, which is enough for `git diff`. The job needs `actions: read` for this. If no baseline exists, or the step fails, the report is written without comparison.
+3. Runs `coverage_report.py --llvm-bin=/usr/lib/llvm-20/bin --baseline=…`, so the job summary shows the change since the previous good night and the coverage of every line changed in between.
+4. Appends `summary.md` to the job summary.
+5. Uploads the HTML, lcov, and JSON files as the `coverage-x86_64-linux` artifact, kept for 14 days.
+6. If all tests passed, uploads `summary.json` and `meta.json` as `coverage-summary-x86_64-linux`, kept for 90 days, as the baseline for later runs. Runs with failed tests never become baselines, because missing profiles would show as false drops the night after.
 
-Linux is used because macOS GitHub runners skip the dlib HTTP tests. Coverage is not part of the per-push matrix, to keep that job inside its time limit. Engine CI does not run on `pull_request`, and `contrib/**` builds have no secrets, so PR comments and Codecov uploads are left out for now. Codecov accepts the lcov file ([supported formats](https://docs.codecov.com/docs/supported-report-formats)) if it is added later for trusted runs.
+Linux is used because macOS GitHub runners skip the dlib HTTP tests. Coverage is not part of the per-push matrix, to keep that job inside its time limit. Engine CI does not run on `pull_request`, and `contrib/**` builds have no secrets, so PR comments and Codecov uploads are left out for now. Changed-line coverage per pushed branch would need a separate coverage job per push, comparing against `git merge-base origin/dev HEAD` and the latest `dev` baseline, at the cost of another full engine build. Codecov accepts the lcov file ([supported formats](https://docs.codecov.com/docs/supported-report-formats)) if it is added later for trusted runs.
 
 ## Measurements
 
@@ -90,7 +109,7 @@ These numbers are from arm64 macOS, `RelWithDebInfo`, with dlib only (74 tests).
 
 ## Not verified yet
 
-- The nightly job has not run yet. Running it once by hand will confirm the rest of this list:
+- The nightly job, including the baseline lookup, has not run yet. Running it once by hand will confirm the rest of this list:
   - Ubuntu's `llvm-20` package provides `/usr/lib/llvm-20/bin/llvm-profdata` and `llvm-cov`, and the `libclang_rt.profile` runtime. The job checks for both tools before building.
   - Full-engine build time, test time, and profile volume with coverage. gamesys and engine tests are much larger than dlib.
   - `llvm-cov` time and memory with the full engine object list.
