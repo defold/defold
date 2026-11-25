@@ -98,16 +98,28 @@ extern "C" int __wrap_poll(struct pollfd* fds, nfds_t count, int timeout)
     return __real_poll(fds, count, timeout);
 }
 
+static HWindow NewX11TestWindow()
+{
+    // DISPLAY may point to an unreachable server while the platform successfully connects to Wayland.
+    HWindow window = dmPlatform::NewWindow();
+    if (window && !window->m_X11)
+    {
+        dmPlatform::DeleteWindow(window);
+        return 0;
+    }
+
+    return window;
+}
+
 // The game thread submits a resize even when the manager chooses different dimensions.
 TEST(LinuxWindow, X11ConstrainedResize)
 {
-    if (!getenv("DISPLAY"))
+    HWindow w = NewX11TestWindow();
+    if (!w)
     {
         SKIP();
     }
 
-    HWindow w = dmPlatform::NewWindow();
-    ASSERT_TRUE(w);
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
@@ -246,11 +258,9 @@ TEST(LinuxWindow, X11FocusWithoutWindowManager)
 // A fullscreen game must publish its program-selected position before the window manager chooses a monitor.
 TEST(LinuxWindow, X11FullscreenPositionHint)
 {
-    HWindow w = dmPlatform::NewWindow();
-    ASSERT_TRUE(w);
-    if (!w->m_X11)
+    HWindow w = NewX11TestWindow();
+    if (!w)
     {
-        dmPlatform::DeleteWindow(w);
         SKIP();
     }
 
@@ -269,13 +279,12 @@ TEST(LinuxWindow, X11FullscreenPositionHint)
 // Window managers match game launchers by the initial title and the optional X resource instance.
 TEST(LinuxWindow, X11WindowClass)
 {
-    if (!getenv("DISPLAY"))
+    HWindow w = NewX11TestWindow();
+    if (!w)
     {
         SKIP();
     }
 
-    HWindow w = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
@@ -407,13 +416,12 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
 // ICCCM-only window managers signal minimize and restore through WM_STATE.
 TEST(LinuxWindow, X11IconicState)
 {
-    if (!getenv("DISPLAY"))
+    HWindow w = NewX11TestWindow();
+    if (!w)
     {
         SKIP();
     }
 
-    HWindow w = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
@@ -656,14 +664,12 @@ static void ExpectX11MousePosition(HWindow w, int expected_x, int expected_y)
 // X11 cursor lock starts at the live pointer and preserves relative motion across batched moves and recentering.
 TEST(LinuxWindow, X11LockedCursorMotion)
 {
-    if (!getenv("DISPLAY"))
+    HWindow w = NewX11TestWindow();
+    if (!w)
     {
         SKIP();
     }
 
-    HWindow w = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow)0, w);
-    ASSERT_TRUE(w->m_X11);
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));

@@ -185,6 +185,9 @@ def run(args, directory):
             fallback = dict(wayland, DISPLAY=':65534', DM_TEST_WINDOW_BACKEND='wayland')
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
                            cwd=directory, env=fallback, check=True, timeout=30)
+            # Xlib-only tests must skip when an unreachable DISPLAY makes the window use Wayland.
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11'],
+                           cwd=directory, env=fallback, check=True, timeout=30)
             # Losing the driver before its paste acknowledgment must terminate the input test.
             closed = subprocess.run([args.native, '--input'], cwd=directory, env=x11, input=b'',
                                     stdout=subprocess.PIPE, timeout=10)
