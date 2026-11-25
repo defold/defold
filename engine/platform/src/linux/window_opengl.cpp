@@ -873,11 +873,11 @@ namespace dmPlatform
                 eg = EGL_DEPTH_SIZE;
                 break;
             }
-            case WINDOW_STATE_FSAA_SAMPLES:
+            case WINDOW_STATE_SAMPLE_COUNT:
             {
-                gx = GLX_SAMPLES;
-                eg = EGL_SAMPLES;
-                break;
+                // GL reports zero multisamples for a framebuffer with one sample per pixel.
+                int samples = ConfigAttribute(w, g->m_XConfig, g->m_EConfig, GLX_SAMPLES, EGL_SAMPLES);
+                return samples > 0 ? samples : 1;
             }
             default:
             {

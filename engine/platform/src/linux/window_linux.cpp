@@ -431,6 +431,11 @@ namespace dmPlatform
             }
             case WINDOW_STATE_SAMPLE_COUNT:
             {
+                // Vulkan negotiates its swapchain using the request after the window opens.
+                return w->m_GL ? LinuxGLState(w, state) : w->m_Params.m_Samples;
+            }
+            case WINDOW_STATE_FSAA_SAMPLES:
+            {
                 return w->m_Params.m_Samples;
             }
             default:

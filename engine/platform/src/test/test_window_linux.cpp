@@ -1655,15 +1655,17 @@ static void CheckMultisampleFallback(HWindow w, WindowsGraphicsApi api)
     WindowCreateParams p = Params();
     p.m_GraphicsApi = api;
     p.m_Hidden = true;
-    const unsigned requests[] = { 4, 1, 1024 };
-    GLint samples[3] = {};
-    for (unsigned i = 0; i < 3; ++i)
+    const unsigned requests[] = { 4, 1, 1024, 0 };
+    GLint samples[DM_ARRAY_SIZE(requests)] = {};
+    for (unsigned i = 0; i < DM_ARRAY_SIZE(requests); ++i)
     {
         p.m_Samples = requests[i];
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
         __typeof__(&::glGetIntegerv) get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
         ASSERT_TRUE(get_integer);
         get_integer(GL_SAMPLES, &samples[i]);
+        EXPECT_EQ(requests[i], dmPlatform::GetWindowStateParam(w, WINDOW_STATE_FSAA_SAMPLES));
+        EXPECT_EQ((uint32_t)dmMath::Max(samples[i], 1), dmPlatform::GetWindowStateParam(w, WINDOW_STATE_SAMPLE_COUNT));
         dmPlatform::CloseWindow(w);
     }
 
@@ -1674,6 +1676,21 @@ static void CheckMultisampleFallback(HWindow w, WindowsGraphicsApi api)
     }
 
     EXPECT_GE(samples[2], samples[0]);
+}
+
+// Vulkan negotiates its swapchain after the window opens, so it still needs the requested sample count.
+TEST(LinuxWindow, VulkanRequestedSampleCount)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_Samples = 8;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    EXPECT_EQ(8u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_FSAA_SAMPLES));
+    EXPECT_EQ(8u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_SAMPLE_COUNT));
+    dmPlatform::DeleteWindow(w);
 }
 
 // A channel precision the driver cannot supply must still yield a usable GLX or EGL window.
@@ -1725,6 +1742,10 @@ TEST(LinuxWindow, EGLMultisampleFallback)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w);
     CheckMultisampleFallback(w, WINDOW_GRAPHICS_API_OPENGLES);
+    if (w->m_Wayland)
+    {
+        CheckMultisampleFallback(w, WINDOW_GRAPHICS_API_OPENGL);
+    }
     dmPlatform::DeleteWindow(w);
 }
 
