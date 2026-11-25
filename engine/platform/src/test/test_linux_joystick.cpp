@@ -23,7 +23,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static char g_Directory[] = "/tmp/defold-evdev-XXXXXX";
+static const char DIRECTORY_TEMPLATE[] = "/tmp/defold-evdev-XXXXXX";
+static char g_Directory[sizeof(DIRECTORY_TEMPLATE)];
 static char g_Fifo[128];
 static int g_DeviceFd = -1;
 static unsigned g_Connected, g_Disconnected;
@@ -177,11 +178,33 @@ static void Event(void*, int index, WindowGamepadEvent event)
     dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, index);
 }
 
-// Raw queries discover already connected sticks before the first poll. Subsequent hotplugs report their own controls.
-TEST(LinuxJoystick, HotplugAndResync)
+class LinuxJoystick : public jc_test_base_class
 {
-    ASSERT_NE((char*)0, mkdtemp(g_Directory));
-    snprintf(g_Fifo, sizeof(g_Fifo), "%s/event5", g_Directory);
+    protected:
+    void SetUp()
+    {
+        memcpy(g_Directory, DIRECTORY_TEMPLATE, sizeof(g_Directory));
+        ASSERT_NE((char*)0, mkdtemp(g_Directory));
+        snprintf(g_Fifo, sizeof(g_Fifo), "%s/event5", g_Directory);
+        g_DeviceFd = -1;
+        g_Connected = g_Disconnected = 0;
+        g_HatOnly = g_Accelerometer = false;
+        g_StandaloneAxis = g_StandaloneButton = -1;
+        g_StandaloneAxisCount = 0;
+    }
+
+    void TearDown()
+    {
+        dmPlatform::LinuxCloseJoysticks();
+        unlink(g_Fifo);
+        EXPECT_EQ(0, rmdir(g_Directory));
+    }
+
+};
+
+// Raw queries discover already connected sticks before the first poll. Subsequent hotplugs report their own controls.
+TEST_F(LinuxJoystick, HotplugAndResync)
+{
     dmPlatform::SetGamepadEventCallback(0, Event, 0);
     for (unsigned cycle = 1; cycle <= 2; ++cycle)
     {
@@ -314,8 +337,46 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_EQ(0, unlink(g_Fifo));
         dmPlatform::LinuxPollJoysticks();
     }
-    dmPlatform::LinuxCloseJoysticks();
-    ASSERT_EQ(0, rmdir(g_Directory));
+}
+
+static void CountGamepadEvent(void* data, int, WindowGamepadEvent)
+{
+    ++*(unsigned*)data;
+}
+
+// Deleting the previous callback owner preserves its replacement. Deleting the current owner stops further delivery.
+TEST_F(LinuxJoystick, DeleteCallbackOwner)
+{
+    if (!getenv("DISPLAY") && !getenv("WAYLAND_DISPLAY"))
+    {
+        SKIP();
+    }
+
+    HWindow survivor = dmPlatform::NewWindow();
+    HWindow previous = dmPlatform::NewWindow();
+    HWindow owner = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, survivor);
+    ASSERT_NE((HWindow)0, previous);
+    ASSERT_NE((HWindow)0, owner);
+    unsigned previous_events = 0, owner_events = 0;
+    dmPlatform::SetGamepadEventCallback(previous, CountGamepadEvent, &previous_events);
+    dmPlatform::SetGamepadEventCallback(owner, CountGamepadEvent, &owner_events);
+    dmPlatform::DeleteWindow(previous);
+
+    ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
+    int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
+    ASSERT_GE(writer, 0);
+    dmPlatform::PollEvents(survivor);
+    EXPECT_TRUE(dmPlatform::GetDeviceState(survivor, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ(0u, previous_events);
+    EXPECT_EQ(1u, owner_events);
+
+    dmPlatform::DeleteWindow(owner);
+    close(writer);
+    dmPlatform::PollEvents(survivor);
+    EXPECT_FALSE(dmPlatform::GetDeviceState(survivor, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ(1u, owner_events);
+    dmPlatform::DeleteWindow(survivor);
 }
 
 int main(int argc, char** argv)

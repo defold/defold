@@ -185,6 +185,8 @@ def run(args, directory):
             env['DM_TEST_WINDOW_BACKEND'] = backend
             print(f'Running Linux window tests on {backend}', flush=True)
             subprocess.run([args.placement], env=env, cwd=directory, check=True, timeout=120)
+            if args.joystick:
+                subprocess.run([args.joystick], env=env, cwd=directory, check=True, timeout=30)
             if args.native:
                 subprocess.run([args.native], env=env, cwd=directory, check=True, timeout=120)
             if args.vulkan:
@@ -228,12 +230,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--placement', type=Path, required=True)
     parser.add_argument('--native', type=Path)
+    parser.add_argument('--joystick', type=Path)
     parser.add_argument('--headless', type=Path)
     parser.add_argument('--vulkan', type=Path)
     args = parser.parse_args()
     args.placement = args.placement.resolve()
     if args.native:
         args.native = args.native.resolve()
+    if args.joystick:
+        args.joystick = args.joystick.resolve()
     if args.headless:
         args.headless = args.headless.resolve()
     if args.vulkan:

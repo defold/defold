@@ -39,6 +39,7 @@ namespace dmPlatform
     static int g_Watch = -1;
     static uint64_t g_Retry;
     static bool g_Polling;
+    static HWindow g_CallbackWindow;
     static FWindowGamepadEventCallback g_Callback;
     static void* g_UserData;
 
@@ -421,6 +422,7 @@ namespace dmPlatform
 
     void LinuxCloseJoysticks()
     {
+        g_CallbackWindow = 0;
         g_Callback = 0;
         g_UserData = 0;
         for (unsigned i = 0; i < 16; ++i)
@@ -440,10 +442,14 @@ namespace dmPlatform
         g_Retry = 0;
     }
 
-    void SetGamepadEventCallback(HWindow, FWindowGamepadEventCallback cb, void* data)
+    void SetGamepadEventCallback(HWindow window, FWindowGamepadEventCallback cb, void* data)
     {
-        g_Callback = cb;
-        g_UserData = data;
+        if (cb || g_CallbackWindow == window)
+        {
+            g_CallbackWindow = cb ? window : 0;
+            g_Callback = cb;
+            g_UserData = cb ? data : 0;
+        }
     }
 
     bool GetDeviceState(HWindow w, WindowDeviceState state, int32_t index)

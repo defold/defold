@@ -116,9 +116,9 @@ if(PLATFORM_USE_LINUX)
             set(_vulkan_args --vulkan $<TARGET_FILE:test_graphics_window_resize_vulkan>)
         endif()
         add_custom_target(run_linux_window_tests
-            COMMAND $<TARGET_FILE:test_linux_joystick>
             COMMAND "${_python}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/run_linux_window_tests.py"
                 --placement $<TARGET_FILE:test_window_placement> --native $<TARGET_FILE:test_window_linux>
+                --joystick $<TARGET_FILE:test_linux_joystick>
                 --headless $<TARGET_FILE:test_platform> ${_vulkan_args}
             DEPENDS ${_targets}
             USES_TERMINAL VERBATIM)

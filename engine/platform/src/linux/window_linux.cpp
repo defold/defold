@@ -56,6 +56,7 @@ namespace dmPlatform
             return;
         }
 
+        SetGamepadEventCallback(w, 0, 0);
         if (w->m_Polling)
         {
             // Native dispatch still owns the display and may deliver more events before it returns.
