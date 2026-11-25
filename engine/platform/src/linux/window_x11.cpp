@@ -1087,6 +1087,11 @@ namespace dmPlatform
         {
             Atom fullscreen = AtomFor(w, "_NET_WM_STATE_FULLSCREEN");
             XChangeProperty(d, w->m_Xid, x->m_State, XA_ATOM, 32, PropModeReplace, (unsigned char*)&fullscreen, 1);
+            // Motif window managers use the decorations field even without EWMH fullscreen support.
+            const unsigned long MWM_HINTS_DECORATIONS = 1ul << 1;
+            const unsigned long motif_hints[] = { MWM_HINTS_DECORATIONS, 0, 0, 0, 0 };
+            Atom motif = AtomFor(w, "_MOTIF_WM_HINTS");
+            XChangeProperty(d, w->m_Xid, motif, motif, 32, PropModeReplace, (const unsigned char*)motif_hints, 5);
         }
 
         CreateInputContext(w);

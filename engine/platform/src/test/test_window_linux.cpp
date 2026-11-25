@@ -319,8 +319,8 @@ TEST(LinuxWindow, X11FocusWithoutWindowManager)
     dmPlatform::DeleteWindow(w);
 }
 
-// A fullscreen game must publish its program-selected position before the window manager chooses a monitor.
-TEST(LinuxWindow, X11FullscreenPositionHint)
+// Fullscreen placement and Motif's borderless hint must both be available before the window is mapped.
+TEST(LinuxWindow, X11FullscreenHints)
 {
     HWindow w = NewX11TestWindow();
     if (!w)
@@ -337,6 +337,20 @@ TEST(LinuxWindow, X11FullscreenPositionHint)
     long supplied;
     ASSERT_TRUE(XGetWMNormalHints(w->m_Display, w->m_Xid, &hints, &supplied));
     EXPECT_TRUE(hints.flags & PPosition);
+
+    Atom motif = XInternAtom(w->m_Display, "_MOTIF_WM_HINTS", False);
+    Atom type;
+    int format;
+    unsigned long count, remaining;
+    unsigned char* bytes = 0;
+    ASSERT_EQ(Success, XGetWindowProperty(w->m_Display, w->m_Xid, motif, 0, 5, False, motif, &type, &format, &count, &remaining, &bytes));
+    ASSERT_EQ(motif, type);
+    ASSERT_EQ(32, format);
+    ASSERT_EQ(5ul, count);
+    const unsigned long* fields = (const unsigned long*)bytes;
+    EXPECT_TRUE(fields[0] & (1ul << 1)); // MWM_HINTS_DECORATIONS
+    EXPECT_EQ(0ul, fields[2]); // No decorations.
+    XFree(bytes);
     dmPlatform::DeleteWindow(w);
 }
 
