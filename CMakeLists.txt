@@ -106,7 +106,7 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/scripts/cmake/*.cmake"
     "${DEFOLD_HOME}/scripts/cmake/*.in"
     "${DEFOLD_HOME}/scripts/cmake/*.py")
-  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc ddf)
+  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc ddf render)
     foreach(_source_pattern IN ITEMS
         *.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx *.inc *.inl
         *.m *.mm *.s *.S *.java *.py *.cs *.csproj *.js *.cmake *.proto CMakeLists.txt)
@@ -124,8 +124,7 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/ddf/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/render/src/render/material_render_state.cpp"
-    "${DEFOLD_HOME}/engine/render/src/render/material_render_state.h"
+    "${DEFOLD_HOME}/engine/render/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/render/proto/render/material_ddf.proto"
     "${DEFOLD_HOME}/engine/graphics/proto/graphics/graphics_ddf.proto"
     "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt")
@@ -196,7 +195,8 @@ set(DEFOLD_HOST_LIBS
   modelc
   font
   ddf
-  shaderc)
+  shaderc
+  render)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
 # Bob archives ship compiler JNI libraries for these desktop targets, even when
 # the target is cross-built on a different host.
@@ -248,7 +248,7 @@ if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared render_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS
@@ -302,6 +302,15 @@ if(TARGET shaderc_jar)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${DEFOLD_SHADERC_BINARY_DIR}/shaderc.jar"
       "${DEFOLD_SDK_ROOT}/share/java/shaderc.jar")
+endif()
+if(TARGET render_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    render_jar
+    "${DEFOLD_RENDER_BINARY_DIR}/src/shared/render.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_RENDER_BINARY_DIR}/src/shared/render.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/render.jar")
 endif()
 if(DEFOLD_HOST_TOOLS_TARGET)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOST_TOOLS_TARGET}")

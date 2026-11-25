@@ -1263,7 +1263,7 @@ protected:
 TEST_F(dmMaterialInstancingHashTest, DrawSamplerOverrides)
 {
     dmRender::HMaterial material = m_Materials[0];
-    uint64_t hash = dmRender::GetMaterialRenderHash(material);
+    uint64_t hash = dmRender::GetMaterialRenderHash(material, 0);
     uint32_t version = dmRender::GetMaterialVersion(material);
     dmGraphics::HTexture original = MakeDummyTexture(m_GraphicsContext);
     dmGraphics::HTexture replacement = MakeDummyTexture(m_GraphicsContext);
@@ -1284,7 +1284,7 @@ TEST_F(dmMaterialInstancingHashTest, DrawSamplerOverrides)
     dmRender::AddToRender(m_Context, &ro);
     dmRender::SetTextureBindingByHash(m_Context, sampler.m_NameHash, replacement);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
-    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(material));
+    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(material, 0));
     ASSERT_EQ(version, dmRender::GetMaterialVersion(material));
     ASSERT_EQ(dmRender::INVALID_SAMPLER_UNIT, dmRender::GetMaterialSamplerUnit(material, sampler.m_NameHash));
     dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
@@ -1311,8 +1311,8 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
     desc.m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
     dmRender::MaterialRenderState built;
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    dmRender::SetMaterialRenderState(m_Materials[0], dmRender::GetMaterialRenderStateDDF(&built), dmRender::HashMaterialRenderState(built));
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    dmRender::SetMaterialRenderState(m_Materials[0], dmRender::GetMaterialRenderStateDDF(&built), dmRender::HashMaterialRenderState(built, 0));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 
     Vector4 value(1.0f, 0.5f, 0.25f, 1.0f);
     dmRenderDDF::MaterialDesc::Constant constant = {};
@@ -1325,7 +1325,7 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
     dmRender::SetMaterialProgramConstant(m_Materials[0], dmHashString64("tint"), &value, 1);
     dmRender::SetMaterialProgramConstantType(m_Materials[0], dmHashString64("tint"), constant.m_Type);
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 
     dmRenderDDF::MaterialDesc::Sampler sampler = {};
     sampler.m_Name = "texture_sampler";
@@ -1341,7 +1341,7 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
         dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
         dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR, dmGraphics::TEXTURE_FILTER_NEAREST, 4.0f));
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 
     dmGraphics::VertexAttribute attribute = {};
     attribute.m_Name = "custom";
@@ -1357,7 +1357,7 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
     desc.m_Attributes.m_Count = 1;
     dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 
     desc.m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD;
     desc.m_PbrParameters.m_HasParameters = true;
@@ -1365,7 +1365,7 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
     dmRender::SetMaterialVertexSpace(m_Materials[0], desc.m_VertexSpace);
     dmRender::SetMaterialPBRParameters(m_Materials[0], &desc.m_PbrParameters);
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 
     // Invalidation counters aren't part of compatibility: reverting reuses the original hash.
     desc.m_VertexConstants.m_Count = 0;
@@ -1373,7 +1373,7 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
     dmRender::SetMaterialProgramConstant(m_Materials[0], dmHashString64("tint"), &value, 1);
     dmRender::SetMaterialProgramConstantType(m_Materials[0], dmHashString64("tint"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &built);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(built), dmRender::GetMaterialRenderHash(m_Materials[0]));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(built, 0), dmRender::GetMaterialRenderHash(m_Materials[0], 0));
 }
 
 
@@ -1420,7 +1420,7 @@ TEST(MaterialRenderState, CanonicalEncoding)
     desc.m_Attributes.m_Count = 1;
     dmRender::MaterialRenderState state;
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &state);
-    ASSERT_EQ(0xdd87aa41f9d42533ULL, dmRender::HashMaterialRenderState(state));
+    ASSERT_EQ(0xdd87aa41f9d42533ULL, dmRender::HashMaterialRenderState(state, 0));
 }
 
 // Normalization merges stages, fills array/matrix defaults, and ignores metadata and source ordering.
@@ -1438,7 +1438,7 @@ TEST(MaterialRenderState, Normalization)
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &a);
     ASSERT_EQ(2u, a.m_Constants.Size());
     ASSERT_EQ(7u, a.m_Values.Size());
-    uint64_t defaults = dmRender::HashMaterialRenderState(a);
+    uint64_t defaults = dmRender::HashMaterialRenderState(a, 0);
 
     Vector4 values[3] = {Vector4(0.0f), Vector4(0.0f), Vector4(0.0f)};
     dmRenderDDF::MaterialDesc::Constant constant = {};
@@ -1449,10 +1449,10 @@ TEST(MaterialRenderState, Normalization)
     desc.m_FragmentConstants.m_Data = &constant;
     desc.m_FragmentConstants.m_Count = 1;
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &a);
-    ASSERT_EQ(defaults, dmRender::HashMaterialRenderState(a));
+    ASSERT_EQ(defaults, dmRender::HashMaterialRenderState(a, 0));
     values[1] = Vector4(0.25f);
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &a);
-    ASSERT_NE(defaults, dmRender::HashMaterialRenderState(a));
+    ASSERT_NE(defaults, dmRender::HashMaterialRenderState(a, 0));
 
     dmRenderDDF::MaterialDesc::Constant vertex = constant;
     vertex.m_Value.m_Count = 1;
@@ -1460,7 +1460,7 @@ TEST(MaterialRenderState, Normalization)
     desc.m_VertexConstants.m_Count = 1;
     dmRender::MaterialRenderState b;
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &b);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(a), dmRender::HashMaterialRenderState(b));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(a, 0), dmRender::HashMaterialRenderState(b, 0));
     desc.m_Name = "renamed";
     desc.m_Program = "/another/path.spc";
     const char* tag = "shadow";
@@ -1470,7 +1470,7 @@ TEST(MaterialRenderState, Normalization)
     shader.Get()->m_Reflection.m_UniformBuffers[0] = shader.Get()->m_Reflection.m_UniformBuffers[1];
     shader.Get()->m_Reflection.m_UniformBuffers[1] = first;
     dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &b);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(a), dmRender::HashMaterialRenderState(b));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(a, 0), dmRender::HashMaterialRenderState(b, 0));
 
     // A serialized snapshot can be retained without relying on compiler memory.
     dmRenderDDF::MaterialRenderState borrowed = dmRender::GetMaterialRenderStateDDF(&a);
@@ -1480,21 +1480,62 @@ TEST(MaterialRenderState, Normalization)
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &loaded));
     dmRender::CopyMaterialRenderState(*loaded, &b);
     dmDDF::FreeMessage(loaded);
-    ASSERT_EQ(dmRender::HashMaterialRenderState(a), dmRender::HashMaterialRenderState(b));
+    ASSERT_EQ(dmRender::HashMaterialRenderState(a, 0), dmRender::HashMaterialRenderState(b, 0));
+}
+
+// Reusing VertexAttribute must not retain names or value pointers from a freed DDF snapshot.
+TEST(MaterialRenderState, AttributeLayoutOwnership)
+{
+    Vector4 value(1.0f);
+    dmGraphics::VertexAttribute attribute = {};
+    attribute.m_Name = "instance_data";
+    attribute.m_NameHash = dmHashString64(attribute.m_Name);
+    attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+    attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+    attribute.m_ElementCount = 4;
+    attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+    attribute.m_ValuesOneOfIndex = 10; // binary_values field number
+    attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&value;
+    attribute.m_Values.m_BinaryValues.m_Count = sizeof(value);
+
+    dmRenderDDF::MaterialRenderState source = {};
+    source.m_Attributes.m_Data = &attribute;
+    source.m_Attributes.m_Count = 1;
+    dmArray<uint8_t> bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&source, dmRenderDDF::MaterialRenderState::m_DDFDescriptor, bytes));
+    dmRenderDDF::MaterialRenderState* loaded = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &loaded));
+    dmRender::MaterialRenderState copy;
+    dmRender::CopyMaterialRenderState(*loaded, &copy);
+    dmDDF::FreeMessage(loaded);
+
+    ASSERT_STREQ("", copy.m_Attributes[0].m_Name);
+    ASSERT_EQ(attribute.m_NameHash, copy.m_Attributes[0].m_NameHash);
+    ASSERT_EQ(0u, copy.m_Attributes[0].m_Values.m_BinaryValues.m_Count);
+    ASSERT_EQ(0u, copy.m_Attributes[0].m_ValuesOneOfIndex);
+    dmRenderDDF::MaterialRenderState borrowed = dmRender::GetMaterialRenderStateDDF(&copy);
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&borrowed, dmRenderDDF::MaterialRenderState::m_DDFDescriptor, bytes));
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &loaded));
+    dmRender::MaterialRenderState roundtrip;
+    dmRender::CopyMaterialRenderState(*loaded, &roundtrip);
+    dmDDF::FreeMessage(loaded);
+    ASSERT_EQ(dmRender::HashMaterialRenderState(copy, 0), dmRender::HashMaterialRenderState(roundtrip, 0));
 }
 
 // Equivalent material resources share a hash, while programs, vertex space and PBR state split draws.
 TEST_F(dmMaterialInstancingHashTest, SharedState)
 {
-    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
-    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0], 0);
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     ASSERT_NE(0u, dmRender::GetMaterialVersion(m_Materials[0]));
     ASSERT_NE(0u, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
 
     dmGraphics::HProgram other_program = NewMaterialHashTestProgram(m_GraphicsContext);
     dmRender::HMaterial other_material = dmRender::NewMaterial(m_Context, other_program);
-    ASSERT_EQ(dmRender::GetMaterialRenderHash(m_Materials[0]), dmRender::GetMaterialRenderHash(other_material));
-    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(other_material));
+    ASSERT_EQ(dmRender::GetMaterialRenderHash(m_Materials[0], 0), dmRender::GetMaterialRenderHash(other_material, 0));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(other_material, 0));
     dmRender::DeleteMaterial(m_Context, other_material);
     dmGraphics::DeleteProgram(m_GraphicsContext, other_program);
 
@@ -1502,24 +1543,24 @@ TEST_F(dmMaterialInstancingHashTest, SharedState)
     uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
     dmRender::SetMaterialTags(m_Materials[0], 1, &tag);
     ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
-    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0], 0));
     dmRender::ClearMaterialTags(m_Materials[0]);
-    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0], 0));
 
     uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[0]);
     dmRender::SetMaterialVertexSpace(m_Materials[0], dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
     ASSERT_NE(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
-    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0], 0));
     dmRender::SetMaterialVertexSpace(m_Materials[1], dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     dmRenderDDF::MaterialDesc::PbrParameters pbr = {};
     pbr.m_HasParameters = true;
     pbr.m_HasMetallicRoughness = true;
     dmRender::SetMaterialPBRParameters(m_Materials[0], &pbr);
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     dmRender::SetMaterialPBRParameters(m_Materials[1], &pbr);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 }
 
 // Runtime constants split batches and become compatible again when independently edited values agree.
@@ -1527,32 +1568,32 @@ TEST_F(dmMaterialInstancingHashTest, ConstantMutationsConverge)
 {
     dmhash_t name = dmHashString64("tint");
     Vector4 value(1.0f, 0.5f, 0.25f, 1.0f);
-    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
+    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0], 0);
     uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
     uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[0]);
     dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
     ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
     ASSERT_EQ(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
-    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0], 0));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     dmRender::SetMaterialProgramConstant(m_Materials[1], name, &value, 1);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     version = dmRender::GetMaterialVersion(m_Materials[0]);
     dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
     ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
 
     dmRender::SetMaterialProgramConstantType(m_Materials[0], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     dmRender::SetMaterialProgramConstantType(m_Materials[1], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     value = Vector4(0.0f);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
     {
         dmRender::SetMaterialProgramConstantType(m_Materials[i], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
         dmRender::SetMaterialProgramConstant(m_Materials[i], name, &value, 1);
-        ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[i]));
+        ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[i], 0));
     }
 }
 
@@ -1568,8 +1609,8 @@ TEST_F(dmMaterialInstancingHashTest, DuplicateSamplerSlotsStayConservative)
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[i], name, 1, dmGraphics::TEXTURE_WRAP_REPEAT,
             dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
     }
-    ASSERT_EQ(dmRender::GetMaterialRenderHash(m_Materials[0]), dmRender::GetMaterialRenderHash(m_Materials[1]));
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialRenderHash(m_Materials[0], 0), dmRender::GetMaterialRenderHash(m_Materials[1], 0));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 }
 
 // Every sampler setting affects compatibility, including wrap W and anisotropy from issue #11929.
@@ -1598,9 +1639,9 @@ TEST_F(dmMaterialInstancingHashTest, SamplerMutationsConverge)
     {
         const SamplerCase& s = cases[i];
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
-        ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+        ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[1], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
-        ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+        ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
         uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
         ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
@@ -1626,24 +1667,24 @@ TEST_F(dmMaterialInstancingHashTest, AttributeDefaultsAndDeclarations)
         ASSERT_NE(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[i]));
         ASSERT_NE((dmGraphics::HVertexDeclaration)0, dmRender::GetVertexDeclaration(m_Materials[i], dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
     }
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     attribute.m_Normalize = true;
     dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     dmRender::SetMaterialProgramAttributes(m_Materials[1], &attribute, 1);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
     dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
-    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
     dmRender::SetMaterialProgramAttributes(m_Materials[1], &attribute, 1);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 
     // Models hash the effective vertex defaults after applying component overrides.
     attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&values[0];
     dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
-    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
 }
 
 // Preparing one model draw must not split its material from identical resources on the next frame.
@@ -1661,7 +1702,7 @@ TEST_F(dmMaterialInstancingHashTest, ModelSamplerSetupPreservesCompatibility)
     {
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], names[i], i + 1, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
             dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f));
-        ASSERT_NE(original_hashes[0], dmRender::GetMaterialInstancingHash(m_Materials[0]));
+        ASSERT_NE(original_hashes[0], dmRender::GetMaterialInstancingHash(m_Materials[0], 0));
         ASSERT_EQ(original_hashes[skip_pose | skip_morph], dmRender::GetMaterialInstancingHash(m_Materials[0], skip_pose | skip_morph));
         ASSERT_EQ(original_hashes[skip_pose | skip_morph], dmRender::GetMaterialInstancingHash(m_Materials[1], skip_pose | skip_morph));
         if (i == 0)

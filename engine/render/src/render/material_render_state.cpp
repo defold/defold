@@ -75,7 +75,9 @@ namespace dmRender
         CopyArray(&state->m_Constants, source.m_Constants.m_Data, source.m_Constants.m_Count);
         CopyArray(&state->m_Values, source.m_Values.m_Data, source.m_Values.m_Count);
         CopyArray(&state->m_Samplers, source.m_Samplers.m_Data, source.m_Samplers.m_Count);
-        CopyArray(&state->m_Attributes, source.m_Attributes.m_Data, source.m_Attributes.m_Count);
+        state->m_Attributes.SetSize(0);
+        for (uint32_t i = 0; i < source.m_Attributes.m_Count; ++i)
+            SetMaterialRenderAttribute(state, source.m_Attributes[i]);
         state->m_VertexSpace = source.m_VertexSpace;
         state->m_PbrParameters = source.m_PbrParameters;
     }
@@ -138,9 +140,12 @@ namespace dmRender
         Put(&state->m_Samplers, sampler);
     }
 
-    void SetMaterialRenderAttribute(MaterialRenderState* state, const StateDDF::Attribute& attribute)
+    void SetMaterialRenderAttribute(MaterialRenderState* state, const dmGraphics::VertexAttribute& attribute)
     {
-        Put(&state->m_Attributes, attribute);
+        // Own only layout scalars. Never retain pointers into the loaded DDF.
+        dmGraphics::VertexAttribute layout = MakeMaterialRenderAttribute(attribute);
+        layout.m_ElementCount = attribute.m_ElementCount;
+        Put(&state->m_Attributes, layout);
     }
 
     static uint32_t ElementCount(dmGraphics::VertexAttribute::VectorType type)
@@ -150,9 +155,10 @@ namespace dmRender
         return counts[type];
     }
 
-    StateDDF::Attribute MakeMaterialRenderAttribute(const dmGraphics::VertexAttribute& input)
+    dmGraphics::VertexAttribute MakeMaterialRenderAttribute(const dmGraphics::VertexAttribute& input)
     {
-        StateDDF::Attribute attribute = {};
+        dmGraphics::VertexAttribute attribute = {};
+        attribute.m_Name = "";
         attribute.m_NameHash = input.m_NameHash;
         attribute.m_SemanticType = input.m_SemanticType;
         attribute.m_DataType = input.m_DataType;
@@ -164,10 +170,11 @@ namespace dmRender
         return attribute;
     }
 
-    StateDDF::Attribute MakeDefaultMaterialRenderAttribute(dmhash_t name, dmGraphics::VertexAttribute::VectorType type, uint32_t element_count)
+    dmGraphics::VertexAttribute MakeDefaultMaterialRenderAttribute(dmhash_t name, dmGraphics::VertexAttribute::VectorType type, uint32_t element_count)
     {
         typedef dmGraphics::VertexAttribute A;
-        StateDDF::Attribute attribute = {};
+        dmGraphics::VertexAttribute attribute = {};
+        attribute.m_Name = "";
         attribute.m_NameHash = name;
         attribute.m_DataType = A::TYPE_FLOAT;
         attribute.m_VectorType = type;
@@ -380,7 +387,7 @@ namespace dmRender
         HashU32(&hash, state.m_Attributes.Size());
         for (uint32_t i = 0; i < state.m_Attributes.Size(); ++i)
         {
-            const StateDDF::Attribute& attribute = state.m_Attributes[i];
+            const dmGraphics::VertexAttribute& attribute = state.m_Attributes[i];
             HashU64(&hash, attribute.m_NameHash);
             HashU32(&hash, attribute.m_SemanticType);
             HashU32(&hash, attribute.m_DataType);

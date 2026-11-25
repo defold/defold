@@ -138,6 +138,7 @@ message MaterialRenderState
     {
         required uint64 name_hash = 1;
         required MaterialDesc.ConstantType type = 2;
+        // Ranges into the shared values array avoid per-constant allocations.
         required uint32 value_index = 3;
         required uint32 value_count = 4;
     }
@@ -145,6 +146,8 @@ message MaterialRenderState
     message Sampler
     {
         required uint64 name_hash = 1;
+        // Native graphics modes include values absent from MaterialDesc.Sampler
+        // (e.g. clamp-to-border), so these must retain the runtime enum values.
         required uint32 wrap_u = 2;
         required uint32 wrap_v = 3;
         required uint32 wrap_w = 4;
@@ -153,22 +156,11 @@ message MaterialRenderState
         required float max_anisotropy = 7;
     }
 
-    message Attribute
-    {
-        required uint64 name_hash = 1;
-        required dmGraphics.VertexAttribute.SemanticType semantic_type = 2;
-        required dmGraphics.VertexAttribute.DataType data_type = 3;
-        required dmGraphics.VertexAttribute.VectorType vector_type = 4;
-        required dmGraphics.VertexStepFunction step_function = 5;
-        required dmGraphics.CoordinateSpace coordinate_space = 6;
-        required uint32 element_count = 7;
-        required bool normalize = 8;
-    }
-
     repeated Constant constants = 1;
     repeated dmMath.Vector4 values = 2;
     repeated Sampler samplers = 3;
-    repeated Attribute attributes = 4;
+    // Reuse the graphics layout type; names and default values are not stored here.
+    repeated dmGraphics.VertexAttribute attributes = 4;
     optional MaterialDesc.VertexSpace vertex_space = 5;
     optional MaterialDesc.PbrParameters pbr_parameters = 6;
 }

@@ -249,7 +249,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     // Shared by Bob and the editor. Normalization and hashing both live in native
     // code so runtime material mutations use exactly the same representation.
     public static MaterialDesc buildRenderState(MaterialDesc material, ShaderDesc.ShaderReflection reflection) {
-        byte[] compiled = ShadercJni.BuildMaterialRenderState(material.toByteArray(), reflection.toByteArray());
+        byte[] compiled = RenderJni.BuildMaterialRenderState(material.toByteArray(), reflection.toByteArray());
         if (compiled == null) {
             throw new IllegalStateException("Unable to build material render state");
         }

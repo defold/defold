@@ -78,6 +78,24 @@ public class MaterialRenderStateTest {
         assertEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(compiled, reflection()).getRenderHash());
     }
 
+    // The shared render library emits the existing graphics layout type without retaining draw-local defaults.
+    @Test
+    public void attributeStateUsesGraphicsLayout() {
+        MaterialDesc.Builder input = material();
+        input.getAttributesBuilder(0).setBinaryValues(ByteString.copyFrom(new byte[]{1, 2, 3, 4}));
+        MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection());
+        Graphics.VertexAttribute layout = compiled.getRenderState().getAttributes(0);
+        assertEquals("", layout.getName());
+        assertEquals(input.getAttributes(0).getNameHash(), layout.getNameHash());
+        assertEquals(input.getAttributes(0).getDataType(), layout.getDataType());
+        assertEquals(input.getAttributes(0).getVectorType(), layout.getVectorType());
+        assertEquals(input.getAttributes(0).getStepFunction(), layout.getStepFunction());
+        assertEquals(4, layout.getElementCount());
+        assertFalse(layout.hasBinaryValues());
+        assertFalse(layout.hasDoubleValues());
+        assertFalse(layout.hasLongValues());
+    }
+
     // Names, tags, paths, textures and instance defaults are not persistent shared draw settings.
     @Test
     public void metadataAndInstanceValuesAreExcluded() {

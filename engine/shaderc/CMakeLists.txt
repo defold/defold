@@ -23,7 +23,6 @@ set(SHADERC_COMMON_DEPENDENCIES
 set(SHADERC_BINDINGS_DEPENDENCIES jni_noasan)
 set(SHADERC_SHARED_DEPENDENCIES
   dlib_noasan
-  ddf_noasan
   zip_noasan
   mbedtls_noasan
   profile_null_noasan
@@ -92,19 +91,6 @@ install(FILES "${SHADERC_JAR}" DESTINATION share/java)
 if(SHADERC_IS_DESKTOP)
   find_package(JNI REQUIRED)
 
-  # Shared material normalization/hashing, without a renderer or graphics backend.
-  # Generate these descriptors locally so the host-tools-only build also works.
-  set(SHADERC_MATERIAL_GEN "${CMAKE_CURRENT_BINARY_DIR}/material")
-  set(SHADERC_MATERIAL_PROTO "${SHADERC_MATERIAL_GEN}/render/material_ddf.cpp")
-  set(SHADERC_GRAPHICS_PROTO "${SHADERC_MATERIAL_GEN}/graphics/graphics_ddf.cpp")
-  defold_protoc_gen_cpp("${SHADERC_MATERIAL_PROTO}"
-    "${DEFOLD_HOME}/engine/render/proto/render/material_ddf.proto"
-    INCLUDES "${DEFOLD_HOME}/engine/render/proto" "${DEFOLD_HOME}/engine/graphics/proto")
-  defold_protoc_gen_cpp("${SHADERC_GRAPHICS_PROTO}"
-    "${DEFOLD_HOME}/engine/graphics/proto/graphics/graphics_ddf.proto"
-    INCLUDES "${DEFOLD_HOME}/engine/graphics/proto")
-  add_custom_target(shaderc_material_proto DEPENDS "${SHADERC_MATERIAL_PROTO}" "${SHADERC_GRAPHICS_PROTO}")
-
   set(SHADERC_CORE_SOURCES
     "${SHADERC_SRC_DIR}/shaderc.cpp"
     "${SHADERC_SRC_DIR}/shaderc_spirv.cpp"
@@ -136,17 +122,12 @@ if(SHADERC_IS_DESKTOP)
 
   add_library(shaderc_shared SHARED
     ${SHADERC_CORE_SOURCES}
-    "${DEFOLD_HOME}/engine/render/src/render/material_render_state.cpp"
-    "${SHADERC_MATERIAL_PROTO}"
-    "${SHADERC_GRAPHICS_PROTO}"
     "${SHADERC_SRC_DIR}/shaderc_jni.cpp"
     $<TARGET_OBJECTS:shaderc_bindings>)
   defold_target_skip_sanitizer(shaderc_shared)
   target_include_directories(shaderc_shared PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" "${SHADERC_JNI_DIR}" ${SHADERC_EXTRA_INCLUDES} ${JNI_INCLUDE_DIRS})
-  target_include_directories(shaderc_shared PRIVATE
-    "${SHADERC_MATERIAL_GEN}" "${DEFOLD_HOME}/engine/render/src" "${DEFOLD_HOME}/engine/graphics/src")
   target_compile_definitions(shaderc_shared PRIVATE ${SHADERC_DEFINES})
-  add_dependencies(shaderc_shared shaderc_bindings shaderc_material_proto)
+  add_dependencies(shaderc_shared shaderc_bindings)
   defold_target_link_libraries(shaderc_shared "${TARGET_PLATFORM}"
     ${SHADERC_SHARED_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})

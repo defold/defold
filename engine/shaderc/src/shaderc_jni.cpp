@@ -22,8 +22,6 @@
 
 #include <dlib/array.h>
 #include <dlib/log.h>
-#include <ddf/ddf.h>
-#include <render/material_render_state.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -478,45 +476,6 @@ JNIEXPORT jstring JNICALL Java_ShadercJni_HLSLRootSignatureToString(JNIEnv* env,
     return out_string;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_ShadercJni_BuildMaterialRenderState(JNIEnv* env, jclass cls, jbyteArray material_bytes, jbyteArray reflection_bytes)
-{
-    jbyteArray result = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-    {
-        dmRenderDDF::MaterialDesc* material = 0;
-        dmGraphics::ShaderDesc::ShaderReflection* reflection = 0;
-        jbyte* material_data = env->GetByteArrayElements(material_bytes, 0);
-        dmDDF::Result material_result = dmDDF::LoadMessage(material_data, env->GetArrayLength(material_bytes), &material);
-        env->ReleaseByteArrayElements(material_bytes, material_data, JNI_ABORT);
-        jbyte* reflection_data = env->GetByteArrayElements(reflection_bytes, 0);
-        dmDDF::Result reflection_result = dmDDF::LoadMessage(reflection_data, env->GetArrayLength(reflection_bytes), &reflection);
-        env->ReleaseByteArrayElements(reflection_bytes, reflection_data, JNI_ABORT);
-        if (material_result == dmDDF::RESULT_OK && reflection_result == dmDDF::RESULT_OK)
-        {
-            dmRender::MaterialRenderState state;
-            dmRender::BuildMaterialRenderState(*material, *reflection, &state);
-            // Serialize a borrowed view without changing ownership of the input DDF.
-            dmRenderDDF::MaterialDesc compiled = *material;
-            dmRenderDDF::MaterialRenderState state_ddf = dmRender::GetMaterialRenderStateDDF(&state);
-            compiled.m_RenderState = &state_ddf;
-            compiled.m_RenderHash = dmRender::HashMaterialRenderState(state);
-            dmArray<uint8_t> bytes;
-            if (dmDDF::SaveMessageToArray(&compiled, dmRenderDDF::MaterialDesc::m_DDFDescriptor, bytes) == dmDDF::RESULT_OK)
-            {
-                result = env->NewByteArray(bytes.Size());
-                if (result)
-                    env->SetByteArrayRegion(result, 0, bytes.Size(), (const jbyte*)bytes.Begin());
-            }
-        }
-        if (material)
-            dmDDF::FreeMessage(material);
-        if (reflection)
-            dmDDF::FreeMessage(reflection);
-    }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->");
@@ -540,7 +499,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. Shaderc.java)
     static const JNINativeMethod methods[] = {
-        { (char*) "BuildMaterialRenderState", (char*) "([B[B)[B", reinterpret_cast<void*>(Java_ShadercJni_BuildMaterialRenderState)},
         { (char*) "NewShaderContext", (char*) "(I[B)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderContext)},
         { (char*) "DeleteShaderContext", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderContext)},
         { (char*) "NewShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderCompiler)},

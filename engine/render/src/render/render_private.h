@@ -104,6 +104,9 @@ namespace dmRender
         dmArray<Sampler>                            m_Samplers;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         MaterialRenderState*                        m_RenderState;
+        // Indexed by the two MaterialInstancingHashFlags bits: 0 = full state,
+        // 1 = exclude pose cache sampler, 2 = exclude morph targets sampler,
+        // 3 = exclude both. Recompute each combination lazily after material changes.
         uint64_t                                    m_RenderHashes[4];
         uint32_t                                    m_Version;
         uint32_t                                    m_AttributeVersion;

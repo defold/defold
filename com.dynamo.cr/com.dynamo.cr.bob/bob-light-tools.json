@@ -2,6 +2,7 @@
     "lib/**/*dlib_shared*",
     "lib/**/*fontc_shared*",
     "lib/**/*modelc_shared*",
+    "lib/**/*render_shared*",
     "lib/**/*shaderc_shared*",
     "lib/**/*texc_shared*",
     "lib/luajit-share.zip",

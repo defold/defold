@@ -63,7 +63,7 @@ namespace dmRender
 
     static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported)
     {
-        dmRenderDDF::MaterialRenderState::Attribute attribute = MakeDefaultMaterialRenderAttribute(name_hash, GetAttributeVectorType(graphics_type), element_count);
+        dmGraphics::VertexAttribute attribute = MakeDefaultMaterialRenderAttribute(name_hash, GetAttributeVectorType(graphics_type), element_count);
         info->m_NameHash = attribute.m_NameHash;
         info->m_DataType = attribute.m_DataType;
         info->m_VectorType = attribute.m_VectorType;

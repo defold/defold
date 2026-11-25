@@ -78,7 +78,6 @@ public class ShadercJni {
     }
 
     public static native long NewShaderContext(int stage, byte[] buffer);
-    public static native byte[] BuildMaterialRenderState(byte[] material, byte[] reflection);
     public static native void DeleteShaderContext(long context);
 
     public static native long NewShaderCompiler(long context, int version);

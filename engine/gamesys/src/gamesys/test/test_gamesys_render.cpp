@@ -1283,7 +1283,7 @@ TEST_F(MaterialTest, PartiallyFailedConstantUpdateInvalidatesInstancingHash)
 {
     dmGameSystem::MaterialResource* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/material_constant_single.materialc", (void**)&resource));
-    uint64_t original_hash = dmRender::GetMaterialInstancingHash(resource->m_Material);
+    uint64_t original_hash = dmRender::GetMaterialInstancingHash(resource->m_Material, 0);
     uint32_t original_version = dmRender::GetMaterialVersion(resource->m_Material);
     ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
         "local path = '/material/material_constant_single.materialc'\n"
@@ -1301,7 +1301,7 @@ TEST_F(MaterialTest, PartiallyFailedConstantUpdateInvalidatesInstancingHash)
         "    end\n"
         "end\n"
         "assert(changed)\n"));
-    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(resource->m_Material));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(resource->m_Material, 0));
     ASSERT_GT(dmRender::GetMaterialVersion(resource->m_Material), original_version);
     dmResource::Release(m_Factory, resource);
 }
@@ -3162,7 +3162,7 @@ public:
         uint32_t versions[2];
         for (uint32_t i = 0; i < 2; ++i)
         {
-            hashes[i] = dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material);
+            hashes[i] = dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material, 0);
             versions[i] = dmRender::GetMaterialVersion(m_Materials[i]->m_Material);
         }
         dmRender::ClearRenderObjects(m_RenderContext);
@@ -3184,7 +3184,7 @@ public:
         // Temporary morph/pose samplers must not mutate persistent material state.
         for (uint32_t i = 0; i < 2; ++i)
         {
-            ASSERT_EQ(hashes[i], dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material));
+            ASSERT_EQ(hashes[i], dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material, 0));
             ASSERT_EQ(versions[i], dmRender::GetMaterialVersion(m_Materials[i]->m_Material));
         }
     }
@@ -3256,7 +3256,7 @@ TEST_F(ModelInstancingCompatibilityTest, UniformMorphMaterialOverride)
     }
     DrawAndAssertBatches(1);
     dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-    uint64_t hash = dmRender::GetMaterialRenderHash(override_resource->m_Material);
+    uint64_t hash = dmRender::GetMaterialRenderHash(override_resource->m_Material, 0);
     uint32_t version = dmRender::GetMaterialVersion(override_resource->m_Material);
     context->m_Material = override_resource->m_Material;
     DrawAndAssertBatches(2);
@@ -3265,7 +3265,7 @@ TEST_F(ModelInstancingCompatibilityTest, UniformMorphMaterialOverride)
         ASSERT_EQ(1u, context->m_RenderObjects[i]->m_InstanceCount);
         ASSERT_NE((dmGraphics::HVertexDeclaration)0, context->m_RenderObjects[i]->m_VertexDeclarations[1]);
     }
-    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(override_resource->m_Material));
+    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(override_resource->m_Material, 0));
     ASSERT_EQ(version, dmRender::GetMaterialVersion(override_resource->m_Material));
     context->m_Material = 0;
     dmResource::Release(m_Factory, override_resource);

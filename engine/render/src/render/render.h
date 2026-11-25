@@ -373,9 +373,9 @@ namespace dmRender
     // Hash of shared draw state. Attribute values and textures are resolved by the component.
     // Exclude internal samplers only when the component replaces their bindings for the draw.
     // Mutate material constants through the material setters to invalidate the cached hash.
-    uint64_t                        GetMaterialInstancingHash(HMaterial material, uint32_t flags = 0);
+    uint64_t                        GetMaterialInstancingHash(HMaterial material, uint32_t flags);
     // Portable material settings, shared with the compiler. Not a complete draw key.
-    uint64_t                        GetMaterialRenderHash(HMaterial material, uint32_t flags = 0);
+    uint64_t                        GetMaterialRenderHash(HMaterial material, uint32_t flags);
     void                            SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash);
     uint32_t                        GetMaterialVersion(HMaterial material);
     uint32_t                        GetMaterialAttributeVersion(HMaterial material);

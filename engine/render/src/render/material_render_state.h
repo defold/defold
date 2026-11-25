@@ -27,7 +27,7 @@ namespace dmRender
         dmArray<dmRenderDDF::MaterialRenderState::Constant> m_Constants;
         dmArray<dmMath::Vector4> m_Values;
         dmArray<dmRenderDDF::MaterialRenderState::Sampler> m_Samplers;
-        dmArray<dmRenderDDF::MaterialRenderState::Attribute> m_Attributes;
+        dmArray<dmGraphics::VertexAttribute> m_Attributes;
         dmRenderDDF::MaterialDesc::VertexSpace m_VertexSpace;
         dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
 
@@ -38,15 +38,15 @@ namespace dmRender
     void CopyMaterialRenderState(const dmRenderDDF::MaterialRenderState& source, MaterialRenderState* state);
     // Returns a borrowed view, valid while state remains alive and unmodified.
     dmRenderDDF::MaterialRenderState GetMaterialRenderStateDDF(MaterialRenderState* state);
-    uint64_t HashMaterialRenderState(const MaterialRenderState& state, uint32_t sampler_exclusions = 0);
+    uint64_t HashMaterialRenderState(const MaterialRenderState& state, uint32_t sampler_exclusions);
     bool IsMaterialRenderSamplerExcluded(dmhash_t name_hash, uint32_t sampler_exclusions);
 
     void AddMaterialRenderConstant(MaterialRenderState* state, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type, uint32_t count);
     void SetMaterialRenderConstantType(MaterialRenderState* state, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool SetMaterialRenderConstantValues(MaterialRenderState* state, dmhash_t name_hash, const dmMath::Vector4* values, uint32_t count);
     void SetMaterialRenderSampler(MaterialRenderState* state, const dmRenderDDF::MaterialRenderState::Sampler& sampler);
-    void SetMaterialRenderAttribute(MaterialRenderState* state, const dmRenderDDF::MaterialRenderState::Attribute& attribute);
-    dmRenderDDF::MaterialRenderState::Attribute MakeMaterialRenderAttribute(const dmGraphics::VertexAttribute& attribute);
-    dmRenderDDF::MaterialRenderState::Attribute MakeDefaultMaterialRenderAttribute(dmhash_t name_hash, dmGraphics::VertexAttribute::VectorType vector_type, uint32_t element_count);
+    void SetMaterialRenderAttribute(MaterialRenderState* state, const dmGraphics::VertexAttribute& attribute);
+    dmGraphics::VertexAttribute MakeMaterialRenderAttribute(const dmGraphics::VertexAttribute& attribute);
+    dmGraphics::VertexAttribute MakeDefaultMaterialRenderAttribute(dmhash_t name_hash, dmGraphics::VertexAttribute::VectorType vector_type, uint32_t element_count);
 }
 #endif
