@@ -52,11 +52,17 @@ struct dmWindow
     double              m_Wheel;
     uint16_t            m_HighSurrogate;
     dmPlatform::WindowPressedInput m_Input;
-    bool                m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop;
+    bool                           m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop, m_DeletePending;
 };
 
 namespace dmPlatform
 {
+    struct Win32JoystickDispatch
+    {
+        Win32JoystickDispatch();
+        ~Win32JoystickDispatch();
+    };
+
     extern const wchar_t* const WIN32_WINDOW_CLASS;
     float Win32MonitorScale(HMONITOR monitor);
     void  Win32InitDpi();

@@ -85,6 +85,90 @@ static void OnGamepad(void* data, int slot, WindowGamepadEvent event)
     }
 }
 
+struct DeleteOnGamepad
+{
+    HWindow            m_Window;
+    HWindow            m_Other;
+    WindowGamepadEvent m_Event;
+};
+
+static void DeleteFromGamepadCallback(void* data, int, WindowGamepadEvent event)
+{
+    DeleteOnGamepad* targets = (DeleteOnGamepad*)data;
+    if (event == targets->m_Event)
+    {
+        dmPlatform::DeleteWindow(targets->m_Window);
+        targets->m_Window = 0;
+        if (targets->m_Other)
+        {
+            dmPlatform::DeleteWindow(targets->m_Other);
+            targets->m_Other = 0;
+        }
+    }
+}
+
+// Deleting this callback's window and its successor must still deliver the hotplug to the remaining window.
+TEST(Win32Joystick, DeleteWindowsInHotplugCallback)
+{
+    HWindow survivor = dmPlatform::NewWindow();
+    HWindow other = dmPlatform::NewWindow();
+    HWindow current = dmPlatform::NewWindow();
+    ASSERT_TRUE(survivor && other && current);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    GamepadEvents surviving = {}, removed = {};
+    DeleteOnGamepad targets = { current, other, WINDOW_GAMEPAD_EVENT_CONNECTED };
+    dmPlatform::SetGamepadEventCallback(survivor, OnGamepad, &surviving);
+    dmPlatform::SetGamepadEventCallback(other, OnGamepad, &removed);
+    dmPlatform::SetGamepadEventCallback(current, DeleteFromGamepadCallback, &targets);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(survivor, params));
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(other, params));
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(current, params));
+
+    g_Connected[0] = true;
+    SendMessageW(dmPlatform::GetWindowsHWND(survivor), WM_DEVICECHANGE, 0, 0);
+    dmPlatform::PollEvents(survivor);
+    EXPECT_EQ((HWindow)0, targets.m_Window);
+    EXPECT_EQ((HWindow)0, targets.m_Other);
+    EXPECT_EQ(0u, removed.m_Connected[0]);
+    EXPECT_EQ(1u, surviving.m_Connected[0]);
+
+    // A raw presence query can deliver a disconnect without going through PollEvents.
+    targets.m_Window = survivor;
+    targets.m_Event = WINDOW_GAMEPAD_EVENT_DISCONNECTED;
+    dmPlatform::SetGamepadEventCallback(survivor, DeleteFromGamepadCallback, &targets);
+    g_Connected[0] = false;
+    EXPECT_FALSE(dmPlatform::GetDeviceState(survivor, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ((HWindow)0, targets.m_Window);
+}
+
+// Deleting the last window on discovery must allow XInput enumeration to finish and the next window to start afresh.
+TEST(Win32Joystick, DeleteLastWindowDuringEnumeration)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    DeleteOnGamepad targets = { window, 0, WINDOW_GAMEPAD_EVENT_CONNECTED };
+    dmPlatform::SetGamepadEventCallback(window, DeleteFromGamepadCallback, &targets);
+    g_Connected[0] = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ((HWindow)0, targets.m_Window);
+
+    window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    GamepadEvents events = {};
+    dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ(1u, events.m_Connected[0]);
+    dmPlatform::DeleteWindow(window);
+    g_Connected[0] = false;
+}
+
 // Verifies native XInput user IDs survive slot assignment, duplicate arrivals, removal and reuse.
 TEST(Win32Joystick, HotplugAndIdentity)
 {

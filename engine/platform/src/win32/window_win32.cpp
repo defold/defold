@@ -32,6 +32,8 @@ namespace dmPlatform
 {
     const wchar_t* const WIN32_WINDOW_CLASS = L"DefoldWindow";
     static HWindow g_Windows;
+    static unsigned g_JoystickDispatchDepth;
+    static bool g_WindowDeletePending;
     static void* volatile g_ConsoleWindow;
 
     static BOOL WINAPI ConsoleControl(DWORD event)
@@ -266,6 +268,14 @@ namespace dmPlatform
     void DeleteWindow(HWindow window)
     {
         CloseWindow(window);
+        if (g_JoystickDispatchDepth)
+        {
+            // A closed window stops receiving events. Keep its list node and the drivers alive until dispatch ends.
+            window->m_DeletePending = true;
+            g_WindowDeletePending = true;
+            return;
+        }
+
         HWindow* link = &g_Windows;
         while (*link != window)
         {
@@ -278,6 +288,32 @@ namespace dmPlatform
         {
             Win32ShutdownJoysticks();
             UnregisterClassW(WIN32_WINDOW_CLASS, GetModuleHandleW(0));
+        }
+    }
+
+    Win32JoystickDispatch::Win32JoystickDispatch()
+    {
+        ++g_JoystickDispatchDepth;
+    }
+
+    Win32JoystickDispatch::~Win32JoystickDispatch()
+    {
+        if (--g_JoystickDispatchDepth || !g_WindowDeletePending)
+        {
+            return;
+        }
+
+        g_WindowDeletePending = false;
+        HWindow window = g_Windows;
+        while (window)
+        {
+            HWindow next = window->m_Next;
+            if (window->m_DeletePending)
+            {
+                DeleteWindow(window);
+            }
+
+            window = next;
         }
     }
 
@@ -769,6 +805,8 @@ namespace dmPlatform
 
     void Win32NotifyGamepad(int index, WindowGamepadEvent event)
     {
+        // A device query can report a disconnect outside the normal joystick poll.
+        Win32JoystickDispatch dispatch;
         for (HWindow window = g_Windows; window; window = window->m_Next)
         {
             if (window->m_Ready && window->m_Callbacks.m_Gamepad)

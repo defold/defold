@@ -412,6 +412,7 @@ namespace dmPlatform
 
         if (g_Joysticks.m_Rescan)
         {
+            Win32JoystickDispatch dispatch;
             g_Joysticks.m_Rescan = false;
             if (g_Joysticks.m_Drivers.m_State)
             {
