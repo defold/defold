@@ -35,6 +35,17 @@ namespace dmPlatform
         uint64_t         m_Id;
     };
 
+    struct WindowFocusState
+    {
+        uint32_t m_PendingChanges;
+        bool     m_Focused;
+        bool     m_ReportedFocus;
+        bool     m_DispatchEnabled;
+    };
+
+    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused);
+    void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params);
+
     HWindow        NewWindow();
     void           DeleteWindow(HWindow window);
     WindowResult   OpenWindow(HWindow window, const WindowCreateParams& params);

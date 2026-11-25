@@ -189,9 +189,9 @@ namespace dmPlatform
                     }
                 }
 
-                if (window->m_Ready && window->m_FocusCallbackReady && window->m_Params.m_FocusCallback)
+                if (window->m_Ready)
                 {
-                    window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, focused);
+                    WindowFocusChanged(window->m_Focus, window->m_Params, focused);
                 }
 
                 break;
@@ -401,14 +401,10 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
-        if (window->m_Ready && !window->m_FocusCallbackReady)
+        if (window->m_Ready)
         {
-            // Showing the HWND can grant focus inside OpenWindow, before extensions have a graphics context.
-            window->m_FocusCallbackReady = true;
-            if (GetFocus() == window->m_Window && window->m_Params.m_FocusCallback)
-            {
-                window->m_Params.m_FocusCallback(window->m_Params.m_FocusCallbackUserData, 1);
-            }
+            // Extensions can consume startup focus changes once their graphics context exists.
+            PollWindowFocus(window->m_Focus, window->m_Params);
         }
 
         MSG msg;

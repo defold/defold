@@ -43,6 +43,7 @@ struct dmWindow
     WindowPlacement*    m_Placement;
     WindowCreateParams  m_Params;
     Win32InputCallbacks m_Callbacks;
+    dmPlatform::WindowFocusState m_Focus;
     HWindow             m_Next;
     POINT               m_SavedCursor, m_VirtualCursor, m_LastCursor;
     uint32_t            m_Width, m_Height, m_Samples;
@@ -50,7 +51,7 @@ struct dmWindow
     double              m_Wheel;
     uint16_t            m_HighSurrogate;
     uint8_t             m_Keys[349], m_Buttons[8];
-    bool                m_Ready, m_FocusCallbackReady, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction;
+    bool                m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction;
 };
 
 namespace dmPlatform

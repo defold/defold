@@ -19,6 +19,31 @@
 
 namespace dmPlatform
 {
+    void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params)
+    {
+        state.m_DispatchEnabled = true;
+        // A new window starts unfocused. Each native focus transition flips that state.
+        while (state.m_PendingChanges)
+        {
+            --state.m_PendingChanges;
+            state.m_ReportedFocus = !state.m_ReportedFocus;
+            params.m_FocusCallback(params.m_FocusCallbackUserData, state.m_ReportedFocus);
+        }
+    }
+
+    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused)
+    {
+        if (params.m_FocusCallback && state.m_Focused != focused)
+        {
+            state.m_Focused = focused;
+            ++state.m_PendingChanges;
+            if (state.m_DispatchEnabled)
+            {
+                PollWindowFocus(state, params);
+            }
+        }
+    }
+
     bool ConvertReservedArea(double left, double top, double right, double bottom,
                              double view_width, double view_height,
                              uint32_t window_width, uint32_t window_height, WindowReservedArea* out)

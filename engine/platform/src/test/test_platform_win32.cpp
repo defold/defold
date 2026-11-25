@@ -57,6 +57,32 @@ static void CountFocus(void* data, uint32_t focused)
     ++((unsigned*)data)[focused];
 }
 
+// Losing focus before the first poll must deliver the gain and loss in order after graphics startup.
+TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    dmArray<uint32_t> events;
+    events.SetCapacity(4);
+    params.m_FocusCallbackUserData = &events;
+    params.m_FocusCallback = [](void* data, uint32_t focused) {
+                                 ((dmArray<uint32_t>*)data)->Push(focused);
+                             };
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    ASSERT_EQ(hwnd, GetFocus());
+    SetFocus(0);
+    ASSERT_EQ(0u, events.Size());
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(2u, events.Size());
+    EXPECT_EQ(1u, events[0]);
+    EXPECT_EQ(0u, events[1]);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Extensions must receive startup focus after graphics initialization, including on engine reboot.
 TEST(dmPlatform, WindowsStartupFocusAfterOpen)
 {
