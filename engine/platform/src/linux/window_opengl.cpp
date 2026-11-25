@@ -78,6 +78,7 @@ struct LinuxGL
     EGLContext m_EMain, m_EAux;
     EGLSurface m_ESurface, m_EPbuffer;
     EGLenum    m_Api;
+    bool       m_PresentOpaque;
 };
 
 namespace dmPlatform
@@ -254,6 +255,7 @@ namespace dmPlatform
             g->m_EClient = dlopen("libGL.so.1", RTLD_LAZY | RTLD_LOCAL);
         }
 
+        g->m_PresentOpaque = w->m_Wayland && Extension(g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS), "EGL_EXT_present_opaque");
         const EGLint attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
                                  EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT, EGL_NONE };
         EGLint count = 0;
@@ -273,6 +275,12 @@ namespace dmPlatform
         for (EGLint i = 0; i < count; ++i)
         {
             EGLConfig config = configs.Begin()[i];
+            // The Wayland opaque region is a repaint hint. Without opaque presentation the buffer itself must have no alpha.
+            EGLint alpha;
+            if (w->m_Wayland && !g->m_PresentOpaque && (!g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_ALPHA_SIZE, &alpha) || alpha))
+            {
+                continue;
+            }
             EGLint id = 0;
             if (w->m_X11 && (!g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_NATIVE_VISUAL_ID, &id) || !id))
             {
@@ -456,9 +464,8 @@ namespace dmPlatform
 
         const char* extensions = g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS);
         const EGLint opaque[] = { EGL_PRESENT_OPAQUE_EXT, EGL_TRUE, EGL_NONE };
-        const bool present_opaque = w->m_Wayland && Extension(extensions, "EGL_EXT_present_opaque");
         g->m_EMain = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, EGL_NO_CONTEXT, attrs);
-        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, present_opaque ? opaque : 0);
+        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, g->m_PresentOpaque ? opaque : 0);
         if (!g->m_EMain || !g->m_ESurface || !g->m_eglMakeCurrent(g->m_EDisplay, g->m_ESurface, g->m_ESurface, g->m_EMain))
         {
             return false;

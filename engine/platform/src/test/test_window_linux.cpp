@@ -42,8 +42,19 @@ static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress
 }
 
 extern "C" void* __real_dlsym(void* handle, const char* name);
+static bool g_NoEGLExtensions;
+static const char* EGLAPIENTRY NoEGLExtensions(EGLDisplay display, EGLint query)
+{
+    return query == EGL_EXTENSIONS ? "" : eglQueryString(display, query);
+}
+
 extern "C" void* __wrap_dlsym(void* handle, const char* name)
 {
+    if (g_NoEGLExtensions && !strcmp(name, "eglQueryString"))
+    {
+        return (void*)NoEGLExtensions;
+    }
+
     if (!strcmp(name, "XGetXCBConnection") && getenv("DM_TEST_X11_NO_XCB"))
     {
         return 0;
@@ -713,6 +724,27 @@ TEST(LinuxWindow, WaylandOpaqueEGLSurface)
     dmPlatform::DeleteWindow(w);
 }
 #endif
+
+// Wayland EGL drivers without opaque presentation must use an opaque buffer even when the engine requests alpha.
+TEST(LinuxWindow, WaylandOpaqueEGLFallback)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_ContextAlphabits = 8;
+    g_NoEGLExtensions = true;
+    WindowResult result = dmPlatform::OpenWindow(w, p);
+    g_NoEGLExtensions = false;
+    ASSERT_EQ(WINDOW_RESULT_OK, result);
+    EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ALPHA_BITS));
+    dmPlatform::DeleteWindow(w);
+}
 
 static void FrameDone(void* data, wl_callback*, uint32_t)
 {
