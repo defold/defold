@@ -64,6 +64,7 @@ namespace dmPlatform
         {
             X11FlushPlacement(w);
         }
+
         state->m_Rect.m_Width = w->m_Width;
         state->m_Rect.m_Height = w->m_Height;
         state->m_HasPosition = w->m_X11 != 0;

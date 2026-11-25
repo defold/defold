@@ -45,50 +45,62 @@ extern "C" int32_t __wrap_AInputEvent_getDeviceId(const AInputEvent*)
 {
     return 10;
 }
+
 extern "C" int32_t __wrap_AInputEvent_getType(const AInputEvent* event)
 {
     return ((const TestInputEvent*)event)->m_Type;
 }
+
 extern "C" int32_t __wrap_AInputEvent_getSource(const AInputEvent* event)
 {
     return ((const TestInputEvent*)event)->m_Source;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getKeyCode(const AInputEvent* event)
 {
     return ((const TestInputEvent*)event)->m_KeyCode;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getAction(const AInputEvent* event)
 {
     return ((const TestInputEvent*)event)->m_Action;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getFlags(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getMetaState(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getScanCode(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int32_t __wrap_AKeyEvent_getRepeatCount(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int64_t __wrap_AKeyEvent_getDownTime(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int64_t __wrap_AKeyEvent_getEventTime(const AInputEvent*)
 {
     return 0;
 }
+
 extern "C" int32_t __wrap_AMotionEvent_getAction(const AInputEvent* event)
 {
     return ((const TestInputEvent*)event)->m_Action;
 }
+
 extern "C" float __wrap_AMotionEvent_getAxisValue(const AInputEvent* event, int32_t axis, size_t)
 {
     return ((const TestInputEvent*)event)->m_Axes[axis];
@@ -111,6 +123,7 @@ class AndroidJoystickTest : public jc_test_base_class
             dmNativeJoy[0].AxisMin[i] = -1.0f;
             dmNativeJoy[0].AxisRange[i] = 2.0f;
         }
+
         memset(&m_Event, 0, sizeof(m_Event));
     }
 
@@ -177,7 +190,10 @@ TEST_F(AndroidJoystickTest, ButtonLayouts)
         dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
         dmNativeOSGetJoystickButtons(0, buttons, 36);
         for (int button = 0; button < 36; ++button)
+        {
             ASSERT_EQ(button == cases[i][2] ? 1 : 0, buttons[button]);
+        }
+
         SendKey(cases[i][0], AKEY_EVENT_ACTION_UP);
         dmNativeOSGetJoystickButtons(0, buttons, 36);
         ASSERT_EQ(0, buttons[cases[i][2]]);
@@ -201,6 +217,7 @@ TEST_F(AndroidJoystickTest, GamepadKeysAreHandled)
         m_Event.m_Action = AKEY_EVENT_ACTION_UP;
         ASSERT_EQ(1, dmNativeAndroidHandleInput(0, (AInputEvent*)&m_Event));
     }
+
     m_Event.m_KeyCode = AKEYCODE_A;
     ASSERT_EQ(0, dmNativeAndroidHandleInput(0, (AInputEvent*)&m_Event));
 }
@@ -236,7 +253,10 @@ TEST_F(AndroidJoystickTest, RecordAliasWithCapabilityCount)
     SendKey(AKEYCODE_MEDIA_RECORD, AKEY_EVENT_ACTION_DOWN);
     ASSERT_EQ(16, dmNativeOSGetJoystickButtons(0, buttons, sizeof(buttons)));
     for (int i = 0; i < 15; ++i)
+    {
         ASSERT_EQ(0, buttons[i]);
+    }
+
     ASSERT_EQ(1, buttons[15]);
     ASSERT_EQ(0x7b, buttons[16]);
     SendKey(AKEYCODE_MEDIA_RECORD, AKEY_EVENT_ACTION_UP);
@@ -290,13 +310,18 @@ TEST_F(AndroidJoystickTest, AxisLayouts)
     ASSERT_EQ(6, dmNativeOSGetJoystickPos(0, values, 8));
     const float sdl[] = { 0.25f, -0.5f, -1.0f, 0.5f, 0.75f, -0.25f };
     for (int i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(sdl[i], values[i]);
+    }
+
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
     ASSERT_EQ(8, dmNativeOSGetJoystickParam(0, NATIVE_AXES));
     ASSERT_EQ(8, dmNativeOSGetJoystickPos(0, values, 8));
     const float legacy[] = { 0.25f, -0.5f, 0.75f, -0.25f, 0.4f, 0.8f, 0.0f, 0.0f };
     for (int i = 0; i < 8; ++i)
+    {
         ASSERT_EQ(legacy[i], values[i]);
+    }
 }
 
 // Verifies mapped trigger rest values apply before motion and never overwrite actual controller input.
@@ -308,16 +333,23 @@ TEST_F(AndroidJoystickTest, InitialAxisValues)
     float values[6] = {};
     dmNativeOSGetJoystickPos(0, values, 6);
     for (int i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(initial[i], values[i]);
+    }
 
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
     dmNativeOSGetJoystickPos(0, values, 6);
     for (int i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(0.0f, values[i]);
+    }
+
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
     dmNativeOSGetJoystickPos(0, values, 6);
     for (int i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(initial[i], values[i]);
+    }
 
     m_Event.m_Axes[AMOTION_EVENT_AXIS_RX] = 0.25f;
     m_Event.m_Axes[AMOTION_EVENT_AXIS_RY] = 0.75f;
@@ -434,7 +466,9 @@ TEST_F(AndroidJoystickTest, NeutralMappingReplacesPendingTriggerDefaults)
     SendMotion();
     dmNativeOSGetJoystickPos(0, values, 6);
     for (int i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(0.0f, values[i]);
+    }
 
     dmPlatform::InitializeAndroidJoystickAxes(0, initial, 6);
     dmNativeOSGetJoystickPos(0, values, 6);
@@ -533,6 +567,7 @@ TEST_F(AndroidJoystickTest, HeldAxesAcrossLayouts)
         dmNativeOSGetJoystickPos(0, values, 8);
         ASSERT_EQ(127.5f, values[2]);
     }
+
     ASSERT_EQ(127.5f, dmNativeJoy[0].Axis[2]);
 }
 
@@ -561,7 +596,10 @@ TEST_F(AndroidJoystickTest, HatLayouts)
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
     dmNativeOSGetJoystickButtons(0, buttons, 36);
     for (int i = 11; i <= 14; ++i)
+    {
         ASSERT_EQ(0, buttons[i]);
+    }
+
     SendKey(AKEYCODE_DPAD_DOWN, AKEY_EVENT_ACTION_DOWN);
     dmNativeOSGetJoystickButtons(0, buttons, 36);
     ASSERT_EQ(1, buttons[12]);

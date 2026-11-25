@@ -27,15 +27,15 @@
 extern "C" {
 #endif
 
-EGLContext dmNativeGetAndroidEGLContext(void);
-EGLSurface dmNativeGetAndroidEGLSurface(void);
-JavaVM* dmNativeGetAndroidJavaVM(void);
-jobject dmNativeGetAndroidActivity(void);
+EGLContext          dmNativeGetAndroidEGLContext(void);
+EGLSurface          dmNativeGetAndroidEGLSurface(void);
+JavaVM*             dmNativeGetAndroidJavaVM(void);
+jobject             dmNativeGetAndroidActivity(void);
 struct android_app* dmNativeGetAndroidApp(void);
-ANativeWindow* dmNativeAcquireAndroidWindow(void);
-ANativeWindow* dmNativeWaitForAndroidWindow(void);
-int dmNativeAndroidIsWindowCurrent(ANativeWindow* window);
-void dmNativeReleaseAndroidWindow(ANativeWindow* window);
+ANativeWindow*      dmNativeAcquireAndroidWindow(void);
+ANativeWindow*      dmNativeWaitForAndroidWindow(void);
+int                 dmNativeAndroidIsWindowCurrent(ANativeWindow* window);
+void                dmNativeReleaseAndroidWindow(ANativeWindow* window);
 
 void    dmNativeAndroidBeginFrame(void);
 void    dmNativeAndroidHandleCommand(struct android_app* app, int32_t cmd);

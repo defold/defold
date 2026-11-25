@@ -63,6 +63,7 @@ static void SetGeometry(dmWindow* window, dmWindowState::Rect rect)
             monitor = &g_Monitors[i];
         }
     }
+
     rect.m_Width = (int32_t) roundf(rect.m_Width * monitor->m_State.m_ScaleX / window->m_Monitor->m_State.m_ScaleX);
     rect.m_Height = (int32_t) roundf(rect.m_Height * monitor->m_State.m_ScaleY / window->m_Monitor->m_State.m_ScaleY);
     rect.m_X += (int) (8 * monitor->m_State.m_ScaleX) - (int) (8 * window->m_Monitor->m_State.m_ScaleX);
@@ -73,9 +74,20 @@ static void SetGeometry(dmWindow* window, dmWindowState::Rect rect)
 
 namespace dmPlatform
 {
-    WindowPlacement*& PlacementStorage(HWindow window) { return window->m_Placement; }
-    bool NormalPlacementWindow(HWindow) { return true; }
-    dmWindowState::Rect Win32ClientRect(HWindow window) { return window->m_Rect; }
+    WindowPlacement*& PlacementStorage(HWindow window)
+    {
+        return window->m_Placement;
+    }
+
+    bool NormalPlacementWindow(HWindow)
+    {
+        return true;
+    }
+
+    dmWindowState::Rect Win32ClientRect(HWindow window)
+    {
+        return window->m_Rect;
+    }
 
     void Win32GetDisplays(dmArray<Win32Display>& displays)
     {
@@ -91,10 +103,12 @@ namespace dmPlatform
             {
                 display.m_Monitor.m_ScaleX = display.m_Monitor.m_ScaleY = 0;
             }
+
             if (!native.m_HasWorkArea)
             {
                 display.m_Monitor.m_WorkArea.m_Width = display.m_Monitor.m_WorkArea.m_Height = 0;
             }
+
             displays.Push(display);
         }
     }
@@ -126,6 +140,7 @@ namespace dmPlatform
         Win32Frame frame = { (int)(8 * scale), (int)(30 * scale), (int)(8 * scale), (int)(8 * scale) };
         return frame;
     }
+
 }
 
 static void SetStateEnvironment(const char* value)
@@ -141,6 +156,7 @@ static void SetStateEnvironment(const char* value)
     {
         unsetenv("DM_WINDOW_STATE");
     }
+
 #endif
 }
 
@@ -178,6 +194,7 @@ class WindowPlacementDpiTest : public jc_test_base_class
             monitor.m_WorkArea.m_Height = 2120;
             monitor.m_ScaleX = monitor.m_ScaleY = i == 0 ? 2.0f : 1.5f;
         }
+
         memset(&m_Params, 0, sizeof(m_Params));
         m_Params.m_Width = 960;
         m_Params.m_Height = 640;
@@ -233,6 +250,7 @@ class WindowPlacementDpiTest : public jc_test_base_class
         SetStateEnvironment(m_PreviousEnvironment);
         free(m_PreviousEnvironment);
     }
+
 };
 
 // Verifies the native backend can reopen a version-one state file written by the GLFW player.

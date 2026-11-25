@@ -73,14 +73,17 @@ namespace dmPlatformService
         {
             return "client_metrics_unavailable";
         }
+
         if (!service->m_Metrics.m_DrawableAvailable)
         {
             return "drawable_unavailable";
         }
+
         if (!service->m_Metrics.m_ResizeAvailable)
         {
             return "window_mode_unsupported";
         }
+
         return 0;
     }
 
@@ -108,10 +111,12 @@ namespace dmPlatformService
             dmWebServer::Send(request, error, strlen(error));
             return;
         }
+
         if (header)
         {
             dmWebServer::SendAttribute(request, header, value);
         }
+
         dmWebServer::Send(request, body, length);
     }
 
@@ -159,6 +164,7 @@ namespace dmPlatformService
             state.m_DisplayScale = dmPlatform::GetDisplayScaleFactor(window);
             state.m_ResizeAvailable = dmPlatform::IsWindowResizeSupported(window);
         }
+
         return state;
     }
 
@@ -173,6 +179,7 @@ namespace dmPlatformService
         {
             ++service->m_Revision;
         }
+
         service->m_Metrics = state;
         service->m_AttachmentChanged = false;
     }
@@ -198,12 +205,14 @@ namespace dmPlatformService
         {
             return;
         }
+
         Resize* resize = &service->m_Resizes[service->m_Active];
         if (now >= resize->m_Deadline)
         {
             Finish(service, resize, now, "resize_not_observed", "Requested client size was not observed before the deadline");
             return;
         }
+
         if (resize->m_State == RESIZE_QUEUED)
         {
             char revision[32];
@@ -213,21 +222,25 @@ namespace dmPlatformService
                 Finish(service, resize, now, "window_revision_changed", "Window geometry changed before resize dispatch");
                 return;
             }
+
             if (UnavailableReason(service))
             {
                 Finish(service, resize, now, "resize_unavailable", "Window resizing became unavailable");
                 return;
             }
+
             if (Matches(service, resize))
             {
                 resize->m_AlreadyMatches = true;
                 Finish(service, resize, now, 0, 0);
                 return;
             }
+
             resize->m_State = RESIZE_AWAITING_WINDOW;
             dmPlatform::SetWindowSize(service->m_Window, resize->m_Width, resize->m_Height);
             RefreshWindowMetrics(service);
         }
+
         resize->m_Observed = service->m_Metrics;
         Revision(service, resize->m_Revision, sizeof(resize->m_Revision));
         if (Matches(service, resize))
@@ -267,6 +280,7 @@ namespace dmPlatformService
             dmSnPrintf(native_window, sizeof(native_window), "{\"type\":\"%s\",\"id\":\"%llu\"}",
                        types[identity.m_Type], (unsigned long long)identity.m_Id);
         }
+
         // Format fixed-point components so the game's numeric locale cannot change the JSON decimal point.
         uint64_t display_scale = (uint64_t)(state->m_DisplayScale * 1000000.0 + 0.5);
         char body[1024];
@@ -289,10 +303,12 @@ namespace dmPlatformService
         {
             dmSnPrintf(error, sizeof(error), "{\"code\":\"%s\",\"message\":\"%s\"}", resize->m_Error, resize->m_Message);
         }
+
         if (resize->m_Expires)
         {
             dmSnPrintf(expires, sizeof(expires), "%llu", (unsigned long long)((resize->m_Expires - now) / 1000));
         }
+
         dmSnPrintf(revision, sizeof(revision), "\"%s\"", resize->m_Revision);
         static const char* states[] = { "queued", "awaiting_window", "complete", "failed" };
         char body[1280];
@@ -314,6 +330,7 @@ namespace dmPlatformService
         {
             return false;
         }
+
         const char* start = *p;
         *value = 0;
         do
@@ -323,8 +340,10 @@ namespace dmPlatformService
             {
                 return false;
             }
+
             *value = *value * 10 + digit;
         } while (**p >= '0' && **p <= '9');
+
         return *start != '0' || *p == start + 1;
     }
 
@@ -335,6 +354,7 @@ namespace dmPlatformService
         {
             return false;
         }
+
         for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const char* name = json.Name(field);
@@ -343,6 +363,7 @@ namespace dmPlatformService
                 return false;
             }
         }
+
         int width = json.Integer(json.Field(0, "width"), -1);
         int height = json.Integer(json.Field(0, "height"), -1);
         int timeout_field = json.Field(0, "timeout_ms");
@@ -351,6 +372,7 @@ namespace dmPlatformService
         {
             return false;
         }
+
         int revision_field = json.Field(0, "expected_window_revision");
         if (revision_field >= 0)
         {
@@ -359,13 +381,16 @@ namespace dmPlatformService
             {
                 return false;
             }
+
             dmStrlCpy(resize->m_ExpectedRevision, revision, sizeof(resize->m_ExpectedRevision));
         }
+
         int supersede_field = json.Field(0, "supersede");
         if (supersede_field >= 0 && json.Get(supersede_field).m_Type != dmJson::TYPE_BOOL)
         {
             return false;
         }
+
         resize->m_Supersede = json.Boolean(supersede_field, false);
         resize->m_Width = (uint32_t)width;
         resize->m_Height = (uint32_t)height;
@@ -385,23 +410,27 @@ namespace dmPlatformService
             Reject(request, 404, "not_found", "Window route does not exist");
             return;
         }
+
         const char* allowed = resize ? "POST" : "GET";
         if (strcmp(request->m_Method, allowed))
         {
             Reject(request, 405, "method_not_allowed", "Method is not supported by this window route", allowed);
             return;
         }
+
         if (!resize && request->m_ContentLength)
         {
             Reject(request, 400, "unexpected_body", "This route does not accept a body");
             return;
         }
+
         if (metrics)
         {
             RefreshWindowMetrics(service);
             SendWindowMetrics(service, request);
             return;
         }
+
         // The engine service validates supplied instance headers before dispatch.
         // Receipt reads require one because IDs are local to this service.
         const char* instance = dmWebServer::GetHeader(request, "X-Engine-Instance");
@@ -410,6 +439,7 @@ namespace dmPlatformService
             Reject(request, 400, "missing_instance", "X-Engine-Instance from /state is required");
             return;
         }
+
         if (receipt)
         {
             uint64_t now = service->m_GetTime();
@@ -420,38 +450,45 @@ namespace dmPlatformService
                 Error(request, 404, "not_found", "Resize does not exist");
                 return;
             }
+
             Resize* operation = &service->m_Resizes[(sequence - 1) % MAX_RESIZES];
             if (operation->m_Id == sequence && (!operation->m_Expires || now < operation->m_Expires))
             {
                 SendResize(operation, request, 200, now);
                 return;
             }
+
             Error(request, sequence <= service->m_Sequence ? 410 : 404,
                   sequence <= service->m_Sequence ? "expired_operation" : "not_found", "Resize receipt is unavailable");
             return;
         }
+
         if (request->m_ContentLength > 1024)
         {
             Reject(request, 413, "body_too_large", "Resize body must not exceed 1024 bytes");
             return;
         }
+
         const char* type = dmWebServer::GetHeader(request, "Content-Type");
         if (!type || strncmp(type, "application/json", 16) || (type[16] && type[16] != ';'))
         {
             Reject(request, 400, "invalid_content_type", "Use application/json");
             return;
         }
+
         char body[1025];
         dmWebServer::Result result = dmWebServer::ReceiveBuffered(request, body, sizeof(body));
         if (result == dmWebServer::RESULT_TRY_AGAIN)
         {
             return;
         }
+
         if (result != dmWebServer::RESULT_OK || memchr(body, 0, request->m_ContentLength))
         {
             Reject(request, 400, "invalid_body", "Unable to read resize body");
             return;
         }
+
         body[request->m_ContentLength] = 0;
         Resize operation = {};
         if (!ParseResize(body, request->m_ContentLength, &operation))
@@ -459,12 +496,14 @@ namespace dmPlatformService
             Error(request, 400, "invalid_options", "Request does not match the resize schema in /openapi.json");
             return;
         }
+
         RefreshWindowMetrics(service);
         if (UnavailableReason(service))
         {
             Error(request, 501, "resize_unavailable", "Window resizing is unavailable; inspect /window");
             return;
         }
+
         char revision[32];
         Revision(service, revision, sizeof(revision));
         if (operation.m_ExpectedRevision[0] && strcmp(operation.m_ExpectedRevision, revision))
@@ -472,6 +511,7 @@ namespace dmPlatformService
             Error(request, 409, "window_revision_changed", "Window geometry changed; reacquire /window");
             return;
         }
+
         uint64_t now = service->m_GetTime();
         if (service->m_Active >= 0)
         {
@@ -490,6 +530,7 @@ namespace dmPlatformService
                 return;
             }
         }
+
         operation.m_Id = ++service->m_Sequence;
         operation.m_Deadline = now + (uint64_t)operation.m_Timeout * 1000;
         service->m_Active = (int32_t)((operation.m_Id - 1) % MAX_RESIZES);
@@ -511,6 +552,7 @@ namespace dmPlatformService
             delete service;
             return 0;
         }
+
         return service;
     }
 
@@ -519,4 +561,5 @@ namespace dmPlatformService
         dmWebServer::RemoveHandler(service->m_Server, "/window");
         delete service;
     }
+
 }

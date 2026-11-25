@@ -49,13 +49,13 @@ namespace dmWindowState
     };
 
     LoadResult Load(const char* path, State* state);
-    bool Save(const char* path, const State& state);
-    void ReadResetToken(const char* path, char* token, uint32_t capacity);
-    bool RestoreSize(const State& state, int32_t width, int32_t height, const char* reset_token);
+    bool       Save(const char* path, const State& state);
+    void       ReadResetToken(const char* path, char* token, uint32_t capacity);
+    bool       RestoreSize(const State& state, int32_t width, int32_t height, const char* reset_token);
     // The first entry is the primary monitor.
     uint32_t SelectMonitor(const State& state, const Monitor* monitors, uint32_t count);
-    Rect RestoreRect(const State& state, const Monitor& monitor, bool scale_screen_coordinates);
-    void ClampPosition(Rect* rect, const Rect& work, int left, int top, int right, int bottom);
+    Rect     RestoreRect(const State& state, const Monitor& monitor, bool scale_screen_coordinates);
+    void     ClampPosition(Rect* rect, const Rect& work, int left, int top, int right, int bottom);
 }
 
 #endif

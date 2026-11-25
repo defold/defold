@@ -25,17 +25,17 @@ namespace dmWindowState
 
 namespace dmPlatform
 {
-    void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
-    bool RestoreWindowPlacement(HWindow window);
+    void        InitWindowPlacement(HWindow window, const WindowCreateParams& params);
+    bool        RestoreWindowPlacement(HWindow window);
     const char* GetWindowPlacementPath(HWindow window);
-    void WindowPlacementChanged(HWindow window);
-    void WindowPlacementMonitorsChanged();
-    void WindowPlacementMonitorsChanged(HWindow window);
-    void WindowPlacementSizeRequested(HWindow window);
-    void WindowPlacementShown(HWindow window);
-    void UpdateWindowPlacement(HWindow window, bool flush);
-    void ClampWindowPlacement(HWindow window);
-    void DeleteWindowPlacement(HWindow window);
+    void        WindowPlacementChanged(HWindow window);
+    void        WindowPlacementMonitorsChanged();
+    void        WindowPlacementMonitorsChanged(HWindow window);
+    void        WindowPlacementSizeRequested(HWindow window);
+    void        WindowPlacementShown(HWindow window);
+    void        UpdateWindowPlacement(HWindow window, bool flush);
+    void        ClampWindowPlacement(HWindow window);
+    void        DeleteWindowPlacement(HWindow window);
     // Each desktop backend supplies native geometry in the units stored by window_state.
     WindowPlacement*& PlacementStorage(HWindow window);
     const char*       PlacementBackend(HWindow);

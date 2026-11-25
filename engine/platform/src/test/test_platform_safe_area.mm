@@ -28,12 +28,12 @@ typedef void (^TransitionBlock)(id<UIViewControllerTransitionCoordinatorContext>
 
 @interface TestTransitionCoordinator : NSObject <UIViewControllerTransitionCoordinator>
 @property (nonatomic, copy) TransitionBlock completion;
-@property (nonatomic, readonly, getter=isAnimated) BOOL animated;
+@property (nonatomic, readonly, getter = isAnimated) BOOL animated;
 @property (nonatomic, readonly) UIModalPresentationStyle presentationStyle;
 @property (nonatomic, readonly) BOOL initiallyInteractive;
 @property (nonatomic, readonly) BOOL isInterruptible;
-@property (nonatomic, readonly, getter=isInteractive) BOOL interactive;
-@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
+@property (nonatomic, readonly, getter = isInteractive) BOOL interactive;
+@property (nonatomic, readonly, getter = isCancelled) BOOL cancelled;
 @property (nonatomic, readonly) NSTimeInterval transitionDuration;
 @property (nonatomic, readonly) CGFloat percentComplete;
 @property (nonatomic, readonly) CGFloat completionVelocity;
@@ -87,6 +87,7 @@ typedef void (^TransitionBlock)(id<UIViewControllerTransitionCoordinatorContext>
     self.completion = nil;
     [super dealloc];
 }
+
 @end
 
 struct ResizeData
@@ -197,7 +198,11 @@ TEST(dmPlatform, TransitionNotificationWithoutResizeOrInsetChange)
 // Verifies the native iOS backend returns no inferred rectangles on systems predating the reserved-region API.
 TEST(dmPlatform, ReservedAreasOnOlderIOS)
 {
-    if (@available(iOS 27.1, *)) SKIP();
+    if (@available(iOS 27.1, *))
+    {
+        SKIP();
+    }
+
     HWindow window = WindowNew();
     WindowCreateParams params;
     WindowCreateParamsInitialize(&params);
@@ -214,7 +219,7 @@ TEST(dmPlatform, ReservedAreasOnOlderIOS)
 
 @interface TestReservedRegion : NSObject
 @property (nonatomic) CGRect frame;
-@property (nonatomic, getter=isActive) BOOL active;
+@property (nonatomic, getter = isActive) BOOL active;
 @end
 
 @implementation TestReservedRegion
@@ -230,19 +235,20 @@ static NSArray* QueryTestReservedRegions(id view, SEL selector, id kind, NSUInte
         EXPECT_TRUE([kind isEqual:[UIViewReservedRegionKind occlusionRegionKind]]);
         EXPECT_EQ((NSUInteger)UIViewReservedRegionQueryOptionsNone, options);
     }
+
     ++g_ReservedAreaQueries;
     return g_TestReservedRegions;
 }
 
 class ReservedAreasTest : public jc_test_base_class
 {
-protected:
-    HWindow m_Window;
-    Method m_QueryMethod;
-    IMP m_OriginalQuery;
+    protected:
+    HWindow  m_Window;
+    Method   m_QueryMethod;
+    IMP      m_OriginalQuery;
     uint32_t m_Notifications;
     uint32_t m_CallbackAreaCount;
-    int32_t m_CallbackX;
+    int32_t  m_CallbackX;
 
     static void OnResize(void* user_data, uint32_t width, uint32_t height)
     {
@@ -281,8 +287,11 @@ protected:
             [g_TestReservedRegions release];
             g_TestReservedRegions = nil;
         }
+
         if (m_Window)
+        {
             WindowDelete(m_Window);
+        }
     }
 
     void AddRegion(CGRect frame, BOOL active)
@@ -309,12 +318,17 @@ protected:
         WindowGetReservedAreas(m_Window, &areas);
         m_Notifications = 0;
     }
+
 };
 
 // Verifies UIKit filtering, clipping, and dynamic capacity without treating insets or inactive regions as occlusions.
 TEST_F(ReservedAreasTest, ActiveRectangles)
 {
-    if (!m_Window) SKIP();
+    if (!m_Window)
+    {
+        SKIP();
+    }
+
     UIView* view = (UIView*)dmPlatform::GetiOSUIView();
     const CGRect bounds = view.bounds;
     AddRegion(CGRectMake(-10, -10, bounds.size.width + 20, bounds.size.height + 20), YES);
@@ -322,7 +336,9 @@ TEST_F(ReservedAreasTest, ActiveRectangles)
     AddRegion(CGRectMake(-20, -20, 10, 10), YES);
     AddRegion(CGRectMake(10, 10, 0, 10), YES);
     for (int i = 0; i < 20; ++i)
+    {
         AddRegion(CGRectMake(10 + i * 2, 10, 1, 1), YES);
+    }
 
     const WindowReservedArea* areas;
     ASSERT_EQ(21u, WindowGetReservedAreas(m_Window, &areas));
@@ -336,7 +352,11 @@ TEST_F(ReservedAreasTest, ActiveRectangles)
 // Verifies changed, reordered, and removed occlusions notify only when needed, with the new snapshot visible inside the callback.
 TEST_F(ReservedAreasTest, ChangesWithoutResize)
 {
-    if (!m_Window) SKIP();
+    if (!m_Window)
+    {
+        SKIP();
+    }
+
     Listen();
     AddRegion(CGRectMake(10, 10, 10, 10), YES);
     AddRegion(CGRectMake(30, 10, 10, 10), YES);
@@ -369,7 +389,11 @@ TEST_F(ReservedAreasTest, ChangesWithoutResize)
 // Verifies applications that never query reserved areas incur no polling, and closing a window clears observation state.
 TEST_F(ReservedAreasTest, ObservationLifetime)
 {
-    if (!m_Window) SKIP();
+    if (!m_Window)
+    {
+        SKIP();
+    }
+
     WindowPollEvents(m_Window);
     ASSERT_EQ(0u, g_ReservedAreaQueries);
     const WindowReservedArea* areas;

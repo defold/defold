@@ -44,6 +44,7 @@ namespace dmPlatform
         {
             return false;
         }
+
         *width = window->m_WindowWidth;
         *height = window->m_WindowHeight;
         return true;
@@ -59,6 +60,7 @@ namespace dmPlatform
         NativeWindowId identity = {};
         return identity;
     }
+
 #endif
 
     HWindow NewWindow()
@@ -135,11 +137,20 @@ namespace dmPlatform
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        switch(state)
+        switch (state)
         {
-            case WINDOW_STATE_OPENED: return window->m_WindowOpened;
-            case WINDOW_STATE_FSAA_SAMPLES: return window->m_CreateParams.m_Samples;
-            default:break;
+            case WINDOW_STATE_OPENED:
+            {
+                return window->m_WindowOpened;
+            }
+            case WINDOW_STATE_FSAA_SAMPLES:
+            {
+                return window->m_CreateParams.m_Samples;
+            }
+            default:
+            {
+                break;
+            }
         }
 
         return 0;
@@ -159,6 +170,7 @@ namespace dmPlatform
         // reports no physical size also produces.
         return 96.0f;
     }
+
 #endif
 
     uintptr_t GetProcAddress(HWindow window, const char* proc_name)
@@ -193,8 +205,15 @@ namespace dmPlatform
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
-        if (x) *x = 0;
-        if (y) *y = 0;
+        if (x)
+        {
+            *x = 0;
+        }
+
+        if (y)
+        {
+            *y = 0;
+        }
     }
 
     uint32_t GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count)
@@ -204,9 +223,21 @@ namespace dmPlatform
 
     bool GetAcceleration(HWindow window, float* x, float* y, float* z)
     {
-        if (x) *x = 0.0f;
-        if (y) *y = 0.0f;
-        if (z) *z = 0.0f;
+        if (x)
+        {
+            *x = 0.0f;
+        }
+
+        if (y)
+        {
+            *y = 0.0f;
+        }
+
+        if (z)
+        {
+            *z = 0.0f;
+        }
+
         return false;
     }
 
@@ -236,7 +267,8 @@ namespace dmPlatform
     }
 
     void SetWindowTitle(HWindow window, const char* title)
-    {}
+    {
+    }
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
@@ -250,25 +282,32 @@ namespace dmPlatform
     }
 
     void SetWindowPosition(HWindow window, int32_t x, int32_t y)
-    {}
+    {
+    }
 
     void ShowWindow(HWindow window)
-    {}
+    {
+    }
 
     void HideWindow(HWindow window)
-    {}
+    {
+    }
 
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
-    {}
+    {
+    }
 
     void IconifyWindow(HWindow window)
-    {}
+    {
+    }
 
     void PollEvents(HWindow window)
-    {}
+    {
+    }
 
     void SwapBuffers(HWindow window)
-    {}
+    {
+    }
 
     void SetDeviceState(HWindow window, WindowDeviceState state, bool op1)
     {
@@ -277,51 +316,91 @@ namespace dmPlatform
 
     void SetDeviceState(HWindow window, WindowDeviceState state, bool op1, bool op2)
     {
-        switch(state)
+        switch (state)
         {
             case WINDOW_DEVICE_STATE_CURSOR:
+            {
                 window->m_StateCursor = op1;
                 window->m_StateCursorLock = !op1;
                 break;
+            }
             case WINDOW_DEVICE_STATE_CURSOR_LOCK:
+            {
                 // We don't distinguish between locked state and visible state on the null implementation
                 break;
+            }
             case WINDOW_DEVICE_STATE_ACCELEROMETER:
+            {
                 window->m_StateCursorAccelerometer = op1;
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:
+            {
                 window->m_StateKeyboard = op1 ? 1 : 0;
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+            {
                 window->m_StateKeyboard = op1 ? 2 : 0;
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:
+            {
                 window->m_StateKeyboard = op1 ? 3 : 0;
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:
+            {
                 window->m_StateKeyboard = op1 ? 4 : 0;
                 break;
+            }
             default:
+            {
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;
+            }
         }
     }
 
     bool GetDeviceState(HWindow window, WindowDeviceState state)
     {
-        switch(state)
+        switch (state)
         {
-            case WINDOW_DEVICE_STATE_CURSOR:              return window->m_StateCursor;
-            case WINDOW_DEVICE_STATE_CURSOR_LOCK:         return window->m_StateCursorLock;
-            case WINDOW_DEVICE_STATE_ACCELEROMETER:       return window->m_StateCursorAccelerometer;
-            case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:    return window->m_StateKeyboard == 1;
-            case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
-            case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:      return window->m_StateKeyboard == 3;
-            case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:   return window->m_StateKeyboard == 4;
+            case WINDOW_DEVICE_STATE_CURSOR:
+            {
+                return window->m_StateCursor;
+            }
+            case WINDOW_DEVICE_STATE_CURSOR_LOCK:
+            {
+                return window->m_StateCursorLock;
+            }
+            case WINDOW_DEVICE_STATE_ACCELEROMETER:
+            {
+                return window->m_StateCursorAccelerometer;
+            }
+            case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:
+            {
+                return window->m_StateKeyboard == 1;
+            }
+            case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+            {
+                return window->m_StateKeyboard == 2;
+            }
+            case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:
+            {
+                return window->m_StateKeyboard == 3;
+            }
+            case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:
+            {
+                return window->m_StateKeyboard == 4;
+            }
             default:
+            {
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;
+            }
         }
+
         return false;
     }
 
@@ -361,6 +440,7 @@ namespace dmPlatform
         {
             return window->m_CreateParams.m_CloseCallback(window->m_CreateParams.m_CloseCallbackUserData);
         }
+
         return 0;
     }
 
@@ -450,6 +530,7 @@ namespace dmPlatform
         (void) axes;
         (void) num_axes;
     }
+
 #endif
 
 #if defined(DM_PLATFORM_IOS)
@@ -483,6 +564,7 @@ namespace dmPlatform
     {
         (void) delegate;
     }
+
 #endif
 
     const int PLATFORM_KEY_START           = 0;

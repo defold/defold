@@ -348,6 +348,7 @@ namespace dmPlatform
                 {
                     g_WaylandClient.wl_cursor_theme_destroy_(wl->m_ScaledCursorTheme);
                 }
+
                 wl->m_ScaledCursorTheme = LoadCursorTheme(wl->m_Shm, scale);
                 wl->m_CursorThemeScale = scale;
             }
@@ -402,6 +403,7 @@ namespace dmPlatform
                 wl->m_EnterSerial = serial;
                 WaylandSetCursor(w);
             }
+
             return;
         }
 
@@ -457,8 +459,10 @@ namespace dmPlatform
             {
                 WaylandFrameButton(w, serial, button);
             }
+
             return;
         }
+
         w->m_Wayland->m_InputSerial = serial;
         if (button >= BTN_LEFT && button < BTN_LEFT + sizeof(w->m_Buttons))
         {

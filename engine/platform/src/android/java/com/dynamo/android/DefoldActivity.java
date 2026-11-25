@@ -61,32 +61,46 @@ import java.util.List;
 
 import android.content.pm.PackageInfo;
 
-public class DefoldActivity extends NativeActivity {
+public class DefoldActivity extends NativeActivity
+{
     // Must match values from sys.h
-    private enum NetworkConnectivity {
+    private enum NetworkConnectivity
+    {
         NETWORK_DISCONNECTED       (0),
         NETWORK_CONNECTED          (1),
         NETWORK_CONNECTED_CELLULAR (2);
         private final int value;
-        private NetworkConnectivity(int value) { this.value = value; };
-        public int getValue() { return this.value; };
+        private NetworkConnectivity(int value)
+        {
+            this.value = value;
+        };
+        public int getValue()
+        {
+            return this.value;
+        };
     }
 
-
     // Must match values from window_mobile_web_backend.h
-    public enum NativeKeyboardType {
+    public enum NativeKeyboardType
+    {
         NATIVE_KEYBOARD_DEFAULT    (0),
         NATIVE_KEYBOARD_NUMBER_PAD (1),
         NATIVE_KEYBOARD_EMAIL      (2),
         NATIVE_KEYBOARD_PASSWORD   (3);
         private final int value;
-        private NativeKeyboardType(int value) { this.value = value; };
-        public int getValue() { return this.value; };
+        private NativeKeyboardType(int value)
+        {
+            this.value = value;
+        };
+        public int getValue()
+        {
+            return this.value;
+        };
     }
 
     private InputMethodManager imm = null;
-    private EditText mTextEdit = null;
-    private boolean mUseHiddenInputField = false;
+    private EditText             mTextEdit = null;
+    private boolean              mUseHiddenInputField = false;
 
     private boolean mImmersiveMode = false;
     private boolean mDisplayCutout = false;
@@ -97,55 +111,72 @@ public class DefoldActivity extends NativeActivity {
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
-    private void updateFullscreenMode() {
+    private void updateFullscreenMode()
+    {
         final Window window = getWindow();
-        if (mImmersiveMode) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (mImmersiveMode)
+        {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            {
                 window.setDecorFitsSystemWindows(false);
 
                 WindowInsetsController controller = window.getInsetsController();
-                if (controller != null) {
+                if (controller != null)
+                {
                     controller.hide(WindowInsets.Type.systemBars());
                     controller.setSystemBarsBehavior(
-                            WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     );
                 }
-            } else {
+            }
+            else
+            {
                 @SuppressWarnings("deprecation")
                 View decorView = window.getDecorView();
                 @SuppressWarnings("deprecation")
                 int flags =
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
 
                 decorView.setSystemUiVisibility(flags);
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (mDisplayCutout) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+        {
+            if (mDisplayCutout)
+            {
                 WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                {
                     // Android 11+ also has ALWAYS, and on Android 15 SHORT_EDGES is treated like ALWAYS for non-floating windows
                     layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-                } else {
+                }
+                else
+                {
                     // Android 9-10
                     layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                 }
+
                 getWindow().setAttributes(layoutParams);
             }
         }
     }
 
-    public boolean isAppInstalled(String appPackageName) {
+    public boolean isAppInstalled(String appPackageName)
+    {
         PackageManager packageManager = this.getPackageManager();
-        try {
+        try
+        {
             PackageInfo info = packageManager.getPackageInfo(appPackageName, 0);
             return info != null;
-        } catch (PackageManager.NameNotFoundException e) {
+        }
+        catch (PackageManager.NameNotFoundException e)
+        {
             return false;
         }
     }
@@ -165,9 +196,10 @@ public class DefoldActivity extends NativeActivity {
 
     private boolean keyboardActive;
 
-    private class DefoldInputWrapper extends InputConnectionWrapper {
+    private class DefoldInputWrapper extends InputConnectionWrapper
+    {
         private DefoldActivity _ctx;
-        private String mComposingText = "";
+        private String         mComposingText = "";
 
         public DefoldInputWrapper(DefoldActivity ctx, InputConnection target, boolean mutable) {
             super(target, mutable);
@@ -194,21 +226,23 @@ public class DefoldActivity extends NativeActivity {
         }
 
         @Override
-        public boolean commitCompletion (CompletionInfo text)
+        public boolean commitCompletion(CompletionInfo text)
         {
             return super.commitCompletion(text);
         }
 
         @Override
-        public boolean finishComposingText ()
+        public boolean finishComposingText()
         {
             _ctx.sendInputText(new String(mComposingText));
             _ctx.sendMarkedText("");
 
             // If we are finished composing, clear the composing text
-            if (mComposingText.length() > 0) {
+            if (mComposingText.length() > 0)
+            {
                 this.setComposingText("", 0);
             }
+
             mComposingText = "";
 
             return super.finishComposingText();
@@ -227,13 +261,15 @@ public class DefoldActivity extends NativeActivity {
         }
 
         @Override
-        public boolean sendKeyEvent(KeyEvent event) {
+        public boolean sendKeyEvent(KeyEvent event)
+        {
             return super.sendKeyEvent(event);
         }
 
 
         @Override
-        public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+        public boolean deleteSurroundingText(int beforeLength, int afterLength)
+        {
             _ctx.clearText();
             _ctx.clearComposingText();
             _ctx.FakeBackspace();
@@ -243,9 +279,11 @@ public class DefoldActivity extends NativeActivity {
 
     }
 
-    public synchronized void sendInputText(final String text) {
+    public synchronized void sendInputText(final String text)
+    {
         int charCount = text.length();
-        for (int i = 0; i < charCount; ++i) {
+        for (int i = 0; i < charCount; ++i)
+        {
             int c = text.codePointAt(i);
             dmNativeInputCharNative(c);
         }
@@ -253,44 +291,54 @@ public class DefoldActivity extends NativeActivity {
         sendMarkedText("");
     }
 
-    public synchronized void sendMarkedText(final String text) {
+    public synchronized void sendMarkedText(final String text)
+    {
         dmNativeSetMarkedTextNative(text);
     }
 
     public static native void nativeOnCreate(Activity activity);
     public static native void dmNativeSetPendingResizeBecauseOfInsets();
 
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState)
+    {
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         imm = (InputMethodManager)DefoldActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
 
-        try {
+        try
+        {
             ActivityInfo ai = getPackageManager().getActivityInfo(getIntent().getComponent(),
-                    PackageManager.GET_META_DATA);
+                                                                  PackageManager.GET_META_DATA);
 
-            if (ai.metaData != null) {
+            if (ai.metaData != null)
+            {
                 String ln = ai.metaData.getString(META_DATA_LIB_NAME);
-                if (ln != null) {
+                if (ln != null)
+                {
                     System.loadLibrary(ln);
                 }
             }
-        } catch (PackageManager.NameNotFoundException e) {
+        }
+        catch (PackageManager.NameNotFoundException e)
+        {
             throw new RuntimeException("Error getting activity info", e);
         }
 
         // Starting API 33 old implementation of the Back button doesn't work
         // https://github.com/defold/defold/issues/6821
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
                 @Override
                 public void onBackInvoked() {
-                    if (keyboardActive) {
+                    if (keyboardActive)
+                    {
                         hideSoftInput();
                     }
+
                     dmNativeInputBackButton();
                 }
             });
@@ -298,7 +346,8 @@ public class DefoldActivity extends NativeActivity {
 
         nativeOnCreate(this);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH)
+        {
             View decorView = getWindow().getDecorView();
             decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
@@ -313,42 +362,53 @@ public class DefoldActivity extends NativeActivity {
     }
 
     @Override
-    public void onGlobalLayout() {
+    public void onGlobalLayout()
+    {
         View decor = getWindow().getDecorView();
         boolean changed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-                && updateReservedAreas(decor.getRootWindowInsets());
+                          && updateReservedAreas(decor.getRootWindowInsets());
         super.onGlobalLayout();
-        if (changed) {
+        if (changed)
+        {
             dmNativeSetPendingResizeBecauseOfInsets();
         }
     }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
+    public void onWindowFocusChanged(boolean hasFocus)
+    {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
+        if (hasFocus)
+        {
             updateFullscreenMode();
         }
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(Configuration newConfig)
+    {
         super.onConfigurationChanged(newConfig);
-        if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
+        if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES)
+        {
             updateFullscreenMode();
         }
     }
 
-    public int getConnectivity() {
+    public int getConnectivity()
+    {
 
         ConnectivityManager connectivity_manager = (ConnectivityManager)DefoldActivity.this.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo active_network = connectivity_manager.getActiveNetworkInfo();
 
-        if (active_network != null) {
-            if (active_network.isConnected()) {
-                if (ConnectivityManager.TYPE_MOBILE == active_network.getType()) {
+        if (active_network != null)
+        {
+            if (active_network.isConnected())
+            {
+                if (ConnectivityManager.TYPE_MOBILE == active_network.getType())
+                {
                     return NetworkConnectivity.NETWORK_CONNECTED_CELLULAR.getValue();
                 }
+
                 return NetworkConnectivity.NETWORK_CONNECTED.getValue();
             }
         }
@@ -360,20 +420,25 @@ public class DefoldActivity extends NativeActivity {
      * See comment above (dmNativeInputCharNative) why this is needed.
      */
     @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getKeyCode() == KeyEvent.KEYCODE_UNKNOWN) {
+    public boolean dispatchKeyEvent(KeyEvent event)
+    {
+        if (event.getAction() == KeyEvent.ACTION_MULTIPLE && event.getKeyCode() == KeyEvent.KEYCODE_UNKNOWN)
+        {
             String chars = event.getCharacters();
             int charCount = chars.length();
-            for (int i = 0; i < charCount; ++i) {
+            for (int i = 0; i < charCount; ++i)
+            {
                 int c = chars.codePointAt(i);
                 dmNativeInputCharNative(c);
             }
         }
+
         return super.dispatchKeyEvent(event);
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    protected void onNewIntent(Intent intent)
+    {
         super.onNewIntent(intent);
         setIntent(intent);
     }
@@ -381,30 +446,40 @@ public class DefoldActivity extends NativeActivity {
     /** show virtual keyboard
      * Implemented here to ensure that calls from native code are delayed and run on the UI thread.
      */
-    public void showSoftInput(final int keyboardType) {
+    public void showSoftInput(final int keyboardType)
+    {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 keyboardActive = true;
-                if (mTextEdit != null) {
+                if (mTextEdit != null)
+                {
                     mTextEdit.setVisibility(View.GONE);
                     ViewGroup vg = (ViewGroup)(mTextEdit.getParent());
                     vg.removeView(mTextEdit);
                     mTextEdit = null;
                 }
 
-                if (mUseHiddenInputField) {
+                if (mUseHiddenInputField)
+                {
 
                     // Convert Native input enum into EditText enum
                     final int input_type;
-                    if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_PASSWORD.getValue()) {
+                    if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_PASSWORD.getValue())
+                    {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-                    } else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_EMAIL.getValue()) {
+                    }
+                    else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_EMAIL.getValue())
+                    {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-                    } else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_NUMBER_PAD.getValue()) {
+                    }
+                    else if (keyboardType == NativeKeyboardType.NATIVE_KEYBOARD_NUMBER_PAD.getValue())
+                    {
                         input_type = InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_NORMAL;
-                    } else {
+                    }
+                    else
+                    {
                         input_type = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
                     }
 
@@ -429,9 +504,11 @@ public class DefoldActivity extends NativeActivity {
                     mTextEdit.setOnEditorActionListener(new TextView.OnEditorActionListener() {
                         @Override
                         public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                            if (actionId == EditorInfo.IME_ACTION_DONE)
+                            {
                                 self.FakeEnter();
                             }
+
                             return false;
                         }
                     });
@@ -458,7 +535,9 @@ public class DefoldActivity extends NativeActivity {
                     mTextEdit.requestFocus();
 
                     imm.showSoftInput(mTextEdit, InputMethodManager.SHOW_FORCED);
-                } else {
+                }
+                else
+                {
 
                     // "Old style" key event inputs
                     imm.showSoftInput(getWindow().getDecorView(), InputMethodManager.SHOW_FORCED);
@@ -471,12 +550,14 @@ public class DefoldActivity extends NativeActivity {
     /**
      * Clears the internal text field if hidden input method is used.
      */
-    public void clearText() {
+    public void clearText()
+    {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (mTextEdit != null) {
+                if (mTextEdit != null)
+                {
                     mTextEdit.setText("");
                 }
             }
@@ -486,12 +567,14 @@ public class DefoldActivity extends NativeActivity {
     /**
      * Clears the composing part of the text field if hidden input method is used.
      */
-    public void clearComposingText() {
+    public void clearComposingText()
+    {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (mTextEdit != null) {
+                if (mTextEdit != null)
+                {
                     mTextEdit.clearComposingText();
                 }
             }
@@ -501,12 +584,14 @@ public class DefoldActivity extends NativeActivity {
     /**
      * Clears both internal text and composing part of text field if hidden input method is used.
      */
-    public void resetSoftInput() {
+    public void resetSoftInput()
+    {
         final DefoldActivity self = this;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (mTextEdit != null) {
+                if (mTextEdit != null)
+                {
                     mTextEdit.setText("");
                     mTextEdit.clearComposingText();
                 }
@@ -518,14 +603,16 @@ public class DefoldActivity extends NativeActivity {
      * Method to switch between "old" (key event) or "new" (hidden text input) method.
      * Called from C (window_android.c).
      */
-    public void setUseHiddenInputField(boolean useHiddenInputField) {
+    public void setUseHiddenInputField(boolean useHiddenInputField)
+    {
         mUseHiddenInputField = useHiddenInputField;
     }
 
     /** hide virtual keyboard
      * Implemented here to ensure that calls from native code are delayed and run on the UI thread.
      */
-    public void hideSoftInput() {
+    public void hideSoftInput()
+    {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -543,7 +630,8 @@ public class DefoldActivity extends NativeActivity {
      * @param immersiveMode
      * @param displayCutout
      */
-    public void setFullscreenParameters(final boolean immersiveMode, final boolean displayCutout) {
+    public void setFullscreenParameters(final boolean immersiveMode, final boolean displayCutout)
+    {
         mImmersiveMode = immersiveMode;
         mDisplayCutout = displayCutout;
         runOnUiThread(new Runnable() {
@@ -554,35 +642,48 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
-    public int[] getSafeAreaInsets() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            return new int[] { 0, 0, 0, 0 };
+    public int[] getSafeAreaInsets()
+    {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
+        {
+            return new int[] {
+                       0, 0, 0, 0
+            };
         }
 
         View decor = getWindow().getDecorView();
         WindowInsets insets = decor.getRootWindowInsets();
-        if (insets == null) {
-            return new int[] { 0, 0, 0, 0 };
-        }
-
-        DisplayCutout cutout = insets.getDisplayCutout();
-        if (cutout != null) {
+        if (insets == null)
+        {
             return new int[] {
-                cutout.getSafeInsetLeft(),
-                cutout.getSafeInsetTop(),
-                cutout.getSafeInsetRight(),
-                cutout.getSafeInsetBottom()
+                       0, 0, 0, 0
             };
         }
 
-        return new int[] { 0, 0, 0, 0 };
+        DisplayCutout cutout = insets.getDisplayCutout();
+        if (cutout != null)
+        {
+            return new int[] {
+                       cutout.getSafeInsetLeft(),
+                           cutout.getSafeInsetTop(),
+                           cutout.getSafeInsetRight(),
+                           cutout.getSafeInsetBottom()
+            };
+        }
+
+        return new int[] {
+                   0, 0, 0, 0
+        };
     }
 
-    private boolean updateReservedAreas(WindowInsets insets) {
+    private boolean updateReservedAreas(WindowInsets insets)
+    {
         int[] snapshot = new int[0];
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets != null)
+        {
             DisplayCutout cutout = insets.getDisplayCutout();
-            if (cutout != null) {
+            if (cutout != null)
+            {
                 List<Rect> rects = cutout.getBoundingRects();
                 View decor = getWindow().getDecorView();
                 // NativeActivity takes the window surface, not the inset content
@@ -592,7 +693,8 @@ public class DefoldActivity extends NativeActivity {
                 snapshot = new int[2 + rects.size() * 4];
                 snapshot[0] = decor.getWidth();
                 snapshot[1] = decor.getHeight();
-                for (int i = 0; i < rects.size(); ++i) {
+                for (int i = 0; i < rects.size(); ++i)
+                {
                     Rect rect = rects.get(i);
                     int offset = 2 + i * 4;
                     snapshot[offset] = rect.left - location[0];
@@ -602,19 +704,24 @@ public class DefoldActivity extends NativeActivity {
                 }
             }
         }
-        if (Arrays.equals(mReservedAreas, snapshot)) {
+
+        if (Arrays.equals(mReservedAreas, snapshot))
+        {
             return false;
         }
+
         mReservedAreas = snapshot;
         return true;
     }
 
-    public int[] getReservedAreas() {
+    public int[] getReservedAreas()
+    {
         return mReservedAreas;
     }
 
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        nativeOnActivityResult(this, requestCode,resultCode, data);
+    protected void onActivityResult(int requestCode, int resultCode, Intent data)
+    {
+        nativeOnActivityResult(this, requestCode, resultCode, data);
     }
 
     public static native void nativeOnActivityResult(Activity activity, int requestCode, int resultCode, Intent data);
@@ -624,19 +731,23 @@ public class DefoldActivity extends NativeActivity {
      * Called from dmNativeAndroid.
      * @return Array of device ids
      */
-    public int[] getGameControllerDeviceIds() {
+    public int[] getGameControllerDeviceIds()
+    {
         mGameControllerDeviceIds.clear();
-        for (int deviceId : InputDevice.getDeviceIds()) {
+        for (int deviceId : InputDevice.getDeviceIds())
+        {
             InputDevice device = InputDevice.getDevice(deviceId);
             // a device can become disconnected or reconfigured in between the
             // call to getDeviceIds() and getDevice()
-            if (device != null) {
+            if (device != null)
+            {
                 int sources = device.getSources();
                 // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
                 // are still handled as key input in android_init.c, but should not be registered
                 // as gamepads here.
                 if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
-                    ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
+                    ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK))
+                {
                     mGameControllerDeviceIds.add(deviceId);
                 }
             }
@@ -644,7 +755,8 @@ public class DefoldActivity extends NativeActivity {
 
         // create and copy device ids to an int[]
         int[] deviceIds = new int[mGameControllerDeviceIds.size()];
-        for(int i = 0; i < mGameControllerDeviceIds.size(); i++) {
+        for (int i = 0; i < mGameControllerDeviceIds.size(); i++)
+        {
             deviceIds[i] = mGameControllerDeviceIds.get(i);
         }
 
@@ -657,15 +769,19 @@ public class DefoldActivity extends NativeActivity {
      * @param deviceId
      * @return Device name
      */
-    public String getGameControllerDeviceName(int deviceId) {
+    public String getGameControllerDeviceName(int deviceId)
+    {
         String name = "Android Controller";
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device != null) {
+        if (device != null)
+        {
             String deviceName = device.getName();
-            if (deviceName != null && !deviceName.isEmpty()) {
+            if (deviceName != null && !deviceName.isEmpty())
+            {
                 name = deviceName;
             }
         }
+
         return name;
     }
 
@@ -675,18 +791,24 @@ public class DefoldActivity extends NativeActivity {
      * @param deviceId
      * @return Device descriptor
      */
-    public String getGameControllerDeviceDescriptor(int deviceId) {
+    public String getGameControllerDeviceDescriptor(int deviceId)
+    {
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device != null) {
+        if (device != null)
+        {
             String descriptor = device.getDescriptor();
-            if (descriptor != null && !descriptor.isEmpty()) {
+            if (descriptor != null && !descriptor.isEmpty())
+            {
                 return descriptor;
             }
+
             String deviceName = device.getName();
-            if (deviceName != null && !deviceName.isEmpty()) {
+            if (deviceName != null && !deviceName.isEmpty())
+            {
                 return deviceName;
             }
         }
+
         return "Android Controller";
     }
 
@@ -696,11 +818,14 @@ public class DefoldActivity extends NativeActivity {
      * @param deviceId
      * @return Device vendor id
      */
-    public int getGameControllerDeviceVendorId(int deviceId) {
+    public int getGameControllerDeviceVendorId(int deviceId)
+    {
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+        {
             return device.getVendorId();
         }
+
         return 0;
     }
 
@@ -710,20 +835,26 @@ public class DefoldActivity extends NativeActivity {
      * @param deviceId
      * @return Device product id
      */
-    public int getGameControllerDeviceProductId(int deviceId) {
+    public int getGameControllerDeviceProductId(int deviceId)
+    {
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+        {
             return device.getProductId();
         }
+
         return 0;
     }
 
     /** SDL Android button capability bits, including hats represented as D-pad buttons. */
-    public int getGameControllerDeviceButtonMask(int deviceId) {
+    public int getGameControllerDeviceButtonMask(int deviceId)
+    {
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device == null) {
+        if (device == null)
+        {
             return 0;
         }
+
         // Key order follows SDL's Android raw button slots, not Defold's legacy layout.
         int[] keys = {
             KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B,
@@ -748,56 +879,90 @@ public class DefoldActivity extends NativeActivity {
         };
         boolean[] supported = device.hasKeys(keys);
         int mask = 0;
-        for (int i = 0; i < 36; ++i) {
-            if (i != 19 && supported[i]) {
-                if (i >= 32) {
+        for (int i = 0; i < 36; ++i)
+        {
+            if (i != 19 && supported[i])
+            {
+                if (i >= 32)
+                {
                     return -1;
                 }
+
                 mask |= 1 << i;
             }
         }
-        if (supported[36]) mask |= 1;
-        if (supported[37]) mask |= 1 << 4;
-        if (supported[38]) mask |= 1 << 6;
+
+        if (supported[36])
+        {
+            mask |= 1;
+        }
+
+        if (supported[37])
+        {
+            mask |= 1 << 4;
+        }
+
+        if (supported[38])
+        {
+            mask |= 1 << 6;
+        }
+
         if (device.getMotionRange(MotionEvent.AXIS_HAT_X) != null &&
-            device.getMotionRange(MotionEvent.AXIS_HAT_Y) != null) {
+            device.getMotionRange(MotionEvent.AXIS_HAT_Y) != null)
+        {
             mask |= 0x7800;
         }
+
         return mask;
     }
 
-    private static int getGameControllerAxisSortKey(int axis) {
-        if (axis == MotionEvent.AXIS_GAS) {
+    private static int getGameControllerAxisSortKey(int axis)
+    {
+        if (axis == MotionEvent.AXIS_GAS)
+        {
             return MotionEvent.AXIS_BRAKE;
         }
-        if (axis == MotionEvent.AXIS_BRAKE) {
+
+        if (axis == MotionEvent.AXIS_BRAKE)
+        {
             return MotionEvent.AXIS_GAS;
         }
+
         // SDL groups X/Y, RX/RY, Z/RZ, then the remaining axes.
-        if (axis == MotionEvent.AXIS_Z) {
+        if (axis == MotionEvent.AXIS_Z)
+        {
             return MotionEvent.AXIS_RZ - 1;
         }
-        if (axis > MotionEvent.AXIS_Z && axis < MotionEvent.AXIS_RZ) {
+
+        if (axis > MotionEvent.AXIS_Z && axis < MotionEvent.AXIS_RZ)
+        {
             return axis - 1;
         }
+
         return axis;
     }
 
     /** Sorted SDL Android axes as triples of Android axis id, minimum and range. */
-    public float[] getGameControllerDeviceAxes(int deviceId) {
+    public float[] getGameControllerDeviceAxes(int deviceId)
+    {
         InputDevice device = InputDevice.getDevice(deviceId);
-        if (device == null) {
+        if (device == null)
+        {
             return new float[0];
         }
+
         ArrayList<InputDevice.MotionRange> axes = new ArrayList<>();
         HashSet<Integer> axisIds = new HashSet<>();
-        for (InputDevice.MotionRange range : device.getMotionRanges()) {
+        for (InputDevice.MotionRange range : device.getMotionRanges())
+        {
             if ((range.getSource() & InputDevice.SOURCE_CLASS_JOYSTICK) != 0 &&
                 range.getAxis() != MotionEvent.AXIS_HAT_X && range.getAxis() != MotionEvent.AXIS_HAT_Y &&
-                axisIds.add(range.getAxis())) {
+                axisIds.add(range.getAxis()))
+            {
                 axes.add(range);
             }
         }
+
         Collections.sort(axes, new Comparator<InputDevice.MotionRange>() {
             @Override
             public int compare(InputDevice.MotionRange a, InputDevice.MotionRange b) {
@@ -805,12 +970,14 @@ public class DefoldActivity extends NativeActivity {
             }
         });
         float[] result = new float[axes.size() * 3];
-        for (int i = 0; i < axes.size(); ++i) {
+        for (int i = 0; i < axes.size(); ++i)
+        {
             InputDevice.MotionRange range = axes.get(i);
             result[i * 3] = range.getAxis();
             result[i * 3 + 1] = range.getMin();
             result[i * 3 + 2] = range.getRange();
         }
+
         return result;
     }
 
@@ -819,19 +986,25 @@ public class DefoldActivity extends NativeActivity {
      * @param key
      * @return String
      */
-    protected String getMetadata(String key) {
-        try {
+    protected String getMetadata(String key)
+    {
+        try
+        {
             PackageManager packageManager = getPackageManager();
             ApplicationInfo appInfo = packageManager.getApplicationInfo(getPackageName(),
-                    PackageManager.GET_META_DATA);
+                                                                        PackageManager.GET_META_DATA);
             Bundle metaData = appInfo.metaData;
-            if (metaData != null) {
+            if (metaData != null)
+            {
                 Object value = metaData.get(key);
-                if (value != null) {
+                if (value != null)
+                {
                     return value.toString();
                 }
             }
-        } catch (PackageManager.NameNotFoundException e) {
+        }
+        catch (PackageManager.NameNotFoundException e)
+        {
             e.printStackTrace();
         }
         return null;
@@ -841,11 +1014,15 @@ public class DefoldActivity extends NativeActivity {
      * Method checks if alpha transparency is enabled for DefoldActivity
      * @return boolean
      */
-    public boolean isAlphaTransparencyEnabled() {
+    public boolean isAlphaTransparencyEnabled()
+    {
         String alpha = getMetadata("alpha.transparency");
-        if (alpha != null) {
+        if (alpha != null)
+        {
             return alpha.equals("true");
         }
+
         return false;
     }
+
 }

@@ -45,63 +45,72 @@ static NativeTouch* touchById(int id)
         }
     }
 
-    if (freeTouch != 0x0) {
+    if (freeTouch != 0x0)
+    {
         freeTouch->Reference = freeTouch;
     }
 
     return freeTouch;
 }
 
-static void touchUpdate(NativeTouch *touch, int x, int y, int phase)
+static void touchUpdate(NativeTouch* touch, int x, int y, int phase)
 {
-        // We can only update previous touches that has been initialized (began, moved etc).
-        if (touch->Phase == NATIVE_PHASE_IDLE) {
-            touch->Reference = 0x0;
-            return;
-        }
+    // We can only update previous touches that has been initialized (began, moved etc).
+    if (touch->Phase == NATIVE_PHASE_IDLE)
+    {
+        touch->Reference = 0x0;
+        return;
+    }
 
-        int prevPhase = touch->Phase;
-        int newPhase = phase;
-        if (phase == NATIVE_PHASE_CANCELLED) {
-            newPhase = NATIVE_PHASE_ENDED;
-        }
+    int prevPhase = touch->Phase;
+    int newPhase = phase;
+    if (phase == NATIVE_PHASE_CANCELLED)
+    {
+        newPhase = NATIVE_PHASE_ENDED;
+    }
 
-        // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-        if (prevPhase == NATIVE_PHASE_TAPPED) {
-            return;
-        }
+    // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
+    if (prevPhase == NATIVE_PHASE_TAPPED)
+    {
+        return;
+    }
 
-        // This is an invalid touch order, we need to recieve a began or moved
-        // phase before moving pushing any more move inputs.
-        if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED) {
-            return;
-        }
+    // This is an invalid touch order, we need to recieve a began or moved
+    // phase before moving pushing any more move inputs.
+    if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED)
+    {
+        return;
+    }
 
-        // Accumulate until read, since browsers can send multiple updates with
-        // identical positions before the next frame consumes the touch (#10264).
-        touch->DX += x - touch->X;
-        touch->DY += y - touch->Y;
-        touch->X = x;
-        touch->Y = y;
+    // Accumulate until read, since browsers can send multiple updates with
+    // identical positions before the next frame consumes the touch (#10264).
+    touch->DX += x - touch->X;
+    touch->DY += y - touch->Y;
+    touch->X = x;
+    touch->Y = y;
 
-        // If we recieved both a began and moved for the same touch during one frame/update,
-        // just update the coordinates but leave the phase as began.
-        if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED) {
-            return;
+    // If we recieved both a began and moved for the same touch during one frame/update,
+    // just update the coordinates but leave the phase as began.
+    if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED)
+    {
+        return;
 
         // If a touch both began and ended during one frame/update, set the phase as
         // tapped so dmNativeReadTouches reports the release on the following update.
-        } else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED) {
-            touch->Phase = NATIVE_PHASE_TAPPED;
-            return;
-        }
+    }
+    else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED)
+    {
+        touch->Phase = NATIVE_PHASE_TAPPED;
+        return;
+    }
 
-        touch->Phase = phase;
+    touch->Phase = phase;
 }
 
-static void touchStart(NativeTouch *touch, int id, int x, int y)
+static void touchStart(NativeTouch* touch, int id, int x, int y)
 {
-    if (touch->Phase != NATIVE_PHASE_IDLE) {
+    if (touch->Phase != NATIVE_PHASE_IDLE)
+    {
         return;
     }
 
@@ -116,10 +125,14 @@ static void touchStart(NativeTouch *touch, int id, int x, int y)
 static void handleTouches(int id, int x, int y, int phase)
 {
     NativeTouch* dmNativet = touchById(id);
-    if (dmNativet != 0x0) {
-        if (phase == NATIVE_PHASE_BEGAN) {
+    if (dmNativet != 0x0)
+    {
+        if (phase == NATIVE_PHASE_BEGAN)
+        {
             touchStart(dmNativet, id, x, y);
-        } else {
+        }
+        else
+        {
             touchUpdate(dmNativet, x, y, phase);
         }
     }
@@ -138,7 +151,7 @@ int dmNativeOpenWindow(const WindowCreateParams* params)
     int opengl = params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL || params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES;
     dmNativeResetTouches(g_Touches);
     return dmNativeOpenWindowJS(params->m_ContextAlphabits,
-        params->m_Samples, params->m_Fullscreen, params->m_HighDPI, opengl, params->m_GraphicsApiVersionHint);
+                                params->m_Samples, params->m_Fullscreen, params->m_HighDPI, opengl, params->m_GraphicsApiVersionHint);
 }
 
 void* dmNativeGetProcAddress(const char* name)

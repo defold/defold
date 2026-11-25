@@ -36,12 +36,13 @@
 {
     self.indicatorUpdates += 1;
 }
+
 @end
 
 class HomeIndicatorTest : public jc_test_base_class
 {
-protected:
-    HWindow m_Window;
+    protected:
+    HWindow         m_Window;
     ViewController* m_Controller;
 
     virtual void SetUp()
@@ -64,6 +65,7 @@ protected:
         dmPlatform::SetiOSHomeIndicatorMode("deferred");
         WindowDelete(m_Window);
     }
+
 };
 
 // Verifies the controller protects all edges before project configuration is available.

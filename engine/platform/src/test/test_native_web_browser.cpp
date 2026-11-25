@@ -119,7 +119,10 @@ extern "C"
     EMSCRIPTEN_KEEPALIVE int TestRender()
     {
         if (!glGetString(GL_VERSION))
+        {
             return 0;
+        }
+
         unsigned char pixel[4];
         glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -132,7 +135,10 @@ extern "C"
         int32_t x = 0;
         int32_t y = 0;
         if (g_Window)
+        {
             dmPlatform::GetMousePosition(g_Window, &x, &y);
+        }
+
         EM_ASM({
             Module['testState'] = ({
                 opened: $0, width: $1, height: $2, scale: $3, key: $4, button: $5,
@@ -159,6 +165,7 @@ extern "C"
     {
         dmPlatform::SetDeviceState(g_Window, WINDOW_DEVICE_STATE_CURSOR, visible != 0);
     }
+
 }
 
 int main(int argc, char** argv)

@@ -23,12 +23,12 @@ extern int g_AndroidArgc;
 extern char** g_AndroidArgv;
 extern char g_AndroidCommandLineProgramName[];
 
-JNIEnv* JNIAttachCurrentThread();
-void JNIDetachCurrentThread();
-void JNIAttachCurrentThreadIfNeeded(int* did_attach);
-void JNIDetachCurrentThreadIfNeeded(int did_attach);
-int JNICheckAndClearException(JNIEnv* env);
+JNIEnv*   JNIAttachCurrentThread();
+void      JNIDetachCurrentThread();
+void      JNIAttachCurrentThreadIfNeeded(int* did_attach);
+void      JNIDetachCurrentThreadIfNeeded(int did_attach);
+int       JNICheckAndClearException(JNIEnv* env);
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
-int JNIAndroidSetCommandLine(ANativeActivity* activity);
+int       JNIAndroidSetCommandLine(ANativeActivity* activity);
 
 #endif // DMNative_ANDROID_JNI_H

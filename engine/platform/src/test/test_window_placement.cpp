@@ -45,18 +45,23 @@ static void SetStateEnvironment(const char* value)
     _putenv_s("DM_WINDOW_STATE", value ? value : "");
 #else
     if (value)
+    {
         setenv("DM_WINDOW_STATE", value, 1);
+    }
     else
+    {
         unsetenv("DM_WINDOW_STATE");
+    }
+
 #endif
 }
 
 class WindowPlacementTest : public jc_test_base_class
 {
-protected:
-    HWindow m_Window;
-    char* m_PreviousEnvironment;
-    char m_Path[DMPATH_MAX_PATH];
+    protected:
+    HWindow            m_Window;
+    char*              m_PreviousEnvironment;
+    char               m_Path[DMPATH_MAX_PATH];
     WindowCreateParams m_Params;
     struct ResizeEvents
     {
@@ -82,7 +87,10 @@ protected:
         ASSERT_NE((HWindow)0, m_Window);
         const char* expected_backend = dmSys::GetEnv("DM_TEST_WINDOW_BACKEND");
         if (expected_backend)
+        {
             ASSERT_STREQ(expected_backend, dmWindowTest::Backend());
+        }
+
         dmSnPrintf(m_Path, sizeof(m_Path), "test-window-placement/player-0-%s.ini", dmWindowTest::Backend());
         remove(m_Path);
         WindowCreateParamsInitialize(&m_Params);
@@ -104,7 +112,10 @@ protected:
     void SetPosition(int x, int y)
     {
         if (!strcmp(dmWindowTest::Backend(), "wayland"))
+        {
             return;
+        }
+
         dmPlatform::SetWindowPosition(m_Window, x, y);
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         int actual_x, actual_y;
@@ -113,8 +124,11 @@ protected:
             dmPlatform::PollEvents(m_Window);
             dmWindowTest::Position(m_Window, &actual_x, &actual_y);
             if ((actual_x == x && actual_y == y) || dmTime::GetMonotonicTime() >= deadline)
+            {
                 break;
+            }
         }
+
         ASSERT_EQ(x, actual_x);
         ASSERT_EQ(y, actual_y);
     }
@@ -124,7 +138,10 @@ protected:
         if (m_Window)
         {
             if (dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED))
+            {
                 dmPlatform::CloseWindow(m_Window);
+            }
+
             dmPlatform::DeleteWindow(m_Window);
             m_Window = 0;
         }
@@ -147,6 +164,7 @@ protected:
         SetStateEnvironment(m_PreviousEnvironment);
         free(m_PreviousEnvironment);
     }
+
 };
 
 // Desktop windows must reject the null graphics API and remain usable for a later Vulkan open.
@@ -194,11 +212,18 @@ TEST_F(WindowPlacementTest, NativeWindowIdentity)
     dmPlatform::NativeWindowType expected_type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
     const char* backend = dmWindowTest::Backend();
     if (!strcmp(backend, "cocoa"))
+    {
         expected_type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    }
     else if (!strcmp(backend, "win32"))
+    {
         expected_type = dmPlatform::NATIVE_WINDOW_TYPE_WIN32;
+    }
     else if (!strcmp(backend, "x11"))
+    {
         expected_type = dmPlatform::NATIVE_WINDOW_TYPE_X11;
+    }
+
     identity = dmPlatform::GetNativeWindowId(m_Window);
     ASSERT_EQ(expected_type, identity.m_Type);
     ASSERT_EQ(expected_type != dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Id != 0);
@@ -331,6 +356,7 @@ TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
             break;
         }
     }
+
     dmWindowTest::DrawableSize(m_Window, &drawable_width, &drawable_height);
     ASSERT_EQ((uint32_t)client_width, width);
     ASSERT_EQ((uint32_t)client_height, height);
@@ -381,7 +407,10 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
     dmWindowState::Rect expected;
     dmWindowTest::ClientSize(m_Window, &expected.m_Width, &expected.m_Height);
     if (strcmp(dmWindowTest::Backend(), "wayland") != 0)
+    {
         dmWindowTest::Position(m_Window, &expected.m_X, &expected.m_Y);
+    }
+
     Recreate();
     int width, height;
     dmWindowTest::ClientSize(m_Window, &width, &height);
@@ -394,6 +423,7 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
         ASSERT_EQ(expected.m_X, x);
         ASSERT_EQ(expected.m_Y, y);
     }
+
     // Repeat to detect cumulative scaling during creation.
     Recreate();
     dmWindowTest::ClientSize(m_Window, &width, &height);
@@ -491,11 +521,13 @@ TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
     {
         SKIP();
     }
+
     int count = dmWindowTest::MonitorCount();
     if (count < 2)
     {
         SKIP();
     }
+
     m_Params.m_Width = 1200;
     m_Params.m_Height = 800;
     OpenAndShow();

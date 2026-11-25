@@ -329,6 +329,7 @@ namespace dmPlatform
             {
                 break;
             }
+
             pollfd descriptor = { ConnectionNumber(w->m_Display), POLLIN, 0 };
             poll(&descriptor, 1, dmMath::Min(10, (int)((end - now) / 1000) + 1));
         }
@@ -846,6 +847,7 @@ namespace dmPlatform
                 RefreshKeymap(w);
                 continue;
             }
+
             if (x->m_RandREventBase && (e.type == x->m_RandREventBase + RRScreenChangeNotify || e.type == x->m_RandREventBase + RRNotify))
             {
                 g_RandR.UpdateConfiguration(&e);
@@ -944,10 +946,12 @@ namespace dmPlatform
                     {
                         ReportSize(w, e.xconfigure.width, e.xconfigure.height, e.xconfigure.serial, e.xconfigure.send_event);
                     }
+
                     if (x->m_ConfigureSerial && e.xconfigure.serial >= x->m_ConfigureSerial)
                     {
                         CompleteGeometryRequest(w);
                     }
+
                     WindowPlacementChanged(w);
                     metrics = true;
                     break;
@@ -1132,6 +1136,7 @@ namespace dmPlatform
             hints.x = left;
             hints.y = top;
         }
+
         XSetWMNormalHints(d, w->m_Xid, &hints);
         const char* title = w->m_Params.m_Title;
         const char* resource = getenv("RESOURCE_NAME");
@@ -1140,6 +1145,7 @@ namespace dmPlatform
         {
             class_hint.res_name = (char*)resource;
         }
+
         XSetClassHint(d, w->m_Xid, &class_hint);
         if (!w->m_Params.m_FocusOnShow)
         {
@@ -1261,6 +1267,7 @@ namespace dmPlatform
             X11ReadSize(w);
             return;
         }
+
         RecordGeometryRequest(w, true, width, height);
         XResizeWindow(w->m_Display, w->m_Xid, width, height);
         XFlush(w->m_Display);
@@ -1292,6 +1299,7 @@ namespace dmPlatform
                     {
                         NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
                     }
+
                     return;
                 }
             }
@@ -1335,6 +1343,7 @@ namespace dmPlatform
         {
             XUnregisterIMInstantiateCallback(w->m_Display, 0, 0, 0, OpenInputMethod, (XPointer)w);
         }
+
         if (x->m_IM)
         {
             XCloseIM(x->m_IM);

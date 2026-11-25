@@ -157,6 +157,7 @@ namespace dmPlatform
                 {
                     UpdateSize(window, true);
                 }
+
                 return 0;
             }
             case WM_DISPLAYCHANGE:
@@ -210,6 +211,7 @@ namespace dmPlatform
                         return 0;
                     }
                 }
+
                 if (!focused)
                 {
                     window->m_CaptionAction = false;
@@ -556,6 +558,7 @@ namespace dmPlatform
                 {
                     Win32UpdateCursor(current, false);
                 }
+
                 poll_gamepads |= current->m_Callbacks.m_Gamepad != 0;
             }
         }

@@ -34,7 +34,10 @@ static int g_view_type = NATIVE_NO_API;
     UIWindow* window = self.viewIfLoaded.window;
     // A full-screen presentation detaches the root view from the game window.
     if (!window)
+    {
         window = g_ApplicationWindow;
+    }
+
     return dmNativeGetiOSSupportedInterfaceOrientations(window);
 }
 
@@ -71,6 +74,7 @@ static int g_view_type = NATIVE_NO_API;
         [oldBaseView invalidateDisplayLink];
         [oldBaseView removeFromSuperview];
     }
+
     self.baseView = newBaseView;
 
     [[self view] insertSubview:baseView atIndex:0];
@@ -104,33 +108,45 @@ static int g_view_type = NATIVE_NO_API;
 {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
     [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-        // A 180-degree rotation can move reserved regions without changing size or insets.
-        // Notify during event polling after UIKit has finished updating the geometry.
-        self.baseView.safeAreaChanged = YES;
-    }];
+         // A 180-degree rotation can move reserved regions without changing size or insets.
+         // Notify during event polling after UIKit has finished updating the geometry.
+         self.baseView.safeAreaChanged = YES;
+     }];
 }
 
 - (BOOL)shouldUpdateViewFrame
 {
-    UIDevice *device = [UIDevice currentDevice];
+    UIDevice* device = [UIDevice currentDevice];
     UIDeviceOrientation orientation = device.orientation;
     bool update_parent_frame = false;
-    switch (orientation) {
+    switch (orientation)
+    {
         case UIDeviceOrientationLandscapeLeft:
+        {
             update_parent_frame = true;
             break;
+        }
         case UIDeviceOrientationLandscapeRight:
+        {
             update_parent_frame = true;
             break;
+        }
         case UIDeviceOrientationPortrait:
+        {
             update_parent_frame = true;
             break;
+        }
         case UIDeviceOrientationPortraitUpsideDown:
+        {
             update_parent_frame = true;
             break;
+        }
         default:
+        {
             break;
+        }
     }
+
     return update_parent_frame;
 }
 
@@ -139,56 +155,84 @@ static int g_view_type = NATIVE_NO_API;
     CGSize result;
     CGRect parent_bounds = self.view.bounds;
 
-    if (0 != g_IsReboot) {
+    if (0 != g_IsReboot)
+    {
         parent_bounds.size = cachedViewSize;
     }
+
     bool flipBounds = false;
-    if (dmNativeWin.portrait) {
+    if (dmNativeWin.portrait)
+    {
         flipBounds = parent_bounds.size.width > parent_bounds.size.height;
-    } else {
+    }
+    else
+    {
         flipBounds = parent_bounds.size.width < parent_bounds.size.height;
     }
-    if (flipBounds) {
+
+    if (flipBounds)
+    {
         result.width = parent_bounds.size.height;
         result.height = parent_bounds.size.width;
-    } else {
+    }
+    else
+    {
         result = parent_bounds.size;
     }
+
     return result;
 }
 
 - (CGPoint)getIntendedFrameOrigin:(CGSize)size
 {
-    UIDevice *device = [UIDevice currentDevice];
+    UIDevice* device = [UIDevice currentDevice];
     UIDeviceOrientation orientation = device.orientation;
     CGPoint origin;
     origin.x = 0.0f;
     origin.y = 0.0f;
-    switch (orientation) {
+    switch (orientation)
+    {
         case UIDeviceOrientationLandscapeLeft:
+        {
             break;
+        }
         case UIDeviceOrientationLandscapeRight:
+        {
             origin.x = -(size.width - size.height);
             origin.y = size.width - size.height;
 
-            if (g_IsReboot && cachedViewSize.width != size.width) {
+            if (g_IsReboot && cachedViewSize.width != size.width)
+            {
                 origin.x = 0.0f;
                 origin.y = 0.0f;
             }
+
             break;
+        }
         case UIDeviceOrientationPortrait:
-            if (g_IsReboot && cachedViewSize.width != size.width) {
+        {
+            if (g_IsReboot && cachedViewSize.width != size.width)
+            {
                 origin.x = -(size.width - size.height);
             }
+
             break;
+        }
         case UIDeviceOrientationPortraitUpsideDown:
-            if (g_IsReboot && cachedViewSize.width != size.width) {
+        {
+            if (g_IsReboot && cachedViewSize.width != size.width)
+            {
                 origin.y = (size.width - size.height);
             }
+
             break;
+        }
         default:
+        {
             break;
+        }
     }
+
     return origin;
 }
 
@@ -224,10 +268,12 @@ static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
     {
         return NO;
     }
+
     if (view_type == NATIVE_NO_API)
     {
         return [view isKindOfClass:[MetalView class]];
     }
+
     return [view isKindOfClass:[EAGLView class]];
 }
 
@@ -254,7 +300,7 @@ void dmNativeOSSetWindowBackgroundColor(unsigned int color)
     float g = ((color >> 8) & 0xff) / 255.0f;
     float b = ((color >> 16) & 0xff) / 255.0f;
     float a = 1.0f;
-    UIViewController *viewController = (UIViewController*)dmNativeWin.viewController;
+    UIViewController* viewController = (UIViewController*)dmNativeWin.viewController;
     viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
 }
 
@@ -280,6 +326,7 @@ void* dmNativeOSAcquireAuxContext()
     {
         dmNativeOSAcquireAuxContextOpenGL();
     }
+
     return 0;
 }
 

@@ -14,23 +14,27 @@
 
 #include "mobile_shared/window_mobile_private.h"
 
-int dmNativeOSGetJoystickParam( int joy, int param )
+int dmNativeOSGetJoystickParam(int joy, int param)
 {
     return 0;
 }
-int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes )
+
+int dmNativeOSGetJoystickPos(int joy, float* pos, int numaxes)
 {
     return 0;
 }
-int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
+
+int dmNativeOSGetJoystickButtons(int joy, unsigned char* buttons, int numbuttons)
 {
     return 0;
 }
-int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats )
+
+int dmNativeOSGetJoystickHats(int joy, unsigned char* hats, int numhats)
 {
     return 0;
 }
-int dmNativeOSGetJoystickDeviceId( int joy, char** device_id )
+
+int dmNativeOSGetJoystickDeviceId(int joy, char** device_id)
 {
     (void) joy;
     (void) device_id;

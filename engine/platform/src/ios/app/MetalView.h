@@ -16,8 +16,9 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 
-@interface MetalView : BaseView {
-@private
+@interface MetalView : BaseView
+{
+    @private
 }
 
 + (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate;

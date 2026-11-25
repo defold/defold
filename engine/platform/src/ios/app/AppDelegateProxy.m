@@ -30,7 +30,10 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
     // queries from the game settings instead of calling those delegates again.
     static BOOL querying = NO;
     if (querying)
+    {
         return 0;
+    }
+
     querying = YES;
 
     UIInterfaceOrientationMask mask = 0;
@@ -41,9 +44,12 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
         {
             UIInterfaceOrientationMask candidate = [delegate application:[UIApplication sharedApplication] supportedInterfaceOrientationsForWindow:window];
             if (candidate && !(candidate & ~UIInterfaceOrientationMaskAll))
+            {
                 mask = candidate;
+            }
         }
     }
+
     querying = NO;
     return mask;
 }
@@ -58,25 +64,35 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
     return self;
 }
 
-+ (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
++ (BOOL) application:(UIApplication*)application willFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
     BOOL handled = NO;
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
+    for (int i = 0; i < g_AppDelegatesCount; ++i)
+    {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)])
+        {
             if ([g_AppDelegates[i] application:application willFinishLaunchingWithOptions:launchOptions])
+            {
                 handled = YES;
+            }
         }
     }
+
     return handled;
 }
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
     BOOL handled = NO;
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
+    for (int i = 0; i < g_AppDelegatesCount; ++i)
+    {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)])
+        {
             if ([g_AppDelegates[i] application:application didFinishLaunchingWithOptions:launchOptions])
+            {
                 handled = YES;
+            }
         }
     }
+
     return handled;
 }
 
@@ -92,35 +108,44 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
     return dmNativeGetiOSSupportedInterfaceOrientations(window);
 }
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation {
+- (void)forwardInvocation:(NSInvocation*)anInvocation {
     BOOL invoked = NO;
-    if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {
+    if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]])
+    {
         [anInvocation invokeWithTarget: g_ApplicationDelegate];
         invoked = YES;
     }
 
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: [anInvocation selector]]) {
+    for (int i = 0; i < g_AppDelegatesCount; ++i)
+    {
+        if ([g_AppDelegates[i] respondsToSelector: [anInvocation selector]])
+        {
             [anInvocation invokeWithTarget: g_AppDelegates[i]];
             invoked = YES;
         }
     }
 
-    if (!invoked) {
+    if (!invoked)
+    {
         [g_ApplicationDelegate forwardInvocation:anInvocation];
     }
 }
 
 - (BOOL)respondsToSelector:(SEL)aSelector {
-    if ([super respondsToSelector:aSelector]) {
-        return YES;
-    }
-    if ([g_ApplicationDelegate respondsToSelector: aSelector]) {
+    if ([super respondsToSelector:aSelector])
+    {
         return YES;
     }
 
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
+    if ([g_ApplicationDelegate respondsToSelector: aSelector])
+    {
+        return YES;
+    }
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i)
+    {
+        if ([g_AppDelegates[i] respondsToSelector: aSelector])
+        {
             return YES;
         }
     }
@@ -128,21 +153,26 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
     return [g_ApplicationDelegate respondsToSelector: aSelector];
 }
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+- (NSMethodSignature*)methodSignatureForSelector:(SEL)aSelector
 {
     NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
     if (!signature)
+    {
         signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
+    }
 
     if (!signature)
     {
-        for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        for (int i = 0; i < g_AppDelegatesCount; ++i)
+        {
             id delegate = g_AppDelegates[i];
-            if ([delegate respondsToSelector: aSelector]) {
+            if ([delegate respondsToSelector: aSelector])
+            {
                 return [delegate methodSignatureForSelector:aSelector];
             }
         }
     }
+
     return signature;
 }
 
@@ -151,9 +181,12 @@ UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* w
 void dmNativeRegisterUIApplicationDelegate(void* delegate)
 {
     NSLog(@"Added delegate %@", NSStringFromClass([(id)delegate class]));
-    if (g_AppDelegatesCount >= MAX_APP_DELEGATES) {
+    if (g_AppDelegatesCount >= MAX_APP_DELEGATES)
+    {
         NSLog(@"Max UIApplicationDelegates reached (%d)", MAX_APP_DELEGATES);
-    } else {
+    }
+    else
+    {
         g_AppDelegates[g_AppDelegatesCount++] = (id<UIApplicationDelegate>) delegate;
     }
 }

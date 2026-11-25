@@ -49,11 +49,17 @@ namespace dmPlatform
 
         HomeIndicatorMode indicator_mode = HOME_INDICATOR_MODE_DEFERRED;
         if (strcmp(mode, "system") == 0)
+        {
             indicator_mode = HOME_INDICATOR_MODE_SYSTEM;
+        }
         else if (strcmp(mode, "auto_hide") == 0)
+        {
             indicator_mode = HOME_INDICATOR_MODE_AUTO_HIDE;
+        }
         else if (strcmp(mode, "deferred") != 0)
+        {
             dmLogWarning("Unknown ios.home_indicator_mode '%s', defaulting to deferred", mode);
+        }
 
         UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
         ViewController* controller = (ViewController*)window.rootViewController;
@@ -79,6 +85,7 @@ namespace dmPlatform
                 dmLogWarning("display.update_frequency is %u but ios.use_high_refresh_rate is disabled; rendering is limited to %u Hz", frequency, limit);
                 s_WarnedFrequencyLimit = true;
             }
+
             return;
         }
 
@@ -135,18 +142,24 @@ namespace dmPlatform
         {
             UIView* view = (UIView*)dmNativeGetiOSUIView();
             if (!view || !view.window)
+            {
                 return;
+            }
 
             NSArray<UIViewReservedRegion*>* regions = [view reservedRegionsOfKind:[UIViewReservedRegionKind occlusionRegionKind]
-                                                                         options:UIViewReservedRegionQueryOptionsNone];
+                                                       options:UIViewReservedRegionQueryOptionsNone];
             if (areas.Capacity() < regions.count)
+            {
                 areas.SetCapacity((uint32_t)regions.count);
+            }
 
             const CGRect bounds = view.bounds;
             for (UIViewReservedRegion* region in regions)
             {
                 if (!region.isActive)
+                {
                     continue;
+                }
 
                 // UIKit's frame already includes the interaction margins.
                 const CGRect frame = region.frame;
@@ -154,7 +167,9 @@ namespace dmPlatform
                 if (ConvertReservedArea(CGRectGetMinX(frame) - bounds.origin.x, CGRectGetMinY(frame) - bounds.origin.y,
                                         CGRectGetMaxX(frame) - bounds.origin.x, CGRectGetMaxY(frame) - bounds.origin.y,
                                         bounds.size.width, bounds.size.height, GetWindowWidth(window), GetWindowHeight(window), &area))
+                {
                     areas.Push(area);
+                }
             }
         }
     }

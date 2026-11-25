@@ -75,6 +75,7 @@ static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress
     {
         return (__eglMustCastToProperFunctionPointerType)HardwareDeviceString;
     }
+
     return strcmp(name, "glGenTextures") ? g_EGLGetProcAddress(name) : 0;
 }
 
@@ -149,6 +150,7 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
             return (void*)GetTestEGLConfigAttrib;
         }
     }
+
     if (g_NoEGLExtensions && !strcmp(name, "eglQueryString"))
     {
         return (void*)NoEGLExtensions;
@@ -162,7 +164,7 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
     void* symbol = __real_dlsym(handle, name);
     if (symbol && g_TestHardwareRenderer && !strcmp(name, "glXGetProcAddressARB"))
     {
-        g_GLXGetProcAddress = (__typeof__(g_GLXGetProcAddress))symbol;
+        g_GLXGetProcAddress = (__typeof__(g_GLXGetProcAddress)) symbol;
         return (void*)GLXProcAddress;
     }
 
@@ -1053,6 +1055,7 @@ TEST(LinuxWindow, WaylandFirstSwapAfterOpen)
         LinuxOutput* output = w->m_Wayland->m_Outputs[0];
         EXPECT_EQ(output->m_Width / output->m_Scale, w->m_Width);
     }
+
     bool presented = false;
     static const wl_callback_listener listener = { FrameDone };
     wl_callback* frame = wl_surface_frame(w->m_Surface);
@@ -1563,6 +1566,7 @@ TEST(LinuxWindow, VulkanDisplaySelection)
     {
         ASSERT_STREQ(expected, w->m_Ops->m_Name);
     }
+
     const char** live = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
     ASSERT_EQ(2u, count);
     ASSERT_STREQ(early, live[1]);
@@ -1746,6 +1750,7 @@ TEST(LinuxWindow, EGLMultisampleFallback)
     {
         CheckMultisampleFallback(w, WINDOW_GRAPHICS_API_OPENGL);
     }
+
     dmPlatform::DeleteWindow(w);
 }
 
@@ -1876,6 +1881,7 @@ TEST(LinuxWindow, SharedOpenGLContext)
             dmPlatform::PollEvents(w);
             ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &width, &height));
         } while ((width != 421 || height != 307) && dmTime::GetMonotonicTime() < deadline);
+
         ASSERT_EQ(421u, width);
         ASSERT_EQ(307u, height);
         CheckDrawableSize(w, width, height);
@@ -2029,9 +2035,11 @@ static int InputTest()
                 dmPlatform::DeleteWindow(w);
                 return 1;
             }
+
             puts("COPIED");
             ++step;
         }
+
         fflush(stdout);
     }
 
@@ -2067,6 +2075,7 @@ int main(int argc, char** argv)
         dmPlatform::DeleteWindow(w);
         return rejected ? 0 : 1;
     }
+
     if (argc == 2 && !strcmp(argv[1], "--input"))
     {
         return InputTest();

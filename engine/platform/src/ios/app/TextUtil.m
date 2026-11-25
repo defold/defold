@@ -17,8 +17,8 @@
 @implementation IndexedPosition
 @synthesize index = _index;
 
-+ (IndexedPosition *)positionWithIndex:(NSUInteger)index {
-    IndexedPosition *pos = [[IndexedPosition alloc] init];
++ (IndexedPosition*)positionWithIndex:(NSUInteger)index {
+    IndexedPosition* pos = [[IndexedPosition alloc] init];
     pos.index = index;
     return [pos autorelease];
 }
@@ -28,23 +28,27 @@
 @implementation IndexedRange
 @synthesize range = _range;
 
-+ (IndexedRange *)rangeWithNSRange:(NSRange)nsrange {
++ (IndexedRange*)rangeWithNSRange:(NSRange)nsrange {
     if (nsrange.location == NSNotFound)
+    {
         return nil;
-    IndexedRange *range = [[IndexedRange alloc] init];
+    }
+
+    IndexedRange* range = [[IndexedRange alloc] init];
     range.range = nsrange;
     return [range autorelease];
 }
 
-- (UITextPosition *)start {
+- (UITextPosition*)start {
     return [IndexedPosition positionWithIndex:self.range.location];
 }
 
-- (UITextPosition *)end {
-        return [IndexedPosition positionWithIndex:(self.range.location + self.range.length)];
+- (UITextPosition*)end {
+    return [IndexedPosition positionWithIndex:(self.range.location + self.range.length)];
 }
 
 -(BOOL)isEmpty {
     return (self.range.length == 0);
 }
+
 @end

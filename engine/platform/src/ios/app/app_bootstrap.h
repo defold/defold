@@ -20,17 +20,17 @@ extern "C" {
 #endif
 
 // See documentation in engine.h
-typedef void (*EngineInit)(void* ctx);
-typedef void (*EngineExit)(void* ctx);
+typedef void  (*EngineInit)(void* ctx);
+typedef void  (*EngineExit)(void* ctx);
 typedef void* (*EngineCreate)(int argc, char** argv);
-typedef void (*EngineDestroy)(void* engine);
-typedef int (*EngineUpdate)(void* engine);
+typedef void  (*EngineDestroy)(void* engine);
+typedef int   (*EngineUpdate)(void* engine);
 
 // See engine_private.h
 enum dmNativeAppRunAction
 {
     NATIVE_APP_RUN_UPDATE = 0,
-    NATIVE_APP_RUN_EXIT = -1,
+    NATIVE_APP_RUN_EXIT   = -1,
     NATIVE_APP_RUN_REBOOT = 1,
 };
 // In case of a non zero return value from the update function, call this to get the result of the engine update

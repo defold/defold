@@ -136,6 +136,7 @@ namespace dmPlatform
         {
             w->m_Params.m_FocusCallback(w->m_Params.m_FocusCallbackUserData, focused);
         }
+
         if (!focused)
         {
             memset(w->m_Keys, 0, sizeof(w->m_Keys));

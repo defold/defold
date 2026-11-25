@@ -52,6 +52,7 @@ namespace dmPlatform
 
             state.m_Reporting = 0;
         }
+
         state.m_DispatchEnabled = true;
     }
 
@@ -71,6 +72,7 @@ namespace dmPlatform
             {
                 state.m_Pending.OffsetCapacity(2);
             }
+
             WindowFocusEvent event = { input, focused, false };
             state.m_Pending.Push(event);
         }
@@ -81,14 +83,18 @@ namespace dmPlatform
                              uint32_t window_width, uint32_t window_height, WindowReservedArea* out)
     {
         if (view_width <= 0.0 || view_height <= 0.0 || window_width == 0 || window_height == 0)
+        {
             return false;
+        }
 
         left = fmax(0.0, left);
         top = fmax(0.0, top);
         right = fmin(view_width, right);
         bottom = fmin(view_height, bottom);
         if (right <= left || bottom <= top)
+        {
             return false;
+        }
 
         const double scale_x = window_width / view_width;
         const double scale_y = window_height / view_height;
@@ -117,6 +123,7 @@ namespace dmPlatform
         {
             return false;
         }
+
         *width = GetWindowWidth(window);
         *height = GetWindowHeight(window);
         return true;
@@ -132,6 +139,7 @@ namespace dmPlatform
         NativeWindowId identity = {};
         return identity;
     }
+
 #endif
 
     float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)
@@ -146,6 +154,7 @@ namespace dmPlatform
         // One inch is 25.4 millimetres, so the density is the number of pixels in an inch of panel.
         return pixel_width * 25.4f / (float) physical_width_mm;
     }
+
 }
 
 extern "C"
@@ -374,4 +383,5 @@ extern "C"
     {
         return dmPlatform::TriggerCloseCallback(window);
     }
+
 }

@@ -106,6 +106,7 @@ extern "C"
                 {
                     SetBit(bits, EV_KEY);
                 }
+
                 SetBit(bits, EV_ABS);
                 break;
             }
@@ -130,6 +131,7 @@ extern "C"
 
                     break;
                 }
+
                 SetBit(bits, g_HatOnly ? ABS_HAT0X : ABS_X);
                 SetBit(bits, g_HatOnly ? ABS_HAT0Y : ABS_Y);
                 break;
@@ -236,12 +238,14 @@ TEST_F(LinuxJoystick, HotplugAndResync)
             dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons));
             ASSERT_EQ(1u, buttons[2]);
         }
+
         float axes[2];
         ASSERT_EQ(g_HatOnly ? 0u : 2u, dmPlatform::GetJoystickAxes(0, 0, axes, 2));
         if (!g_HatOnly)
         {
             ASSERT_EQ(1.0f, axes[0]);
         }
+
         input_event dropped[] = { { {}, EV_SYN, SYN_DROPPED, 0 }, { {}, EV_SYN, SYN_REPORT, 0 } };
         ASSERT_EQ((ssize_t)sizeof(dropped), write(writer, dropped, sizeof(dropped)));
         dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons));
@@ -292,6 +296,7 @@ TEST_F(LinuxJoystick, HotplugAndResync)
         {
             EXPECT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
         }
+
         ASSERT_EQ(g_StandaloneAxisCount, dmPlatform::GetJoystickAxes(0, 0, axes, 3));
         for (unsigned axis = 0; axis < g_StandaloneAxisCount; ++axis)
         {
@@ -303,6 +308,7 @@ TEST_F(LinuxJoystick, HotplugAndResync)
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(3u + i, g_Disconnected);
     }
+
     // A directional pad without EV_KEY must connect and report changes to its hat.
     g_StandaloneAxis = ABS_HAT0X;
     g_StandaloneAxisCount = 2;

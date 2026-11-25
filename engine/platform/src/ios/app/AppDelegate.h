@@ -19,7 +19,7 @@
 
 @interface AppDelegate : NSObject <UIApplicationDelegate>
 {
-@private
+    @private
     ViewController* viewController;
 }
 

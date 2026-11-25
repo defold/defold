@@ -31,7 +31,9 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
     if (cancel_all)
     {
         for (int i = 0; i < NATIVE_MAX_TOUCH; ++i)
+        {
             cancelled |= states[i].Reference && states[i].Phase == NATIVE_PHASE_CANCELLED;
+        }
     }
 
     int count = 0;
@@ -39,12 +41,17 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
     {
         NativeTouch* touch = &states[i];
         if (!touch->Reference)
+        {
             continue;
+        }
 
         if (count >= capacity)
         {
             if (cancelled)
+            {
                 touch->Phase = NATIVE_PHASE_ENDED;
+            }
+
             continue;
         }
 
@@ -53,20 +60,26 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
         touch->DX = 0;
         touch->DY = 0;
         if (cancelled)
+        {
             touch->Phase = NATIVE_PHASE_ENDED;
+        }
         else if (touch->Phase == NATIVE_PHASE_ENDED || touch->Phase == NATIVE_PHASE_CANCELLED)
         {
             touch->Reference = 0;
             touch->Phase = NATIVE_PHASE_IDLE;
         }
         else if (touch->Phase == NATIVE_PHASE_BEGAN)
+        {
             touch->Phase = NATIVE_PHASE_STATIONARY;
+        }
         else if (touch->Phase == NATIVE_PHASE_TAPPED)
         {
             output[count].Phase = NATIVE_PHASE_BEGAN;
             touch->Phase = NATIVE_PHASE_ENDED;
         }
+
         ++count;
     }
+
     return count;
 }

@@ -139,7 +139,7 @@ int dmNativeOSOpenWindowVulkan(int width, int height)
     dmNativeWin.context = nil;
     dmNativeWin.aux_context = nil;
 
-	// no API
+    // no API
     dmNativeWin.clientAPI = NATIVE_NO_API;
 
     return GL_TRUE;

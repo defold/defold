@@ -291,6 +291,7 @@ namespace dmPlatform
         {
             return EGLFailure(g, "eglInitialize");
         }
+
         if (!g->m_eglBindAPI(g->m_Api))
         {
             return EGLFailure(g, "eglBindAPI");
@@ -335,6 +336,7 @@ namespace dmPlatform
             {
                 continue;
             }
+
             EGLint id = 0;
             if (w->m_X11 && (!g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_NATIVE_VISUAL_ID, &id) || !id))
             {
@@ -355,6 +357,7 @@ namespace dmPlatform
                 }
             }
         }
+
         if (!g->m_EConfig)
         {
             dmLogError("EGL returned no framebuffer configuration compatible with the native window.");
@@ -580,6 +583,7 @@ namespace dmPlatform
         {
             return EGLFailure(g, "eglCreateContext", major, minor);
         }
+
         g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, g->m_PresentOpaque ? opaque : 0);
         if (!g->m_ESurface)
         {

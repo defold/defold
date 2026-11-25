@@ -81,20 +81,20 @@ namespace dmPlatform
     void    LinuxPollJoysticks();
     void    LinuxCloseJoysticks();
 
-    void X11RequestWindowSize(HWindow window, int width, int height);
-    void X11SetPosition(HWindow window, int x, int y);
-    void X11GetPosition(HWindow window, int* x, int* y);
-    bool X11QueryPointer(HWindow window, int* x, int* y);
-    void X11ReadKeymap(Display* display, int16_t* keys);
+    void     X11RequestWindowSize(HWindow window, int width, int height);
+    void     X11SetPosition(HWindow window, int x, int y);
+    void     X11GetPosition(HWindow window, int* x, int* y);
+    bool     X11QueryPointer(HWindow window, int* x, int* y);
+    void     X11ReadKeymap(Display* display, int16_t* keys);
     unsigned X11LookupCharacter(XKeyEvent* event);
-    void X11Monitors(HWindow window, dmArray<dmWindowState::Monitor>& monitors);
-    void X11FrameExtents(HWindow window, int* left, int* top, int* right, int* bottom);
-    void X11ReadSize(HWindow window);
-    void X11FlushPlacement(HWindow window);
-    bool LinuxPrepareGL(HWindow window, VisualID* visual);
-    bool LinuxOpenGL(HWindow window);
-    void LinuxCloseGL(HWindow window);
-    void LinuxResizeGL(HWindow window);
+    void     X11Monitors(HWindow window, dmArray<dmWindowState::Monitor>& monitors);
+    void     X11FrameExtents(HWindow window, int* left, int* top, int* right, int* bottom);
+    void     X11ReadSize(HWindow window);
+    void     X11FlushPlacement(HWindow window);
+    bool     LinuxPrepareGL(HWindow window, VisualID* visual);
+    bool     LinuxOpenGL(HWindow window);
+    void     LinuxCloseGL(HWindow window);
+    void     LinuxResizeGL(HWindow window);
     int  LinuxGLState(HWindow window, WindowState state);
 }
 

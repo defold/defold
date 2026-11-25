@@ -23,7 +23,7 @@
 
 class FrameRateTest : public jc_test_base_class
 {
-protected:
+    protected:
     HWindow  m_Window;
     uint32_t m_Limit;
 
@@ -52,6 +52,7 @@ protected:
         BaseView* view = (BaseView*)dmPlatform::GetiOSUIView();
         return view->displayLink.preferredFrameRateRange;
     }
+
 };
 
 static void ExpectRange(CAFrameRateRange range, float rate)

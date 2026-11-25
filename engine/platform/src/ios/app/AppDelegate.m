@@ -45,7 +45,7 @@ char**              g_Argv = 0;
 
 @synthesize viewController;
 
-- (void)reinit:(UIApplication *)application
+- (void)reinit:(UIApplication*)application
 {
     g_IsReboot = 1;
 
@@ -57,12 +57,17 @@ char**              g_Argv = 0;
     // To avoid a race, since dmNativeOSOpenWindow does not block,
     // update the dmNative's cached screen dimensions ahead of time.
     BOOL flipScreen = NO;
-    if (dmNativeWin.portrait) {
+    if (dmNativeWin.portrait)
+    {
         flipScreen = dmNativeWin.width > dmNativeWin.height;
-    } else {
+    }
+    else
+    {
         flipScreen = dmNativeWin.width < dmNativeWin.height;
     }
-    if (flipScreen) {
+
+    if (flipScreen)
+    {
         float tmp = dmNativeWin.width;
         dmNativeWin.width = dmNativeWin.height;
         dmNativeWin.height = tmp;
@@ -72,15 +77,17 @@ char**              g_Argv = 0;
     UIWindow* connectedWindow = g_ApplicationWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (connectedWindow && connectedWindow == g_ApplicationWindow)
+        {
             [viewController createView:TRUE];
+        }
     });
 }
 
-- (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+- (BOOL)application:(UIApplication*)application willFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
     return [AppDelegateProxy application:application willFinishLaunchingWithOptions:launchOptions];
 }
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
     // Scene connection creates the window after process launch has completed.
     AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
 
@@ -97,6 +104,7 @@ char**              g_Argv = 0;
         configuration.sceneClass = [UIWindowScene class];
         configuration.delegateClass = [DefoldSceneDelegate class];
     }
+
     return configuration;
 }
 
@@ -124,17 +132,23 @@ static void ShutdownEngine(bool call_exit)
         {
             free(g_Argv[i]);
         }
+
         free(g_Argv);
     }
 
     if (run_action == NATIVE_APP_RUN_EXIT)
     {
         if (g_EngineExitFn)
+        {
             g_EngineExitFn(g_EngineUserCtx);
+        }
 
         NSLog(@"Exiting app with code %d", exit_code);
         if (call_exit)
+        {
             exit(exit_code);
+        }
+
         return;
     }
 
@@ -144,7 +158,7 @@ static void ShutdownEngine(bool call_exit)
     g_WasRebooted = 1;
 }
 
-- (void)applicationWillTerminate:(UIApplication *)application
+- (void)applicationWillTerminate:(UIApplication*)application
 {
     ShutdownEngine(false);
 }
@@ -161,15 +175,20 @@ static void ShutdownEngine(bool call_exit)
     if (g_EngineContext == 0)
     {
         g_EngineContext = g_EngineCreateFn(g_Argc, g_Argv);
-        if (!g_EngineContext) {
+        if (!g_EngineContext)
+        {
             NSLog(@"Failed to create engine instance.");
             exit(1);
         }
+
         // Initial scene activation can precede engine creation (and reboot
         // installs new callbacks). Synchronize the newly created engine once.
         dmNativeWin.iconified = !dmNativeOSIsSceneActive();
         if (dmNativeWin.windowFocusCallback)
+        {
             dmNativeWin.windowFocusCallback(!dmNativeWin.iconified);
+        }
+
         return;
     }
 
@@ -202,7 +221,9 @@ void dmNativeAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init
     g_WasRebooted = 0;
 
     if (g_EngineInitFn)
+    {
         g_EngineInitFn(g_EngineUserCtx);
+    }
 
     int retVal = UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     (void) retVal;

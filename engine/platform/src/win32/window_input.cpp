@@ -463,6 +463,7 @@ namespace dmPlatform
                     window->m_CaptionAction = false;
                     Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
                 }
+
                 break;
             }
             case WM_MOUSEWHEEL:

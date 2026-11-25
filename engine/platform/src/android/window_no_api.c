@@ -32,8 +32,10 @@ static int UpdateNoApiWindowSize(int force)
         {
             dmNativeWin.windowSizeCallback(w, h);
         }
+
         return 1;
     }
+
     return 0;
 }
 

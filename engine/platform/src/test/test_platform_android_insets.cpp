@@ -69,7 +69,7 @@ static void OnResize(int width, int height)
 
 class AndroidInsetsTest : public jc_test_base_class
 {
-protected:
+    protected:
     void SetUp()
     {
         memset(&dmNativeWin, 0, sizeof(dmNativeWin));
@@ -86,6 +86,7 @@ protected:
         g_ResizeCount = 0;
         g_QueueDuringCallback = 0;
     }
+
 };
 
 // Verifies a same-size inset change refreshes Vulkan in both backends, and idle polls never query the native window.

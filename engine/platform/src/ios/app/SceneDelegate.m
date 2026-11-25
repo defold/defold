@@ -42,14 +42,23 @@ static UIInterfaceOrientationMask GetOrientationMask(NSArray* orientations)
     for (NSString* orientation in orientations)
     {
         if ([@"UIInterfaceOrientationPortrait" isEqual:orientation])
+        {
             mask |= UIInterfaceOrientationMaskPortrait;
+        }
         else if ([@"UIInterfaceOrientationPortraitUpsideDown" isEqual:orientation])
+        {
             mask |= UIInterfaceOrientationMaskPortraitUpsideDown;
+        }
         else if ([@"UIInterfaceOrientationLandscapeLeft" isEqual:orientation])
+        {
             mask |= UIInterfaceOrientationMaskLandscapeLeft;
+        }
         else if ([@"UIInterfaceOrientationLandscapeRight" isEqual:orientation])
+        {
             mask |= UIInterfaceOrientationMaskLandscapeRight;
+        }
     }
+
     return mask;
 }
 
@@ -70,9 +79,12 @@ UIInterfaceOrientationMask dmNativeGetiOSDefaultInterfaceOrientations(NSDictiona
         {
             UIInterfaceOrientationMask mask = GetOrientationMask(orientations) & deviceMask;
             if (mask)
+            {
                 return mask;
+            }
         }
     }
+
     return deviceMask;
 }
 
@@ -80,7 +92,10 @@ UIInterfaceOrientationMask dmNativeGetiOSSupportedInterfaceOrientations(UIWindow
 {
     UIInterfaceOrientationMask legacyMask = dmNativeGetiOSLegacyInterfaceOrientations(window);
     if (legacyMask)
+    {
         return legacyMask;
+    }
+
     return dmNativeGetiOSDefaultInterfaceOrientations([NSBundle mainBundle].infoDictionary, [UIDevice currentDevice].userInterfaceIdiom);
 }
 
@@ -90,7 +105,9 @@ static void SetSceneActive(BOOL active)
     g_SceneActive = active;
     dmNativeWin.iconified = !active;
     if (changed && dmNativeWin.windowFocusCallback)
+    {
         dmNativeWin.windowFocusCallback(active);
+    }
 }
 
 int dmNativeOSIsSceneActive(void)
@@ -138,7 +155,10 @@ int dmNativeOSIsSceneActive(void)
     // The app owns the controller/render view across disconnection. Do not destroy
     // the engine or its graphics contexts when UIKit disconnects the window.
     if (!g_ApplicationDelegate.viewController)
+    {
         g_ApplicationDelegate.viewController = [[[ViewController alloc] init] autorelease];
+    }
+
     window.rootViewController = g_ApplicationDelegate.viewController;
     dmNativeWin.viewController = g_ApplicationDelegate.viewController;
 
@@ -151,12 +171,15 @@ int dmNativeOSIsSceneActive(void)
         launchScreenView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         [window addSubview:launchScreenView];
     }
+
     [window makeKeyAndVisible];
 
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene willConnectToSession:session options:options];
+        }
     }
 }
 
@@ -176,21 +199,29 @@ int dmNativeOSIsSceneActive(void)
         g_ConnectedScene = nil;
         self.window = nil;
     }
+
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate sceneDidDisconnect:scene];
+        }
     }
 }
 
 - (void)sceneDidBecomeActive:(UIScene*)scene
 {
     if (scene == g_ConnectedScene)
+    {
         SetSceneActive(YES);
+    }
+
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate sceneDidBecomeActive:scene];
+        }
     }
 }
 
@@ -205,10 +236,13 @@ int dmNativeOSIsSceneActive(void)
             glFinish();
         }
     }
+
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate sceneWillResignActive:scene];
+        }
     }
 }
 
@@ -217,7 +251,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate sceneWillEnterForeground:scene];
+        }
     }
 }
 
@@ -226,7 +262,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate sceneDidEnterBackground:scene];
+        }
     }
 }
 
@@ -235,7 +273,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene openURLContexts:contexts];
+        }
     }
 }
 
@@ -244,7 +284,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene continueUserActivity:activity];
+        }
     }
 }
 
@@ -253,7 +295,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene willContinueUserActivityWithType:activityType];
+        }
     }
 }
 
@@ -262,7 +306,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene didFailToContinueUserActivityWithType:activityType error:error];
+        }
     }
 }
 
@@ -271,7 +317,9 @@ int dmNativeOSIsSceneActive(void)
     for (id<UISceneDelegate> delegate in GetSceneDelegates())
     {
         if ([delegate respondsToSelector:_cmd])
+        {
             [delegate scene:scene didUpdateUserActivity:activity];
+        }
     }
 }
 
@@ -288,16 +336,26 @@ void dmNativeRegisterUISceneDelegate(void* delegate)
 {
     assert([NSThread isMainThread]);
     if (!delegate)
+    {
         return;
+    }
+
     for (int i = 0; i < g_SceneDelegateCount; ++i)
     {
         if (g_SceneDelegates[i] == delegate)
+        {
             return;
+        }
     }
+
     if (g_SceneDelegateCount == MAX_SCENE_DELEGATES)
+    {
         NSLog(@"Max UISceneDelegates reached (%d)", MAX_SCENE_DELEGATES);
+    }
     else
+    {
         g_SceneDelegates[g_SceneDelegateCount++] = (id<UISceneDelegate>)delegate;
+    }
 }
 
 void dmNativeUnregisterUISceneDelegate(void* delegate)

@@ -40,7 +40,7 @@ TEST(NativeWeb, GetProcAddressUnknownFunction)
 
 class NativeWebTouchTest : public jc_test_base_class
 {
-protected:
+    protected:
     void SetUp() override
     {
         ASSERT_EQ(1, dmNativeInit());
@@ -55,6 +55,7 @@ protected:
     {
         EM_ASM({ DefoldPlatform.fillTouch($0, $1, $2, $3); }, id, x, y, phase);
     }
+
 };
 
 // Verifies duplicate updates for both fingers preserve movement until read, guarding against Firefox's duplicate touchmove events (#10264).

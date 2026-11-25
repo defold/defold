@@ -81,16 +81,18 @@ static void LogGLError(GLint err)
     {
         return nil;
     }
+
     return ctx;
 }
 
-+ (EAGLContext *)initialiseGlAuxContext:(EAGLContext *)parentContext
++ (EAGLContext*)initialiseGlAuxContext:(EAGLContext*)parentContext
 {
     EAGLContext* ctx = [[EAGLContext alloc] initWithAPI:[parentContext API] sharegroup: [parentContext sharegroup]];
     if (!ctx)
     {
         return nil;
     }
+
     return ctx;
 }
 
@@ -98,17 +100,20 @@ static void LogGLError(GLint err)
 {
     EAGLContext* glContext = nil;
     EAGLContext* glAuxContext = nil;
-    if (recreate) {
+    if (recreate)
+    {
         // We must recycle the GL context, since the engine will be performing operations
         // (e.g. creating shaders and textures) that depend upon it.
         glContext = g_glContext;
         glAuxContext = g_glAuxContext;
     }
 
-    if (!glContext) {
+    if (!glContext)
+    {
         glContext = [EAGLView initialiseGlContext];
         glAuxContext = [EAGLView initialiseGlAuxContext: glContext];
     }
+
     g_glContext = glContext;
     g_glAuxContext = glAuxContext;
 
@@ -131,7 +136,7 @@ static void LogGLError(GLint err)
     depthStencilRenderbuffer = 0;
 
     // Get the layer
-    CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
+    CAEAGLLayer* eaglLayer = (CAEAGLLayer*)self.layer;
     eaglLayer.opaque = YES;
     eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                     [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking, kEAGLColorFormatRGBA8, kEAGLDrawablePropertyColorFormat, nil];
@@ -147,15 +152,20 @@ static void LogGLError(GLint err)
     {
         [auxContext release];
     }
+
     [context release];
 }
 
 - (void)swapBuffers
 {
     if (dmNativeWin.iconified)
+    {
         return;
+    }
 
-    const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+    const GLenum discards[]  = {
+        GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT
+    };
     glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
     glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
 
@@ -204,7 +214,7 @@ static void LogGLError(GLint err)
 
     if (dmNativeWin.windowSizeCallback)
     {
-        dmNativeWin.windowSizeCallback( backingWidth, backingHeight );
+        dmNativeWin.windowSizeCallback(backingWidth, backingHeight);
     }
 
     // Setup packed depth and stencil buffers
@@ -214,11 +224,12 @@ static void LogGLError(GLint err)
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
 
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         NSLog(@"failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
         return NO;
     }
+
     CHECK_GL_ERROR
     return YES;
 }
@@ -229,21 +240,21 @@ static void LogGLError(GLint err)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         CHECK_GL_ERROR
-        [context renderbufferStorage:GL_RENDERBUFFER fromDrawable: nil];
+        [context renderbufferStorage: GL_RENDERBUFFER fromDrawable: nil];
         CHECK_GL_ERROR
 
         glDeleteFramebuffers(1, &viewFramebuffer);
         CHECK_GL_ERROR
-        viewFramebuffer = 0;
+            viewFramebuffer = 0;
         glDeleteRenderbuffers(1, &viewRenderbuffer);
         CHECK_GL_ERROR
-        viewRenderbuffer = 0;
+            viewRenderbuffer = 0;
 
-        if(depthStencilRenderbuffer)
+        if (depthStencilRenderbuffer)
         {
             glDeleteRenderbuffers(1, &depthStencilRenderbuffer);
             CHECK_GL_ERROR
-            depthStencilRenderbuffer = 0;
+                depthStencilRenderbuffer = 0;
         }
     }
 }
@@ -256,8 +267,11 @@ static void LogGLError(GLint err)
 //========================================================================
 int dmNativeOSQueryAuxContextOpenGL()
 {
-    if(!dmNativeWin.aux_context)
+    if (!dmNativeWin.aux_context)
+    {
         return 0;
+    }
+
     return 1;
 }
 
@@ -266,16 +280,18 @@ int dmNativeOSQueryAuxContextOpenGL()
 //========================================================================
 void* dmNativeOSAcquireAuxContextOpenGL()
 {
-    if(!dmNativeWin.aux_context)
+    if (!dmNativeWin.aux_context)
     {
-        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
+        fprintf(stderr, "Unable to make OpenGL aux context current, is NULL\n");
         return 0;
     }
-    if(![EAGLContext setCurrentContext:dmNativeWin.aux_context])
+
+    if (![EAGLContext setCurrentContext:dmNativeWin.aux_context])
     {
-        fprintf( stderr, "Unable to make OpenGL aux context current, setCurrentContext failed\n" );
+        fprintf(stderr, "Unable to make OpenGL aux context current, setCurrentContext failed\n");
         return 0;
     }
+
     return dmNativeWin.aux_context;
 }
 
@@ -297,6 +313,7 @@ int dmNativeOSOpenWindowOpenGL(int width, int height)
             viewController = (ViewController*) g_ApplicationWindow.rootViewController;
             dmNativeWin.viewController = viewController;
         }
+
         if (viewController && [viewController isViewLoaded])
         {
             [viewController createView:FALSE];

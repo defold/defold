@@ -71,6 +71,7 @@ namespace dmPlatform
         {
             return false;
         }
+
         // The native setter and size query use the same units on these backends.
         *width = GetWindowWidth(window);
         *height = GetWindowHeight(window);
@@ -95,10 +96,26 @@ namespace dmPlatform
     {
         const WindowReservedArea* a = (const WindowReservedArea*)lhs;
         const WindowReservedArea* b = (const WindowReservedArea*)rhs;
-        if (a->m_X != b->m_X) return a->m_X < b->m_X ? -1 : 1;
-        if (a->m_Y != b->m_Y) return a->m_Y < b->m_Y ? -1 : 1;
-        if (a->m_Width != b->m_Width) return a->m_Width < b->m_Width ? -1 : 1;
-        if (a->m_Height != b->m_Height) return a->m_Height < b->m_Height ? -1 : 1;
+        if (a->m_X != b->m_X)
+        {
+            return a->m_X < b->m_X ? -1 : 1;
+        }
+
+        if (a->m_Y != b->m_Y)
+        {
+            return a->m_Y < b->m_Y ? -1 : 1;
+        }
+
+        if (a->m_Width != b->m_Width)
+        {
+            return a->m_Width < b->m_Width ? -1 : 1;
+        }
+
+        if (a->m_Height != b->m_Height)
+        {
+            return a->m_Height < b->m_Height ? -1 : 1;
+        }
+
         return 0;
     }
 
@@ -107,11 +124,16 @@ namespace dmPlatform
         dmArray<WindowReservedArea>& pending = window->m_PendingReservedAreas;
         GetReservedAreas(window, pending);
         if (pending.Size() > 1)
+        {
             qsort(pending.Begin(), pending.Size(), sizeof(WindowReservedArea), CompareReservedAreas);
+        }
+
         dmArray<WindowReservedArea>& current = window->m_ReservedAreas;
         if (pending.Size() == current.Size() &&
             (pending.Empty() || memcmp(pending.Begin(), current.Begin(), pending.Size() * sizeof(WindowReservedArea)) == 0))
+        {
             return false;
+        }
 
         current.Swap(pending);
         return true;
@@ -124,7 +146,9 @@ namespace dmPlatform
         g_Window->m_Height = (uint32_t) height;
 
         if (g_Window->m_ObserveReservedAreas)
+        {
             UpdateReservedAreas(g_Window);
+        }
 
         if (g_Window->m_ResizeCallback != 0x0)
         {
@@ -139,6 +163,7 @@ namespace dmPlatform
         {
             return g_Window->m_CloseCallback(g_Window->m_CloseCallbackUserData);
         }
+
         // Close by default
         return 1;
     }
@@ -246,10 +271,12 @@ namespace dmPlatform
             {
                 dmLogFatal("could not set dmNative char callback.");
             }
+
             if (dmNativeSetMarkedTextCallback(OnMarkedTextCallback) == 0)
             {
                 dmLogFatal("could not set dmNative marked text callback.");
             }
+
             if (dmNativeSetDeviceChangedCallback(OnDeviceChangedCallback) == 0)
             {
                 dmLogFatal("coult not set dmNative gamepad connection callback.");
@@ -320,6 +347,7 @@ namespace dmPlatform
     {
         return (uint32_t) window->m_Width;
     }
+
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
@@ -349,11 +377,13 @@ namespace dmPlatform
         {
             return true;
         }
+
 #elif defined(DM_PLATFORM_IOS)
         if (GetSafeAreaiOS(window, out))
         {
             return true;
         }
+
 #endif
 
         return true;
@@ -364,6 +394,7 @@ namespace dmPlatform
     {
         areas.SetSize(0);
     }
+
 #endif
 
     uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
@@ -373,6 +404,7 @@ namespace dmPlatform
             window->m_ObserveReservedAreas = 1;
             UpdateReservedAreas(window);
         }
+
         *areas = window->m_ReservedAreas.Empty() ? 0 : window->m_ReservedAreas.Begin();
         return window->m_ReservedAreas.Size();
     }
@@ -410,13 +442,28 @@ namespace dmPlatform
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        switch(state)
+        switch (state)
         {
-            case WINDOW_STATE_REFRESH_RATE: return dmNativeGetWindowRefreshRate();
-            case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
-            case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
-            case WINDOW_STATE_AUX_CONTEXT:  return QueryAuxContextImpl();
-            default:break;
+            case WINDOW_STATE_REFRESH_RATE:
+            {
+                return dmNativeGetWindowRefreshRate();
+            }
+            case WINDOW_STATE_SAMPLE_COUNT:
+            {
+                return window->m_Samples;
+            }
+            case WINDOW_STATE_HIGH_DPI:
+            {
+                return window->m_HighDPI;
+            }
+            case WINDOW_STATE_AUX_CONTEXT:
+            {
+                return QueryAuxContextImpl();
+            }
+            default:
+            {
+                break;
+            }
         }
 
         return window->m_WindowOpened ? dmNativeGetWindowParam(state) : 0;
@@ -456,7 +503,7 @@ namespace dmPlatform
 
     bool GetAcceleration(HWindow window, float* x, float* y, float* z)
     {
-        return dmNativeGetAcceleration(x,y,z);
+        return dmNativeGetAcceleration(x, y, z);
     }
 
     uint32_t GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count)
@@ -487,7 +534,7 @@ namespace dmPlatform
 
     int32_t GetKey(HWindow window, int32_t code)
     {
-         return dmNativeGetKey(code);
+        return dmNativeGetKey(code);
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
@@ -522,34 +569,59 @@ namespace dmPlatform
 
     void SetDeviceState(HWindow window, WindowDeviceState state, bool op1, bool op2)
     {
-        switch(state)
+        switch (state)
         {
             case WINDOW_DEVICE_STATE_CURSOR:
+            {
                 if (op1)
+                {
                     dmNativeSetCursorVisible(1);
+                }
                 else
+                {
                     dmNativeSetCursorVisible(0);
+                }
+
                 break;
+            }
             case WINDOW_DEVICE_STATE_ACCELEROMETER:
+            {
                 if (op1)
+                {
                     dmNativeAccelerometerEnable();
+                }
+
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_DEFAULT:
+            {
                 dmNativeShowKeyboard(op1, NATIVE_KEYBOARD_DEFAULT, op2);
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+            {
                 dmNativeShowKeyboard(op1, NATIVE_KEYBOARD_NUMBER_PAD, op2);
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_EMAIL:
+            {
                 dmNativeShowKeyboard(op1, NATIVE_KEYBOARD_EMAIL, op2);
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_PASSWORD:
+            {
                 dmNativeShowKeyboard(op1, NATIVE_KEYBOARD_PASSWORD, op2);
                 break;
+            }
             case WINDOW_DEVICE_STATE_KEYBOARD_RESET:
+            {
                 dmNativeResetKeyboard();
                 break;
-            default:break;
+            }
+            default:
+            {
+                break;
+            }
         }
     }
 
@@ -560,12 +632,22 @@ namespace dmPlatform
 
     bool GetDeviceState(HWindow window, WindowDeviceState state, int32_t op1)
     {
-        switch(state)
+        switch (state)
         {
-            case WINDOW_DEVICE_STATE_CURSOR_LOCK:      return dmNativeGetMouseLocked();
-            case WINDOW_DEVICE_STATE_JOYSTICK_PRESENT: return dmNativeGetJoystickParam(op1, NATIVE_PRESENT);
-            default:break;
+            case WINDOW_DEVICE_STATE_CURSOR_LOCK:
+            {
+                return dmNativeGetMouseLocked();
+            }
+            case WINDOW_DEVICE_STATE_JOYSTICK_PRESENT:
+            {
+                return dmNativeGetJoystickParam(op1, NATIVE_PRESENT);
+            }
+            default:
+            {
+                break;
+            }
         }
+
         dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
     }
@@ -585,6 +667,7 @@ namespace dmPlatform
         {
             return (const char*) device_guid;
         }
+
 #endif
         return 0; // unsupported
     }
@@ -613,6 +696,7 @@ namespace dmPlatform
         {
             return window->m_CloseCallback(window->m_CloseCallbackUserData);
         }
+
         return 0;
     }
 
@@ -634,7 +718,10 @@ namespace dmPlatform
         // Only observe after the first query. Resize callbacks above already
         // refresh the snapshot, so a transition produces no duplicate event here.
         if (window->m_ObserveReservedAreas && UpdateReservedAreas(window) && window->m_ResizeCallback)
+        {
             window->m_ResizeCallback(window->m_ResizeCallbackUserData, window->m_Width, window->m_Height);
+        }
+
 #endif
     }
 

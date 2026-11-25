@@ -42,7 +42,7 @@ TEST(dmPlatform, WindowCreateParamsInitialize)
 
 class dmPlatformTest : public jc_test_base_class
 {
-protected:
+    protected:
     struct ResizeData
     {
         uint32_t m_Width;
@@ -84,6 +84,7 @@ protected:
     {
         WindowDelete(m_Window);
     }
+
 };
 
 TEST_F(dmPlatformTest, DoubleOpenWindow)
@@ -212,14 +213,14 @@ TEST(dmPlatform, ReservedAreaCoordinates)
 {
     struct Case
     {
-        double m_Left, m_Top, m_Right, m_Bottom;
+        double             m_Left, m_Top, m_Right, m_Bottom;
         WindowReservedArea m_Expected;
     } cases[] = {
-        {10, 20, 30, 40, {20, 180, 40, 60}},
-        {10.25, 20.25, 30.25, 40.25, {20, 179, 41, 61}},
-        {-10, -20, 30, 40, {0, 180, 60, 120}},
-        {90, 80, 120, 120, {180, 0, 20, 60}},
-        {-10, -20, 120, 120, {0, 0, 200, 300}},
+        { 10, 20, 30, 40, { 20, 180, 40, 60 } },
+        { 10.25, 20.25, 30.25, 40.25, { 20, 179, 41, 61 } },
+        { -10, -20, 30, 40, { 0, 180, 60, 120 } },
+        { 90, 80, 120, 120, { 180, 0, 20, 60 } },
+        { -10, -20, 120, 120, { 0, 0, 200, 300 } },
     };
     for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
@@ -268,6 +269,7 @@ namespace
         volatile T referenced_symbol = symbol;
         (void) referenced_symbol;
     }
+
 }
 
 // Verifies the null backend provides the Android interface without linking the real window backend.
@@ -337,7 +339,7 @@ TEST(iOSPlatform, NullPlatformDelegateRegistration)
 }
 #endif
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
     return jc_test_run_all();

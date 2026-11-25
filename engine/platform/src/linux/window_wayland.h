@@ -111,16 +111,16 @@ namespace dmPlatform
     extern const zwp_locked_pointer_v1_listener g_WaylandLockedPointerListener;
     extern const wl_pointer_listener g_WaylandPointerListener;
 
-    void WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);
-    void WaylandReleaseSeat(HWindow window);
-    void WaylandInitDataDevice(HWindow window);
-    void WaylandSetClipboard(HWindow window, const char* text, unsigned length);
-    void WaylandSetCursor(HWindow window);
-    void WaylandReleaseCursor(HWindow window);
-    void WaylandRepeat(HWindow window, uint64_t now);
-    void WaylandFrameContentSize(HWindow window, int* width, int* height);
-    void WaylandResizeFrame(HWindow window, int width, int height);
-    void WaylandDestroyFrame(LinuxWayland* wl);
+    void        WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);
+    void        WaylandReleaseSeat(HWindow window);
+    void        WaylandInitDataDevice(HWindow window);
+    void        WaylandSetClipboard(HWindow window, const char* text, unsigned length);
+    void        WaylandSetCursor(HWindow window);
+    void        WaylandReleaseCursor(HWindow window);
+    void        WaylandRepeat(HWindow window, uint64_t now);
+    void        WaylandFrameContentSize(HWindow window, int* width, int* height);
+    void        WaylandResizeFrame(HWindow window, int width, int height);
+    void        WaylandDestroyFrame(LinuxWayland* wl);
     const char* WaylandFrameCursor(LinuxWayland* wl);
     void        WaylandFrameButton(HWindow window, uint32_t serial, uint32_t button);
 

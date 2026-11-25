@@ -58,6 +58,7 @@ namespace dmPlatform
                 m_Reporting->m_Closed = true;
             }
         }
+
     };
 
     inline const WindowPressedInput& ReportedWindowInput(const WindowFocusState& state, const WindowPressedInput& current)

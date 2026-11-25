@@ -142,6 +142,7 @@ namespace dmPlatform
         {
             WaylandResizeFrame(w, width, height);
         }
+
         LinuxUpdateSize(w, width, height, scale);
     }
 
@@ -700,6 +701,7 @@ namespace dmPlatform
             wl_surface_set_opaque_region(w->m_Surface, opaque);
             wl_region_destroy(opaque);
         }
+
         if (wl->m_ScaleManager && wl->m_Viewporter)
         {
             wl->m_Viewport = wp_viewporter_get_viewport(wl->m_Viewporter, w->m_Surface);
@@ -863,6 +865,7 @@ namespace dmPlatform
         {
             wl_buffer_destroy(wl->m_FrameBuffers[i]);
         }
+
         DROP(m_Compose, g_WaylandClient.xkb_compose_state_unref_)
         DROP(m_Xkb, g_WaylandClient.xkb_context_unref_)
         for (uint32_t i = 0; i < wl->m_Outputs.Size(); ++i)

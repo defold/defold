@@ -23,17 +23,17 @@ struct android_app;
 
 namespace dmPlatform
 {
-    typedef void (*FAppInit)(void* context);
-    typedef void (*FAppExit)(void* context);
+    typedef void  (*FAppInit)(void* context);
+    typedef void  (*FAppExit)(void* context);
     typedef void* (*FEngineCreate)(int argc, char** argv);
-    typedef void (*FEngineDestroy)(void* engine);
-    typedef int (*FEngineUpdate)(void* engine);
-    typedef void (*FEngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+    typedef void  (*FEngineDestroy)(void* engine);
+    typedef int   (*FEngineUpdate)(void* engine);
+    typedef void  (*FEngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
     enum AppRunAction
     {
         APP_RUN_UPDATE = 0,
-        APP_RUN_EXIT = -1,
+        APP_RUN_EXIT   = -1,
         APP_RUN_REBOOT = 1,
     };
 

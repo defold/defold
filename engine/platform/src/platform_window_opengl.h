@@ -52,8 +52,10 @@ namespace dmPlatform
             *minor = tmp_minor;
             return true;
         }
+
         return false;
     }
+
 }
 
 #endif // DM_PLATFORM_WINDOW_OPENGL_H

@@ -25,6 +25,7 @@ namespace dmPlatformService
         {
             Update(service);
         }
+
         return dmExtension::RESULT_OK;
     }
 
@@ -36,12 +37,14 @@ namespace dmPlatformService
         {
             return dmExtension::RESULT_OK;
         }
+
         HService service = New(server);
         if (!service)
         {
             dmLogError("Unable to register the platform service");
             return dmExtension::RESULT_INIT_ERROR;
         }
+
         ContextRegistrySet(registry, CONTEXT_NAME, service);
         return dmExtension::RESULT_OK;
     }
@@ -56,6 +59,7 @@ namespace dmPlatformService
             HWindow window = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_NULL ? 0 : dmGraphics::GetWindow(graphics);
             Attach(service, window);
         }
+
         return dmExtension::RESULT_OK;
     }
 
@@ -66,6 +70,7 @@ namespace dmPlatformService
         {
             Detach(service);
         }
+
         return dmExtension::RESULT_OK;
     }
 
@@ -78,8 +83,10 @@ namespace dmPlatformService
             Delete(service);
             ContextRegistrySet(registry, CONTEXT_NAME, 0);
         }
+
         return dmExtension::RESULT_OK;
     }
+
 }
 
 DM_DECLARE_EXTENSION(EnginePlatform, "Platform", dmPlatformService::AppInitialize, dmPlatformService::AppFinalize, dmPlatformService::Initialize, dmPlatformService::UpdateExtension, 0, dmPlatformService::Finalize)

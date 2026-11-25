@@ -20,7 +20,10 @@ extern "C" void dmNativePreMain(android_app* app);
 
 namespace dmPlatform
 {
-    void AndroidPreMain(android_app* app) { dmNativePreMain(app); }
+    void AndroidPreMain(android_app* app)
+    {
+        dmNativePreMain(app);
+    }
 
     void AndroidSetAppCallbacks(android_app* app)
     {
@@ -28,14 +31,49 @@ namespace dmPlatform
         app->onInputEvent = dmNativeAndroidHandleInput;
     }
 
-    bool AndroidIsWindowOpened() { return dmNativeAndroidWindowOpened() != 0; }
-    bool AndroidInit()           { return dmNativeInit() != 0; }
-    void AndroidTerminate()     { dmNativeTerminate(); }
-    void AndroidPollEvents()    { dmNativeAndroidPollEvents(); }
-    void AndroidFlushEvents()   { dmNativeAndroidFlushEvents(); }
+    bool AndroidIsWindowOpened()
+    {
+        return dmNativeAndroidWindowOpened() != 0;
+    }
 
-    void AndroidRegisterActivityResultListener(FAndroidActivityResult listener)   { dmNativeAndroidRegisterOnActivityResultListener(listener); }
-    void AndroidUnregisterActivityResultListener(FAndroidActivityResult listener) { dmNativeAndroidUnregisterOnActivityResultListener(listener); }
-    void AndroidRegisterActivityCreateListener(FAndroidActivityCreate listener)   { dmNativeAndroidRegisterOnCreateListener(listener); }
-    void AndroidUnregisterActivityCreateListener(FAndroidActivityCreate listener) { dmNativeAndroidUnregisterOnCreateListener(listener); }
+    bool AndroidInit()
+    {
+        return dmNativeInit() != 0;
+    }
+
+    void AndroidTerminate()
+    {
+        dmNativeTerminate();
+    }
+
+    void AndroidPollEvents()
+    {
+        dmNativeAndroidPollEvents();
+    }
+
+    void AndroidFlushEvents()
+    {
+        dmNativeAndroidFlushEvents();
+    }
+
+    void AndroidRegisterActivityResultListener(FAndroidActivityResult listener)
+    {
+        dmNativeAndroidRegisterOnActivityResultListener(listener);
+    }
+
+    void AndroidUnregisterActivityResultListener(FAndroidActivityResult listener)
+    {
+        dmNativeAndroidUnregisterOnActivityResultListener(listener);
+    }
+
+    void AndroidRegisterActivityCreateListener(FAndroidActivityCreate listener)
+    {
+        dmNativeAndroidRegisterOnCreateListener(listener);
+    }
+
+    void AndroidUnregisterActivityCreateListener(FAndroidActivityCreate listener)
+    {
+        dmNativeAndroidUnregisterOnCreateListener(listener);
+    }
+
 }
