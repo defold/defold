@@ -36,6 +36,8 @@ set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_graphics_service.h"
+  "${RENDER_SRC_DIR}/render/render_graphics_resource.h"
   "${RENDER_SRC_DIR}/render/render_frame.h"
   "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
@@ -125,6 +127,8 @@ install(FILES
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
   "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_graphics_service.h"
+  "${RENDER_SRC_DIR}/render/render_graphics_resource.h"
   "${RENDER_SRC_DIR}/render/render_frame.h"
   "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   ${RENDER_PROTO_HEADERS}

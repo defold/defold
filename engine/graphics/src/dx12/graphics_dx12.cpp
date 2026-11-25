@@ -5246,6 +5246,15 @@ namespace dmGraphics
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
     }
 
+    static bool DX12IsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        DX12Context* context = (DX12Context*)_context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const DX12Texture* tex = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+               (tex->m_Resource && params.m_MipMap < tex->m_Resource->GetDesc().MipLevels);
+    }
+
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);

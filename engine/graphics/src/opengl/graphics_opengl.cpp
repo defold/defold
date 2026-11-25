@@ -4771,6 +4771,7 @@ static void LogFrameBufferError(GLenum status)
 
                 attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
                 attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
+                attachment_tex->m_AllocatedMipMapMask = 1;
                 glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
@@ -5515,6 +5516,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         tex->m_Base.m_MipMapCount    = 0;
+        tex->m_AllocatedMipMapMask   = 0;
         tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&tex->m_Base.m_DataState, 0);
@@ -5738,6 +5740,14 @@ static void LogFrameBufferError(GLenum status)
         return HANDLE_RESULT_OK;
     }
 
+    static bool OpenGLIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return !params.m_SubUpdate || (tex->m_AllocatedMipMapMask & (1u << params.m_MipMap));
+    }
+
     static void OpenGLSetTexture(HContext _context, HTexture texture, const TextureParams& params)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -5792,6 +5802,12 @@ static void LogFrameBufferError(GLenum status)
         {
             if (params.m_MipMap == 0)
             {
+                // Old higher levels may no longer match the new base dimensions.
+                if (tex->m_Base.m_Width != params.m_Width || tex->m_Base.m_Height != params.m_Height)
+                {
+                    tex->m_AllocatedMipMapMask = 0;
+                }
+
                 tex->m_Base.m_Width  = params.m_Width;
                 tex->m_Base.m_Height = params.m_Height;
                 tex->m_Base.m_Depth  = params.m_Depth;
@@ -6024,6 +6040,11 @@ static void LogFrameBufferError(GLenum status)
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
+        }
+
+        if (!params.m_SubUpdate && params.m_MipMap < 16)
+        {
+            tex->m_AllocatedMipMapMask |= 1u << params.m_MipMap;
         }
     }
 
