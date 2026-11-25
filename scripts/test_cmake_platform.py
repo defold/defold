@@ -11,6 +11,11 @@ from pathlib import Path
 
 @unittest.skipUnless(shutil.which('cmake') and shutil.which('ninja'), 'CMake and Ninja are required')
 class PlatformLinkTests(unittest.TestCase):
+    def require_xcode(self):
+        if not shutil.which('xcodebuild') or subprocess.run(
+                ['xcodebuild', '-version'], capture_output=True).returncode:
+            self.skipTest('Xcode is required')
+
     def configure_project(self, root, generator='Ninja', **definitions):
         repository = Path(__file__).resolve().parent.parent
         build = root / 'build'
@@ -273,6 +278,63 @@ add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
                                          {commands[obj]['file'] for obj in noasan})
                     else:
                         self.assertEqual(normal, noasan, name)
+
+    # Xcode needs a compiled source on each static library to emit its archive.
+    def test_xcode_dlib_archives_have_compiled_sources(self):
+        self.require_xcode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_dlib_link_project(root)
+            result = self.configure_project(root, generator='Xcode', TARGET_PLATFORM='arm64-macos')
+            self.assertEqual(0, result.returncode, result.stdout)
+            for name in ('dlib', 'dlib_noasan', 'mbedtls', 'mbedtls_noasan'):
+                with self.subTest(target=name):
+                    self.assertTrue(self.read_target(root, name).get('compileGroups'))
+
+    # Generate the complete Xcode project to catch conflicting producers for shared test fixtures.
+    def test_xcode_engine_project_with_tests(self):
+        self.require_xcode()
+        sdk = os.environ.get('DYNAMO_HOME')
+        if not sdk:
+            self.skipTest('Run from the Defold build shell with the macOS SDK installed')
+        repository = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = subprocess.run([
+                'cmake', '-G', 'Xcode', '-S', str(repository), '-B', str(root / 'project'),
+                f'-DDEFOLD_BUILD_HOME={root}', f'-DDEFOLD_SDK_ROOT={sdk}',
+                f'-DTARGET_PLATFORM={os.uname().machine}-macos', '-DBUILD_TESTS=ON',
+            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+
+    # Xcode's Run Tests target must run each custom command once in its registered directory.
+    def test_xcode_run_tests_includes_custom_commands_once(self):
+        self.require_xcode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'record.cmake').write_text('file(APPEND ran.txt "${TEST_NAME}\\n")\n')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(custom_tests LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(name IN ITEMS first second)
+  set(command "${CMAKE_COMMAND}" "-DTEST_NAME=${name}" -P "${CMAKE_CURRENT_SOURCE_DIR}/record.cmake")
+  add_custom_target(run_${name} COMMAND ${command} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(options)
+  if(name STREQUAL "second")
+    set(options SEQUENTIAL_NAME second)
+  endif()
+  defold_add_to_run_tests(run_${name} ${options} COMMAND ${command} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endforeach()
+defold_finalize_xcode_run_tests()
+''')
+            result = self.configure_project(root, generator='Xcode', TARGET_PLATFORM='arm64-macos')
+            self.assertEqual(0, result.returncode, result.stdout)
+            result = subprocess.run(['cmake', '--build', str(root / 'build'), '--config', 'Debug', '--target', 'run_tests'],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+            self.assertEqual(['first', 'second'], (root / 'ran.txt').read_text().splitlines())
 
     # Keep the default build limited to the font tools used by each CI test suite.
     def test_font_tools_follow_enabled_test_suites(self):

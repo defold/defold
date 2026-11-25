@@ -288,6 +288,9 @@ add_custom_target(resource_test_data DEPENDS
   "${RESOURCE_TEST_BUILD_DIR}/somedata"
   "${RESOURCE_STATIC_TEST_STAMP}")
 
+add_custom_target(resource_test_archive_embeds DEPENDS ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+add_dependencies(resource_test_archive_embeds resource_test_data)
+
 function(resource_configure_test target run_test)
   set(_resource_exports ${ARGN})
   if(_resource_exports)
@@ -388,6 +391,7 @@ resource_configure_test(test_resource_chunk_cache ON ResourceProviderArchive)
 defold_add_executable(test_resource_archive
   "${RESOURCE_TEST_ROOT}/test_resource_archive.cpp"
   ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+add_dependencies(test_resource_archive resource_test_archive_embeds)
 resource_configure_test(test_resource_archive ON)
 defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
@@ -398,6 +402,7 @@ defold_add_executable(test_resource
   "${RESOURCE_TEST_ROOT}/test_resource.cpp"
   "${RESOURCE_TEST_PROTO_CPP}"
   ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+add_dependencies(test_resource resource_test_archive_embeds)
 target_include_directories(test_resource PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 resource_configure_test(test_resource ON ResourceProviderFile ResourceProviderArchive)
 defold_target_link_app(test_resource "${TARGET_PLATFORM}" SCOPE PRIVATE)
