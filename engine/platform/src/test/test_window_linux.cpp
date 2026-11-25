@@ -1154,6 +1154,27 @@ static void CheckMultisampleFallback(HWindow w, WindowsGraphicsApi api)
     EXPECT_GE(samples[2], samples[0]);
 }
 
+// A channel precision the driver cannot supply must still yield a usable GLX or EGL window.
+TEST(LinuxWindow, FramebufferPrecisionFallback)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_Hidden = true;
+    p.m_ContextAlphabits = 255;
+    const WindowsGraphicsApi apis[] = { WINDOW_GRAPHICS_API_OPENGL, WINDOW_GRAPHICS_API_OPENGLES };
+    for (unsigned i = 0; i < sizeof(apis) / sizeof(apis[0]); ++i)
+    {
+        p.m_GraphicsApi = apis[i];
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        EXPECT_GT(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_RED_BITS), 0u);
+        EXPECT_LT(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ALPHA_BITS), 255u);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // EGL must retain available multisampling for requests outside the driver's sample range.
 TEST(LinuxWindow, EGLMultisampleFallback)
 {

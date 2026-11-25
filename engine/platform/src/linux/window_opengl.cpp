@@ -101,6 +101,66 @@ namespace dmPlatform
         return false;
     }
 
+    static int ConfigAttribute(HWindow w, GLXFBConfig glx, EGLConfig egl, int glx_attr, int egl_attr)
+    {
+        int value = 0;
+        if (glx)
+        {
+            w->m_GL->m_glXGetFBConfigAttrib(w->m_Display, glx, glx_attr, &value);
+        }
+        else
+        {
+            w->m_GL->m_eglGetConfigAttrib(w->m_GL->m_EDisplay, egl, egl_attr, &value);
+        }
+
+        return value;
+    }
+
+    struct FormatScore
+    {
+        uint32_t m_MissingBits, m_SampleError;
+        bool     m_Pbuffer;
+    };
+
+    static FormatScore ScoreFormat(HWindow w, GLXFBConfig glx, EGLConfig egl, bool pbuffer)
+    {
+        // Bit depths are preferences. A 16-bit depth buffer or an RGB565 visual can still run the game.
+        const int channels[][3] = {
+            { GLX_RED_SIZE, EGL_RED_SIZE, 8 }, { GLX_GREEN_SIZE, EGL_GREEN_SIZE, 8 },
+            { GLX_BLUE_SIZE, EGL_BLUE_SIZE, 8 }, { GLX_ALPHA_SIZE, EGL_ALPHA_SIZE, w->m_Params.m_ContextAlphabits },
+            { GLX_DEPTH_SIZE, EGL_DEPTH_SIZE, 24 }, { GLX_STENCIL_SIZE, EGL_STENCIL_SIZE, 8 }
+        };
+        FormatScore score = {};
+        for (size_t i = 0; i < sizeof(channels) / sizeof(channels[0]); ++i)
+        {
+            int missing = channels[i][2] - ConfigAttribute(w, glx, egl, channels[i][0], channels[i][1]);
+            if (missing > 0)
+            {
+                score.m_MissingBits += missing;
+            }
+        }
+
+        int samples = ConfigAttribute(w, glx, egl, GLX_SAMPLES, EGL_SAMPLES);
+        score.m_SampleError = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
+        score.m_Pbuffer = pbuffer;
+        return score;
+    }
+
+    static bool BetterFormat(const FormatScore& candidate, const FormatScore& best)
+    {
+        if (candidate.m_MissingBits != best.m_MissingBits)
+        {
+            return candidate.m_MissingBits < best.m_MissingBits;
+        }
+
+        if (candidate.m_SampleError != best.m_SampleError)
+        {
+            return candidate.m_SampleError < best.m_SampleError;
+        }
+
+        return candidate.m_Pbuffer && !best.m_Pbuffer;
+    }
+
     static bool SelectGLX(HWindow w, VisualID* visual)
     {
         LinuxGL* g = w->m_GL;
@@ -115,9 +175,7 @@ namespace dmPlatform
         GLX_FUNCTIONS(LOAD)
 #undef LOAD
         int count = 0;
-        const int attrs[] = { GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT, GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_DOUBLEBUFFER, True,
-                              GLX_RED_SIZE, 8, GLX_GREEN_SIZE, 8, GLX_BLUE_SIZE, 8, GLX_ALPHA_SIZE, (int)w->m_Params.m_ContextAlphabits,
-                              GLX_DEPTH_SIZE, 24, GLX_STENCIL_SIZE, 8, None };
+        const int attrs[] = { GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT, GLX_RENDER_TYPE, GLX_RGBA_BIT, GLX_DOUBLEBUFFER, True, None };
         GLXFBConfig* configs = g->m_glXChooseFBConfig(w->m_Display, DefaultScreen(w->m_Display), attrs, &count);
         if (!configs || !count)
         {
@@ -125,27 +183,17 @@ namespace dmPlatform
             return false;
         }
 
-        g->m_XConfig = configs[0];
-        uint32_t best_error = UINT32_MAX;
-        bool best_pbuffer = false;
+        FormatScore best = { UINT32_MAX, UINT32_MAX, false };
         for (int i = 0; i < count; ++i)
         {
-            int samples, types = 0;
-            if (g->m_glXGetFBConfigAttrib(w->m_Display, configs[i], GLX_SAMPLES, &samples) != Success)
-            {
-                samples = 0;
-            }
-
+            int types = 0;
             g->m_glXGetFBConfigAttrib(w->m_Display, configs[i], GLX_DRAWABLE_TYPE, &types);
-            uint32_t error = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
-            bool pbuffer = (types & GLX_PBUFFER_BIT) != 0;
-            // For equally good sample counts prefer a format that can also host the shared upload context.
-            if (error < best_error || (error == best_error && pbuffer && !best_pbuffer))
+            FormatScore score = ScoreFormat(w, configs[i], 0, (types & GLX_PBUFFER_BIT) != 0);
+            if (BetterFormat(score, best))
             {
                 g->m_XConfig = configs[i];
-                best_error = error;
-                best_pbuffer = pbuffer;
-                if (!error && pbuffer)
+                best = score;
+                if (!best.m_MissingBits && !best.m_SampleError && best.m_Pbuffer)
                 {
                     break;
                 }
@@ -206,9 +254,8 @@ namespace dmPlatform
             g->m_EClient = dlopen("libGL.so.1", RTLD_LAZY | RTLD_LOCAL);
         }
 
-        const EGLint attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT,
-                        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, (int)w->m_Params.m_ContextAlphabits, EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8,
-                        EGL_NONE };
+        const EGLint attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
+                                 EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT, EGL_NONE };
         EGLint count = 0;
         if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, 0, 0, &count) || !count)
         {
@@ -222,32 +269,29 @@ namespace dmPlatform
             return false;
         }
 
-        // Preserve EGL's ordering for formats with equally suitable sample counts.
-        g->m_EConfig = configs.Begin()[0];
-        uint32_t best_error = UINT32_MAX;
-        for (EGLint i = 0; i < count && best_error; ++i)
+        FormatScore best = { UINT32_MAX, UINT32_MAX, false };
+        for (EGLint i = 0; i < count; ++i)
         {
-            EGLint samples;
             EGLConfig config = configs.Begin()[i];
-            if (g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_SAMPLES, &samples))
+            EGLint id = 0;
+            if (w->m_X11 && (!g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_NATIVE_VISUAL_ID, &id) || !id))
             {
-                uint32_t error = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
-                if (error < best_error)
+                continue;
+            }
+
+            FormatScore score = ScoreFormat(w, 0, config, false);
+            if (BetterFormat(score, best))
+            {
+                best = score;
+                g->m_EConfig = config;
+                *visual = id;
+                if (!best.m_MissingBits && !best.m_SampleError)
                 {
-                    best_error = error;
-                    g->m_EConfig = config;
+                    break;
                 }
             }
         }
-
-        int id = 0;
-        if (w->m_X11 && !g->m_eglGetConfigAttrib(g->m_EDisplay, g->m_EConfig, EGL_NATIVE_VISUAL_ID, &id))
-        {
-            return false;
-        }
-
-        *visual = id;
-        return true;
+        return g->m_EConfig != 0;
     }
 
     bool LinuxPrepareGL(HWindow w, VisualID* visual)
@@ -708,17 +752,7 @@ namespace dmPlatform
             }
         }
 
-        int value = 0;
-        if (g->m_XConfig)
-        {
-            g->m_glXGetFBConfigAttrib(w->m_Display, g->m_XConfig, gx, &value);
-        }
-        else
-        {
-            g->m_eglGetConfigAttrib(g->m_EDisplay, g->m_EConfig, eg, &value);
-        }
-
-        return value;
+        return ConfigAttribute(w, g->m_XConfig, g->m_EConfig, gx, eg);
     }
 
 }
