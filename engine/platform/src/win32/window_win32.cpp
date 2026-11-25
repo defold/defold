@@ -173,7 +173,11 @@ namespace dmPlatform
             }
             case WM_SETTINGCHANGE:
             {
-                WindowPlacementMonitorsChanged();
+                if (wp == SPI_SETWORKAREA)
+                {
+                    WindowPlacementMonitorsChanged();
+                }
+
                 break;
             }
             case WM_SETFOCUS:

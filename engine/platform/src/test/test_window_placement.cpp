@@ -214,6 +214,34 @@ TEST_F(WindowPlacementTest, NativeWindowIdentity)
     ASSERT_EQ(0U, identity.m_Id);
 }
 
+#if defined(_WIN32)
+// Wallpaper changes must preserve a player's position while a work-area change brings it back on screen.
+TEST_F(WindowPlacementTest, OnlyWorkAreaSettingsClampPosition)
+{
+    OpenAndShow();
+    HWND hwnd = dmPlatform::GetWindowsHWND(m_Window);
+    MONITORINFO monitor = {};
+    monitor.cbSize = sizeof(monitor);
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor));
+    const int x = monitor.rcWork.left - 64;
+    const int y = monitor.rcWork.top + 80;
+    SetPosition(x, y);
+
+    SendMessageW(hwnd, WM_SETTINGCHANGE, SPI_SETDESKWALLPAPER, 0);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    int actual_x, actual_y;
+    dmWindowTest::Position(m_Window, &actual_x, &actual_y);
+    EXPECT_EQ(x, actual_x);
+    EXPECT_EQ(y, actual_y);
+
+    SendMessageW(hwnd, WM_SETTINGCHANGE, SPI_SETWORKAREA, 0);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowTest::Position(m_Window, &actual_x, &actual_y);
+    EXPECT_GE(actual_x, monitor.rcWork.left);
+    EXPECT_EQ(y, actual_y);
+}
+#endif
+
 // Client metrics must use native setter units, independently of high-DPI drawable dimensions.
 TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
 {
