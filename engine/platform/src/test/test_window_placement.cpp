@@ -354,6 +354,43 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
     ASSERT_EQ(expected.m_Height, height);
 }
 
+#if defined(__linux__)
+// Restored drawable dimensions are available during startup, but resize callbacks require an initialized renderer.
+TEST_F(WindowPlacementTest, DeferredRestoreResize)
+{
+    dmWindowState::State saved = {};
+    saved.m_ConfigWidth = m_Params.m_Width;
+    saved.m_ConfigHeight = m_Params.m_Height;
+    saved.m_Rect = { 0, 0, 501, 351 };
+    saved.m_Monitor.m_WorkArea = { 0, 0, 1280, 1024 };
+    saved.m_Monitor.m_ScaleX = saved.m_Monitor.m_ScaleY = 1;
+    ASSERT_TRUE(dmWindowState::Save(m_Path, saved));
+    m_Params.m_ResizeCallback = OnResize;
+    m_Params.m_ResizeCallbackUserData = &m_ResizeEvents;
+    m_ResizeEvents.m_Count = 0;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    uint32_t width, height;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    EXPECT_EQ(501u, width);
+    EXPECT_EQ(351u, height);
+    EXPECT_EQ(0u, m_ResizeEvents.m_Count);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+    EXPECT_EQ(WindowGetWidth(m_Window), m_ResizeEvents.m_Width);
+    EXPECT_EQ(WindowGetHeight(m_Window), m_ResizeEvents.m_Height);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+
+    dmPlatform::CloseWindow(m_Window);
+    m_ResizeEvents.m_Count = 0;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    WindowSetSize(m_Window, 480, 320);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+    EXPECT_EQ(WindowGetWidth(m_Window), m_ResizeEvents.m_Width);
+}
+#endif
+
 // Verifies repeated launches preserve size and position on secondary monitors, including mixed DPI.
 TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
 {

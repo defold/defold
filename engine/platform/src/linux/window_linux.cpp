@@ -178,12 +178,15 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        w->m_Open = true;
         if (!params.m_Fullscreen)
         {
+            int width = w->m_PixelWidth, height = w->m_PixelHeight;
             RestoreWindowPlacement(w);
+            w->m_PendingRestoreResize = width != w->m_PixelWidth || height != w->m_PixelHeight;
         }
 
+        w->m_ResizeCallbackCount = 0;
+        w->m_Open = true;
         SetSwapInterval(w, 1);
         return WINDOW_RESULT_OK;
     }
@@ -198,6 +201,7 @@ namespace dmPlatform
         UpdateWindowPlacement(w, true);
         DeleteWindowPlacement(w);
         w->m_Open = false;
+        w->m_PendingRestoreResize = false;
         LinuxCloseGL(w);
         w->m_Ops->m_Close(w);
         w->m_Locked = w->m_Focused = w->m_Iconified = w->m_Shown = w->m_Maximized = w->m_LinkCursor = false;
@@ -219,6 +223,15 @@ namespace dmPlatform
             if (pthread_equal(current->m_EventThread, thread))
             {
                 current->m_Ops->m_Poll(current);
+                if (current->m_PendingRestoreResize)
+                {
+                    current->m_PendingRestoreResize = false;
+                    // A resize already delivered since open includes the current drawable dimensions.
+                    if (!current->m_ResizeCallbackCount)
+                    {
+                        NotifyWindowResize(current, current->m_Params, current->m_ResizeCallbackCount);
+                    }
+                }
                 UpdateWindowPlacement(current, false);
             }
         }

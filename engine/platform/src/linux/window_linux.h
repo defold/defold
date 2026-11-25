@@ -49,6 +49,7 @@ struct dmWindow
     double                         m_MouseX, m_MouseY, m_Wheel;
     unsigned char                  m_Keys[349], m_Buttons[8];
     bool                           m_Open, m_Shown, m_Focused, m_Iconified, m_Maximized, m_Locked, m_LinkCursor;
+    bool                           m_PendingRestoreResize;
 };
 
 struct LinuxWindowOps

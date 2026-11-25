@@ -54,6 +54,7 @@ struct LinuxX11
     int           m_WarpX, m_WarpY;
     unsigned long m_GrabSerial, m_WarpSerial;
     unsigned long m_ConfigureSerial;
+    unsigned long m_SizeReadSerial;
     int           m_RequestX, m_RequestY;
     bool          m_RequestIsSize, m_ClampAfterResize;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
@@ -906,7 +907,10 @@ namespace dmPlatform
                 }
                 case ConfigureNotify:
                 {
-                    ReportSize(w, e.xconfigure.width, e.xconfigure.height, e.xconfigure.serial, e.xconfigure.send_event);
+                    if (e.xconfigure.serial >= x->m_SizeReadSerial)
+                    {
+                        ReportSize(w, e.xconfigure.width, e.xconfigure.height, e.xconfigure.serial, e.xconfigure.send_event);
+                    }
                     if (x->m_ConfigureSerial && e.xconfigure.serial >= x->m_ConfigureSerial)
                     {
                         CompleteGeometryRequest(w);
@@ -1219,6 +1223,8 @@ namespace dmPlatform
             XResizeWindow(w->m_Display, w->m_Xid, width, height);
             attributes.override_redirect = False;
             XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
+            // The synchronous read includes all earlier ConfigureNotify events, including placement restoration.
+            w->m_X11->m_SizeReadSerial = NextRequest(w->m_Display);
             X11ReadSize(w);
             return;
         }
