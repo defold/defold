@@ -94,14 +94,18 @@ static int add_egl_alpha_attrib(EglAttribSetting* buffer, int size, int offset)
 
 static int add_egl_depth_attrib(EglAttribSetting* buffer, int size, int offset)
 {
-    const EglAttribSetting depth = {EGL_DEPTH_SIZE, 16};
+    const EglAttribSetting depth = {
+        EGL_DEPTH_SIZE, dmNativeWin.depthBits ? 16 : 0
+    };
     return add_egl_attrib(buffer, size, offset, &depth);
 }
 
 static int add_egl_stencil_attrib(EglAttribSetting* buffer, int size, int offset)
 {
     // TODO: Tegra support.
-    const EglAttribSetting stencil = {EGL_STENCIL_SIZE, 8};
+    const EglAttribSetting stencil = {
+        EGL_STENCIL_SIZE, dmNativeWin.stencilBits
+    };
     return add_egl_attrib(buffer, size, offset, &stencil);
 }
 
@@ -148,7 +152,7 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
 
     eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
     CHECK_EGL_ERROR
-    if (0 == result)
+    if (0 == result && dmNativeWin.stencilBits)
     {
         // Something along this sort of line when adding Tegra support?
         LOGV("egl config choice failed - removing stencil");

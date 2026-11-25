@@ -200,6 +200,7 @@ typedef enum WindowState
  * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
  * @member m_PrintDeviceInfo [type:uint8_t:1] Print graphics device information when opening the window
  * @member m_HighDPI [type:uint8_t:1] Request high-DPI framebuffer support where available
+ * @member m_DisableDepthStencil [type:uint8_t:1] Request a window framebuffer without depth or stencil (default: 0)
  * @member m_FocusOnShow [type:uint8_t:1] Focus the window when shown on desktop platforms (default: 1)
  */
 typedef struct WindowCreateParams
@@ -227,7 +228,8 @@ typedef struct WindowCreateParams
     uint8_t                 m_PrintDeviceInfo           : 1;
     uint8_t                 m_HighDPI                   : 1;
     uint8_t                 m_FocusOnShow               : 1;
-    uint8_t                                             : 3;
+    uint8_t                 m_DisableDepthStencil       : 1;
+    uint8_t                                             : 2;
 } WindowCreateParams;
 
 /*# initialize window parameters

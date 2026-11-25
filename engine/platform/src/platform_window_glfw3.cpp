@@ -258,6 +258,12 @@ namespace dmPlatform
 
     static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
+        if (params.m_DisableDepthStencil)
+        {
+            glfwWindowHint(GLFW_DEPTH_BITS, 0);
+            glfwWindowHint(GLFW_STENCIL_BITS, 0);
+        }
+
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
         WindowModeParams mode_params = GetWindowModeParams(params);
 
