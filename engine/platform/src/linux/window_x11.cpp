@@ -1056,6 +1056,13 @@ namespace dmPlatform
         XSizeHints hints = {};
         hints.flags = PWinGravity;
         hints.win_gravity = StaticGravity;
+        if (w->m_Params.m_Fullscreen)
+        {
+            // Window managers use PPosition to honor the primary output's origin when first mapping a fullscreen game.
+            hints.flags |= PPosition;
+            hints.x = left;
+            hints.y = top;
+        }
         XSetWMNormalHints(d, w->m_Xid, &hints);
         const char* title = w->m_Params.m_Title;
         const char* resource = getenv("RESOURCE_NAME");

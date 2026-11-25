@@ -243,6 +243,29 @@ TEST(LinuxWindow, X11FocusWithoutWindowManager)
     dmPlatform::DeleteWindow(w);
 }
 
+// A fullscreen game must publish its program-selected position before the window manager chooses a monitor.
+TEST(LinuxWindow, X11FullscreenPositionHint)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_X11)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_Fullscreen = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    XSizeHints hints = {};
+    long supplied;
+    ASSERT_TRUE(XGetWMNormalHints(w->m_Display, w->m_Xid, &hints, &supplied));
+    EXPECT_TRUE(hints.flags & PPosition);
+    dmPlatform::DeleteWindow(w);
+}
+
 // Window managers match game launchers by the initial title and the optional X resource instance.
 TEST(LinuxWindow, X11WindowClass)
 {
