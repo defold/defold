@@ -45,6 +45,7 @@ namespace dmPlatform
 
     void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused);
     void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params);
+    void NotifyWindowResize(HWindow window, const WindowCreateParams& params, uint32_t& resize_count);
 
     HWindow        NewWindow();
     void           DeleteWindow(HWindow window);

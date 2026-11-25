@@ -46,7 +46,7 @@ struct dmWindow
     dmPlatform::WindowFocusState m_Focus;
     HWindow             m_Next;
     POINT               m_SavedCursor, m_VirtualCursor, m_LastCursor;
-    uint32_t            m_Width, m_Height, m_Samples;
+    uint32_t            m_Width, m_Height, m_Samples, m_ResizeCallbackCount;
     float               m_Scale, m_LastResizeScale;
     double              m_Wheel;
     uint16_t            m_HighSurrogate;

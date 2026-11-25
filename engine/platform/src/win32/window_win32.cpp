@@ -69,9 +69,9 @@ namespace dmPlatform
         window->m_Height = rect.bottom;
         window->m_LastResizeScale = window->m_Scale;
         WindowPlacementChanged(window);
-        if (changed && notify && window->m_Ready && window->m_Params.m_ResizeCallback)
+        if (changed && notify && window->m_Ready)
         {
-            window->m_Params.m_ResizeCallback(window->m_Params.m_ResizeCallbackUserData, rect.right, rect.bottom);
+            NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
         }
     }
 
@@ -455,9 +455,14 @@ namespace dmPlatform
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
+        const uint32_t count = window->m_ResizeCallbackCount;
         WindowPlacementSizeRequested(window);
         ApplyPlacementSize(window, width, height);
         ClampWindowPlacement(window);
+        if (window->m_Ready && window->m_ResizeCallbackCount == count)
+        {
+            NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
+        }
     }
 
     void SetWindowPosition(HWindow window, int32_t x, int32_t y)

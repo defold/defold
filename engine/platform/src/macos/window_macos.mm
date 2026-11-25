@@ -318,10 +318,7 @@ namespace dmPlatform
         if (changed && notify && window->m_Ready)
         {
             WindowPlacementChanged(window);
-            if (window->m_Params.m_ResizeCallback)
-            {
-                window->m_Params.m_ResizeCallback(window->m_Params.m_ResizeCallbackUserData, drawable.width, drawable.height);
-            }
+            NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
         }
     }
 
@@ -502,10 +499,15 @@ namespace dmPlatform
     {
         @autoreleasepool
         {
+            const uint32_t count = window->m_ResizeCallbackCount;
             WindowPlacementSizeRequested(window);
             [window->m_Window setContentSize:NSMakeSize(width, height)];
             ClampWindowPlacement(window);
             UpdateWindowMetrics(window, true);
+            if (window->m_Ready && window->m_ResizeCallbackCount == count)
+            {
+                NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
+            }
         }
     }
 

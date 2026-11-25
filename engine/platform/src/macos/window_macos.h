@@ -49,6 +49,7 @@ struct dmWindow
     NSSize                         m_ClientSize;
     NSSize                         m_DrawableSize;
     CGFloat                        m_Scale;
+    uint32_t                       m_ResizeCallbackCount;
     uint8_t                        m_Keys[349];
     uint8_t                        m_Buttons[8];
     bool                           m_CursorLocked;

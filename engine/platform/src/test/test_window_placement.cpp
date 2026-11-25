@@ -53,6 +53,18 @@ protected:
     char* m_PreviousEnvironment;
     char m_Path[DMPATH_MAX_PATH];
     WindowCreateParams m_Params;
+    struct ResizeEvents
+    {
+        uint32_t m_Count, m_Width, m_Height;
+    } m_ResizeEvents;
+
+    static void OnResize(void* data, uint32_t width, uint32_t height)
+    {
+        ResizeEvents* events = (ResizeEvents*)data;
+        ++events->m_Count;
+        events->m_Width = width;
+        events->m_Height = height;
+    }
 
     void SetUp()
     {
@@ -269,6 +281,38 @@ TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
     ASSERT_EQ(351U, height);
     ASSERT_EQ((uint32_t)drawable_width, dmPlatform::GetWindowWidth(m_Window));
     ASSERT_EQ((uint32_t)drawable_height, dmPlatform::GetWindowHeight(m_Window));
+}
+
+// An explicit resize reports drawable pixels once, including when the client already has the requested size.
+TEST_F(WindowPlacementTest, ExplicitResizeCallback)
+{
+    ResizeEvents& events = m_ResizeEvents;
+    events.m_Count = 0;
+    m_Params.m_HighDPI = true;
+    m_Params.m_ResizeCallback = OnResize;
+    m_Params.m_ResizeCallbackUserData = &events;
+    OpenAndShow();
+    uint32_t width, height;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    events.m_Count = 0;
+    WindowSetSize(m_Window, width + 17, height + 11);
+    const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!events.m_Count && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(m_Window);
+    }
+
+    ASSERT_EQ(1u, events.m_Count);
+    EXPECT_EQ(WindowGetWidth(m_Window), events.m_Width);
+    EXPECT_EQ(WindowGetHeight(m_Window), events.m_Height);
+
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    WindowSetSize(m_Window, width, height);
+    ASSERT_EQ(2u, events.m_Count);
+    EXPECT_EQ(WindowGetWidth(m_Window), events.m_Width);
+    EXPECT_EQ(WindowGetHeight(m_Window), events.m_Height);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(2u, events.m_Count);
 }
 
 // Verifies close captures the actual geometry and X11 restoration preserves the requested position.

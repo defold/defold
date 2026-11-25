@@ -97,9 +97,9 @@ namespace dmPlatform
 
         LinuxResizeGL(w);
         WindowPlacementChanged(w);
-        if (w->m_Open && w->m_Params.m_ResizeCallback)
+        if (w->m_Open)
         {
-            w->m_Params.m_ResizeCallback(w->m_Params.m_ResizeCallbackUserData, pixels_x, pixels_y);
+            NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
         }
     }
 
@@ -263,8 +263,15 @@ namespace dmPlatform
             return;
         }
 
+        const bool same_size = width == (uint32_t)w->m_Width && height == (uint32_t)w->m_Height;
+        const uint32_t count = w->m_ResizeCallbackCount;
         WindowPlacementSizeRequested(w);
         w->m_Ops->m_Size(w, width, height);
+        // A new X11 size is reported asynchronously when the window manager applies it.
+        if (same_size && w->m_ResizeCallbackCount == count)
+        {
+            NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+        }
     }
 
     void SetWindowPosition(HWindow w, int32_t x, int32_t y)

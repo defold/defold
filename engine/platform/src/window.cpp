@@ -19,6 +19,15 @@
 
 namespace dmPlatform
 {
+    void NotifyWindowResize(HWindow window, const WindowCreateParams& params, uint32_t& resize_count)
+    {
+        if (params.m_ResizeCallback)
+        {
+            ++resize_count;
+            params.m_ResizeCallback(params.m_ResizeCallbackUserData, GetWindowWidth(window), GetWindowHeight(window));
+        }
+    }
+
     void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params)
     {
         state.m_DispatchEnabled = true;
