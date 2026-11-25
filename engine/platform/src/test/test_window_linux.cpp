@@ -23,6 +23,7 @@
 #include <dlib/math.h>
 #include <dlib/time.h>
 #include <GL/glext.h>
+#include <GL/glxext.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <X11/XKBlib.h>
@@ -37,10 +38,43 @@
 #include <string.h>
 #include <pthread.h>
 
+static bool g_TestHardwareRenderer;
+static __typeof__(&glXGetProcAddressARB) g_GLXGetProcAddress;
+
+static Bool QueryAcceleratedGLXRenderer(int attribute, unsigned* value)
+{
+    *value = 1;
+    return attribute == GLX_RENDERER_ACCELERATED_MESA;
+}
+
+static __GLXextFuncPtr GLXProcAddress(const GLubyte* name)
+{
+    if (g_TestHardwareRenderer && !strcmp((const char*)name, "glXQueryCurrentRendererIntegerMESA"))
+    {
+        return (__GLXextFuncPtr)QueryAcceleratedGLXRenderer;
+    }
+
+    return g_GLXGetProcAddress(name);
+}
+
+static const char* EGLAPIENTRY HardwareDeviceString(EGLDeviceEXT, EGLint attribute)
+{
+    if (attribute == EGL_EXTENSIONS)
+    {
+        return "EGL_EXT_device_drm";
+    }
+
+    return attribute == EGL_DRM_DEVICE_FILE_EXT ? "/dev/dri/card0" : 0;
+}
+
 // Exercise EGL 1.4 drivers that export core GL functions only from their client library.
 static PFNEGLGETPROCADDRESSPROC g_EGLGetProcAddress;
 static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress(const char* name)
 {
+    if (g_TestHardwareRenderer && !strcmp(name, "eglQueryDeviceStringEXT"))
+    {
+        return (__eglMustCastToProperFunctionPointerType)HardwareDeviceString;
+    }
     return strcmp(name, "glGenTextures") ? g_EGLGetProcAddress(name) : 0;
 }
 
@@ -126,6 +160,12 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
     }
 
     void* symbol = __real_dlsym(handle, name);
+    if (symbol && g_TestHardwareRenderer && !strcmp(name, "glXGetProcAddressARB"))
+    {
+        g_GLXGetProcAddress = (__typeof__(g_GLXGetProcAddress))symbol;
+        return (void*)GLXProcAddress;
+    }
+
     if (symbol && !strcmp(name, "eglGetProcAddress"))
     {
         g_EGLGetProcAddress = (PFNEGLGETPROCADDRESSPROC)symbol;
@@ -983,6 +1023,7 @@ TEST(LinuxWindow, WaylandOpaqueEGLFallback)
     g_NoEGLExtensions = false;
     ASSERT_EQ(WINDOW_RESULT_OK, result);
     EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ALPHA_BITS));
+    EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ACCELERATED));
     dmPlatform::DeleteWindow(w);
 }
 
@@ -1708,6 +1749,37 @@ static void CheckDrawableSize(HWindow w, uint32_t client_width, uint32_t client_
     float scale = w->m_Wayland ? dmPlatform::GetDisplayScaleFactor(w) : 1.0f;
     EXPECT_EQ((uint32_t)lround(client_width * scale), dmPlatform::GetWindowWidth(w));
     EXPECT_EQ((uint32_t)lround(client_height * scale), dmPlatform::GetWindowHeight(w));
+}
+
+// Software contexts report zero. A driver-confirmed GPU keeps its own result when another window becomes current.
+TEST(LinuxWindow, RendererAcceleration)
+{
+    const char* driver = getenv("GALLIUM_DRIVER");
+    if (!driver || strcmp(driver, "llvmpipe"))
+    {
+        SKIP();
+    }
+
+    const WindowsGraphicsApi apis[] = { WINDOW_GRAPHICS_API_OPENGL, WINDOW_GRAPHICS_API_OPENGLES };
+    WindowCreateParams params = Params();
+    params.m_Hidden = true;
+    for (unsigned i = 0; i < sizeof(apis) / sizeof(apis[0]); ++i)
+    {
+        params.m_GraphicsApi = apis[i];
+        HWindow hardware = dmPlatform::NewWindow();
+        HWindow software = dmPlatform::NewWindow();
+        ASSERT_NE((HWindow)0, hardware);
+        ASSERT_NE((HWindow)0, software);
+        g_TestHardwareRenderer = true;
+        WindowResult result = dmPlatform::OpenWindow(hardware, params);
+        g_TestHardwareRenderer = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, result);
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(software, params));
+        EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(software, WINDOW_STATE_ACCELERATED));
+        EXPECT_EQ(1u, dmPlatform::GetWindowStateParam(hardware, WINDOW_STATE_ACCELERATED));
+        dmPlatform::DeleteWindow(software);
+        dmPlatform::DeleteWindow(hardware);
+    }
 }
 
 // A texture uploaded on the resource worker must be readable by the render context after resize and reopen.

@@ -27,6 +27,14 @@
 #ifndef EGL_PRESENT_OPAQUE_EXT
 #define EGL_PRESENT_OPAQUE_EXT 0x31DF
 #endif
+#ifndef EGL_DRM_RENDER_NODE_FILE_EXT
+#define EGL_DRM_RENDER_NODE_FILE_EXT 0x3377
+#endif
+#ifndef EGL_DEVICE_TYPE_EXT
+#define EGL_DEVICE_TYPE_EXT 0x3590
+#define EGL_DEVICE_TYPE_INTEGRATED_GPU_EXT 0x3592
+#define EGL_DEVICE_TYPE_DISCRETE_GPU_EXT 0x3593
+#endif
 
 #define GLX_FUNCTIONS(F) \
     F(glXChooseFBConfig) \
@@ -80,7 +88,7 @@ struct LinuxGL
     EGLContext m_EMain, m_EAux;
     EGLSurface m_ESurface, m_EPbuffer;
     EGLenum    m_Api;
-    bool       m_PresentOpaque;
+    bool       m_PresentOpaque, m_Accelerated;
 };
 
 namespace dmPlatform
@@ -456,7 +464,54 @@ namespace dmPlatform
                 dmLogError("GLX failed to %s for the default OpenGL context: %s", operation, detail);
             }
         }
+        else if (Extension(g->m_glXQueryExtensionsString(d, DefaultScreen(d)), "GLX_MESA_query_renderer"))
+        {
+            // This query describes the current context. Keep its answer with the window that owns it.
+            PFNGLXQUERYCURRENTRENDERERINTEGERMESAPROC query = (PFNGLXQUERYCURRENTRENDERERINTEGERMESAPROC)
+                                                              g->m_glXGetProcAddressARB((const GLubyte*)"glXQueryCurrentRendererIntegerMESA");
+            unsigned int accelerated = 0;
+            g->m_Accelerated = query && query(GLX_RENDERER_ACCELERATED_MESA, &accelerated) && accelerated;
+        }
+
         return ok;
+    }
+
+    static bool EGLRendererAccelerated(LinuxGL* g)
+    {
+        const char* extensions = g->m_eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+        if (!Extension(extensions, "EGL_EXT_device_query") && !Extension(extensions, "EGL_EXT_device_base"))
+        {
+            return false;
+        }
+
+        PFNEGLQUERYDISPLAYATTRIBEXTPROC query_display = (PFNEGLQUERYDISPLAYATTRIBEXTPROC)g->m_eglGetProcAddress("eglQueryDisplayAttribEXT");
+        PFNEGLQUERYDEVICESTRINGEXTPROC query_string = (PFNEGLQUERYDEVICESTRINGEXTPROC)g->m_eglGetProcAddress("eglQueryDeviceStringEXT");
+        EGLAttrib value = 0;
+        if (!query_display || !query_string || !query_display(g->m_EDisplay, EGL_DEVICE_EXT, &value) || !value)
+        {
+            return false;
+        }
+
+        EGLDeviceEXT device = (EGLDeviceEXT)value;
+        const char* device_extensions = query_string(device, EGL_EXTENSIONS);
+        if (Extension(device_extensions, "EGL_EXT_device_type"))
+        {
+            PFNEGLQUERYDEVICEATTRIBEXTPROC query = (PFNEGLQUERYDEVICEATTRIBEXTPROC)g->m_eglGetProcAddress("eglQueryDeviceAttribEXT");
+            EGLAttrib type = 0;
+            if (query && query(device, EGL_DEVICE_TYPE_EXT, &type))
+            {
+                return type == EGL_DEVICE_TYPE_INTEGRATED_GPU_EXT || type == EGL_DEVICE_TYPE_DISCRETE_GPU_EXT;
+            }
+        }
+
+        // Older Linux drivers can identify a hardware device by its DRM node.
+        if (Extension(device_extensions, "EGL_MESA_device_software"))
+        {
+            return false;
+        }
+
+        return (Extension(device_extensions, "EGL_EXT_device_drm_render_node") && query_string(device, EGL_DRM_RENDER_NODE_FILE_EXT)) ||
+               (Extension(device_extensions, "EGL_EXT_device_drm") && query_string(device, EGL_DRM_DEVICE_FILE_EXT));
     }
 
     bool LinuxOpenGL(HWindow w)
@@ -536,6 +591,7 @@ namespace dmPlatform
             return EGLFailure(g, "eglMakeCurrent", major, minor);
         }
 
+        g->m_Accelerated = EGLRendererAccelerated(g);
         int pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
         g->m_EPbuffer = g->m_eglCreatePbufferSurface(g->m_EDisplay, g->m_EConfig, pbuffer);
         if (g->m_EPbuffer || Extension(extensions, "EGL_KHR_surfaceless_context"))
@@ -779,7 +835,7 @@ namespace dmPlatform
             }
             case WINDOW_STATE_ACCELERATED:
             {
-                return 1;
+                return g->m_Accelerated;
             }
             case WINDOW_STATE_RED_BITS:
             {
