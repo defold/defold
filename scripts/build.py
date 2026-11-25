@@ -34,6 +34,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
+from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
@@ -335,6 +336,18 @@ SDK_EXCLUDED_LIBS = {
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
+
+EXT_PYTHON_PACKAGES = [
+    'Markdown==3.3.7',
+    'Pygments==2.12.0',
+    'Pillow==11.3.0',
+    'boto3==1.36.3',
+    'protobuf==7.35.1',
+    'PyYAML==6.0.3',
+    'pystache==0.6.8',
+    'rangehttpserver==1.4.0',
+    'requests==2.34.2',
+]
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -958,25 +971,27 @@ class Configuration(object):
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
 
+    def _python_package_install_command(self, packages, target):
+        wheelhouse = join(self.defold_root, 'packages', 'python')
+        return self.get_python() + [
+            '-m', 'pip',
+            '-q', '-q',
+            'install',
+            '--no-index',
+            '--find-links', wheelhouse,
+            '--only-binary', ':all:',
+            '--upgrade',
+            '--no-compile',
+            '-t', target,
+        ] + packages
+
     def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
-        wheelhouse = join(self.defold_root, 'packages', 'python')
         self._mkdirs(target)
-
         if packages:
             if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
                 self.tool_checks.invalidate('Python Protobuf')
-            run.env_command(self._form_env(), self.get_python() + [
-                '-m', 'pip',
-                '-q', '-q',
-                'install',
-                '--no-index',
-                '--find-links', wheelhouse,
-                '--only-binary', ':all:',
-                '--upgrade',
-                '--no-compile',
-                '-t', target,
-            ] + packages)
+            run.env_command(self._form_env(), self._python_package_install_command(packages, target))
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -987,10 +1002,50 @@ class Configuration(object):
                 'PyYAML==6.0.3',
             ])
 
-    def install_ext(self):
-        self.install_ext_packages()
+    def install_ext(self, *, install_sdk=False):
+        self.install_ext_packages(install_sdk=install_sdk)
         with self.build_tracker.measure_step('Source dependencies'):
             self.build_ext()
+
+    def install_ext_packages(self, *, install_sdk=False):
+        self.check_python()
+        self.check_tar()
+        target = abspath(join(self.ext, 'lib', 'python'))
+        self._log("Installing Python wheels in parallel with dependency setup")
+        # Stage wheel files outside ext so archives and pip can never write to the same paths.
+        with tempfile.TemporaryDirectory(prefix='python-wheels-', dir=abspath(self.dynamo_home)) as staging:
+            env = self._form_env()
+            command = self._python_package_install_command(EXT_PYTHON_PACKAGES, staging)
+
+            def install_wheels():
+                started = time.perf_counter()
+                # SDK extraction temporarily changes the parent process's working directory.
+                run.env_command(env, command, cwd=self.defold_root)
+                return time.perf_counter() - started
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                wheels = executor.submit(install_wheels)
+                if install_sdk:
+                    with self.build_tracker.measure_step('SDK installation'):
+                        self.install_sdk()
+                self._install_ext_package_files()
+                self.build_tracker.record_step_time('Python wheels', wheels.result())
+
+            with self.build_tracker.measure_step('Python wheels'):
+                self._mkdirs(target)
+                self.tool_checks.invalidate('Python Protobuf')
+                for name in os.listdir(staging):
+                    destination = join(target, name)
+                    # Match pip --target --upgrade when replacing an existing entry.
+                    if os.path.exists(destination):
+                        if os.path.islink(destination):
+                            self._warn(f"Target directory {destination} is a link and will be kept")
+                            continue
+                        if os.path.isdir(destination):
+                            shutil.rmtree(destination)
+                        else:
+                            os.remove(destination)
+                    shutil.move(join(staging, name), destination)
 
     def _install_files(self, title, files, *, extract=False):
         total = len(files)
@@ -1026,10 +1081,7 @@ class Configuration(object):
             if progress is not None:
                 progress.end_line()
 
-    def install_ext_packages(self):
-        self.check_python()
-        self.check_tar()
-
+    def _install_ext_package_files(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
 
@@ -1089,20 +1141,6 @@ class Configuration(object):
 
         with self.build_tracker.measure_step('Package extraction'):
             self._install_files('Installing packages', archives, extract=True)
-
-        print("Installing python wheels")
-        with self.build_tracker.measure_step('Python wheels'):
-            self._install_python_packages([
-                'Markdown==3.3.7',
-                'Pygments==2.12.0',
-                'Pillow==11.3.0',
-                'boto3==1.36.3',
-                'protobuf==7.35.1',
-                'PyYAML==6.0.3',
-                'pystache==0.6.8',
-                'rangehttpserver==1.4.0',
-                'requests==2.34.2',
-            ])
 
         share_dir = join(self.dynamo_home, 'share')
         javascript_files = [
@@ -4054,14 +4092,21 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
                 c.fatal(msg)
 
     quiet_sdk_check = args == ['check_sdk'] and not c.verbose
-    for cmd in args:
+    package_commands = ('install_ext', 'install_ext_packages')
+    for index, cmd in enumerate(args):
+        # Run adjacent SDK and package setup together so the wheel install can overlap both.
+        if cmd == 'install_sdk' and index + 1 < len(args) and args[index + 1] in package_commands:
+            continue
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
             if not quiet_sdk_check:
                 c.build_tracker.start_command(cmd)
-            f()
+            if cmd in package_commands and index > 0 and args[index - 1] == 'install_sdk':
+                f(install_sdk=True)
+            else:
+                f()
             c.wait_uploads()
             if not quiet_sdk_check:
                 c.build_tracker.end_command(cmd)

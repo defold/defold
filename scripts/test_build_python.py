@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from threading import Event
 import unittest
 from unittest import mock
 import zipfile
@@ -122,6 +123,78 @@ class PythonProtobufTests(unittest.TestCase):
             self.assertEqual(2, sum('-S' in call.args[1] for call in command.call_args_list))
         self.assertEqual(self.protobuf_version, info['version'])
         self.assertTrue(Path(info['path']).is_relative_to(self.packages))
+
+
+class ExternalPackagesTests(unittest.TestCase):
+    def setUp(self):
+        directory = self.enterContext(tempfile.TemporaryDirectory(prefix='external packages '))
+        self.configuration = build.Configuration(dynamo_home=directory, target_platform=build.get_host_platform(),
+                                                 no_colors=True)
+        self.python_packages = Path(self.configuration.ext) / 'lib/python'
+        self.configuration._form_env = lambda: os.environ.copy()
+        self.configuration._log = lambda message: None
+        self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+        self.install_sdk = self.enterContext(mock.patch.object(self.configuration, 'install_sdk'))
+        self.install_files = self.enterContext(mock.patch.object(self.configuration, '_install_files'))
+        self.enterContext(mock.patch.object(self.configuration, 'check_tar'))
+
+    # Default package setup overlaps pip with archive extraction and any requested SDK install.
+    def test_setup_overlaps_wheels_with_sdk_and_archives(self):
+        wheels_started = Event()
+        archives_extracted = Event()
+        wheels_finished = Event()
+
+        def install_wheels(env, command, *, cwd):
+            self.assertEqual(self.configuration.defold_root, cwd)
+            self.assertIn('--no-index', command)
+            self.assertEqual(build.EXT_PYTHON_PACKAGES, command[-len(build.EXT_PYTHON_PACKAGES):])
+            staging = Path(command[command.index('-t') + 1])
+            (staging / 'example').mkdir()
+            (staging / 'example/source').write_text('wheel')
+            wheels_started.set()
+            self.assertTrue(archives_extracted.wait(10))
+            wheels_finished.set()
+
+        def install_files(title, files, *, extract=False):
+            if extract:
+                self.assertTrue(wheels_started.wait(10))
+                self.assertFalse(wheels_finished.is_set())
+                self.assertFalse((self.python_packages / 'example').exists())
+                (self.python_packages / 'example').mkdir()
+                (self.python_packages / 'example/source').write_text('archive')
+                (self.python_packages / 'other').write_text('keep')
+                archives_extracted.set()
+
+        self.install_sdk.side_effect = lambda: self.assertTrue(wheels_started.wait(10))
+        self.install_files.side_effect = install_files
+        tracker = self.configuration.build_tracker
+        tracker.start_command('install_ext_packages')
+        with mock.patch.object(build.run, 'env_command', side_effect=install_wheels) as run:
+            self.configuration.install_ext_packages(install_sdk=True)
+        tracker.end_command('install_ext_packages')
+
+        run.assert_called_once()
+        self.install_sdk.assert_called_once_with()
+        self.assertTrue(wheels_finished.is_set())
+        self.assertEqual('wheel', (self.python_packages / 'example/source').read_text())
+        self.assertEqual('keep', (self.python_packages / 'other').read_text())
+        steps = tracker.command_times['install_ext_packages']['steps']
+        self.assertTrue({'SDK installation', 'Package extraction', 'Python wheels'} <= steps.keys())
+
+    # A wheel install failure fails package setup and leaves staged files unpublished.
+    def test_setup_propagates_wheel_failure(self):
+        def fail_wheel_install(env, command, *, cwd):
+            staging = Path(command[command.index('-t') + 1])
+            (staging / 'partial-wheel').touch()
+            raise build.run.ExecException(7)
+
+        with mock.patch.object(build.run, 'env_command', side_effect=fail_wheel_install):
+            with self.assertRaises(build.run.ExecException) as raised:
+                self.configuration.install_ext_packages()
+        self.assertEqual(7, raised.exception.retcode)
+        self.install_sdk.assert_not_called()
+        self.assertEqual([], list(self.python_packages.iterdir()))
+        self.assertEqual([], list(Path(self.configuration.dynamo_home).glob('python-wheels-*')))
 
 
 @unittest.skipUnless(shutil.which('cmake'), 'CMake is required')
