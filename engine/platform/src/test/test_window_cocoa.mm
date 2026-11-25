@@ -168,6 +168,24 @@ TEST_F(CocoaWindowTest, OpenVisibleWindow)
     }
 }
 
+// A secondary game window must receive startup focus when only the main window is polled.
+TEST_F(CocoaWindowTest, PollSecondaryWindow)
+{
+    @autoreleasepool
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        HWindow second = dmPlatform::NewWindow();
+        WindowEvents secondary = {};
+        params.m_FocusCallbackUserData = &secondary;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(second, params));
+        dmPlatform::ShowWindow(second);
+        EXPECT_EQ(0, secondary.m_FocusCount);
+        EXPECT_TRUE(WaitFor(&secondary.m_Focus, 1));
+        EXPECT_EQ(1, secondary.m_FocusCount);
+        dmPlatform::DeleteWindow(second);
+    }
+}
+
 // If another window becomes key before the rebooted engine polls, both focus changes must reach the game.
 TEST_F(CocoaWindowTest, FocusLostBeforeFirstPoll)
 {

@@ -45,6 +45,7 @@ struct dmWindow
     Win32InputCallbacks m_Callbacks;
     dmPlatform::WindowFocusState m_Focus;
     HWindow             m_Next;
+    DWORD               m_EventThread;
     POINT               m_SavedCursor, m_VirtualCursor, m_LastCursor;
     uint32_t            m_Width, m_Height, m_Samples, m_ResizeCallbackCount;
     float               m_Scale, m_LastResizeScale;

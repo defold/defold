@@ -354,6 +354,7 @@ namespace dmPlatform
         InitWindowPlacement(window, params);
         RestoreWindowPlacement(window);
         UpdateSize(window, false);
+        window->m_EventThread = GetCurrentThreadId();
         window->m_Ready = true;
         if (window->m_Callbacks.m_Gamepad)
         {
@@ -414,12 +415,15 @@ namespace dmPlatform
         ::ShowWindow(window->m_Window, SW_MINIMIZE);
     }
 
-    void PollEvents(HWindow window)
+    void PollEvents(HWindow)
     {
-        if (window->m_Ready)
+        DWORD thread = GetCurrentThreadId();
+        for (HWindow current = g_Windows; current; current = current->m_Next)
         {
-            // Extensions can consume startup focus changes once their graphics context exists.
-            PollWindowFocus(window->m_Focus, window->m_Params);
+            if (current->m_Ready && current->m_EventThread == thread)
+            {
+                PollWindowFocus(current->m_Focus, current->m_Params);
+            }
         }
 
         MSG msg;
@@ -429,7 +433,7 @@ namespace dmPlatform
             {
                 for (HWindow current = g_Windows; current; current = current->m_Next)
                 {
-                    if (current->m_Ready)
+                    if (current->m_Ready && current->m_EventThread == thread)
                     {
                         PostMessageW(current->m_Window, WM_CLOSE, 0, 0);
                     }
@@ -464,9 +468,18 @@ namespace dmPlatform
             }
         }
 
-        Win32PollJoysticks(window->m_Callbacks.m_Gamepad != 0);
-        Win32CenterCursor(window);
-        UpdateWindowPlacement(window, false);
+        bool poll_gamepads = false;
+        for (HWindow current = g_Windows; current; current = current->m_Next)
+        {
+            if (current->m_Ready && current->m_EventThread == thread)
+            {
+                Win32CenterCursor(current);
+                UpdateWindowPlacement(current, false);
+                poll_gamepads |= current->m_Callbacks.m_Gamepad != 0;
+            }
+        }
+
+        Win32PollJoysticks(poll_gamepads);
     }
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)

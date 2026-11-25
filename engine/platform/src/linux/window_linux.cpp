@@ -37,6 +37,7 @@ namespace dmPlatform
             return 0;
         }
 
+        w->m_EventThread = pthread_self();
         w->m_Next = g_Windows;
         g_Windows = w;
         return w;
@@ -212,9 +213,17 @@ namespace dmPlatform
             return;
         }
 
-        w->m_Ops->m_Poll(w);
+        pthread_t thread = pthread_self();
+        for (HWindow current = g_Windows; current; current = current->m_Next)
+        {
+            if (pthread_equal(current->m_EventThread, thread))
+            {
+                current->m_Ops->m_Poll(current);
+                UpdateWindowPlacement(current, false);
+            }
+        }
+
         LinuxPollJoysticks();
-        UpdateWindowPlacement(w, false);
     }
 
     void ShowWindow(HWindow w)

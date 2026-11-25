@@ -57,6 +57,43 @@ static void CountFocus(void* data, uint32_t focused)
     ++((unsigned*)data)[focused];
 }
 
+// Polling only the main window must deliver secondary focus and recenter its locked cursor.
+TEST(dmPlatform, WindowsPollSecondaryWindow)
+{
+    HWindow main = dmPlatform::NewWindow();
+    HWindow second = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(main, params));
+    unsigned events[2] = {};
+    params.m_FocusCallback = CountFocus;
+    params.m_FocusCallbackUserData = events;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(second, params));
+    dmPlatform::ShowWindow(second);
+    HWND hwnd = dmPlatform::GetWindowsHWND(second);
+    SetFocus(hwnd);
+    EXPECT_EQ(0u, events[1]);
+    dmPlatform::PollEvents(main);
+    EXPECT_EQ(1u, events[1]);
+
+    dmPlatform::SetDeviceState(second, WINDOW_DEVICE_STATE_CURSOR, false);
+    RECT client;
+    GetClientRect(hwnd, &client);
+    POINT center = { client.right / 2, client.bottom / 2 };
+    POINT screen = center;
+    ClientToScreen(hwnd, &screen);
+    SetCursorPos(screen.x + 10, screen.y);
+    SendMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(center.x + 10, center.y));
+    dmPlatform::PollEvents(main);
+    POINT actual;
+    GetCursorPos(&actual);
+    EXPECT_EQ(screen.x, actual.x);
+    EXPECT_EQ(screen.y, actual.y);
+    dmPlatform::DeleteWindow(second);
+    dmPlatform::DeleteWindow(main);
+}
+
 // Losing focus before the first poll must deliver the gain and loss in order after graphics startup.
 TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
 {

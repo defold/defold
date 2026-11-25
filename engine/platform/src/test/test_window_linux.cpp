@@ -188,6 +188,36 @@ static void OnX11Resize(void* data, uint32_t width, uint32_t height)
     events->m_Height = height;
 }
 
+// Polling the main X11 connection must also dispatch external resizes on a secondary window's connection.
+TEST(LinuxWindow, X11PollSecondaryWindow)
+{
+    HWindow main = NewX11TestWindow();
+    if (!main)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(main, p));
+    HWindow second = NewX11TestWindow();
+    ASSERT_TRUE(second);
+    X11ResizeEvents events = {};
+    p.m_ResizeCallback = OnX11Resize;
+    p.m_ResizeCallbackUserData = &events;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(second, p));
+    XResizeWindow(main->m_Display, second->m_Xid, 450, 320);
+    XSync(main->m_Display, False);
+    XSync(second->m_Display, False);
+    dmPlatform::PollEvents(main);
+    EXPECT_EQ(1u, events.m_Count);
+    EXPECT_EQ(450u, dmPlatform::GetWindowWidth(second));
+    EXPECT_EQ(320u, dmPlatform::GetWindowHeight(second));
+    dmPlatform::DeleteWindow(second);
+    dmPlatform::DeleteWindow(main);
+}
+
 // Each explicit resize must report the dimensions the manager accepts, including when it declines a request.
 TEST(LinuxWindow, X11ConstrainedResize)
 {

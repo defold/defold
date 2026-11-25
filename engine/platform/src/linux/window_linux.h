@@ -18,6 +18,7 @@
 #include "../platform_window_linux.h"
 #include "../window_placement.h"
 #include "../window_state.h"
+#include <pthread.h>
 
 struct wl_display;
 struct wl_surface;
@@ -30,6 +31,7 @@ struct dmWindow
 {
     const LinuxWindowOps*          m_Ops;
     HWindow                        m_Next;
+    pthread_t                      m_EventThread;
     Display*                       m_Display;
     ::Window                       m_Xid;
     wl_display*                    m_WlDisplay;

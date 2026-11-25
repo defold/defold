@@ -462,7 +462,13 @@ namespace dmPlatform
         [window->m_Window miniaturize:nil];
     }
 
-    void PollEvents(HWindow window)
+    static HWindow ReadyWindow(NSWindow* native)
+    {
+        DMWindowDelegate* delegate = (DMWindowDelegate*)native.delegate;
+        return [delegate isKindOfClass:[DMWindowDelegate class]] && delegate->handle->m_Ready ? delegate->handle : 0;
+    }
+
+    void PollEvents(HWindow)
     {
         @autoreleasepool
         {
@@ -472,9 +478,14 @@ namespace dmPlatform
                 return;
             }
 
-            if (window->m_Ready)
+            NSArray* windows = [NSApp windows];
+            for (NSWindow* native in windows)
             {
-                PollWindowFocus(window->m_Focus, window->m_Params);
+                HWindow window = ReadyWindow(native);
+                if (window)
+                {
+                    PollWindowFocus(window->m_Focus, window->m_Params);
+                }
             }
 
             NSEvent* event;
@@ -483,7 +494,14 @@ namespace dmPlatform
                 [NSApp sendEvent:event];
             }
 
-            UpdateWindowPlacement(window, false);
+            for (NSWindow* native in windows)
+            {
+                HWindow window = ReadyWindow(native);
+                if (window)
+                {
+                    UpdateWindowPlacement(window, false);
+                }
+            }
         }
     }
 
