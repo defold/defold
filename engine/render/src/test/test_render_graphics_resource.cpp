@@ -237,6 +237,111 @@ TEST_F(RenderGraphicsResource, TextureValidationAndExecutionFailures)
     ASSERT_EQ(3u, invalid.m_Count);
 }
 
+// A handle alone is not upload storage. Check at execution so an earlier full upload
+// in the same queue can make a later partial update valid.
+TEST_F(RenderGraphicsResource, TextureSubUpdateRequiresStorage)
+{
+    dmGraphics::HTexture texture;
+    CreateTexture(4, 4, &texture);
+    uint8_t pixels[64] = {};
+    dmGraphics::TextureParams upload;
+    upload.m_Width = 2;
+    upload.m_Height = 2;
+    upload.m_Data = pixels;
+    upload.m_DataSize = 16;
+    upload.m_SubUpdate = true;
+    ResourceCompletionProbe partial = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(1);
+    ASSERT_EQ(GRAPHICS_RESOURCE_INVALID, partial.m_Result);
+
+    dmGraphics::TextureParams full = upload;
+    full.m_SubUpdate = false;
+    full.m_Width = 4;
+    full.m_Height = 4;
+    full.m_DataSize = sizeof(pixels);
+    ResourceCompletionProbe initialized = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, full, CompleteResource, &initialized));
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(2);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, initialized.m_Result);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, partial.m_Result);
+    ASSERT_EQ(2u, partial.m_Count);
+    DeleteTexture(texture);
+}
+
+// Direct graphics uploads must be recognized; the service must not track its own
+// texture history. Null/OpenGL allocate levels separately, including gaps.
+TEST_F(RenderGraphicsResource, TextureUploadUsesAdapterStorage)
+{
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = 4;
+    creation.m_Height = 4;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Graphics, creation);
+    uint8_t pixels[64] = {};
+    dmGraphics::TextureParams upload;
+    upload.m_Width = 4;
+    upload.m_Height = 4;
+    upload.m_Data = pixels;
+    upload.m_DataSize = sizeof(pixels);
+    dmGraphics::SetTexture(m_Graphics, texture, upload);
+
+    upload.m_Width = 1;
+    upload.m_Height = 1;
+    upload.m_DataSize = 4;
+    upload.m_MipMap = 2;
+    dmGraphics::SetTexture(m_Graphics, texture, upload);
+
+    ResourceCompletionProbe partial = {};
+    upload.m_SubUpdate = true;
+    upload.m_MipMap = 1;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(1);
+    ASSERT_EQ(GRAPHICS_RESOURCE_INVALID, partial.m_Result);
+
+    upload.m_MipMap = 2;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(1);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, partial.m_Result);
+
+    // A full upload can define the missing mip on these adapters.
+    upload.m_SubUpdate = false;
+    upload.m_MipMap = 1;
+    upload.m_Width = 2;
+    upload.m_Height = 2;
+    upload.m_DataSize = 16;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    upload.m_SubUpdate = true;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(2);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, partial.m_Result);
+    ASSERT_EQ(4u, partial.m_Count);
+    DeleteTexture(texture);
+}
+
+// An earlier queued resize changes the bounds used to validate later requests.
+TEST_F(RenderGraphicsResource, TextureUploadChecksResizedStorage)
+{
+    dmGraphics::HTexture texture;
+    CreateTexture(4, 4, &texture);
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams upload;
+    upload.m_Width = 2;
+    upload.m_Height = 2;
+    upload.m_Data = pixels;
+    upload.m_DataSize = sizeof(pixels);
+    ResourceCompletionProbe resized = {};
+    ResourceCompletionProbe partial = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &resized));
+    upload.m_SubUpdate = true;
+    upload.m_X = 2;
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueUploadTexture(m_Service, texture, upload, CompleteResource, &partial));
+    FinishRequests(2);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, resized.m_Result);
+    ASSERT_EQ(GRAPHICS_RESOURCE_INVALID, partial.m_Result);
+    DeleteTexture(texture);
+}
+
 // All resource request types share completion handling, including cancellation before execution.
 TEST_F(RenderGraphicsResource, CancelledCreateCompletesWithoutGraphicsWork)
 {

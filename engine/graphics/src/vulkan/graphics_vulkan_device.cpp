@@ -981,6 +981,7 @@ bail:
         {
             // Account for the complete allocation, including mips, layers, format expansion
             // and driver padding. Individual uploads must not replace this with their size.
+            textureOut->m_Handle.m_MipMapCount = imageMips;
             SetTextureResourceSizeExact(&textureOut->m_Base, sizeof(VulkanTexture), device_buffer.m_Base.m_Size);
         }
         return res;

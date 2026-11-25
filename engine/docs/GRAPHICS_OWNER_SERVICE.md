@@ -87,6 +87,16 @@ vertex/index buffers and render targets. Upload helpers copy input bytes. Textur
 uploads currently cover byte L/LA/RGB/RGBA data, not compressed, array, cube or
 volume textures. Existing Lua and dmSDK resource APIs are unchanged.
 
+Texture uploads are checked against the adapter's current storage when they run,
+not when queued. Partial updates need an allocated mip level. A full level-zero
+upload can initialize or resize a texture; OpenGL can also allocate individual
+higher mips with full uploads. Invalid requests complete with
+`GRAPHICS_RESOURCE_INVALID` without calling the upload function. This also works
+for textures initialized through direct graphics calls outside the service.
+The check does not detect later GPU allocation or device failures.
+The real-adapter regression test runs as
+`test_app_graphics <adapter> texture-upload-validation` (for example, `vulkan`).
+
 This service routes work to the correct owner; it does **not** keep resource
 handles alive or order mutations against outstanding frames. The resource-lifetime
 follow-up will add that protection before existing resource paths migrate.

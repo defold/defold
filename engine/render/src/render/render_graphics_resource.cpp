@@ -124,18 +124,9 @@ namespace dmRender
                 }
 
                 dmGraphics::TextureParams& params = request->m_Params;
-                const uint32_t longest = info.m_Width > info.m_Height ? info.m_Width : info.m_Height;
-                if (params.m_MipMap >= dmGraphics::GetMipmapCount(longest))
-                {
-                    return GRAPHICS_RESOURCE_INVALID;
-                }
-
-                const uint32_t mip_width = dmGraphics::GetMipmapSize(info.m_Width, params.m_MipMap);
-                const uint32_t mip_height = dmGraphics::GetMipmapSize(info.m_Height, params.m_MipMap);
-                const uint32_t width = mip_width ? mip_width : 1;
-                const uint32_t height = mip_height ? mip_height : 1;
-                if ((params.m_SubUpdate && (params.m_X > width || params.m_Width > width - params.m_X || params.m_Y > height || params.m_Height > height - params.m_Y)) ||
-                    (!params.m_SubUpdate && params.m_MipMap != 0 && (params.m_Width != width || params.m_Height != height)))
+                // Earlier requests or direct graphics calls may have allocated or resized
+                // the texture. Validate its storage now, not when the request was queued.
+                if (!dmGraphics::IsTextureUploadValid(context, task.m_Handle, params))
                 {
                     return GRAPHICS_RESOURCE_INVALID;
                 }

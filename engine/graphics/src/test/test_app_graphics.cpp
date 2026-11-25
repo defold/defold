@@ -2852,6 +2852,7 @@ struct StorageBufferTest : ITest
 #include "test_texture_upload_pool.h"
 #include "test_vulkan_texture_resource_size.h"
 #endif
+#include "test_texture_upload_validation.h"
 
 static int OnWindowClose(void* user_data)
 {
@@ -2955,7 +2956,11 @@ static void* EngineCreate(int argc, char** argv)
     }
     else
 #endif
-    if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
+    if (HasArgument("texture-upload-validation"))
+    {
+        engine->m_Test = new TextureUploadValidationTest();
+    }
+    else if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
     {
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();

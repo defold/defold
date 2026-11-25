@@ -78,6 +78,8 @@ namespace dmRender
      * Copy and upload one 2D mip/subregion. Supports LUMINANCE, LUMINANCE_ALPHA, RGB and RGBA
      * byte data only, with DataSize exactly width * height * channels. Arrays, cube maps,
      * volumes and compressed formats are excluded until their full payload sizes are explicit.
+     * Storage and mip bounds are checked when the request runs. A partial update needs
+     * an allocated mip; otherwise completion reports GRAPHICS_RESOURCE_INVALID.
      */
     GraphicsServiceResult EnqueueUploadTexture(HGraphicsService service, dmGraphics::HTexture texture, const dmGraphics::TextureParams& params, FGraphicsResourceComplete complete, void* context);
 

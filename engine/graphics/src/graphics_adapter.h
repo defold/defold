@@ -120,6 +120,7 @@ namespace dmGraphics
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
     typedef void (*DeleteTextureFn)(HContext context, HTexture t);
     typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
+    typedef bool (*IsTextureUploadValidFn)(HContext context, HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
@@ -216,6 +217,7 @@ namespace dmGraphics
         NewTextureFn m_NewTexture;
         DeleteTextureFn m_DeleteTexture;
         SetTextureFn m_SetTexture;
+        IsTextureUploadValidFn m_IsTextureUploadValid;
         SetTextureAsyncFn m_SetTextureAsync;
         SetTextureParamsFn m_SetTextureParams;
         EnableTextureFn m_EnableTexture;
@@ -315,6 +317,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsTextureUploadValid); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureAsync); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureParams); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableTexture); \

@@ -4055,6 +4055,15 @@ static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureF
     WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
 }
 
+static bool WebGPUIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+    const WebGPUTexture* tex = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+    return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+           (tex->m_Texture && params.m_MipMap < wgpuTextureGetMipLevelCount(tex->m_Texture));
+}
+
 static void WebGPUSetTexture(HContext context, HTexture _texture, const TextureParams& params)
 {
     TRACE_CALL;
