@@ -17,6 +17,7 @@
 #import <OpenGL/gl3.h>
 #include <pthread.h>
 #include <jc_test/jc_test.h>
+#include "test_window_focus.h"
 #include <dlib/time.h>
 #include "../macos/window_macos.h"
 #include "../platform_window_osx.h"
@@ -517,6 +518,46 @@ static NSEvent* KeyEvent(NSWindow* window, NSEventType type, unsigned short code
 {
     return [NSEvent keyEventWithType:type location:NSZeroPoint modifierFlags:flags timestamp:0
             windowNumber:window.windowNumber context:nil characters:@"" charactersIgnoringModifiers:@"" isARepeat:NO keyCode:code];
+}
+
+// AppKit focus-loss listeners can read held inputs in both the startup queue and normal dispatch.
+TEST_F(CocoaWindowTest, FocusLossReportsPressedInput)
+{
+    @autoreleasepool
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        dmPlatform::CloseWindow(window);
+        params.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+        for (int poll_first = 0; poll_first <= 1; ++poll_first)
+        {
+            dmWindowTest::FocusLossInput observed = { window, 0, 0, 0 };
+            params.m_FocusCallbackUserData = &observed;
+            ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+            dmPlatform::ShowWindow(window);
+            NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+            ASSERT_TRUE(native.keyWindow);
+            if (poll_first)
+            {
+                dmPlatform::PollEvents(window);
+            }
+
+            [native.contentView keyDown:KeyEvent(native, NSEventTypeKeyDown, kVK_ANSI_A, 0)];
+            [native.contentView mouseDown:[NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:NSZeroPoint
+                                           modifierFlags:0 timestamp:0 windowNumber:native.windowNumber context:nil
+                                           eventNumber:1 clickCount:1 pressure:1]];
+            dmPlatform::HideWindow(window);
+            EXPECT_EQ(poll_first, observed.m_Losses);
+            EXPECT_EQ(0, dmPlatform::GetKey(window, 'A'));
+            EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+            dmPlatform::PollEvents(window);
+            EXPECT_EQ(1, observed.m_Losses);
+            EXPECT_EQ(1, observed.m_Key);
+            EXPECT_EQ(1, observed.m_Button);
+            dmPlatform::CloseWindow(window);
+        }
+    }
 }
 
 // Input reports modifier sides and Unicode text, clears marked text on blur and preserves locked pointer deltas.

@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "test_window_focus.h"
 #include "../linux/window_wayland.h"
 #include "../linux/joystick_linux.h"
 #include <vulkan/vulkan.h>
@@ -317,6 +318,33 @@ TEST(LinuxWindow, X11ConstrainedResize)
     dmPlatform::DeleteWindow(w);
     XDestroyWindow(manager, parent);
     XCloseDisplay(manager);
+}
+
+// Both Linux backends must report held input to the focus-loss callback and release it before returning.
+TEST(LinuxWindow, FocusLossReportsPressedInput)
+{
+    HWindow w = dmPlatform::NewWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    dmWindowTest::FocusLossInput observed = { w, 0, 0, 0 };
+    p.m_FocusCallbackUserData = &observed;
+    p.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::LinuxFocus(w, true);
+    w->m_Keys['A'] = w->m_Buttons[0] = 1;
+    dmPlatform::LinuxFocus(w, false);
+    EXPECT_EQ(1, observed.m_Losses);
+    EXPECT_EQ(1, observed.m_Key);
+    EXPECT_EQ(1, observed.m_Button);
+    EXPECT_EQ(0, dmPlatform::GetKey(w, 'A'));
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(w, 0));
+    dmPlatform::DeleteWindow(w);
 }
 
 // Verifies physical key identities are independent of the active keyboard layout.

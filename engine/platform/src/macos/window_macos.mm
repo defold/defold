@@ -17,6 +17,7 @@
 #include "../platform_window_osx.h"
 #include <dlib/log.h>
 #include <string.h>
+#include <new>
 
 @interface DMGameWindow : NSWindow
 @end
@@ -92,12 +93,16 @@
                 [view unmarkText];
             }
         }
-
-        memset(handle->m_Keys, 0, sizeof(handle->m_Keys));
-        memset(handle->m_Buttons, 0, sizeof(handle->m_Buttons));
     }
 
-    dmPlatform::WindowFocusChanged(handle->m_Focus, handle->m_Params, focused);
+    NSWindow* native = [handle->m_Window retain];
+    dmPlatform::WindowFocusChanged(handle->m_Focus, handle->m_Params, focused, handle->m_Input);
+    if (!focused && native.delegate == self)
+    {
+        memset(&handle->m_Input, 0, sizeof(handle->m_Input));
+    }
+
+    [native release];
 }
 
 - (void)windowDidBecomeKey:(NSNotification*)notification {
@@ -432,7 +437,8 @@ namespace dmPlatform
             [window->m_Window release];
             // Input callbacks belong to the handle and may be installed before opening it.
             WindowInputCallbacks callbacks = window->m_InputCallbacks;
-            *window = dmWindow();
+            window->~dmWindow();
+            new (window) dmWindow();
             window->m_InputCallbacks = callbacks;
         }
     }

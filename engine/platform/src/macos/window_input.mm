@@ -130,7 +130,7 @@ static NSString* PlainText(id text)
     int code = KeyCode(event.keyCode);
     if (handle && code >= 0)
     {
-        handle->m_Keys[code] = 1;
+        handle->m_Input.m_Keys[code] = 1;
     }
 
     if (handle)
@@ -144,7 +144,7 @@ static NSString* PlainText(id text)
     int code = KeyCode(event.keyCode);
     if (handle && code >= 0)
     {
-        handle->m_Keys[code] = 0;
+        handle->m_Input.m_Keys[code] = 0;
     }
 }
 
@@ -155,7 +155,7 @@ static NSString* PlainText(id text)
     {
         bool active = (event.modifierFlags & ModifierMask(event.keyCode)) != 0;
         // When both sides are held, AppKit keeps the aggregate flag set on the first release.
-        handle->m_Keys[code] = active && (event.keyCode == kVK_CapsLock || !handle->m_Keys[code]);
+        handle->m_Input.m_Keys[code] = active && (event.keyCode == kVK_CapsLock || !handle->m_Input.m_Keys[code]);
     }
 }
 
@@ -272,9 +272,9 @@ static NSString* PlainText(id text)
 - (void)setButton:(NSEvent*)event down:(BOOL)down
 {
     NSInteger button = event.buttonNumber;
-    if (handle && button >= 0 && button < sizeof(handle->m_Buttons))
+    if (handle && button >= 0 && button < sizeof(handle->m_Input.m_Buttons))
     {
-        handle->m_Buttons[button] = down;
+        handle->m_Input.m_Buttons[button] = down;
     }
 }
 
@@ -428,12 +428,14 @@ namespace dmPlatform
 
     int32_t GetKey(HWindow window, int32_t code)
     {
-        return (unsigned)code < sizeof(window->m_Keys) && window->m_Keys[code];
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (unsigned)code < sizeof(input.m_Keys) && input.m_Keys[code];
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
     {
-        return (unsigned)button < sizeof(window->m_Buttons) && window->m_Buttons[button];
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (unsigned)button < sizeof(input.m_Buttons) && input.m_Buttons[button];
     }
 
     int32_t GetMouseWheel(HWindow window)

@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "test_window_focus.h"
 
 #include "../platform_window_win32.h"
 #include "../platform_window_constants.h"
@@ -92,6 +93,44 @@ TEST(dmPlatform, WindowsPollSecondaryWindow)
     EXPECT_EQ(screen.y, actual.y);
     dmPlatform::DeleteWindow(second);
     dmPlatform::DeleteWindow(main);
+}
+
+// Both live and deferred focus-loss callbacks must see the held inputs even after Win32 releases mouse capture.
+TEST(dmPlatform, WindowsFocusLossReportsPressedInput)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+    for (int poll_first = 0; poll_first <= 1; ++poll_first)
+    {
+        dmWindowTest::FocusLossInput observed = { window, 0, 0, 0 };
+        params.m_FocusCallbackUserData = &observed;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        if (poll_first)
+        {
+            dmPlatform::PollEvents(window);
+        }
+
+        SendMessageW(hwnd, WM_KEYDOWN, 'A', 0x001e0001);
+        SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+        SetFocus(0);
+        EXPECT_EQ(poll_first, observed.m_Losses);
+        EXPECT_EQ(0, dmPlatform::GetKey(window, 'A'));
+        EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(1, observed.m_Losses);
+        EXPECT_EQ(1, observed.m_Key);
+        EXPECT_EQ(1, observed.m_Button);
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
 }
 
 // Losing focus before the first poll must deliver the gain and loss in order after graphics startup.

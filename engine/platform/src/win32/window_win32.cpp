@@ -19,6 +19,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <stdlib.h>
+#include <new>
 
 // Hybrid laptop drivers read these exports from the executable at startup.
 extern "C"
@@ -199,21 +200,23 @@ namespace dmPlatform
             {
                 const bool focused = message == WM_SETFOCUS;
                 Win32UpdateCursor(window, focused || IsChild(hwnd, (HWND)wp));
+                if (window->m_Ready)
+                {
+                    WindowFocusChanged(window->m_Focus, window->m_Params, focused, window->m_Input);
+                    if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+                    {
+                        return 0;
+                    }
+                }
                 if (!focused)
                 {
                     window->m_CaptionAction = false;
-                    memset(window->m_Keys, 0, sizeof(window->m_Keys));
-                    memset(window->m_Buttons, 0, sizeof(window->m_Buttons));
+                    memset(&window->m_Input, 0, sizeof(window->m_Input));
                     window->m_HighSurrogate = 0;
                     if (GetCapture() == hwnd)
                     {
                         ReleaseCapture();
                     }
-                }
-
-                if (window->m_Ready)
-                {
-                    WindowFocusChanged(window->m_Focus, window->m_Params, focused);
                 }
 
                 break;
@@ -396,7 +399,8 @@ namespace dmPlatform
 
         Win32InputCallbacks callbacks = window->m_Callbacks;
         HWindow next = window->m_Next;
-        *window = dmWindow();
+        window->~dmWindow();
+        new (window) dmWindow();
         window->m_Callbacks = callbacks;
         window->m_Next = next;
     }
@@ -427,9 +431,31 @@ namespace dmPlatform
     void PollEvents(HWindow)
     {
         DWORD thread = GetCurrentThreadId();
+        struct StartupWindow
+        {
+            HWindow m_Handle;
+            HWND    m_Window;
+        };
+        dmArray<StartupWindow> startup;
         for (HWindow current = g_Windows; current; current = current->m_Next)
         {
-            if (current->m_Ready && current->m_EventThread == thread)
+            if (current->m_Ready && current->m_EventThread == thread && !current->m_Focus.m_DispatchEnabled)
+            {
+                if (startup.Full())
+                {
+                    startup.OffsetCapacity(4);
+                }
+
+                StartupWindow item = { current, current->m_Window };
+                startup.Push(item);
+            }
+        }
+
+        // A deferred callback can close its own window or another one in the same poll.
+        for (uint32_t i = 0; i < startup.Size(); ++i)
+        {
+            HWindow current = startup[i].m_Handle;
+            if ((HWindow)GetWindowLongPtrW(startup[i].m_Window, GWLP_USERDATA) == current)
             {
                 PollWindowFocus(current->m_Focus, current->m_Params);
             }
@@ -467,9 +493,9 @@ namespace dmPlatform
                 };
                 for (unsigned i = 0; i < sizeof(modifiers) / sizeof(modifiers[0]); ++i)
                 {
-                    if (current->m_Keys[modifiers[i][1]] && !(GetKeyState(modifiers[i][0]) & 0x8000))
+                    if (current->m_Input.m_Keys[modifiers[i][1]] && !(GetKeyState(modifiers[i][0]) & 0x8000))
                     {
-                        current->m_Keys[modifiers[i][1]] = 0;
+                        current->m_Input.m_Keys[modifiers[i][1]] = 0;
                     }
                 }
 

@@ -30,26 +30,49 @@ namespace dmPlatform
 
     void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params)
     {
-        state.m_DispatchEnabled = true;
-        // A new window starts unfocused. Each native focus transition flips that state.
-        while (state.m_PendingChanges)
+        if (state.m_DispatchEnabled || state.m_Reporting)
         {
-            --state.m_PendingChanges;
-            state.m_ReportedFocus = !state.m_ReportedFocus;
-            params.m_FocusCallback(params.m_FocusCallbackUserData, state.m_ReportedFocus);
+            return;
         }
+
+        while (!state.m_Pending.Empty())
+        {
+            dmArray<WindowFocusEvent> events;
+            events.Swap(state.m_Pending);
+            for (uint32_t i = 0; i < events.Size(); ++i)
+            {
+                WindowFocusEvent& event = events[i];
+                state.m_Reporting = &event;
+                params.m_FocusCallback(params.m_FocusCallbackUserData, event.m_Focused);
+                if (event.m_Closed)
+                {
+                    return;
+                }
+            }
+
+            state.m_Reporting = 0;
+        }
+        state.m_DispatchEnabled = true;
     }
 
-    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused)
+    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused, const WindowPressedInput& input)
     {
         if (params.m_FocusCallback && state.m_Focused != focused)
         {
             state.m_Focused = focused;
-            ++state.m_PendingChanges;
             if (state.m_DispatchEnabled)
             {
-                PollWindowFocus(state, params);
+                params.m_FocusCallback(params.m_FocusCallbackUserData, focused);
+                return;
             }
+
+            // Startup callbacks run after graphics initialization. Preserve the input visible at each transition.
+            if (state.m_Pending.Full())
+            {
+                state.m_Pending.OffsetCapacity(2);
+            }
+            WindowFocusEvent event = { input, focused, false };
+            state.m_Pending.Push(event);
         }
     }
 

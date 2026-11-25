@@ -112,16 +112,15 @@ namespace dmPlatform
         }
 
         w->m_Focused = focused;
-        if (!focused)
-        {
-            memset(w->m_Keys, 0, sizeof(w->m_Keys));
-            memset(w->m_Buttons, 0, sizeof(w->m_Buttons));
-        }
-
         w->m_Ops->m_SetCursor(w);
         if (w->m_Open && w->m_Params.m_FocusCallback)
         {
             w->m_Params.m_FocusCallback(w->m_Params.m_FocusCallbackUserData, focused);
+        }
+        if (!focused)
+        {
+            memset(w->m_Keys, 0, sizeof(w->m_Keys));
+            memset(w->m_Buttons, 0, sizeof(w->m_Buttons));
         }
     }
 

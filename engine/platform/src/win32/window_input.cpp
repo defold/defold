@@ -323,12 +323,12 @@ namespace dmPlatform
             SetCapture(window->m_Window);
         }
 
-        window->m_Buttons[button] = pressed;
+        window->m_Input.m_Buttons[button] = pressed;
         if (!pressed && GetCapture() == window->m_Window)
         {
-            for (unsigned i = 0; i < sizeof(window->m_Buttons); ++i)
+            for (unsigned i = 0; i < sizeof(window->m_Input.m_Buttons); ++i)
             {
-                if (window->m_Buttons[i])
+                if (window->m_Input.m_Buttons[i])
                 {
                     return;
                 }
@@ -356,7 +356,7 @@ namespace dmPlatform
                 int code = KeyCode(wp, lp);
                 if (code >= 0 && !AltGrControl(message, wp, lp))
                 {
-                    window->m_Keys[code] = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+                    window->m_Input.m_Keys[code] = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
                 }
 
                 break; // DefWindowProc handles system shortcuts, including Alt+F4.
@@ -457,7 +457,7 @@ namespace dmPlatform
             }
             case WM_CAPTURECHANGED:
             {
-                memset(window->m_Buttons, 0, sizeof(window->m_Buttons));
+                memset(window->m_Input.m_Buttons, 0, sizeof(window->m_Input.m_Buttons));
                 if (!lp && window->m_CaptionAction)
                 {
                     window->m_CaptionAction = false;
@@ -514,12 +514,14 @@ namespace dmPlatform
 
     int32_t GetKey(HWindow window, int32_t key)
     {
-        return (uint32_t)key < sizeof(window->m_Keys) ? window->m_Keys[key] : 0;
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (uint32_t)key < sizeof(input.m_Keys) ? input.m_Keys[key] : 0;
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
     {
-        return (uint32_t)button < sizeof(window->m_Buttons) ? window->m_Buttons[button] : 0;
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (uint32_t)button < sizeof(input.m_Buttons) ? input.m_Buttons[button] : 0;
     }
 
     int32_t GetMouseWheel(HWindow window)
