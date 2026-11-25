@@ -362,7 +362,8 @@ def main():
     if args.baseline:
         meta_path = args.baseline / 'meta.json'
         meta = json.loads(meta_path.read_text(encoding='utf-8')) if meta_path.is_file() else {}
-        baseline_root = Path(meta.get('source_root') or source_root)
+        # Resolved like the file names, so symlinked roots still match.
+        baseline_root = Path(meta.get('source_root') or source_root).resolve()
         baseline = read_summary(args.baseline / 'summary.json', baseline_root)
         baseline_commit = meta.get('commit')
 
