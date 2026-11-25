@@ -112,6 +112,40 @@ TEST(dmPlatform, WindowsStartupFocusAfterOpen)
     dmPlatform::DeleteWindow(window);
 }
 
+// Minimize and restore must each reach listeners before their corresponding resize.
+TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
+{
+    enum Event
+    {
+        MINIMIZED, RESTORED, RESIZED
+    };
+    dmArray<Event> events;
+    events.SetCapacity(8);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_ResizeCallbackUserData = params.m_IconifyCallbackUserData = &events;
+    params.m_IconifyCallback = [](void* data, uint32_t minimized) {
+                                   ((dmArray<Event>*)data)->Push(minimized ? MINIMIZED : RESTORED);
+                               };
+    params.m_ResizeCallback = [](void* data, uint32_t, uint32_t) {
+                                  ((dmArray<Event>*)data)->Push(RESIZED);
+                              };
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::PollEvents(window);
+    events.SetSize(0);
+
+    dmPlatform::IconifyWindow(window);
+    ::ShowWindow(dmPlatform::GetWindowsHWND(window), SW_RESTORE);
+    ASSERT_EQ(4u, events.Size());
+    EXPECT_EQ(MINIMIZED, events[0]);
+    EXPECT_EQ(RESIZED, events[1]);
+    EXPECT_EQ(RESTORED, events[2]);
+    EXPECT_EQ(RESIZED, events[3]);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)

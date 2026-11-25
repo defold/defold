@@ -116,12 +116,16 @@ namespace dmPlatform
                 bool changed = minimized != window->m_Iconified;
                 window->m_Iconified = minimized;
                 Win32CenterCursor(window);
-                UpdateSize(window, true);
                 if (changed && window->m_Ready && window->m_Params.m_IconifyCallback)
                 {
                     window->m_Params.m_IconifyCallback(window->m_Params.m_IconifyCallbackUserData, minimized);
+                    if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+                    {
+                        return 0;
+                    }
                 }
 
+                UpdateSize(window, true);
                 return 0;
             }
             case WM_MOVE:
