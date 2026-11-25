@@ -22,6 +22,10 @@ import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.ByteString;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.junit.Assert.*;
 
 public class MaterialRenderStateTest {
@@ -106,6 +110,45 @@ public class MaterialRenderStateTest {
         assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(changed.build(), reflection()).getRenderHash());
         changed.getFragmentConstantsBuilder(0).getValueBuilder(0).setX(0.75f);
         assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(changed.build(), reflection()).getRenderHash());
+    }
+
+    // Optimized-out sampler declarations and their aliases must not change effective material compatibility.
+    @Test
+    public void unusedSamplersDoNotAffectRenderHash() {
+        MaterialDesc original = MaterialBuilder.buildRenderState(material().build(), reflection());
+        MaterialDesc.Builder input = material();
+        input.addSamplers(input.getSamplers(0).toBuilder().setName("unused")
+            .addNameIndirections(MurmurHash.hash64("unused_0")));
+        MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection());
+        assertEquals(1, compiled.getRenderState().getSamplersCount());
+        assertEquals(original.getRenderHash(), compiled.getRenderHash());
+        input.getSamplersBuilder(1).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE).setMaxAnisotropy(16);
+        assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
+        input.getSamplersBuilder(0).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+        assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
+
+        ShaderDesc.ShaderReflection noTextures = reflection().toBuilder().clearTextures().build();
+        compiled = MaterialBuilder.buildRenderState(input.build(), noTextures);
+        assertEquals(0, compiled.getRenderState().getSamplersCount());
+        assertEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.clearSamplers().build(), noTextures).getRenderHash());
+    }
+
+    // Array fallback aliases are generated from a reflected base sampler, not separate reflection entries.
+    @Test
+    public void reflectedArraySamplerKeepsFallbackAliases() {
+        ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
+        reflection.getTexturesBuilder(0).setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY));
+        long slice0 = MurmurHash.hash64("tex0_0");
+        long slice1 = MurmurHash.hash64("tex0_1");
+        MaterialDesc.Builder input = material();
+        input.getSamplersBuilder(0).addNameIndirections(slice0).addNameIndirections(slice1);
+        MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
+        assertEquals(3, compiled.getRenderState().getSamplersCount());
+        Set<Long> names = new HashSet<>();
+        compiled.getRenderState().getSamplersList().forEach(sampler -> names.add(sampler.getNameHash()));
+        assertEquals(new HashSet<>(Arrays.asList(MurmurHash.hash64("tex0"), slice0, slice1)), names);
+        input.getSamplersBuilder(0).setMaxAnisotropy(8);
+        assertNotEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
     }
 
     // Omitted constants and explicitly authored zero defaults normalize to the same reflected value array.

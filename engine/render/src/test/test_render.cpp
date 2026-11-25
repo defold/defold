@@ -1377,6 +1377,47 @@ TEST_F(dmMaterialInstancingHashTest, CompiledStateMutationsConverge)
 }
 
 
+// Unused sampler declarations must not split otherwise identical materials, including after mutation.
+TEST_F(dmMaterialInstancingHashTest, UnusedSamplersDoNotSplitBatches)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    MakeMaterialHashTestShader(shader);
+    dmRenderDDF::MaterialDesc::Sampler samplers[2] = {};
+    samplers[0].m_Name = "texture_sampler";
+    samplers[0].m_MaxAnisotropy = 1.0f;
+    samplers[1] = samplers[0];
+    samplers[1].m_Name = "unused_sampler";
+    samplers[1].m_WrapU = dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE;
+    samplers[1].m_MaxAnisotropy = 4.0f;
+    dmRenderDDF::MaterialDesc desc = {};
+    desc.m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+    desc.m_Samplers.m_Data = samplers;
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+    {
+        desc.m_Samplers.m_Count = i + 1;
+        dmRender::MaterialRenderState state;
+        dmRender::BuildMaterialRenderState(desc, shader.Get()->m_Reflection, &state);
+        ASSERT_EQ(1u, state.m_Samplers.Size());
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[i], dmHashString64(samplers[0].m_Name), 0,
+            dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+        ASSERT_FALSE(dmRender::SetMaterialSampler(m_Materials[i], dmHashString64(samplers[1].m_Name), 1,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 4.0f));
+        dmRender::SetMaterialRenderState(m_Materials[i], dmRender::GetMaterialRenderStateDDF(&state),
+            dmRender::HashMaterialRenderState(state, 0));
+    }
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+    {
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[i], dmHashString64(samplers[0].m_Name), 0,
+            dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+            dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+    }
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0], 0), dmRender::GetMaterialInstancingHash(m_Materials[1], 0));
+}
+
 // A fixed cross-language vector locks down widths, float bits and ordering in the portable encoding.
 TEST(MaterialRenderState, CanonicalEncoding)
 {

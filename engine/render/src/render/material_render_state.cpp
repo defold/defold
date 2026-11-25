@@ -278,8 +278,22 @@ namespace dmRender
         for (uint32_t i = 0; i < material.m_Samplers.m_Count; ++i)
         {
             const Desc::Sampler& source = material.m_Samplers[i];
+            dmhash_t name_hash = dmHashString64(source.m_Name);
+            bool reflected = false;
+            for (uint32_t j = 0; j < reflection.m_Textures.m_Count; ++j)
+            {
+                if (reflection.m_Textures[j].m_NameHash == name_hash)
+                {
+                    reflected = true;
+                    break;
+                }
+            }
+            // Resource loading ignores unused samplers. Array-emulation aliases
+            // belong to the reflected base sampler and need not appear in reflection.
+            if (!reflected)
+                continue;
             StateDDF::Sampler sampler = {};
-            sampler.m_NameHash = dmHashString64(source.m_Name);
+            sampler.m_NameHash = name_hash;
             sampler.m_WrapU = wraps[source.m_WrapU];
             sampler.m_WrapV = wraps[source.m_WrapV];
             sampler.m_WrapW = wraps[source.m_WrapW];
