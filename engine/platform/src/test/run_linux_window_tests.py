@@ -4,6 +4,7 @@ from contextlib import contextmanager, ExitStack
 import os
 from pathlib import Path
 import select
+import socket
 import subprocess
 import tempfile
 import time
@@ -161,6 +162,8 @@ def run(args, directory):
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11RandRMonitors'],
                            cwd=directory, env=no_randr, check=True, timeout=30)
             subprocess.run([args.native, '--no-display'], cwd=directory, env=clean, check=True, timeout=15)
+            subprocess.run([args.native, '--no-display'], cwd=directory,
+                           env=dict(clean, WAYLAND_SOCKET='-1'), check=True, timeout=15)
             no_libdecor = directory / 'without-libdecor'
             no_libdecor.mkdir()
             (no_libdecor / 'libdecor-0.so.0').touch()
@@ -195,6 +198,14 @@ def run(args, directory):
             fallback = dict(wayland, DISPLAY=':65534', DM_TEST_WINDOW_BACKEND='wayland')
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
                            cwd=directory, env=fallback, check=True, timeout=30)
+            # A launcher can pass the only Wayland connection as an inherited fd, without a named display.
+            for backend, env in [('x11', x11), ('wayland', dict(clean, DISPLAY=':65534'))]:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as inherited:
+                    inherited.connect(str(directory / wayland['WAYLAND_DISPLAY']))
+                    fd = inherited.fileno()
+                    subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
+                                   cwd=directory, env=dict(env, WAYLAND_SOCKET=str(fd), DM_TEST_WINDOW_BACKEND=backend),
+                                   pass_fds=(fd,), check=True, timeout=30)
             # Xlib-only tests must skip when an unreachable DISPLAY makes the window use Wayland.
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11'],
                            cwd=directory, env=fallback, check=True, timeout=30)
