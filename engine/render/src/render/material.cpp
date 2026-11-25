@@ -322,7 +322,22 @@ namespace dmRender
         material->m_UniformLocationProgramVersion = dmGraphics::GetProgramVersion(material->m_Program);
     }
 
-    // A reloaded program (hot reload, or a restored graphics context) can place its uniforms at new locations
+    // Also gives the program's LightBuffer binding the layout of the engine light buffer
+    static void SetupMaterialLightBuffer(HMaterial material)
+    {
+        bool has_light_buffer;
+        uint16_t light_buffer_set      = 0;
+        uint16_t light_buffer_binding  = 0;
+        uint16_t light_buffer_capacity = 0;
+        GetProgramLightBufferBinding(material->m_RenderContext, material->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
+        material->m_HasLightBuffer      = has_light_buffer;
+        material->m_LightBufferSet      = light_buffer_set;
+        material->m_LightBufferBinding  = light_buffer_binding;
+        material->m_LightBufferCapacity = light_buffer_capacity;
+    }
+
+    // A reloaded program (hot reload, or a restored graphics context) can place its uniforms at new locations,
+    // and builds its uniform buffer layouts again from the shader reflection
     static void UpdateMaterialUniformLocations(HMaterial material)
     {
         uint64_t version = dmGraphics::GetProgramVersion(material->m_Program);
@@ -333,6 +348,7 @@ namespace dmRender
         UpdateProgramUniformLocations(material->m_Program, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
         material->m_HasSkinnedMatrixCache = material->m_NameHashToLocation.Get(SAMPLER_POSE_MATRIX_CACHE) != 0x0;
         material->m_HasMorphTargetsSampler = material->m_NameHashToLocation.Get(SAMPLER_MORPH_TARGETS) != 0x0;
+        SetupMaterialLightBuffer(material);
         material->m_UniformLocationProgramVersion = version;
     }
 
@@ -355,16 +371,7 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
-
-        bool has_light_buffer;
-        uint16_t light_buffer_set;
-        uint16_t light_buffer_binding;
-        uint16_t light_buffer_capacity;
-        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
-        m->m_HasLightBuffer       = has_light_buffer;
-        m->m_LightBufferSet       = light_buffer_set;
-        m->m_LightBufferBinding   = light_buffer_binding;
-        m->m_LightBufferCapacity  = light_buffer_capacity;
+        SetupMaterialLightBuffer(m);
 
         return (HMaterial)m;
     }

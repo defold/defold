@@ -1458,6 +1458,60 @@ TEST_F(MaterialTest, TestLightBufferSmallerThanProjectMax)
     dmResource::Release(m_Factory, material_res);
 }
 
+struct LightBufferBindingLayout
+{
+    uint16_t                        m_Set;
+    uint16_t                        m_Binding;
+    dmGraphics::UniformBufferLayout m_Layout;
+};
+
+static void GetLightBufferBindingLayoutCallback(uint16_t set, uint16_t binding, const dmGraphics::ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, dmGraphics::UniformBufferLayout* layout, void* user_data)
+{
+    LightBufferBindingLayout* result = (LightBufferBindingLayout*) user_data;
+    if (set == result->m_Set && binding == result->m_Binding)
+    {
+        result->m_Layout = *layout;
+    }
+}
+
+static dmGraphics::UniformBufferLayout GetLightBufferBindingLayout(dmGraphics::HProgram program, const dmRender::TestLightBufferInfo& info)
+{
+    LightBufferBindingLayout result = { info.m_Set, info.m_Binding, 0 };
+    dmGraphics::IterateProgramResourceBindings(program, dmGraphics::BINDING_FAMILY_UNIFORM_BUFFER, GetLightBufferBindingLayoutCallback, &result);
+    return result.m_Layout;
+}
+
+// Recreating a shader program (a restored graphics context, or hot reload) builds its uniform buffer layouts
+// again from the shader reflection. Verifies that the material gives its LightBuffer binding the engine light
+// buffer layout again. Guards against the light buffer being rejected as incompatible after
+// render.reload_resources(), which left lit materials black.
+TEST_F(MaterialResourceTest, LightBufferLayoutAfterProgramRecreate)
+{
+    dmGameSystem::MaterialResource* material_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
+    dmRender::HMaterial material = material_res->m_Material;
+    dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+    const dmGraphics::UniformBufferLayout light_buffer_layout = GetLightBufferBindingLayout(program, dmRender::TestGetMaterialLightBufferInfo(material));
+    ASSERT_NE(0u, light_buffer_layout);
+
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) program, &program_path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, program_path));
+    ASSERT_EQ(program, dmRender::GetMaterialProgram(material));
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmRender::ApplyMaterialConstants(m_RenderContext, material, &ro);
+    dmGraphics::DisableProgram(m_GraphicsContext);
+
+    ASSERT_TRUE(dmRender::TestGetMaterialLightBufferInfo(material).m_Enabled);
+    ASSERT_EQ(32u, dmRender::TestGetMaterialLightBufferInfo(material).m_Capacity);
+    ASSERT_EQ(light_buffer_layout, GetLightBufferBindingLayout(program, dmRender::TestGetMaterialLightBufferInfo(material)));
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
 {
     // Spawns ambient and point-light components, updates their persistent instance data, renders the
@@ -1712,6 +1766,33 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
 
     dmResource::Release(m_Factory, (void*) compute_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Same as LightBufferLayoutAfterProgramRecreate, for a compute program dispatched after its shader program
+// was recreated. Guards against compute programs keeping a light buffer binding that is rejected as incompatible.
+TEST_F(MaterialResourceTest, ComputeLightBufferLayoutAfterProgramRecreate)
+{
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
+    dmGameSystem::ComputeResource* compute_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/shader/light_buffer.computec", (void**) &compute_res));
+    dmRender::HComputeProgram compute_program = compute_res->m_Program;
+    dmGraphics::HProgram program = dmRender::GetComputeProgram(compute_program);
+    const dmGraphics::UniformBufferLayout light_buffer_layout = GetLightBufferBindingLayout(program, dmRender::TestGetComputeLightBufferInfo(compute_program));
+    ASSERT_NE(0u, light_buffer_layout);
+
+    dmhash_t program_path;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(m_Factory, (void*) program, &program_path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RecreateResource(m_Factory, program_path));
+    ASSERT_EQ(program, dmRender::GetComputeProgram(compute_program));
+
+    dmRender::TestSetComputeProgram(render_ctx, compute_program);
+    dmRender::DispatchCompute(m_RenderContext, 1, 1, 1, 0);
+    dmRender::TestSetComputeProgram(render_ctx, 0);
+
+    ASSERT_TRUE(dmRender::TestGetComputeLightBufferInfo(compute_program).m_Enabled);
+    ASSERT_EQ(light_buffer_layout, GetLightBufferBindingLayout(program, dmRender::TestGetComputeLightBufferInfo(compute_program)));
+
+    dmResource::Release(m_Factory, (void*) compute_res);
 }
 #endif // DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
