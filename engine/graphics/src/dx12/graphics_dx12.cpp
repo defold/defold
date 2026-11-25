@@ -750,8 +750,9 @@ namespace dmGraphics
 
         CreateDescriptorHeaps(context);
 
-        context->m_BackBufferWidth = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
-        context->m_BackBufferHeight = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        const D3D12_RESOURCE_DESC back_buffer = context->m_FrameResources[0].m_RenderTarget.m_Resource->GetDesc();
+        context->m_BackBufferWidth = (uint32_t)back_buffer.Width;
+        context->m_BackBufferHeight = back_buffer.Height;
         InitializeFrameBuffers(_context, color_format, depth_format);
 
         {
