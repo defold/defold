@@ -1519,10 +1519,11 @@ static int InputTest()
 int main(int argc, char** argv)
 {
     dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
-    if (argc == 2 && !strcmp(argv[1], "--reject-glx-context"))
+    if (argc == 2 && (!strcmp(argv[1], "--reject-glx-context") || !strcmp(argv[1], "--reject-egl-context")))
     {
         HWindow w = dmPlatform::NewWindow();
-        if (!w || !w->m_X11)
+        bool glx = !strcmp(argv[1], "--reject-glx-context");
+        if (!w || (glx ? !w->m_X11 : !w->m_Wayland))
         {
             return 1;
         }

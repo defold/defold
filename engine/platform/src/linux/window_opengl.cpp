@@ -19,6 +19,7 @@
 #include <GL/glxext.h>
 #include <wayland-egl.h>
 #include <dlfcn.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <pthread.h>
 #include <string.h>
@@ -41,6 +42,7 @@
     F(glXGetFBConfigAttrib) \
     F(glXQueryExtensionsString)
 #define EGL_FUNCTIONS(F) \
+    F(eglGetError) \
     F(eglGetDisplay) \
     F(eglInitialize) \
     F(eglBindAPI) \
@@ -213,6 +215,40 @@ namespace dmPlatform
         return true;
     }
 
+    static bool EGLFailure(LinuxGL* g, const char* operation, uint32_t major = 0, uint32_t minor = 0)
+    {
+        // EGL errors are per-thread. Capture the failing call's result before any cleanup calls can replace it.
+        EGLint error = g->m_eglGetError();
+        static const char* const literals[] = {
+            "EGL_SUCCESS", "EGL_NOT_INITIALIZED", "EGL_BAD_ACCESS", "EGL_BAD_ALLOC", "EGL_BAD_ATTRIBUTE",
+            "EGL_BAD_CONFIG", "EGL_BAD_CONTEXT", "EGL_BAD_CURRENT_SURFACE", "EGL_BAD_DISPLAY", "EGL_BAD_MATCH",
+            "EGL_BAD_NATIVE_PIXMAP", "EGL_BAD_NATIVE_WINDOW", "EGL_BAD_PARAMETER", "EGL_BAD_SURFACE", "EGL_CONTEXT_LOST"
+        };
+        char unknown[32];
+        const char* reason;
+        if (error >= EGL_SUCCESS && error <= EGL_CONTEXT_LOST)
+        {
+            reason = literals[error - EGL_SUCCESS];
+        }
+        else
+        {
+            dmSnPrintf(unknown, sizeof(unknown), "EGL error 0x%x", (unsigned)error);
+            reason = unknown;
+        }
+
+        const char* api = g->m_Api == EGL_OPENGL_ES_API ? "OpenGL ES" : "OpenGL";
+        if (major)
+        {
+            dmLogError("%s failed for %s %u.%u: %s", operation, api, major, minor, reason);
+        }
+        else
+        {
+            dmLogError("%s failed for %s: %s", operation, api, reason);
+        }
+
+        return false;
+    }
+
     static bool SelectEGL(HWindow w, VisualID* visual)
     {
         LinuxGL* g = w->m_GL;
@@ -237,15 +273,19 @@ namespace dmPlatform
             g->m_EDisplay = g->m_eglGetDisplay((EGLNativeDisplayType)display);
         }
 
-        if (!g->m_EDisplay || !g->m_eglInitialize(g->m_EDisplay, 0, 0))
+        g->m_Api = w->m_Params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES ? EGL_OPENGL_ES_API : EGL_OPENGL_API;
+        if (!g->m_EDisplay)
         {
-            return false;
+            return EGLFailure(g, "eglGetDisplay");
         }
 
-        g->m_Api = w->m_Params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES ? EGL_OPENGL_ES_API : EGL_OPENGL_API;
+        if (!g->m_eglInitialize(g->m_EDisplay, 0, 0))
+        {
+            return EGLFailure(g, "eglInitialize");
+        }
         if (!g->m_eglBindAPI(g->m_Api))
         {
-            return false;
+            return EGLFailure(g, "eglBindAPI");
         }
 
         const char* client = g->m_Api == EGL_OPENGL_ES_API ? "libGLESv2.so.2" : "libOpenGL.so.0";
@@ -259,16 +299,22 @@ namespace dmPlatform
         const EGLint attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_COLOR_BUFFER_TYPE, EGL_RGB_BUFFER,
                                  EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT, EGL_NONE };
         EGLint count = 0;
-        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, 0, 0, &count) || !count)
+        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, 0, 0, &count))
         {
+            return EGLFailure(g, "eglChooseConfig");
+        }
+
+        if (!count)
+        {
+            dmLogError("EGL returned no window framebuffer configurations for the requested graphics API.");
             return false;
         }
 
         dmArray<EGLConfig> configs;
         configs.SetCapacity(count);
-        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, configs.Begin(), count, &count) || !count)
+        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, configs.Begin(), count, &count))
         {
-            return false;
+            return EGLFailure(g, "eglChooseConfig");
         }
 
         FormatScore best = { UINT32_MAX, UINT32_MAX, false };
@@ -299,7 +345,13 @@ namespace dmPlatform
                 }
             }
         }
-        return g->m_EConfig != 0;
+        if (!g->m_EConfig)
+        {
+            dmLogError("EGL returned no framebuffer configuration compatible with the native window.");
+            return false;
+        }
+
+        return true;
     }
 
     bool LinuxPrepareGL(HWindow w, VisualID* visual)
@@ -450,7 +502,9 @@ namespace dmPlatform
                         EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR, EGL_NONE };
         if (g->m_Api == EGL_OPENGL_ES_API)
         {
-            attrs[1] = 2;
+            major = 2;
+            minor = 0;
+            attrs[1] = major;
             attrs[2] = EGL_NONE;
         }
         else if (!major)
@@ -465,10 +519,19 @@ namespace dmPlatform
         const char* extensions = g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS);
         const EGLint opaque[] = { EGL_PRESENT_OPAQUE_EXT, EGL_TRUE, EGL_NONE };
         g->m_EMain = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, EGL_NO_CONTEXT, attrs);
-        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, g->m_PresentOpaque ? opaque : 0);
-        if (!g->m_EMain || !g->m_ESurface || !g->m_eglMakeCurrent(g->m_EDisplay, g->m_ESurface, g->m_ESurface, g->m_EMain))
+        if (!g->m_EMain)
         {
-            return false;
+            return EGLFailure(g, "eglCreateContext", major, minor);
+        }
+        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, g->m_PresentOpaque ? opaque : 0);
+        if (!g->m_ESurface)
+        {
+            return EGLFailure(g, "eglCreateWindowSurface", major, minor);
+        }
+
+        if (!g->m_eglMakeCurrent(g->m_EDisplay, g->m_ESurface, g->m_ESurface, g->m_EMain))
+        {
+            return EGLFailure(g, "eglMakeCurrent", major, minor);
         }
 
         int pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };

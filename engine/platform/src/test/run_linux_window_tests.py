@@ -173,6 +173,12 @@ def run(args, directory):
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
             if b'OpenGL 4.6 (core profile): GLXBad' not in rejected.stdout and b'OpenGL 4.6 (core profile): Bad' not in rejected.stdout:
                 raise RuntimeError(f'Missing GLX driver diagnostic: {rejected.stdout.decode()}')
+            # The EGL driver result must survive cleanup after rejecting the requested OpenGL version.
+            rejected = subprocess.run([args.native, '--reject-egl-context'], cwd=directory,
+                                      env=dict(wayland, MESA_GL_VERSION_OVERRIDE='3.3'), check=True,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+            if b'eglCreateContext failed for OpenGL 4.6: EGL_BAD_' not in rejected.stdout:
+                raise RuntimeError(f'Missing EGL driver diagnostic: {rejected.stdout.decode()}')
         for backend, env in [('x11', dict(x11, WAYLAND_DISPLAY='defold-test', DM_TEST_X11_REMAP_KEYS='1')), ('wayland', wayland)]:
             env['DM_TEST_WINDOW_BACKEND'] = backend
             print(f'Running Linux window tests on {backend}', flush=True)
