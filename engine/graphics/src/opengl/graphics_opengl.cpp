@@ -726,7 +726,8 @@ static inline bool IsNativeContextLost()
     }
 
     // Uniform buffers have no resource to reload them from, so a regenerated buffer is filled
-    // with the content last written to it. Returns 0 while the context is still lost.
+    // with the content last written to it. A name made while the context is lost is dropped by
+    // the restore, and the buffer is filled again on the restored context.
     static GLuint EnsureGLUniformBuffer(OpenGLContext* context, OpenGLUniformBuffer* ubo)
     {
         GLuint handle = GetGLHandle(context, ubo->m_Id);

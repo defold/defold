@@ -2303,6 +2303,13 @@ namespace dmRender
         }
         else if (event_type == dmRender::CONTEXT_RESTORED)
         {
+            if (render_context->m_IsContextLost)
+            {
+                // Updates keep running while the context is lost, and objects created or uploaded then
+                // got names of the lost context (WebGL hands out invalidated objects). Drop them too, so
+                // they are created again on the restored context.
+                dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+            }
             render_context->m_IsContextLost = 0;
         }
 
