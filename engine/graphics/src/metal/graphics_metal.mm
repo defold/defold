@@ -3128,7 +3128,11 @@ namespace dmGraphics
         {
             MetalPipeline new_pipeline = {};
 
-            if (!CreateComputePipeline(context, program, &new_pipeline))
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            bool created = CreateComputePipeline(context, program, &new_pipeline);
+            pool->release();
+
+            if (!created)
             {
                 return 0;
             }
@@ -3167,7 +3171,11 @@ namespace dmGraphics
         {
             MetalPipeline new_pipeline = {};
 
-            if (!CreatePipeline(context, rt, pipeline_state, program, vertexDeclaration, vertexDeclarationCount, &new_pipeline))
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            bool created = CreatePipeline(context, rt, pipeline_state, program, vertexDeclaration, vertexDeclarationCount, &new_pipeline);
+            pool->release();
+
+            if (!created)
             {
                 return 0;
             }
@@ -4042,7 +4050,11 @@ namespace dmGraphics
         MetalProgram* program = new MetalProgram;
         memset(program, 0, sizeof(MetalProgram));
 
-        if (!CreateMetalProgram(context, program, ddf, error_buffer, error_buffer_size))
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        bool created = CreateMetalProgram(context, program, ddf, error_buffer, error_buffer_size);
+        pool->release();
+
+        if (!created)
         {
             delete program;
             return 0;
@@ -4088,7 +4100,10 @@ namespace dmGraphics
         ReleaseMetalProgramNativeResources(metal_program);
         memset(&metal_program->m_BaseProgram, 0, sizeof(metal_program->m_BaseProgram));
 
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         bool ok = CreateMetalProgram(context, metal_program, ddf, 0, 0);
+        pool->release();
+
         if (ok)
         {
             context->m_CurrentPipeline = 0;
