@@ -243,17 +243,18 @@ struct VulkanStorageBufferSubDataTest : ITest
 
         // Synchronous uploads reuse their own pool without touching in-flight frame pools.
         Upload(engine, 4, STAGED_UPLOAD_SIZE, 0x12, EXPECT_STAGED_UPLOAD);
-        if (context->m_SynchronousStorageBufferUploadPool.m_Blocks.Empty())
+        if (context->m_SynchronousBufferUploadPool.m_Blocks.Empty())
         {
             dmLogError("Synchronous SSBO upload did not use the staging pool");
             engine->m_Failed = true;
             return;
         }
-        VkBuffer staging = context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer;
+
+        VkBuffer staging = context->m_SynchronousBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer;
         Upload(engine, 4, STAGED_UPLOAD_SIZE, 0x13, EXPECT_STAGED_UPLOAD);
         Upload(engine, BUFFER_SIZE - 4, 4, 0x11, EXPECT_STAGED_UPLOAD);
-        if (context->m_SynchronousStorageBufferUploadPool.m_Blocks.Size() != 1 ||
-            staging != context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer)
+        if (context->m_SynchronousBufferUploadPool.m_Blocks.Size() != 1 ||
+            staging != context->m_SynchronousBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer)
         {
             dmLogError("Synchronous SSBO uploads did not reuse staging storage");
             engine->m_Failed = true;
@@ -285,7 +286,7 @@ struct VulkanStorageBufferSubDataTest : ITest
     {
         dmGraphics::HContext graphics_context = engine->m_GraphicsContext;
         dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) graphics_context;
-        dmGraphics::StorageBufferUploadPool* pool = &context->m_StorageBufferUploadPools[context->m_CurrentFrameInFlight];
+        dmGraphics::BufferUploadPool* pool = &context->m_BufferUploadPools[context->m_CurrentFrameInFlight];
         dmArray<VkBuffer> staging_before;
         staging_before.SetCapacity(pool->m_Blocks.Size());
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)

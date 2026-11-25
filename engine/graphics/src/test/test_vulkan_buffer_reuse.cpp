@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <platform/window.hpp>
 #include <testmain/testmain.h>
 #include "test_app_graphics.h"
@@ -203,41 +204,36 @@ static uint32_t PendingResources(Fixture& fixture)
     return count;
 }
 
-static uint32_t BackingCount(DeviceBuffer* buffer)
-{
-    uint32_t count = buffer->m_Allocation.m_Handle.m_Buffer != VK_NULL_HANDLE;
-    if (!buffer->m_Pool)
-    {
-        return count;
-    }
-    for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        count += buffer->m_Pool->m_Backing[i].m_Handle.m_Buffer != VK_NULL_HANDLE;
-    }
-    return count;
-}
-
-// Allocation metadata must travel with each backing when it changes owners.
+// Device-local storage must retain allocation metadata and never require a CPU mapping.
 static void CheckAllocationSizes(Fixture& fixture, DeviceBuffer* buffer)
 {
     VulkanContext* context = (VulkanContext*) fixture.m_Context;
-    Require(buffer->m_Allocation.m_Capacity >= buffer->m_Base.m_Size, "active allocation covers the logical data");
+    const DeviceBufferAllocation& allocation = buffer->m_Allocation;
+    Require(allocation.m_Capacity >= buffer->m_Base.m_Size, "allocation covers logical data");
+    VkMemoryRequirements requirements;
+    vkGetBufferMemoryRequirements(context->m_LogicalDevice.m_Device, allocation.m_Handle.m_Buffer, &requirements);
+    Require(allocation.m_AllocationSize == requirements.size, "buffer retains actual allocation size");
+    Require(allocation.m_Capacity <= allocation.m_AllocationSize, "usable capacity fits allocation");
+    VkMemoryPropertyFlags flags = context->m_PhysicalDevice.m_MemoryProperties.memoryTypes[allocation.m_MemoryTypeIndex].propertyFlags;
+    Require((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0, "vertex/index destination is device local");
+    Require(allocation.m_MappedDataPtr == 0, "vertex/index destination is not CPU mapped");
+}
+
+static uint32_t CollectStagingBuffers(VulkanContext* context, VkBuffer* handles, uint32_t capacity)
+{
+    uint32_t count = 0;
     for (uint32_t i = 0; i <= DM_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        if (i && !buffer->m_Pool)
+        const BufferUploadPool& pool = i == DM_MAX_FRAMES_IN_FLIGHT ? context->m_PendingBufferUploadPool : context->m_BufferUploadPools[i];
+        for (uint32_t j = 0; j < pool.m_Blocks.Size(); ++j)
         {
-            break;
+            Require(count < capacity, "staging snapshot capacity");
+            Require(pool.m_Blocks[j].m_Allocation.m_MappedDataPtr != 0, "staging remains mapped");
+            handles[count++] = pool.m_Blocks[j].m_Allocation.m_Handle.m_Buffer;
         }
-        const DeviceBufferAllocation& allocation = i ? buffer->m_Pool->m_Backing[i - 1] : buffer->m_Allocation;
-        if (allocation.m_Handle.m_Buffer == VK_NULL_HANDLE)
-        {
-            continue;
-        }
-        VkMemoryRequirements requirements;
-        vkGetBufferMemoryRequirements(context->m_LogicalDevice.m_Device, allocation.m_Handle.m_Buffer, &requirements);
-        Require(allocation.m_AllocationSize == requirements.size, "backing retains its actual allocation size");
-        Require(allocation.m_Capacity <= allocation.m_AllocationSize, "usable capacity fits the allocation");
     }
+
+    return count;
 }
 
 // Deleting a zero-sized buffer is valid even if its first upload never created a VkBuffer.
@@ -251,50 +247,60 @@ static void TestDeleteEmptyBuffers(Fixture& fixture)
     puts("PASS: deleting empty buffers before their first upload");
 }
 
-// Verify pre-frame and in-frame uploads reuse retained allocations after fences,
-// and deleting a logical buffer retires every cached allocation exactly once.
+// Repeated uploads must reuse device-local destinations and fenced staging blocks,
+// including writes before BeginFrame; deletion must retire each destination once.
 static void TestReuseAndDeletion(Fixture& fixture)
 {
-    HVertexBuffer vertex_buffer = NewVertexBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
-    HIndexBuffer index_buffer = NewIndexBuffer(fixture.m_Context, TRIANGLE_INDEX_BYTES, INDICES, BUFFER_USAGE_STREAM_DRAW);
-    // Snapshot the active backing and every spare after the frame slots warm up.
-    VkBuffer retained[1 + DM_MAX_FRAMES_IN_FLIGHT] = {};
-    for (uint32_t frame = 0; frame < 16; ++frame)
+    HVertexBuffer vertices = NewVertexBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
+    HIndexBuffer indices = NewIndexBuffer(fixture.m_Context, TRIANGLE_INDEX_BYTES, INDICES, BUFFER_USAGE_STREAM_DRAW);
+    VkBuffer vertex_handle = ((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer;
+    VkBuffer index_handle = ((DeviceBuffer*) indices)->m_Allocation.m_Handle.m_Buffer;
+    VkBuffer retained[32] = {};
+    uint32_t retained_count = 0;
+    for (uint32_t frame = 0; frame < 20; ++frame)
     {
-        bool upload_during_frame = (frame % 2) != 0;
-        if (upload_during_frame)
+        bool in_frame = (frame % 2) != 0;
+        if (in_frame)
         {
             fixture.Begin();
         }
-        SetVertexBufferData(vertex_buffer, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
-        const uint16_t* triangle_indices = INDICES + (frame % 2) * VERTICES_PER_TRIANGLE;
-        SetIndexBufferData(index_buffer, TRIANGLE_INDEX_BYTES, triangle_indices, BUFFER_USAGE_STREAM_DRAW);
-        if (!upload_during_frame)
+
+        SetVertexBufferData(vertices, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
+        SetIndexBufferData(indices, TRIANGLE_INDEX_BYTES, INDICES + (frame % 2) * VERTICES_PER_TRIANGLE, BUFFER_USAGE_STREAM_DRAW);
+        if (!in_frame)
         {
             fixture.Begin();
         }
-        DeviceBuffer* buffer = (DeviceBuffer*) vertex_buffer;
-        Require(buffer->m_Pool && buffer->m_Allocation.m_MappedDataPtr, "dynamic backing remains mapped");
-        if (frame == 8)
+
+        Require(((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer == vertex_handle, "vertex destination reused");
+        Require(((DeviceBuffer*) indices)->m_Allocation.m_Handle.m_Buffer == index_handle, "index destination reused");
+        CheckAllocationSizes(fixture, (DeviceBuffer*) vertices);
+        CheckAllocationSizes(fixture, (DeviceBuffer*) indices);
+        VkBuffer current[32];
+        uint32_t count = CollectStagingBuffers((VulkanContext*) fixture.m_Context, current, DM_ARRAY_SIZE(current));
+        if (frame == 10)
         {
-            retained[0] = buffer->m_Allocation.m_Handle.m_Buffer;
-            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            memcpy(retained, current, count * sizeof(VkBuffer));
+            retained_count = count;
+        }
+        else if (frame > 10)
+        {
+            Require(count == retained_count, "staging block count stabilizes");
+            for (uint32_t i = 0; i < count; ++i)
             {
-                retained[i + 1] = buffer->m_Pool->m_Backing[i].m_Handle.m_Buffer;
+                bool reused = false;
+                for (uint32_t j = 0; j < retained_count; ++j)
+                {
+                    reused |= current[i] == retained[j];
+                }
+
+                Require(reused, "steady uploads reuse staging allocations");
             }
         }
-        else if (frame > 8)
-        {
-            bool reused = false;
-            for (uint32_t i = 0; i < DM_ARRAY_SIZE(retained); ++i)
-            {
-                reused |= retained[i] == buffer->m_Allocation.m_Handle.m_Buffer;
-            }
-            Require(reused, "steady uploads must not allocate new backings");
-        }
-        fixture.DrawCell(0, vertex_buffer, index_buffer);
-        fixture.DrawCell(1, vertex_buffer);
-        if (frame == 15)
+
+        fixture.DrawCell(0, vertices, indices);
+        fixture.DrawCell(1, vertices);
+        if (frame == 19)
         {
             const bool expected[] = { false, true };
             fixture.CheckCellColors(2, expected);
@@ -302,17 +308,15 @@ static void TestReuseAndDeletion(Fixture& fixture)
         fixture.End();
     }
 
-    // Deletion must enqueue both the active allocations and the cached spares.
-    uint32_t expected_retirements = BackingCount((DeviceBuffer*) vertex_buffer) + BackingCount((DeviceBuffer*) index_buffer);
     uint32_t pending = PendingResources(fixture);
-    DeleteVertexBuffer(vertex_buffer);
-    DeleteIndexBuffer(index_buffer);
-    Require(PendingResources(fixture) == pending + expected_retirements, "delete must retire active and cached backings");
-    puts("PASS: reuse, pre-frame updates and deletion");
+    DeleteVertexBuffer(vertices);
+    DeleteIndexBuffer(indices);
+    Require(PendingResources(fixture) == pending + 2, "delete retires each destination once");
+    puts("PASS: device-local destinations, staging reuse, pre-frame uploads and deletion");
 }
 
-// Verify cache overflow, growth and shrink preserve all earlier vertex/index
-// draws, including more replacements in one frame than the cache can retain.
+// Growth, shrink and repeated updates in one render pass must preserve every
+// earlier vertex/index draw, including reuse of the same destination allocation.
 static void TestRepeatedReplacement(Fixture& fixture)
 {
     HVertexBuffer vertex_buffer = NewVertexBuffer(fixture.m_Context, 0, 0, BUFFER_USAGE_STREAM_DRAW);
@@ -354,11 +358,11 @@ static void TestRepeatedReplacement(Fixture& fixture)
     DeleteVertexBuffer(vertex_buffer);
     DeleteVertexBuffer(indexed_vertices);
     DeleteIndexBuffer(index_buffer);
-    puts("PASS: repeated replacements, growth, shrink and cache eviction");
+    puts("PASS: repeated uploads, growth, shrink and destination reuse");
 }
 
-// Verify partial writes preserve earlier draws and untouched bytes at nonzero
-// vertex/index offsets when a cached backing must be replaced.
+// Partial writes must preserve earlier draws and untouched bytes, including
+// six-byte index ranges that cannot use vkCmdUpdateBuffer.
 static void TestPartialUpdates(Fixture& fixture)
 {
     HVertexBuffer vertex_buffer = NewVertexBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
@@ -395,11 +399,12 @@ static void TestPartialUpdates(Fixture& fixture)
     fixture.CheckCellColors(9, expected);
     fixture.End();
 
-    // Usage changes release/recreate the dynamic cache; zero-sized writes do neither.
+    // Usage hints share one allocation policy; zero-sized writes still do nothing.
+    VkBuffer retained = ((DeviceBuffer*) vertex_buffer)->m_Allocation.m_Handle.m_Buffer;
     SetVertexBufferData(vertex_buffer, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_STATIC_DRAW);
-    Require(!((DeviceBuffer*) vertex_buffer)->m_Pool, "static replacement releases cache");
+    Require(((DeviceBuffer*) vertex_buffer)->m_Allocation.m_Handle.m_Buffer == retained, "static update reuses destination");
     SetVertexBufferData(vertex_buffer, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
-    Require(((DeviceBuffer*) vertex_buffer)->m_Pool != 0, "dynamic replacement recreates cache");
+    Require(((DeviceBuffer*) vertex_buffer)->m_Allocation.m_Handle.m_Buffer == retained, "dynamic update reuses destination");
     SetVertexBufferData(vertex_buffer, 0, 0, BUFFER_USAGE_DYNAMIC_DRAW);
     Require(((DeviceBuffer*) vertex_buffer)->m_Base.m_Size == sizeof(TRIANGLES), "zero-size update retains existing behavior");
     DeleteVertexBuffer(vertex_buffer);
@@ -435,25 +440,147 @@ static void TestConsecutiveWritesBeforeDraw(Fixture& fixture)
     puts("PASS: consecutive vertex and index patches before the first draw");
 }
 
-// Verify potentially GPU-written transfer/storage buffers retain their existing
-// allocation path rather than entering the CPU-authored dynamic cache.
-static void TestExcludedUsages(Fixture& fixture)
+// Transfer-enabled vertices use device-local uploads too; storage buffers retain
+// their own replacement and shader-access tracking while sharing staging storage.
+static void TestTransferAndStorageBuffers(Fixture& fixture)
 {
-    HVertexBuffer vertex_buffer = NewVertexBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, (BufferUsage)(BUFFER_USAGE_DYNAMIC_DRAW | BUFFER_USAGE_TRANSFER));
-    SetVertexBufferData(vertex_buffer, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
-    Require(!((DeviceBuffer*) vertex_buffer)->m_Pool, "transfer buffer must not enter dynamic cache");
-
+    fixture.Begin();
+    HVertexBuffer vertices = NewVertexBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, (BufferUsage)(BUFFER_USAGE_DYNAMIC_DRAW | BUFFER_USAGE_TRANSFER));
+    VkBuffer retained = ((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer;
+    fixture.DrawCell(0, vertices);
+    SetVertexBufferData(vertices, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
+    Require(((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer == retained, "transfer-enabled destination reused");
+    CheckAllocationSizes(fixture, (DeviceBuffer*) vertices);
+    fixture.DrawCell(1, vertices);
     HStorageBuffer storage = NewStorageBuffer(fixture.m_Context, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
     SetStorageBufferData(fixture.m_Context, storage, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_DYNAMIC_DRAW);
-    Require(!((DeviceBuffer*) storage)->m_Pool, "storage buffer must not enter dynamic cache");
-    DeleteVertexBuffer(vertex_buffer);
+    const bool expected[] = { true, true };
+    fixture.CheckCellColors(2, expected);
+    DeleteVertexBuffer(vertices);
     DeleteStorageBuffer(fixture.m_Context, storage);
-    puts("PASS: transfer and storage exclusions");
+    fixture.End();
+    puts("PASS: transfer-enabled vertices and storage buffers");
+}
+
+// Pre-frame writes snapshot caller memory, while deletion and growth cancel only
+// the obsolete destination's pending copies and preserve other uploads' order.
+static void TestPendingUploads(Fixture& fixture)
+{
+    VulkanContext* context = (VulkanContext*) fixture.m_Context;
+    Require(context->m_PendingBufferUploads.Empty(), "no pending uploads at test start");
+    float data[DM_ARRAY_SIZE(TRIANGLES)];
+    memcpy(data, TRIANGLES, sizeof(data));
+    HVertexBuffer vertices = NewVertexBuffer(fixture.m_Context, sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+    memset(data, 0, sizeof(data));
+    HIndexBuffer indices = NewIndexBuffer(fixture.m_Context, TRIANGLE_INDEX_BYTES, INDICES, BUFFER_USAGE_STATIC_DRAW);
+    HVertexBuffer discarded = NewVertexBuffer(fixture.m_Context, TRIANGLE_VERTEX_BYTES, TRIANGLES, BUFFER_USAGE_STREAM_DRAW);
+    SetVertexBufferData(discarded, sizeof(TRIANGLES), TRIANGLES, BUFFER_USAGE_STREAM_DRAW);
+    Require(context->m_PendingBufferUploads.Size() == 3, "growth cancels the old destination upload");
+    DeleteVertexBuffer(discarded);
+    Require(context->m_PendingBufferUploads.Size() == 2, "deletion cancels only its pending upload");
+    fixture.Begin();
+    Require(context->m_PendingBufferUploads.Empty(), "BeginFrame records queued copies");
+    fixture.DrawCell(0, vertices, indices);
+    const bool expected[] = { true };
+    fixture.CheckCellColors(1, expected);
+    fixture.End();
+    DeleteVertexBuffer(vertices);
+    DeleteIndexBuffer(indices);
+    puts("PASS: pre-frame snapshots, growth and cancellation");
+}
+
+// Growing the pre-frame staging block array must not invalidate queued sources.
+// Null data and byte-sized patches must preserve the untouched index bytes.
+static void TestLargePendingUploadsAndBytePatches(Fixture& fixture)
+{
+    const uint32_t buffer_size = 300 * 1024;
+    float* data = (float*) calloc(1, buffer_size);
+    Require(data != 0, "allocate test vertices");
+    HVertexBuffer vertices[6];
+    bool expected[DM_ARRAY_SIZE(vertices)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+    {
+        memcpy(data, TRIANGLES + (i % 2) * FLOATS_PER_TRIANGLE, TRIANGLE_VERTEX_BYTES);
+        vertices[i] = NewVertexBuffer(fixture.m_Context, buffer_size, data, BUFFER_USAGE_STATIC_DRAW);
+        expected[i] = i % 2 == 0;
+    }
+
+    memset(data, 0, buffer_size);
+    free(data);
+    HIndexBuffer indices = NewIndexBuffer(fixture.m_Context, TRIANGLE_INDEX_BYTES, 0, BUFFER_USAGE_STREAM_DRAW);
+    // Six single-byte patches exercise arbitrary copy offsets and sizes after zero-fill.
+    const uint8_t* index_bytes = (const uint8_t*) INDICES;
+    for (uint32_t i = 0; i < TRIANGLE_INDEX_BYTES; ++i)
+    {
+        SetIndexBufferSubData(indices, i, 1, index_bytes + i);
+    }
+
+    fixture.Begin();
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+    {
+        fixture.DrawCell(i, vertices[i], indices);
+    }
+
+    fixture.CheckCellColors(DM_ARRAY_SIZE(expected), expected);
+    // A null partial update restores zero indices and must not affect earlier draws.
+    SetIndexBufferSubData(indices, 1, TRIANGLE_INDEX_BYTES - 1, 0);
+    fixture.DrawCell(6, vertices[0], indices);
+    const bool after_zero[] = { true, false, true, false, true, false, false };
+    fixture.CheckCellColors(DM_ARRAY_SIZE(after_zero), after_zero);
+    fixture.End();
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(vertices); ++i)
+    {
+        DeleteVertexBuffer(vertices[i]);
+    }
+
+    DeleteIndexBuffer(indices);
+    puts("PASS: staging block growth, caller lifetime, byte patches and zero-fill");
 }
 
 extern "C" void dmExportedSymbols();
-int main()
+
+// Rank compatible memory types by caller intent without weakening required flags,
+// assuming a discrete heap layout, or changing driver order when scores tie.
+static void TestMemoryTypeSelection()
 {
+    const VkMemoryPropertyFlags host = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    const VkMemoryPropertyFlags local = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const VkMemoryPropertyFlags cached = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+    VkPhysicalDeviceMemoryProperties properties = {};
+    properties.memoryTypeCount = 4;
+    properties.memoryTypes[0].propertyFlags = host;
+    properties.memoryTypes[1].propertyFlags = local;
+    properties.memoryTypes[2].propertyFlags = host | cached;
+    properties.memoryTypes[3].propertyFlags = host | local;
+    uint32_t selected = 99;
+    Require(GetMemoryTypeIndex(properties, 15, host, &selected) && selected == 0, "default preserves driver order");
+    Require(GetMemoryTypeIndex(properties, 15, host, &selected, local) && selected == 3, "prefer mappable device-local memory");
+    Require(GetMemoryTypeIndex(properties, 7, host, &selected, local) && selected == 0, "incompatible preferred type is ignored");
+    Require(GetMemoryTypeIndex(properties, 15, host, &selected, cached) && selected == 2, "prefer cached memory for readback");
+    Require(GetMemoryTypeIndex(properties, 15, local, &selected, 0, host) && selected == 1, "reserve mappable VRAM when it is unnecessary");
+    properties.memoryTypes[0].propertyFlags = host | local;
+    properties.memoryTypes[3].propertyFlags = host;
+    Require(GetMemoryTypeIndex(properties, 15, host, &selected, 0, local) && selected == 2, "staging preference works regardless of memory type order");
+    Require(GetMemoryTypeIndex(properties, 1, host, &selected, 0, local) && selected == 0, "UMA can use shared memory despite a soft avoidance");
+    selected = 99;
+    Require(!GetMemoryTypeIndex(properties, 2, host, &selected, local) && selected == 99, "preferences cannot weaken requirements");
+    Require(!GetMemoryTypeIndex(properties, 0, host, &selected) && selected == 99, "no compatible type leaves output untouched");
+    properties.memoryTypeCount = VK_MAX_MEMORY_TYPES;
+    properties.memoryTypes[31].propertyFlags = host;
+    Require(GetMemoryTypeIndex(properties, 1u << 31, host, &selected) && selected == 31, "highest memory type bit is supported");
+    properties.memoryTypes[2].propertyFlags = host | local | cached;
+    Require(GetMemoryTypeIndex(properties, 15, host, &selected, local | cached) && selected == 2, "all preferred properties outrank a partial match");
+    puts("PASS: memory type requirements, preferences, fallback and driver order");
+}
+
+int main(int argc, char** argv)
+{
+    TestMemoryTypeSelection();
+    if (argc == 2 && strcmp(argv[1], "--memory-types-only") == 0)
+    {
+        return 0;
+    }
+
     dmExportedSymbols();
     TestMainPlatformInit();
     Fixture fixture = {};
@@ -463,7 +590,9 @@ int main()
     TestRepeatedReplacement(fixture);
     TestPartialUpdates(fixture);
     TestConsecutiveWritesBeforeDraw(fixture);
-    TestExcludedUsages(fixture);
+    TestTransferAndStorageBuffers(fixture);
+    TestPendingUploads(fixture);
+    TestLargePendingUploadsAndBytePatches(fixture);
     fixture.Delete();
     return 0;
 }

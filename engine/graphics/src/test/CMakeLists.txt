@@ -45,6 +45,86 @@ if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGE
   defold_target_link_graphics(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_socket(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" PRIVATE)
   defold_register_test_target(test_vulkan_buffer_reuse OFF)
+  # Memory selection uses synthetic properties and needs no GPU or window.
+  set(_memory_type_test "$<TARGET_FILE:test_vulkan_buffer_reuse>" --memory-types-only)
+  add_custom_target(run_test_vulkan_memory_type
+    COMMAND ${_memory_type_test} DEPENDS test_vulkan_buffer_reuse)
+  defold_register_sequential_test_command(vulkan_memory_type
+    COMMAND ${_memory_type_test} DEPENDS test_vulkan_buffer_reuse)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    defold_add_to_run_tests(run_test_vulkan_memory_type
+      COMMAND ${_memory_type_test} DEPENDS test_vulkan_buffer_reuse)
+  endif()
+
+  # Manual comparison of memory placement; never run performance measurements in CI.
+  defold_add_executable(benchmark_vulkan_buffer_upload
+    "${GRAPHICS_TEST_SRC_DIR}/benchmark_vulkan_buffer_upload.cpp" "${_reuse_generated}/exports.cpp")
+  set_target_properties(benchmark_vulkan_buffer_upload PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  foreach(_stage vert frag)
+    set(_source "${GRAPHICS_TEST_SRC_DIR}/buffer_upload.${_stage}")
+    set(_spirv "${_reuse_generated}/buffer_upload.${_stage}.spv")
+    add_custom_command(OUTPUT "${_spirv}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_reuse_generated}"
+      COMMAND "${_reuse_glslang}" -V -S "${_stage}" "${_source}" -o "${_spirv}"
+      DEPENDS "${_source}" "${_reuse_glslang}" VERBATIM)
+    defold_embed_to_header(INPUT "${_spirv}"
+      OUTPUT_HEADER "${_reuse_generated}/buffer_upload_${_stage}.h"
+      OUTPUT_CPP "${_reuse_generated}/buffer_upload_${_stage}.cpp"
+      SYMBOL "buffer_upload_${_stage}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+    target_sources(benchmark_vulkan_buffer_upload PRIVATE "${_header}" "${_cpp}")
+  endforeach()
+  target_include_directories(benchmark_vulkan_buffer_upload PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${_reuse_generated}")
+  defold_target_link_libraries(benchmark_vulkan_buffer_upload "${TARGET_PLATFORM}" testmain ddf dlib profile_null graphics_vulkan graphics_transcoder_null)
+  defold_target_link_platform(benchmark_vulkan_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(benchmark_vulkan_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_graphics(benchmark_vulkan_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(benchmark_vulkan_buffer_upload "${TARGET_PLATFORM}" PRIVATE)
+
+  # Compare the production buffer APIs separately from the Vulkan placement candidates.
+  if(TARGET_PLATFORM STREQUAL "x86_64-win32" AND WITH_OPENGL)
+    set(_upload_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_upload_backends")
+    defold_create_exported_symbols_file("${_upload_generated}/exports.cpp"
+      "GraphicsAdapterVulkan;GraphicsAdapterDX12;GraphicsAdapterOpenGL")
+    defold_add_executable(benchmark_graphics_buffer_upload
+      "${GRAPHICS_TEST_SRC_DIR}/benchmark_graphics_buffer_upload.cpp" "${_upload_generated}/exports.cpp")
+    set_target_properties(benchmark_graphics_buffer_upload PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    find_program(_upload_dxc NAMES dxc HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+    foreach(_stage vert frag)
+      if(_stage STREQUAL "vert")
+        set(_profile vs)
+      else()
+        set(_profile ps)
+      endif()
+      set(_dxil "${_upload_generated}/buffer_upload.${_stage}.dxil")
+      add_custom_command(OUTPUT "${_dxil}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_upload_generated}"
+        COMMAND "${_upload_dxc}" -T "${_profile}_6_0" -E "${_profile}_main" -O3
+          -Fo "${_dxil}" "${GRAPHICS_TEST_SRC_DIR}/buffer_upload.hlsl"
+        DEPENDS "${GRAPHICS_TEST_SRC_DIR}/buffer_upload.hlsl" "${_upload_dxc}" VERBATIM)
+      foreach(_format gl dxil)
+        if(_format STREQUAL "gl")
+          set(_input "${GRAPHICS_TEST_SRC_DIR}/buffer_upload.${_stage}")
+        else()
+          set(_input "${_dxil}")
+        endif()
+        set(_symbol "buffer_upload_${_format}_${_stage}")
+        defold_embed_to_header(INPUT "${_input}"
+          OUTPUT_HEADER "${_upload_generated}/${_symbol}.h"
+          OUTPUT_CPP "${_upload_generated}/${_symbol}.cpp"
+          SYMBOL "${_symbol}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+        target_sources(benchmark_graphics_buffer_upload PRIVATE "${_header}" "${_cpp}")
+      endforeach()
+      target_sources(benchmark_graphics_buffer_upload PRIVATE "${_reuse_generated}/buffer_upload_${_stage}.cpp")
+    endforeach()
+    target_include_directories(benchmark_graphics_buffer_upload PRIVATE
+      "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${_reuse_generated}" "${_upload_generated}")
+    defold_target_link_libraries(benchmark_graphics_buffer_upload "${TARGET_PLATFORM}"
+      testmain ddf dlib profile_null graphics_transcoder_null)
+    defold_target_link_platform(benchmark_graphics_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_glfw(benchmark_graphics_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_graphics(benchmark_graphics_buffer_upload "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_socket(benchmark_graphics_buffer_upload "${TARGET_PLATFORM}" PRIVATE)
+  endif()
 endif()
 
 if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)

@@ -47,7 +47,7 @@ namespace dmGraphics
         RESOURCE_TYPE_COMMAND_BUFFER = 4,
     };
 
-    // Physical memory shared by active buffers, cached backings and upload blocks.
+    // Physical memory owned by buffers and upload blocks.
     // Ownership is managed by the caller; copying this struct does not allocate memory.
     struct DeviceBufferAllocation
     {
@@ -64,11 +64,6 @@ namespace dmGraphics
         {
             VkBuffer       m_Buffer;
             VkDeviceMemory m_Memory;
-            // TODO: Unify serial-based reuse and frame-slot-based deferred destruction
-            // so both can use a single last-use representation.
-            // Serial of the last draw that bound this vertex or index allocation.
-            // The CPU can overwrite it once that frame has completed.
-            uint64_t       m_LastUsedSerial;
             // Repeating frame slot (0, 1, 2), used to choose the deferred-deletion queue.
             uint8_t        m_LastUsedFrameSlot;
         };
@@ -86,13 +81,10 @@ namespace dmGraphics
         void     UnmapMemory(VkDevice vk_device);
     };
 
-    struct DeviceBufferPool;
-
     struct DeviceBuffer
     {
         explicit DeviceBuffer(VkBufferUsageFlags usage)
         : m_Base()
-        , m_Pool(0)
         , m_Usage(usage)
         , m_StorageAccess(0)
         , m_StorageStages(0)
@@ -102,26 +94,12 @@ namespace dmGraphics
 
         Buffer                 m_Base;
         DeviceBufferAllocation m_Allocation;
-        DeviceBufferPool*      m_Pool;
         VkBufferUsageFlags     m_Usage;
         VkAccessFlags          m_StorageAccess;
         VkPipelineStageFlags   m_StorageStages;
         uint32_t               m_Destroyed : 1;
 
         const VulkanResourceType GetType();
-    };
-
-    // A dynamic vertex or index buffer keeps its old VkBuffers and their memory here for reuse.
-    // For example, the sprite renderer can upload next frame's vertices while the GPU draws this frame.
-    // Once that draw finishes, a later upload can reuse the old buffer if it is large enough.
-    // The active allocation lives on DeviceBuffer. This pool holds up to DM_MAX_FRAMES_IN_FLIGHT
-    // additional allocations, and updates in any frame can reuse any of them once ready.
-    struct DeviceBufferPool
-    {
-        DeviceBufferAllocation m_Backing[DM_MAX_FRAMES_IN_FLIGHT];
-        // When a full pool needs room, this counter modulo the capacity picks the slot to evict.
-        // Advancing it after each eviction makes the slots take turns.
-        uint32_t               m_NextEviction;
     };
 
     struct VulkanUniformBuffer
@@ -136,17 +114,24 @@ namespace dmGraphics
         DeviceBuffer  m_DeviceBuffer;
     };
 
-    struct StorageBufferUploadBlock
+    struct BufferUploadBlock
     {
         DeviceBufferAllocation m_Allocation;
         uint32_t               m_Cursor;
     };
 
-    struct StorageBufferUploadPool
+    struct BufferUploadPool
     {
         // Suballocated during a frame; cursors reset only after its fence completes.
         // Synchronous uploads use a separate pool and reset after waiting for their copy.
-        dmArray<StorageBufferUploadBlock> m_Blocks;
+        dmArray<BufferUploadBlock> m_Blocks;
+    };
+
+    struct PendingBufferUpload
+    {
+        DeviceBuffer* m_Buffer;
+        VkBuffer      m_Source;
+        VkBufferCopy  m_Region;
     };
 
     struct TextureUploadBlock
@@ -554,9 +539,6 @@ namespace dmGraphics
         PhysicalDevice                     m_PhysicalDevice;
         LogicalDevice                      m_LogicalDevice;
         FrameResource                      m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
-        uint64_t                           m_FrameSerial;
-        uint64_t                           m_CompletedFrameSerial;
-        uint64_t                           m_SubmittedFrameSerial[DM_MAX_FRAMES_IN_FLIGHT];
         VkInstance                         m_Instance;
         VkSurfaceKHR                       m_WindowSurface;
         dmArray<TextureSampler>            m_TextureSamplers;
@@ -573,21 +555,25 @@ namespace dmGraphics
         dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
 
         // Main device rendering constructs
-        dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
-        VkCommandBuffer                 m_MainCommandBuffers[DM_MAX_FRAMES_IN_FLIGHT];
-        ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
-        ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
-        StorageBufferUploadPool         m_StorageBufferUploadPools[DM_MAX_FRAMES_IN_FLIGHT];
-        StorageBufferUploadPool         m_SynchronousStorageBufferUploadPool;
-        TextureUploadPool               m_TextureUploadPool;
-        DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
-        uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
-        VkRenderPass                    m_MainRenderPass;
-        VkRenderPass                    m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
-        VulkanTexture                   m_MainTextureDepthStencil;
-        HRenderTarget                   m_MainRenderTarget;
-        Viewport                        m_MainViewport;
-        VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VkFramebuffer>             m_MainFrameBuffers; // One per swap chain image
+        VkCommandBuffer                    m_MainCommandBuffers[DM_MAX_FRAMES_IN_FLIGHT];
+        ResourcesToDestroyList*            m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
+        ScratchBuffer                      m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
+        BufferUploadPool                   m_BufferUploadPools[DM_MAX_FRAMES_IN_FLIGHT];
+        BufferUploadPool                   m_SynchronousBufferUploadPool;
+        // Pre-frame writes use retired staging storage without waiting for the next frame.
+        // BeginFrame exchanges this pool with its fenced pool before recording the copies.
+        BufferUploadPool                   m_PendingBufferUploadPool;
+        dmArray<PendingBufferUpload>       m_PendingBufferUploads;
+        TextureUploadPool                  m_TextureUploadPool;
+        DescriptorAllocator                m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
+        uint32_t                           m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
+        VkRenderPass                       m_MainRenderPass;
+        VkRenderPass                       m_MainRenderPassLoad; // Compatible with m_MainRenderPass, but uses LOAD_OP_LOAD to preserve contents when the main RT is rebound mid-frame.
+        VulkanTexture                      m_MainTextureDepthStencil;
+        HRenderTarget                      m_MainRenderTarget;
+        Viewport                           m_MainViewport;
+        VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
         dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         // Rendering state
@@ -667,8 +653,8 @@ namespace dmGraphics
     VkResult CreateTexture(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageDepth, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VulkanTexture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, VkSamplerAddressMode vk_wrap_w, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachments, VkRenderPass* renderPassOut);
-    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
-    VkResult CreateDeviceBufferAllocation(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize size, VkMemoryPropertyFlags memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* allocation);
+    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut, VkMemoryPropertyFlags preferred_flags = 0, VkMemoryPropertyFlags avoided_flags = 0);
+    VkResult CreateDeviceBufferAllocation(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize size, VkMemoryPropertyFlags memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* allocation, VkMemoryPropertyFlags preferred_flags = 0, VkMemoryPropertyFlags avoided_flags = 0);
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, VulkanRenderTarget* render_target, Pipeline* pipelineOut);
     VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut);
@@ -694,7 +680,11 @@ namespace dmGraphics
     // Get functions
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
     void                  GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeature);
-    bool                  GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
+    // Requirements are mandatory. Maximize preferred matches, then minimize avoided matches;
+    // driver order breaks ties. Omitting preferences preserves first-compatible selection.
+    // Avoided properties are a soft preference, so UMA devices can still use a shared heap.
+    bool                  GetMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties& properties, uint32_t type_filter, VkMemoryPropertyFlags required_flags, uint32_t* memory_index_out, VkMemoryPropertyFlags preferred_flags = 0, VkMemoryPropertyFlags avoided_flags = 0);
+    bool                  GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t type_filter, VkMemoryPropertyFlags required_flags, uint32_t* memory_index_out, VkMemoryPropertyFlags preferred_flags = 0, VkMemoryPropertyFlags avoided_flags = 0);
     QueueFamily           GetGraphicsQueueFamily(PhysicalDevice* device);
     QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
