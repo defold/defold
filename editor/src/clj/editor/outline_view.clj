@@ -155,7 +155,11 @@
         (first parents)))))
 
 (defn- set-paste-parent! [root-its]
-  (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
+  (alter-var-root #'*paste-into-parent*
+                  (constantly
+                    (when-let [parent (single-parent-it root-its)]
+                      {:parent-path (:item-id-path (outline/value parent))
+                       :selection-paths (coll/into-> root-its #{} (map #(-> % outline/value :item-id-path)))}))))
 
 (defn- update-selection! [app-view swap-state active-resource-node tree-items]
   ;; `tree-items` is a new selection. This means that, due to a JavaFX bug, some
@@ -306,6 +310,16 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input outline-name-paths scene-visibility/OutlineNamePaths)
 
+  (output selected-iterators g/Any :cached
+          (g/fnk [active-outline selection tree-selection]
+            (outline/selection-iterators
+              active-outline selection
+              (coll/into-> tree-selection #{} (map :item-id-path)))))
+
+  (output selected-root-iterators g/Any :cached
+          (g/fnk [selected-iterators]
+            (outline/selection-roots selected-iterators)))
+
   (output pane-content-desc g/Any :cached produce-pane-content-desc))
 
 (handler/register-menu! ::outline-menu
@@ -376,14 +390,8 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn- root-iterators
-  ([outline-view]
-   (g/with-auto-evaluation-context evaluation-context
-     (root-iterators outline-view evaluation-context)))
-  ([outline-view evaluation-context]
-   (ui/selection-root-items
-     (g/node-value outline-view :tree-view evaluation-context)
-     :selection-id)))
+(defn- root-iterators [outline-view]
+  (ui/selection-root-items (g/node-value outline-view :tree-view) :selection-id))
 
 (defn- outline-active? [outline-view evaluation-context]
   (some? (g/node-value outline-view :active-outline evaluation-context)))
@@ -393,8 +401,8 @@
   (enabled? [selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
          (< 0 (count selection))
-         (-> (root-iterators outline-view evaluation-context)
-             outline/delete?)))
+         (when-let [iterators (coll/not-empty (g/node-value outline-view :selected-root-iterators evaluation-context))]
+           (outline/delete? iterators))))
   (run [app-view selection selection-provider outline-view]
     (g/let-ec [basis (:basis evaluation-context)
                old-selected-node-ids (handler/selection->node-ids selection evaluation-context)
@@ -424,10 +432,11 @@
   (enabled? [selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
          (< 0 (count selection))
+         (coll/not-empty (g/node-value outline-view :selected-root-iterators evaluation-context))
          (coll/not-any? outline/entry-selection?
                         (g/node-value outline-view :selection evaluation-context))))
   (run [outline-view project]
-    (let [root-its (root-iterators outline-view)
+    (let [root-its (g/node-value outline-view :selected-root-iterators)
           cb (Clipboard/getSystemClipboard)
           data (outline/copy project root-its)]
       (set-paste-parent! root-its)
@@ -435,7 +444,10 @@
 
 (defn- paste-target-it [item-iterators]
   (let [single-parent (single-parent-it item-iterators)]
-    (or (when (= (some-> single-parent outline/value :node-id) *paste-into-parent*)
+    (or (when (and single-parent
+                   (= (:parent-path *paste-into-parent*) (:item-id-path (outline/value single-parent)))
+                   (= (:selection-paths *paste-into-parent*)
+                      (coll/into-> item-iterators #{} (map #(-> % outline/value :item-id-path)))))
           single-parent)
         (first item-iterators))))
 
@@ -444,32 +456,41 @@
   (enabled? [project selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
          (let [cb (Clipboard/getSystemClipboard)
-               target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
+
+               target-item-it
+               (paste-target-it (g/node-value outline-view :selected-root-iterators evaluation-context))
+
                data-format (data-format-fn)]
            (and target-item-it
                 (.hasContent cb data-format)
                 (outline/paste? project target-item-it (.getContent cb data-format))))))
   (run [project outline-view app-view]
-    (let [target-item-it (paste-target-it (root-iterators outline-view))
+    (let [target-item-it
+          (paste-target-it (g/node-value outline-view :selected-root-iterators))
+
           cb (Clipboard/getSystemClipboard)
           data-format (data-format-fn)]
       (outline/paste! project target-item-it (.getContent cb data-format) (partial app-view/select app-view))
-      (set-paste-parent! (root-iterators outline-view)))))
+      (set-paste-parent! (g/node-value outline-view :selected-root-iterators)))))
 
 (handler/defhandler :edit.cut :workbench
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
-         (let [item-iterators (root-iterators outline-view evaluation-context)]
+         (let [item-iterators
+               (g/node-value outline-view :selected-root-iterators evaluation-context)]
            (and (< 0 (count item-iterators))
                 (outline/cut? item-iterators)))))
   (run [app-view selection-provider outline-view project]
-    (let [item-iterators (root-iterators outline-view)
-          cb (Clipboard/getSystemClipboard)
-          data-format (data-format-fn)
-          next (g/with-auto-evaluation-context evaluation-context
-                 (-> (handler/succeeding-selection selection-provider evaluation-context)
-                     (handler/selection->node-ids evaluation-context)))]
+    (g/let-ec [item-iterators
+               (g/node-value outline-view :selected-root-iterators evaluation-context)
+
+               cb (Clipboard/getSystemClipboard)
+               data-format (data-format-fn)
+
+               next
+               (-> (handler/succeeding-selection selection-provider evaluation-context)
+                   (handler/selection->node-ids evaluation-context))]
       (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
 (defn- drag-detected [project outline-view ^MouseEvent e]
@@ -742,14 +763,14 @@
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
 
-(defonce/record SelectionProvider [tree-view]
+(defonce/record SelectionProvider [outline-view tree-view]
   handler/SelectionProvider
-  (selection [_this _evaluation-context]
-    (ui/selection tree-view))
+  (selection [_this evaluation-context]
+    (mapv outline/value (g/node-value outline-view :selected-iterators evaluation-context)))
   (succeeding-selection [_this _evaluation-context]
     (ui/succeeding-selection tree-view (ui/selection-root-items tree-view :selection-id)))
-  (alt-selection [_this _evaluation-context]
-    (alt-selection (ui/selection tree-view))))
+  (alt-selection [this evaluation-context]
+    (alt-selection (handler/selection this evaluation-context))))
 
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]
@@ -797,8 +818,8 @@
       (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
-      (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
-                                                                                             resource/Resource :link}))))
+      (ui/context! :outline {:outline-view outline-view} (->SelectionProvider outline-view tree-view) {} {Long :node-id
+                                                                                                          resource/Resource :link}))))
 
 (defn make-outline-view [project app-view localization]
   (let [tree-view (doto (ExtendedTreeView.)

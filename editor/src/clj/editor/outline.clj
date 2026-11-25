@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [internal.cache :as c]
             [internal.graph.types :as gt]
+            [internal.util :as util]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :as coll]
@@ -31,7 +32,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defprotocol ItemIterator
+(defonce/protocol ItemIterator
   (value [this])
   (parent [this]))
 
@@ -120,6 +121,61 @@
   (if (entry-selection? selection)
     (:node-id selection)
     selection))
+
+(defonce/record OutlineItemIterator [item parent-iterator]
+  ItemIterator
+  (value [_this] item)
+  (parent [_this] parent-iterator))
+
+(defn selection-iterators
+  "Resolves selection against an outline without accessing its TreeView.
+
+  Preferred item paths retain selected occurrences of entries appearing more
+  than once. Missing occurrences fall back to the first matching entry."
+  [root selection preferred-item-paths]
+  (if (or (nil? root) (coll/empty? selection))
+    []
+    (let [selected-ids (set selection)
+
+          candidates-by-id
+          ((fn collect [acc parent-iterator parent-selection-path item]
+             (let [selection-path (selection-path parent-selection-path item)
+                   id (selection-id selection-path)
+
+                   item-path
+                   (conj (:item-id-path (some-> parent-iterator value) []) id)
+
+                   iterator
+                   (->OutlineItemIterator (assoc item :selection-id id :item-id-path item-path) parent-iterator)
+
+                   acc
+                   (cond-> acc
+                     (contains? selected-ids id) (update id (fnil conj []) iterator))]
+               (reduce #(collect %1 iterator selection-path %2) acc (:children item))))
+           {} nil [] root)]
+      (coll/into-> selection []
+        (distinct)
+        (mapcat (fn selected-occurrences [id]
+                  (let [candidates (get candidates-by-id id)
+
+                        preferred
+                        (filterv #(contains? preferred-item-paths (:item-id-path (value %))) candidates)]
+                    (or (coll/not-empty preferred)
+                        (some-> (first candidates) vector)))))))))
+
+(defn selection-roots
+  "Excludes selected descendants and duplicate entries from outline iterators."
+  [iterators]
+  (let [selected-paths (coll/into-> iterators #{}
+                         (map #(-> % value :item-id-path)))]
+    (coll/into-> iterators []
+      (filter (fn selection-root [iterator]
+                (loop [ancestor (parent iterator)]
+                  (if (nil? ancestor)
+                    true
+                    (when-not (contains? selected-paths (:item-id-path (value ancestor)))
+                      (recur (parent ancestor)))))))
+      (util/distinct-by #(-> % value :selection-id)))))
 
 (defn- claim-outline-impl [outline old-node-id new-node-id]
   (if (not= old-node-id (:node-id outline))

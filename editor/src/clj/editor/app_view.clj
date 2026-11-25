@@ -2291,6 +2291,7 @@
         controls
         (ui/collect-controls root
                              (into ["workbench" "left-pane" "right-pane" "bottom-pane"] split-ids))]
+    ;; TODO: Delete migration code after 2027-11-25.
     (when (contains? hidden :changed-files)
       (prefs/update! prefs [:window :layout :hidden-panes] conj :changed-files)
       (prefs/update! prefs prefs-hidden-panes disj :changed-files))

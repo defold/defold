@@ -77,7 +77,7 @@
 ;; reduced instance to support `deref`, but not `vreset!`
 (def ^:private ^:dynamic *lifecycle-evaluation-context-ideref* (reduced nil))
 
-(defn- lifecycle-evaluation-context []
+(defn lifecycle-evaluation-context []
   {:post [(some? %)]}
   @*lifecycle-evaluation-context-ideref*)
 

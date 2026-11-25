@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.outline-test
-  (:require [clojure.test :refer :all]
+  (:require [cljfx.api :as fx]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as camera]
@@ -26,10 +27,12 @@
             [editor.outline-view :as outline-view]
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
+            [editor.ui :as ui]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [javafx.scene.input Clipboard]))
 
 (defn- outline
   ([node]
@@ -1109,3 +1112,173 @@
       (is (= "Child" (:label (outline target [0 0 0 0]))))
       (is (not= source (:node-id (outline target [0 0]))))
       (is (not= child (:node-id (outline target [0 0 0 0])))))))
+
+;; Clipboard commands use current graph selection after Outline is unmounted,
+;; preserving selected parents and the chosen occurrence of repeated entries.
+(deftest clipboard-commands-with-unmounted-outline
+  (doseq [mounted [true false]]
+    (testing (str "Outline mounted: " mounted)
+      (test-util/with-loaded-project
+        (ui/run-now
+          (let [[root first-parent second-parent child state]
+                (g/tx-nodes-added
+                  (g/transact
+                    (g/make-nodes [root [SharedOutlineNode :name "Root"]
+                                   first-parent [SharedOutlineNode :name "First"]
+                                   second-parent [SharedOutlineNode :name "Second"]
+                                   child [SharedOutlineNode :name "Child"]
+                                   _state OutlineCopyState]
+                      (attach-shared-outline-node root first-parent)
+                      (attach-shared-outline-node root second-parent)
+                      (attach-shared-outline-node first-parent child)
+                      (attach-shared-outline-node second-parent child))))
+
+                outline-view
+                (outline-view/make-outline-view project app-view test-util/localization)
+
+                _ (g/transact
+                    [(g/connect state :selection outline-view :selection)
+                     (g/connect root :node-outline outline-view :active-outline)
+                     (g/connect root :_node-id outline-view :active-resource-node)])
+
+                component
+                (volatile! (fx/create-component (g/node-value outline-view :pane-content-desc)))
+
+                selection-provider
+                (outline-view/->SelectionProvider outline-view (g/node-value outline-view :tree-view))
+
+                clipboard (Clipboard/getSystemClipboard)
+
+                clipboard-before
+                (coll/pair-map-by identity #(.getContent clipboard %) (.getContentTypes clipboard))
+
+                contexts
+                (fn contexts []
+                  [(handler/->context :workbench
+                                      {:outline-view outline-view
+                                       :project project
+                                       :app-view app-view
+                                       :selection (mapv outline/selection-node-id (g/node-value state :selection))}
+                                      (app-view/->selection-provider app-view) {} {Long :node-id})])
+
+                select!
+                (fn select! [selection]
+                  (g/set-property! state :selection selection)
+                  (when @component
+                    (vswap! component fx/advance-component (g/node-value outline-view :pane-content-desc))))
+
+                run!
+                (fn run! [command]
+                  (is (test-util/handler-enabled? command (contexts) {}))
+                  (test-util/handler-run command (contexts) {}))]
+            (try
+              (select! [child])
+              (when-not mounted
+                (fx/delete-component @component)
+                (vreset! component nil))
+              (testing "A stale child selection cannot make the root cuttable"
+                (select! [root])
+                (g/with-auto-evaluation-context evaluation-context
+                  (is (= [root] (mapv :node-id (handler/selection selection-provider evaluation-context)))))
+                (is (not (test-util/handler-enabled? :edit.cut (contexts) {}))))
+              (testing "Copying a selected parent and descendant copies one subtree"
+                (select! [child first-parent])
+                (run! :edit.copy)
+                (select! [root])
+                (run! :edit.paste)
+                (is (= 3 (child-count root [0])))
+                (is (= "First" (:label (outline root [0 2]))))
+                (is (= "Child" (:label (outline root [0 2 0 0])))))
+              (testing "A repeated child retains the second selected occurrence"
+                (let [group (outline/->OutlineEntrySelection root ["group"])
+
+                      parent-group
+                      (outline/->OutlineEntrySelection second-parent ["group"])
+
+                      path [root group second-parent parent-group child]]
+                  (select! [child])
+                  (g/set-property! outline-view :tree-selection [{:selection-id child :item-id-path path}])
+                  (run! :edit.copy)
+                  (run! :edit.paste)
+                  (is (= 1 (child-count first-parent [0]))))
+                (is (= 2 (child-count second-parent [0]))))
+              (testing "Changing selection invalidates the remembered paste parent"
+                (select! [second-parent])
+                (run! :edit.copy)
+                (select! [first-parent])
+                (run! :edit.paste)
+                (is (= 3 (child-count root [0])))
+                (is (= 2 (child-count first-parent [0]))))
+              (testing "Paste accepts a shared-node grouping entry as its target"
+                (select! [(outline/->OutlineEntrySelection first-parent ["group"])])
+                (run! :edit.paste)
+                (is (= 3 (child-count root [0])))
+                (is (= 3 (child-count first-parent [0]))))
+              (testing "Cut deletes the current target and Paste restores its subtree"
+                (select! [second-parent child])
+                (g/set-property! outline-view :tree-selection
+                  [{:selection-id child
+                    :item-id-path [root (outline/->OutlineEntrySelection root ["group"])
+                                   second-parent (outline/->OutlineEntrySelection second-parent ["group"])
+                                   child]}])
+                (run! :edit.cut)
+                (is (nil? (g/node-by-id second-parent)))
+                (is (some? (g/node-by-id child)))
+                (g/with-auto-evaluation-context evaluation-context
+                  (is (coll/every? #(g/node-by-id (:node-id %))
+                                   (handler/selection selection-provider evaluation-context))))
+                (select! [root])
+                (run! :edit.paste)
+                (is (= 3 (child-count root [0]))))
+              (finally
+                (when @component
+                  (fx/delete-component @component))
+                (.setContent clipboard clipboard-before)))))))))
+
+;; Command selections resolve current hierarchy and occurrence paths without a
+;; TreeView, excluding selected descendants and duplicate occurrences.
+(deftest selection-root-iterators-test
+  (let [root-iterators
+        (fn root-iterators [root selection preferred]
+          (outline/selection-roots (outline/selection-iterators root selection preferred)))
+
+        root
+        {:node-id 1
+         :children [{:node-id 2 :children [{:node-id 4}]}
+                    {:node-id 3 :children [{:node-id 4}]}]}
+
+        paths
+        (fn selected-paths [selection preferred]
+          (mapv #(-> % outline/value :item-id-path)
+                (root-iterators root selection preferred)))]
+    (testing "Parents cover selected descendants regardless of selection order"
+      (is (= [[1 2]] (paths [4 2] #{[1 2 4]})))
+      (is (= [[1]] (paths [4 2 1] #{}))))
+    (testing "Repeated entries retain their selected occurrence and ancestors"
+      (let [iterator
+            (first (root-iterators root [4] #{[1 3 4]}))]
+        (is (= [1 3 4] (:item-id-path (outline/value iterator))))
+        (is (= 3 (:node-id (outline/value (outline/parent iterator)))))
+        (is (= 1 (:node-id (outline/value (outline/parent (outline/parent iterator)))))))
+      (is (= [[1 2 4]] (paths [4] #{})))
+      (is (= [[1 2 4]] (paths [4] #{[99 4]})))
+      (is (= [[1 2 4]] (paths [4 4] #{[1 2 4] [1 3 4]})))
+      (is (= [[1 3 4] [1 2]] (paths [4 2] #{[1 2 4] [1 3 4]}))))
+    (testing "Shared-node entries have distinct selection identities"
+      (let [group (outline/->OutlineEntrySelection 1 ["group"])
+
+            root
+            {:node-id 1
+             :children [{:node-id 1
+                         :node-outline-key "group"
+                         :children [{:node-id 2}]}]}
+
+            iterators (root-iterators root [group] #{})]
+        (is (= [group] (mapv #(-> % outline/value :selection-id) iterators)))
+        (is (= [1 group] (:item-id-path (outline/value (first iterators)))))
+        (is (= [group] (mapv #(-> % outline/value :selection-id)
+                             (root-iterators root [2 group] #{}))))))
+    (testing "Missing outlines, selections and stale occurrence paths are harmless"
+      (is (= [] (root-iterators nil [4] #{})))
+      (is (= [] (paths [] #{})))
+      (is (= [] (paths [99] #{[1 2 4]}))))))

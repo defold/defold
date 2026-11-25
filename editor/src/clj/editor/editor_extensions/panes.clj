@@ -14,7 +14,6 @@
 
 (ns editor.editor-extensions.panes
   (:require [cljfx.api :as fx]
-            [cljfx.fx.label :as fx.label]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.commands :as commands]
@@ -46,13 +45,23 @@
 (def definitions-coercer
   (coerce/vector-of (coerce/wrap-with-pred coerce/userdata #(= :pane (:type (meta %))) "is not a pane")))
 
-(defn- render-content [{:keys [rt render props]}]
-  (rt/->clj rt ui-docs/component-coercer (rt/invoke-immediate-1 rt render (rt/->lua props))))
-
 (defn- render-error [{:keys [rt label exception caught]}]
   (when caught
     (error-handling/display-script-error! rt label exception))
-  {:fx/type fx.label/lifecycle :text (ex-message exception) :wrap-text true})
+  {:fx/type fxui/paragraph :text (ex-message exception) :alignment :top-left})
+
+(ui/defc ^:private render-content
+  {:compose [{:fx/type fxui/ext-error-boundary
+              :catch {:fx/type render-error
+                      :rt (:rt props)
+                      :label (:error-label props)}}]}
+  [{:keys [rt render props]}]
+  (rt/->clj
+    rt ui-docs/component-coercer
+    (rt/invoke-immediate-1 rt
+                           {:evaluation-context (ui-components/lifecycle-evaluation-context)}
+                           render
+                           (rt/->lua props))))
 
 (ui/defc ^:private pane-content
   {:compose [{:fx/type fx/ext-recreate-on-key-changed :key (:rt props)}
@@ -63,9 +72,11 @@
   [{:keys [rt render props error-label]}]
   {:fx/type fx.stack-pane/lifecycle
    :alignment :top-left
-   :children [{:fx/type fxui/ext-error-boundary
-               :catch {:fx/type render-error :rt rt :label error-label}
-               :desc {:fx/type render-content :rt rt :render render :props props}}]})
+   :children [{:fx/type render-content
+               :rt rt
+               :render render
+               :props props
+               :error-label error-label}]})
 
 (defn compile-pane [project workspace localization rt path {:keys [id location title query render]}]
   (let [query-fn

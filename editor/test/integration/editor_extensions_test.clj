@@ -26,9 +26,11 @@
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.panes :as ext.panes]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.server :as ext.server]
+            [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -65,6 +67,7 @@
            [java.util.zip ZipEntry]
            [javafx.scene Node Scene]
            [javafx.scene.control Labeled]
+           [javafx.scene.layout StackPane]
            [javafx.stage Stage]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -474,6 +477,92 @@
           (is (= "/game.project" (text-of @component ".ext-button")))
           (finally
             (ui/run-now (fx/delete-component @component))))))))
+
+;; Pane renders share the surrounding lifecycle context with child components;
+;; errors fill the pane, report once, and recover when render props change.
+(deftest editor-script-pane-render-context-test
+  (test-util/with-loaded-project
+    (let [observations (atom [])
+          fail (atom false)
+          output (StringWriter.)
+
+          rt
+          (rt/make
+            :err output
+            :env {"editor" {"ui" (ui-components/env workspace project (.toPath (workspace/project-directory workspace)) test-util/localization)}
+                  "observe" (rt/lua-fn [{:keys [rt evaluation-context]} label]
+                              (swap! observations conj
+                                     {:label (rt/->clj rt coerce/string label)
+                                      :runtime evaluation-context
+                                      :lifecycle (ui-components/lifecycle-evaluation-context)})
+                              (rt/->lua nil))
+                  "should_fail" (rt/lua-fn [_] (rt/->lua @fail))})
+
+          render
+          (rt/invoke-immediate-1 rt
+                                 (rt/bind rt
+                                          (rt/read "local ui = editor.ui
+local child = ui.component(function()
+    observe('component')
+    return ui.label {text = 'Ready'}
+end)
+return function()
+    observe('render')
+    if should_fail() then error('Expected pane render failure with enough words to wrap inside a narrow pane.', 0) end
+    return child {}
+end")))
+
+          pane
+          (ext.panes/compile-pane project workspace test-util/localization rt "/context.editor_script"
+                                  {:id :test.context
+                                   :title "Context"
+                                   :location :bottom
+                                   :query {:selection {:type :resource :cardinality :one}}
+                                   :render render})
+
+          describe
+          (fn describe [path]
+            ((:content pane)
+             {:contexts [(handler/->context :workbench
+                                            {:selection [(g/node-value (test-util/resource-node project path) :resource)]})]}))]
+      (ui/run-now
+        (let [component
+              (volatile! (fx/create-component (describe "/game.project")))
+
+              ^StackPane root (fx/instance @component)]
+          (try
+            (Scene. root)
+            (.resize root 180.0 120.0)
+            (.applyCss root)
+            (.layout root)
+            (testing "Top-level and nested renders share one lifecycle context"
+              (is (= ["render" "component"] (mapv :label @observations)))
+              (is (apply identical? (mapv :runtime @observations)))
+              (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
+            (reset! fail true)
+            (vswap! component fx/advance-component (describe "/logic/main.gui"))
+            (.applyCss root)
+            (.layout root)
+            (vswap! component fx/advance-component (describe "/logic/main.gui"))
+            (testing "The error paragraph fills the pane and wraps its text"
+              (let [^Labeled error-label (first (.getChildren root))]
+                (is (string/ends-with? (.getText error-label)
+                                       "Expected pane render failure with enough words to wrap inside a narrow pane."))
+                (is (.isWrapText error-label))
+                (is (= 180.0 (.getWidth error-label)))
+                (is (= 120.0 (.getHeight error-label)))
+                (expect-script-output
+                  (str "Rendering pane :test.context in /context.editor_script failed: " (.getText error-label) "\n")
+                  output)))
+            (reset! fail false)
+            (vswap! component fx/advance-component (describe "/game.project"))
+            (testing "Changed props recover inside the same pane with a fresh context"
+              (is (identical? root (fx/instance @component)))
+              (is (= "Ready" (.getText ^Labeled (first (.getChildren root)))))
+              (is (not (identical? (:runtime (first @observations)) (:runtime (last @observations)))))
+              (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
+            (finally
+              (fx/delete-component @component))))))))
 
 ;; Hiding a script pane unmounts its component, so use_state initializes again
 ;; on show instead of retaining a hidden component and its localization watch.
