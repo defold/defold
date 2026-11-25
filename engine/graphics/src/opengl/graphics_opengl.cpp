@@ -2503,6 +2503,57 @@ static inline bool IsNativeContextLost()
         delete ubo;
     }
 
+#if defined(GL_SHADER_STORAGE_BUFFER)
+    // Storage buffers have no resource to reload them from, so on Android the content uploaded from the
+    // CPU is kept, to fill a buffer regenerated after a lost context. Other platforms don't keep the copy,
+    // and a regenerated buffer is empty there. Content written by shaders is not read back.
+    static void KeepStorageBufferData(OpenGLStorageBuffer* buffer, uint32_t offset, uint32_t size, const void* data, bool replace)
+    {
+    #if defined(ANDROID)
+        if (replace)
+        {
+            buffer->m_Data = (uint8_t*) realloc(buffer->m_Data, size);
+        }
+
+        if (data)
+        {
+            memcpy(buffer->m_Data + offset, data, size);
+        }
+        else
+        {
+            memset(buffer->m_Data + offset, 0, size);
+        }
+
+    #else
+        (void) buffer;
+        (void) offset;
+        (void) size;
+        (void) data;
+        (void) replace;
+    #endif
+    }
+
+    // Returns 0 while the context is still lost
+    static GLuint EnsureGLStorageBuffer(OpenGLContext* context, OpenGLStorageBuffer* buffer)
+    {
+        GLuint handle = GetGLHandle(context, buffer->m_Id);
+        if (handle == 0)
+        {
+            glGenBuffersARB(1, &handle);
+            if (handle != 0)
+            {
+                SetGLHandle(context, buffer->m_Id, handle);
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+                glBufferData(GL_SHADER_STORAGE_BUFFER, buffer->m_BaseStorageBuffer.m_Size, buffer->m_Data, GetOpenGLBufferUsage(buffer->m_BaseStorageBuffer.m_Usage));
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            }
+        }
+
+        return handle;
+    }
+
+#endif
+
     static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
     #if defined(GL_SHADER_STORAGE_BUFFER)
@@ -2510,6 +2561,8 @@ static inline bool IsNativeContextLost()
         OpenGLStorageBuffer* storage_buffer = new OpenGLStorageBuffer();
         storage_buffer->m_BaseStorageBuffer.m_Size = size;
         storage_buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        storage_buffer->m_Data = 0;
+        KeepStorageBufferData(storage_buffer, 0, size, data, true);
 
         GLuint handle = 0;
         glGenBuffersARB(1, &handle);
@@ -2559,6 +2612,7 @@ static inline bool IsNativeContextLost()
         GLuint handle = GetGLHandle(context, buffer->m_Id);
         glDeleteBuffersARB(1, &handle);
         CleanupGLHandle(context, buffer->m_Id);
+        free(buffer->m_Data);
         delete buffer;
     }
 
@@ -2569,6 +2623,7 @@ static inline bool IsNativeContextLost()
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
         buffer->m_BaseStorageBuffer.m_Size = size;
         buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        KeepStorageBufferData(buffer, 0, size, data, true);
 
         if (context->m_StorageBufferUpdateBarrierPending)
         {
@@ -2576,7 +2631,7 @@ static inline bool IsNativeContextLost()
             context->m_StorageBufferUpdateBarrierPending = 0;
         }
 
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, EnsureGLStorageBuffer(context, buffer));
         glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         CHECK_GL_ERROR;
@@ -2595,6 +2650,7 @@ static inline bool IsNativeContextLost()
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+        KeepStorageBufferData(buffer, offset, size, data, false);
 
         if (context->m_StorageBufferUpdateBarrierPending)
         {
@@ -2602,7 +2658,7 @@ static inline bool IsNativeContextLost()
             context->m_StorageBufferUpdateBarrierPending = 0;
         }
 
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, EnsureGLStorageBuffer(context, buffer));
         glBufferSubDataARB(GL_SHADER_STORAGE_BUFFER, offset, size, data);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         CHECK_GL_ERROR;
@@ -3279,7 +3335,7 @@ static inline bool IsNativeContextLost()
             {
                 const ShaderResourceBinding& resource = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers[i];
                 OpenGLStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
-                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, program->m_StorageBufferBindings[i], buffer ? GetGLHandle(context, buffer->m_Id) : 0);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, program->m_StorageBufferBindings[i], buffer ? EnsureGLStorageBuffer(context, buffer) : 0);
                 CHECK_GL_ERROR;
             }
         }

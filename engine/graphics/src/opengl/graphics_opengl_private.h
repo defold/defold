@@ -124,6 +124,7 @@ namespace dmGraphics
     struct OpenGLStorageBuffer
     {
         StorageBuffer m_BaseStorageBuffer;
+        uint8_t*      m_Data; // Android only: content uploaded from the CPU, uploaded again after a lost context
         HOpenglID     m_Id;
     };
 
