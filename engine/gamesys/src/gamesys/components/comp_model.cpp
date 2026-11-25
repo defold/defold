@@ -562,11 +562,6 @@ namespace dmGameSystem
         return true;
     }
 
-    static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
-    {
-        dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
-    }
-
     static void HashEffectiveTextures(HashState32* state, const ModelComponent* component, uint32_t material_index)
     {
         MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
@@ -689,7 +684,7 @@ namespace dmGameSystem
         }
         else
         {
-            HashMaterial(state, material_res);
+            dmHashUpdateBuffer32(state, &material_res->m_Material, sizeof(material_res->m_Material));
         }
     }
 

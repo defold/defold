@@ -160,8 +160,8 @@ set(DEFOLD_ENGINE_LIBS
   jni
   texc
   modelc
-  ddf
   shaderc
+  ddf
   platform
   graphics
   font

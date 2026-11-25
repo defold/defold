@@ -29,13 +29,6 @@
 
 namespace dmGameSystem
 {
-    void MarkMaterialResourceDirty(MaterialResource* resource)
-    {
-        // Texture bindings belong to the resource; render-state mutations are
-        // tracked by dmRender::Material itself.
-        resource->m_Version++;
-    }
-
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0 || !material_desc->m_RenderState)
@@ -252,8 +245,6 @@ namespace dmGameSystem
         // Now we need to sort the textures based on sampler appearance
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
-            if (dmRender::IsMaterialInternalSampler(resources->m_SamplerNames[i]))
-                continue;
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
             if (unit == dmRender::INVALID_SAMPLER_UNIT)
             {

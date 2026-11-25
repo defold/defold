@@ -860,7 +860,9 @@ namespace dmGameSystem
                 dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
-        MarkMaterialResourceDirty(material_res);
+        // Texture bindings belong to the resource; render-state mutations are
+        // tracked by dmRender::Material itself.
+        material_res->m_Version++;
         material_res->m_TextureResourcePaths[unit] = texture_path;
         material_res->m_SamplerNames[unit]         = name_hash;
 
