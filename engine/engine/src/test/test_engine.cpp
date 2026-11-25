@@ -1348,6 +1348,52 @@ TEST_F(EngineTest, RenderScriptGraphicsFrameBoundary)
     dmEngineFinalize();
 }
 
+static uint32_t g_DepthStencilWarnings;
+
+static void CountDepthStencilWarnings(LogSeverity severity, const char* domain, const char* message)
+{
+    if (severity == LOG_SEVERITY_WARNING && strstr(message, "graphics.depth_stencil_enable"))
+    {
+        ++g_DepthStencilWarnings;
+    }
+}
+
+// The built-in render script presents its requested clear color and warns only once across frames on a color-only backbuffer.
+TEST_F(EngineTest, DepthStencilDisabled)
+{
+    InitializeTestEngine();
+    g_DepthStencilWarnings = 0;
+    dmLogRegisterListener(CountDepthStencilWarnings);
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine",
+        "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=dmengine.unload_builtins=0",
+        "--config=graphics.depth_stencil_enable=0",
+        "--config=render.clear_color_green=1",
+        "--config=render.clear_color_alpha=1",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    ASSERT_EQ((void*)0, graphics->m_MainFrameBuffer.m_DepthBuffer);
+    ASSERT_EQ((void*)0, graphics->m_MainFrameBuffer.m_StencilBuffer);
+    const uint32_t initial_frames = graphics->m_FlipCount;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 255, 0, 0, 255, 1.0f, 0);
+        dmEngine::Step(engine);
+        ASSERT_EQ(0x00ff00ffu, ((const uint32_t*)graphics->m_MainFrameBuffer.m_ColorBuffer[0])[0]);
+    }
+
+    ASSERT_EQ(initial_frames + 2, graphics->m_FlipCount);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    dmLogUnregisterListener(CountDepthStencilWarnings);
+    ASSERT_EQ(1u, g_DepthStencilWarnings);
+}
+
 struct WindowResizeMessages
 {
     uint32_t m_Count;
