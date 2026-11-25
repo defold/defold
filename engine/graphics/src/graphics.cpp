@@ -3529,13 +3529,7 @@ namespace dmGraphics
 
     void InvalidateGraphicsHandles(HContext context)
     {
-        ((GraphicsContext*) context)->m_InvalidationGeneration++;
         g_functions.m_InvalidateGraphicsHandles(context);
-    }
-
-    uint32_t GetInvalidationGeneration(HContext context)
-    {
-        return ((GraphicsContext*) context)->m_InvalidationGeneration;
     }
 
     void RecreateGraphicsHandles(HContext context)

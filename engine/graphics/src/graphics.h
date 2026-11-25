@@ -582,8 +582,6 @@ namespace dmGraphics
     // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
     // recreate paths.
     void        RecreateGraphicsHandles(HContext context);
-    // GetInvalidationGeneration (bumped by InvalidateGraphicsHandles) is declared in the dmsdk
-    // header: extensions use it the same way comp_model does for its custom attribute buffers.
 
     enum ContextEvent
     {
