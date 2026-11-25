@@ -270,16 +270,6 @@ namespace dmPlatform
         }
     }
 
-    static void ShowNativeWindow(HWindow window)
-    {
-        // SW_SHOWNA keeps a minimized or maximized window in its current state.
-        ::ShowWindow(window->m_Window, window->m_Params.m_FocusOnShow ? SW_SHOW : SW_SHOWNA);
-        if (window->m_Params.m_FocusOnShow)
-        {
-            SetForegroundWindow(window->m_Window);
-        }
-    }
-
     WindowResult OpenWindow(HWindow window, const WindowCreateParams& params)
     {
         if (window->m_Window)
@@ -351,12 +341,6 @@ namespace dmPlatform
         }
 
         SelectConsoleWindow();
-        if (!params.m_Hidden && params.m_FocusOnShow)
-        {
-            // The window can take focus now. Only the engine's later ShowWindow call should acknowledge editor placement.
-            ShowNativeWindow(window);
-        }
-
         return WINDOW_RESULT_OK;
     }
 
@@ -389,7 +373,13 @@ namespace dmPlatform
 
     void ShowWindow(HWindow window)
     {
-        ShowNativeWindow(window);
+        // SW_SHOWNA keeps a minimized or maximized window in its current state.
+        ::ShowWindow(window->m_Window, window->m_Params.m_FocusOnShow ? SW_SHOW : SW_SHOWNA);
+        if (window->m_Params.m_FocusOnShow)
+        {
+            SetForegroundWindow(window->m_Window);
+        }
+
         WindowPlacementShown(window);
     }
 

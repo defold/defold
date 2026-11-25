@@ -71,6 +71,7 @@ TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
                                  ((dmArray<uint32_t>*)data)->Push(focused);
                              };
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
     HWND hwnd = dmPlatform::GetWindowsHWND(window);
     SetFocus(hwnd);
     ASSERT_EQ(hwnd, GetFocus());
@@ -83,8 +84,8 @@ TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
     dmPlatform::DeleteWindow(window);
 }
 
-// Extensions must receive startup focus after graphics initialization, including on engine reboot.
-TEST(dmPlatform, WindowsStartupFocusAfterOpen)
+// The player stays hidden until shown and delivers startup focus after graphics initialization on each launch.
+TEST(dmPlatform, WindowsStartupVisibilityAndFocus)
 {
     HWindow window = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, window);
@@ -98,6 +99,9 @@ TEST(dmPlatform, WindowsStartupFocusAfterOpen)
         params.m_FocusCallbackUserData = events;
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
         HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        ASSERT_FALSE(IsWindowVisible(hwnd));
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(IsWindowVisible(hwnd));
         SetFocus(hwnd);
         ASSERT_EQ(hwnd, GetFocus());
         ASSERT_EQ(0u, events[1]);
@@ -133,6 +137,7 @@ TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
                               };
     HWindow window = dmPlatform::NewWindow();
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
     dmPlatform::PollEvents(window);
     events.SetSize(0);
 
@@ -364,6 +369,7 @@ TEST(dmPlatform, WindowsCaptionActivationDefersCursorCapture)
     WindowCreateParamsInitialize(&params);
     params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
     HWND hwnd = window->m_Window;
     SetFocus(0);
     dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
@@ -383,6 +389,7 @@ TEST(dmPlatform, WindowsMissingModifierReleases)
     WindowCreateParamsInitialize(&params);
     params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
     HWND hwnd = dmPlatform::GetWindowsHWND(window);
     SetFocus(hwnd);
     ASSERT_EQ(hwnd, GetFocus());
