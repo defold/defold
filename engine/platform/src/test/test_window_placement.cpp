@@ -33,6 +33,11 @@
 #if defined(_WIN32)
 #include "../platform_window_win32.h"
 #endif
+#if defined(__linux__)
+#include "../linux/window_linux.h"
+#include <X11/Xatom.h>
+#include <X11/extensions/Xrandr.h>
+#endif
 
 static void SetStateEnvironment(const char* value)
 {
@@ -261,6 +266,48 @@ TEST_F(WindowPlacementTest, OnlyWorkAreaSettingsClampPosition)
     dmWindowTest::Position(m_Window, &actual_x, &actual_y);
     EXPECT_GE(actual_x, monitor.rcWork.left);
     EXPECT_EQ(y, actual_y);
+}
+#endif
+
+#if defined(__linux__)
+// On a private X server, RandR metadata must preserve a partial offscreen position until the work area changes.
+TEST_F(WindowPlacementTest, X11ClampOnlyOnLayoutChange)
+{
+    if (!getenv("DM_TEST_X11_NO_WM") || !m_Window->m_X11)
+    {
+        SKIP();
+    }
+
+    OpenAndShow();
+    SetPosition(-70, 80);
+    Display* display = m_Window->m_Display;
+    Window root = DefaultRootWindow(display);
+    int opcode, event_base, error_base;
+    ASSERT_TRUE(XQueryExtension(display, "RANDR", &opcode, &event_base, &error_base));
+    XEvent event = {};
+    event.xany.type = event_base + RRNotify;
+    event.xany.display = display;
+    event.xany.window = root;
+    ((XRRNotifyEvent*)&event)->subtype = RRNotify_OutputProperty;
+    XPutBackEvent(display, &event);
+    dmPlatform::PollEvents(m_Window);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    int x, y;
+    dmWindowTest::Position(m_Window, &x, &y);
+    EXPECT_EQ(-70, x);
+    EXPECT_EQ(80, y);
+
+    Atom work_area = XInternAtom(display, "_NET_WORKAREA", False);
+    int screen = DefaultScreen(display);
+    unsigned long bounds[] = { 24, 0, (unsigned long)DisplayWidth(display, screen) - 24, (unsigned long)DisplayHeight(display, screen) };
+    XChangeProperty(display, root, work_area, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)bounds, 4);
+    XSync(display, False);
+    dmPlatform::PollEvents(m_Window);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowTest::Position(m_Window, &x, &y);
+    EXPECT_EQ(24, x);
+    EXPECT_EQ(80, y);
+    XDeleteProperty(display, root, work_area);
 }
 #endif
 

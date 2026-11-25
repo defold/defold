@@ -37,6 +37,7 @@ struct WindowPlacement
     bool                 m_NeedsCapture;
     bool                 m_Dirty;
     bool                 m_ResetPending;
+    bool                 m_ClampPending;
     bool                 m_Warned;
 };
 
@@ -115,6 +116,16 @@ namespace dmPlatform
         ++g_MonitorRevision;
     }
 
+    void WindowPlacementMonitorsChanged(HWindow window)
+    {
+        WindowPlacement* placement = PlacementStorage(window);
+        if (placement)
+        {
+            placement->m_ClampPending = true;
+            placement->m_NeedsCapture = true;
+        }
+    }
+
     void WindowPlacementChanged(HWindow window)
     {
         if (PlacementStorage(window))
@@ -185,11 +196,12 @@ namespace dmPlatform
                 placement->m_ResetPending = false;
             }
 
-            if (placement->m_MonitorRevision != g_MonitorRevision)
+            if (placement->m_ClampPending || placement->m_MonitorRevision != g_MonitorRevision)
             {
                 // A window left outside the remaining displays must stay
                 // reachable, including when a display is unplugged at runtime.
                 ClampWindowPlacement(window);
+                placement->m_ClampPending = false;
             }
 
             dmWindowState::State state = {};

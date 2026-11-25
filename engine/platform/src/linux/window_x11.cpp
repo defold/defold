@@ -55,11 +55,13 @@ struct LinuxX11
     unsigned long m_GrabSerial, m_WarpSerial;
     unsigned long m_ConfigureSerial;
     unsigned long m_SizeReadSerial;
+    uint64_t      m_LayoutHash;
     int           m_RequestX, m_RequestY;
     bool          m_RequestIsSize, m_ClampAfterResize;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
     Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
+    Atom          m_WorkArea, m_CurrentDesktop;
     dmArray<char> m_Text;
 
     jc::RingBuffer<X11ResizeRequest> m_ResizeRequests;
@@ -189,6 +191,7 @@ namespace dmPlatform
         dmWindowState::Monitor m_Monitor;
         dmWindowState::Rect    m_Bounds;
         int                    m_MM, m_Refresh;
+        bool                   m_Primary;
     };
     static void Outputs(HWindow w, dmArray<Output>& outputs)
     {
@@ -210,6 +213,7 @@ namespace dmPlatform
                     Output o = {};
                     o.m_Bounds = { crtc->x, crtc->y, (int)crtc->width, (int)crtc->height };
                     o.m_Monitor.m_NameHash = dmHashBuffer64(info->name, info->nameLen);
+                    o.m_Primary = handle == primary;
                     o.m_MM = crtc->rotation & (RR_Rotate_90 | RR_Rotate_270) ? info->mm_height : info->mm_width;
                     for (int m = 0; m < resources->nmode; ++m)
                     {
@@ -221,7 +225,7 @@ namespace dmPlatform
                     }
 
                     outputs.Push(o);
-                    if (handle == primary)
+                    if (o.m_Primary)
                     {
                         outputs[outputs.Size() - 1] = outputs[0];
                         outputs[0] = o;
@@ -253,9 +257,9 @@ namespace dmPlatform
         }
 
         dmArray<unsigned long> areas;
-        ReadProperty(w, root, AtomFor(w, "_NET_WORKAREA"), XA_CARDINAL, 4096, areas);
+        ReadProperty(w, root, w->m_X11->m_WorkArea, XA_CARDINAL, 4096, areas);
         dmArray<unsigned long> desktop;
-        ReadProperty(w, root, AtomFor(w, "_NET_CURRENT_DESKTOP"), XA_CARDINAL, 1, desktop);
+        ReadProperty(w, root, w->m_X11->m_CurrentDesktop, XA_CARDINAL, 1, desktop);
         size_t index = desktop.Empty() ? 0 : desktop[0];
         for (uint32_t i = 0; i < outputs.Size(); ++i)
         {
@@ -468,10 +472,33 @@ namespace dmPlatform
         }
     }
 
-    static void DisplayChanged(HWindow w)
+    static void DisplayChanged(HWindow w, bool check_layout)
     {
         dmArray<Output> outputs;
         Outputs(w, outputs);
+        if (check_layout && w->m_Placement)
+        {
+            uint64_t hash = outputs.Size();
+            for (uint32_t i = 0; i < outputs.Size(); ++i)
+            {
+                const Output& o = outputs[i];
+                // Only geometry and output identity affect placement. RandR may enumerate outputs in a different order.
+                struct Geometry
+                {
+                    uint64_t            m_Name, m_Primary;
+                    dmWindowState::Rect m_Bounds, m_WorkArea;
+                } geometry = { o.m_Monitor.m_NameHash, o.m_Primary, o.m_Bounds, o.m_Monitor.m_WorkArea };
+                hash += dmHashBufferNoReverse64(&geometry, sizeof(geometry));
+            }
+
+            if (w->m_Open && w->m_X11->m_LayoutHash != hash)
+            {
+                WindowPlacementMonitorsChanged(w);
+            }
+
+            w->m_X11->m_LayoutHash = hash;
+        }
+
         int x, y;
         X11GetPosition(w, &x, &y);
         const Output* best = &outputs[0];
@@ -788,6 +815,7 @@ namespace dmPlatform
         Display* d = w->m_Display;
         LinuxX11* x = w->m_X11;
         bool metrics = false;
+        bool check_layout = false;
         while (XPending(d))
         {
             XEvent e;
@@ -821,8 +849,13 @@ namespace dmPlatform
             if (x->m_RandREventBase && (e.type == x->m_RandREventBase + RRScreenChangeNotify || e.type == x->m_RandREventBase + RRNotify))
             {
                 g_RandR.UpdateConfiguration(&e);
-                WindowPlacementMonitorsChanged();
-                metrics = true;
+                check_layout = true;
+            }
+
+            if (e.type == PropertyNotify && e.xproperty.window == Root(w) &&
+                (e.xproperty.atom == x->m_WorkArea || e.xproperty.atom == x->m_CurrentDesktop))
+            {
+                check_layout = true;
             }
 
             if (!w->m_Xid || e.xany.window != w->m_Xid)
@@ -977,9 +1010,9 @@ namespace dmPlatform
             XFlush(d);
         }
 
-        if (metrics && w->m_Xid)
+        if ((metrics || check_layout) && w->m_Xid)
         {
-            DisplayChanged(w);
+            DisplayChanged(w, check_layout);
         }
     }
 
@@ -1132,7 +1165,7 @@ namespace dmPlatform
 
         CreateInputContext(w);
         LinuxUpdateSize(w, width, height, scale);
-        DisplayChanged(w);
+        DisplayChanged(w, true);
         return true;
     }
 
@@ -1325,6 +1358,9 @@ namespace dmPlatform
         w->m_Display = d;
         w->m_Ops = &ops;
         LinuxX11* x = w->m_X11 = new LinuxX11();
+        x->m_WorkArea = AtomFor(w, "_NET_WORKAREA");
+        x->m_CurrentDesktop = AtomFor(w, "_NET_CURRENT_DESKTOP");
+        XSelectInput(d, Root(w), PropertyChangeMask);
         int error, event, major = 1, minor = 3;
         static const bool has_randr = LoadRandR();
         if (has_randr && g_RandR.QueryExtension(d, &event, &error) && g_RandR.QueryVersion(d, &major, &minor) &&

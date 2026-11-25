@@ -121,6 +121,8 @@ def run(args, directory):
             raise RuntimeError('Xvfb did not publish a display')
         display = int(reader.readline())
         x11 = dict(clean, DISPLAY=f':{display}', DM_TEST_X11_MONITOR='screen')
+        subprocess.run([args.placement, '--test-filter', 'WindowPlacementTest.X11ClampOnlyOnLayoutChange'],
+                       cwd=directory, env=dict(x11, DM_TEST_X11_NO_WM='1'), check=True, timeout=30)
         if args.native:
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11FocusWithoutWindowManager'],
                            cwd=directory, env=dict(x11, DM_TEST_X11_NO_WM='1'), check=True, timeout=30)

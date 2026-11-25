@@ -30,6 +30,7 @@ namespace dmPlatform
     const char* GetWindowPlacementPath(HWindow window);
     void WindowPlacementChanged(HWindow window);
     void WindowPlacementMonitorsChanged();
+    void WindowPlacementMonitorsChanged(HWindow window);
     void WindowPlacementSizeRequested(HWindow window);
     void WindowPlacementShown(HWindow window);
     void UpdateWindowPlacement(HWindow window, bool flush);
