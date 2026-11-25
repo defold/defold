@@ -327,6 +327,14 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        // WM_GETICON queries the HWND directly, even when the class supplies a fallback icon.
+        HICON icon = (HICON)GetClassLongPtrW(hwnd, GCLP_HICON);
+        if (icon)
+        {
+            SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)icon);
+            SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)GetClassLongPtrW(hwnd, GCLP_HICONSM));
+        }
+
         SetWindowTitle(window, params.m_Title ? params.m_Title : "");
         if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL && !Win32OpenGLCreate(window))
         {

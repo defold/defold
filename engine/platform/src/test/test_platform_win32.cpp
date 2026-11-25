@@ -178,8 +178,7 @@ TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
     dmPlatform::DeleteWindow(window);
 }
 
-// Verifies both taskbar fallback icons match the executable before event polling,
-// guarding against generic taskbar icons when startup blocks the window thread.
+// Native clients and the taskbar must find both executable icons before the game starts polling.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -200,6 +199,8 @@ TEST(dmPlatform, WindowsClassIconsBeforePolling)
     ASSERT_NE((HICON) 0, icon);
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICON));
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICONSM));
+    EXPECT_EQ(icon, (HICON)SendMessageW(hwnd, WM_GETICON, ICON_BIG, 0));
+    EXPECT_EQ(icon, (HICON)SendMessageW(hwnd, WM_GETICON, ICON_SMALL, 0));
 
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
