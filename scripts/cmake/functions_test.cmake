@@ -612,11 +612,8 @@ function(_defold_add_ios_run_target run_target target_name run_dir_norm configfi
     COMMENT "Running ${target_name} on iOS ${ios_runner_platform}")
 endfunction()
 
-function(defold_register_test_target target_name)
-  if(NOT TARGET ${target_name})
-    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
-  endif()
-
+# Apply the same test defines to executables and any shared test objects.
+function(defold_apply_test_compile_definitions target_name)
   if(TARGET_PLATFORM MATCHES "x86_64-xbone")
     target_compile_definitions(${target_name} PRIVATE
       JC_TEST_NO_DEATH_TEST
@@ -634,6 +631,14 @@ function(defold_register_test_target target_name)
   else()
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=0)
   endif()
+endfunction()
+
+function(defold_register_test_target target_name)
+  if(NOT TARGET ${target_name})
+    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
+  endif()
+
+  defold_apply_test_compile_definitions(${target_name})
   if(DEFOLD_PLATFORM_TEST_REQUIRES_TESTMAIN AND TARGET testmain)
     target_link_libraries(${target_name} PRIVATE testmain)
   endif()

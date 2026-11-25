@@ -14,6 +14,16 @@ file(MAKE_DIRECTORY "${GAMEOBJECT_TEST_RUN_DIR}")
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Java COMPONENTS Runtime Development REQUIRED)
 
+# Compile the common main and jc_test implementation once for all suites.
+defold_add_library(gameobject_test_main OBJECT EXCLUDE_FROM_ALL
+  "${GAMEOBJECT_TEST_ROOT}/test_main.cpp")
+defold_target_link_libraries(gameobject_test_main "${TARGET_PLATFORM}" testmain ddf dlib)
+defold_apply_test_compile_definitions(gameobject_test_main)
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
+  find_package(Threads REQUIRED)
+  target_link_libraries(gameobject_test_main PRIVATE Threads::Threads)
+endif()
+
 set(GAMEOBJECT_TEST_EXPORTS
   ResourceTypeGameObject
   ResourceTypeCollection
@@ -220,7 +230,7 @@ function(gameobject_add_test dir)
 
   set(_target "test_gameobject_${dir}")
   defold_add_executable(${_target}
-    "${GAMEOBJECT_TEST_ROOT}/test_main.cpp"
+    $<TARGET_OBJECTS:gameobject_test_main>
     ${_cpp}
     ${_generated_proto_cpp}
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
@@ -269,8 +279,7 @@ function(gameobject_add_test dir)
   defold_target_link_libraries_web(${_target} "${TARGET_PLATFORM}"
     library_sys.js
     library_script.js)
-  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
-    find_package(Threads REQUIRED)
+  if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
     target_link_libraries(${_target} PRIVATE Threads::Threads dl)
   endif()
   # These tests use module-local staged content and process-local message
