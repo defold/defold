@@ -70,12 +70,17 @@ cmake_minimum_required(VERSION 4.0)
 project(sdk_header_test LANGUAGES CXX)
 set(DEFOLD_CMAKE_INCLUDED ON)
 set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/installed")
+set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
 include(functions)
 add_custom_target(build_tests)
-foreach(target IN ITEMS ddf_generated_sources gameobject_proto_headers gamesys_proto_headers
+add_custom_target(engine_sdk_headers COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/published")
+if(NOT PARTIAL_SDK)
+  add_custom_target(ddf_generated_sources)
+endif()
+foreach(target IN ITEMS gameobject_proto_headers gamesys_proto_headers
     gamesys_model_proto_headers graphics_proto_header input_proto_headers particle_proto_headers
-    render_proto_headers rig_proto_headers)
+    render_proto_headers rig_proto_headers script_proto_headers)
   add_custom_target(${target})
 endforeach()
 file(GLOB DEFOLD_DMSDK_HEADER_NAMES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
@@ -83,6 +88,24 @@ list(TRANSFORM DEFOLD_DMSDK_HEADER_NAMES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/" 
 install(FILES ${DEFOLD_DMSDK_HEADER_SOURCES} DESTINATION sdk/include/dmsdk COMPONENT defold_sdk_headers)
 add_subdirectory("${DEFOLD_HOME}/engine/sdk/src/test" sdk)
 ''')
+
+    # Only a partial SDK check needs the targets that publish installed engine headers.
+    def test_sdk_header_publishers_are_only_built_for_partial_graphs(self):
+        for partial in (False, True):
+            with self.subTest(partial=partial), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.write_sdk_header_project(root)
+                (root / 'public.h').write_text('#pragma once\n')
+                installed = root / 'build/installed/sdk/include/dmsdk'
+                installed.mkdir(parents=True)
+                (installed / 'public.h').write_text('#pragma once\n' if partial else '#error stale_header\n')
+                target = self.configure_target(root, 'test_sdk_includes_cpp', TARGET_PLATFORM='x86_64-linux',
+                                               PARTIAL_SDK='ON' if partial else 'OFF')
+                dependencies = {dep['id'].split('::')[0] for dep in target['dependencies']}
+                self.assertIn('gameobject_proto_headers', dependencies)
+                self.assertIn('script_proto_headers', dependencies)
+                subprocess.check_output(['cmake', '--build', str(root / 'build'), '--target', 'test_sdk_includes_cpp'])
+                self.assertEqual(partial, (root / 'build/published').exists())
 
     # Unchanged builds skip staging, missing outputs are restored, and retired headers stop satisfying includes.
     def test_sdk_header_staging_is_incremental(self):

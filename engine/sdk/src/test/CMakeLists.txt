@@ -19,7 +19,8 @@ set(SDK_GENERATED_HEADER_TARGETS
   input_proto_headers
   particle_proto_headers
   render_proto_headers
-  rig_proto_headers)
+  rig_proto_headers
+  script_proto_headers)
 
 set(SDK_EXTRA_INCLUDE_DIR)
 foreach(_sdk_header_generator IN LISTS SDK_GENERATED_HEADER_TARGETS)
@@ -28,8 +29,12 @@ foreach(_sdk_header_generator IN LISTS SDK_GENERATED_HEADER_TARGETS)
     break()
   endif()
 endforeach()
+set(SDK_HEADER_TEST_DEPENDENCIES ${SDK_GENERATED_HEADER_TARGETS})
 if(SDK_EXTRA_INCLUDE_DIR)
   set(SDK_TEST_INCLUDE_DIR "${SDK_INSTALLED_INCLUDE_DIR}")
+  list(APPEND SDK_HEADER_TEST_DEPENDENCIES
+    dlib_sdk_headers engine_sdk_headers extension_sdk_headers graphics_sdk_headers
+    hid_sdk_headers lua_sdk_headers script_sdk_headers sound_sdk_headers)
   # Partial builds need installed headers when their generators are unavailable.
   # Keep the fallback filtered to catch private includes in SDK headers, and
   # avoid watching installed DDF headers during full engine builds.
@@ -77,6 +82,7 @@ else()
     COMMENT "Staging public headers for SDK tests"
     VERBATIM)
   add_custom_target(sdk_test_headers DEPENDS "${_sdk_header_stamp}")
+  list(APPEND SDK_HEADER_TEST_DEPENDENCIES sdk_test_headers)
 endif()
 
 function(sdk_write_if_different path content)
@@ -110,8 +116,6 @@ function(sdk_apply_header_test_settings target)
     "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
   if(SDK_EXTRA_INCLUDE_DIR)
     target_include_directories(${target} PRIVATE "${SDK_EXTRA_INCLUDE_DIR}")
-  else()
-    add_dependencies(${target} sdk_test_headers)
   endif()
   target_compile_definitions(${target} PRIVATE
     __STDC_LIMIT_MACROS
@@ -202,16 +206,7 @@ function(sdk_apply_header_test_settings target)
   if(COMMAND defold_apply_platform_sdk_header_test_settings)
     defold_apply_platform_sdk_header_test_settings(${target})
   endif()
-  foreach(_sdk_header_dependency IN ITEMS
-      ${SDK_GENERATED_HEADER_TARGETS}
-      dlib_sdk_headers
-      engine_sdk_headers
-      extension_sdk_headers
-      graphics_sdk_headers
-      hid_sdk_headers
-      lua_sdk_headers
-      script_sdk_headers
-      sound_sdk_headers)
+  foreach(_sdk_header_dependency IN LISTS SDK_HEADER_TEST_DEPENDENCIES)
     if(TARGET ${_sdk_header_dependency})
       add_dependencies(${target} ${_sdk_header_dependency})
     endif()
