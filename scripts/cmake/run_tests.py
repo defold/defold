@@ -25,7 +25,7 @@ def run_test(test, lock_dir):
         return 1, (str(error) + '\n').encode('utf-8'), time.monotonic() - start
 
 
-def run_tests(tests, jobs, lock_dir):
+def run_tests(tests, jobs, lock_dir, keep_going=False):
     pending = sorted(tests, key=lambda test: -test['priority'])
     running = {}
     groups = set()
@@ -33,7 +33,7 @@ def run_tests(tests, jobs, lock_dir):
     failed = False
     with ThreadPoolExecutor(max_workers=jobs) as workers:
         while pending or running:
-            while pending and len(running) < jobs and not failed:
+            while pending and len(running) < jobs and (keep_going or not failed):
                 ready = next((i for i, test in enumerate(pending) if test['group'] not in groups), None)
                 if ready is None:
                     break
@@ -58,7 +58,7 @@ def run_tests(tests, jobs, lock_dir):
                 failed |= code != 0
             # Let already running tests finish and report, but stop dispatching
             # after a failure, matching Ninja's default failure behavior.
-            if failed:
+            if failed and not keep_going:
                 pending.clear()
     return 1 if failed else 0
 
@@ -68,12 +68,13 @@ def main():
     parser.add_argument('manifest', type=Path)
     parser.add_argument('--jobs', type=int, required=True)
     parser.add_argument('--lock-dir', type=Path, required=True)
+    parser.add_argument('--keep-going', action='store_true', help='Run the remaining tests after a failure')
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error('--jobs must be positive')
     with args.manifest.open(encoding='utf-8') as manifest:
         tests = json.load(manifest)
-    return run_tests(tests, args.jobs, args.lock_dir)
+    return run_tests(tests, args.jobs, args.lock_dir, args.keep_going)
 
 
 if __name__ == '__main__':

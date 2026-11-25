@@ -1241,7 +1241,7 @@ class CiSdkTests(unittest.TestCase):
         directory = 'tmp/SDK artifacts'
         args = SimpleNamespace(**{name: False for name in (
             'verbose', 'codesign', 'skip_docs', 'skip_builtins', 'skip_tests', 'skip_build_tests',
-            'with_asan', 'with_msan', 'with_ubsan', 'with_tsan', 'with_vanilla_lua',
+            'with_asan', 'with_msan', 'with_ubsan', 'with_tsan', 'with_coverage', 'with_vanilla_lua',
         )}, archive=True, skip_install_ext=True, sdk_artifacts_dir=directory)
         with mock.patch.object(ci, 'call') as call:
             ci.build_engine('dev', 'x86_64-linux', args)

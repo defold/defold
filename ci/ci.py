@@ -320,6 +320,8 @@ def build_engine(channel, platform, args):
         build_opts.append('--with-ubsan')
     if args.with_tsan:
         build_opts.append('--with-tsan')
+    if args.with_coverage:
+        build_opts.append('--with-coverage')
     if args.with_vanilla_lua:
         build_opts.append('--use-vanilla-lua')
 
@@ -604,6 +606,7 @@ def main(argv):
     parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
+    parser.add_argument("--with-coverage", dest="with_coverage", action='store_true', help="Build the engine with Clang source-based code coverage")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")

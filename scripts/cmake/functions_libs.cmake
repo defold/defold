@@ -635,6 +635,7 @@ function(defold_add_library target)
   if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
     defold_target_skip_sanitizer(${target})
   endif()
+  defold_coverage_register_library(${target})
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)

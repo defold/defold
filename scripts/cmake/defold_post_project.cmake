@@ -10,6 +10,11 @@ if(WITH_MSAN AND ((CMAKE_C_COMPILER_LOADED AND NOT CMAKE_C_COMPILER_ID STREQUAL 
   message(FATAL_ERROR "WITH_MSAN requires Clang for both C and C++")
 endif()
 
+if(WITH_COVERAGE AND ((CMAKE_C_COMPILER_LOADED AND NOT CMAKE_C_COMPILER_ID MATCHES "^(Apple)?Clang$") OR
+                      (CMAKE_CXX_COMPILER_LOADED AND NOT CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")))
+  message(FATAL_ERROR "WITH_COVERAGE requires Clang for both C and C++")
+endif()
+
 if(MSVC_CL)
   foreach(_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_INIT)
     if(DEFINED ${_var})

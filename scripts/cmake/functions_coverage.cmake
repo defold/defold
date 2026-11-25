@@ -1,0 +1,48 @@
+defold_log("functions_coverage.cmake:")
+
+# With WITH_COVERAGE, records library objects and test executables for
+# scripts/coverage_report.py. Library objects are listed as well because
+# llvm-cov only reports code from the binaries it is given, so files no test
+# links would otherwise be missing from the totals.
+function(defold_coverage_register_library target)
+  if(NOT WITH_COVERAGE)
+    return()
+  endif()
+  get_target_property(_type ${target} TYPE)
+  if(_type MATCHES "^(STATIC_LIBRARY|OBJECT_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY)$")
+    set_property(GLOBAL APPEND PROPERTY DEFOLD_COVERAGE_LIBRARIES ${target})
+    _defold_coverage_schedule_finalizer()
+  endif()
+endfunction()
+
+function(defold_coverage_register_test target)
+  if(NOT WITH_COVERAGE)
+    return()
+  endif()
+  set_property(GLOBAL APPEND PROPERTY DEFOLD_COVERAGE_TESTS ${target})
+  _defold_coverage_schedule_finalizer()
+endfunction()
+
+function(_defold_coverage_schedule_finalizer)
+  get_property(_scheduled GLOBAL PROPERTY DEFOLD_COVERAGE_FINALIZER_SCHEDULED)
+  if(NOT _scheduled)
+    set_property(GLOBAL PROPERTY DEFOLD_COVERAGE_FINALIZER_SCHEDULED TRUE)
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL defold_coverage_finalize)
+  endif()
+endfunction()
+
+function(defold_coverage_finalize)
+  set(_enabled "$<NOT:$<BOOL:$<TARGET_PROPERTY:DEFOLD_SKIP_SANITIZER>>>")
+  set(_content "")
+  get_property(_tests GLOBAL PROPERTY DEFOLD_COVERAGE_TESTS)
+  foreach(_target IN LISTS _tests)
+    string(REPLACE "<TARGET_PROPERTY:" "<TARGET_PROPERTY:${_target}," _target_enabled "${_enabled}")
+    string(APPEND _content "$<${_target_enabled}:$<TARGET_FILE:${_target}>\n>")
+  endforeach()
+  get_property(_libraries GLOBAL PROPERTY DEFOLD_COVERAGE_LIBRARIES)
+  foreach(_target IN LISTS _libraries)
+    string(REPLACE "<TARGET_PROPERTY:" "<TARGET_PROPERTY:${_target}," _target_enabled "${_enabled}")
+    string(APPEND _content "$<${_target_enabled}:$<JOIN:$<TARGET_OBJECTS:${_target}>,\n>\n>")
+  endforeach()
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/defold_coverage_objects_$<CONFIG>.txt" CONTENT "${_content}")
+endfunction()

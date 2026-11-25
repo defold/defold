@@ -113,9 +113,19 @@ function(defold_finalize_parallel_run_tests)
   get_property(_deps GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_DEPENDENCIES)
   list(REMOVE_DUPLICATES _deps)
   _defold_find_python(_python)
+  # Coverage runs start from an empty profile directory, so profiles from older
+  # binaries are not merged, and collect profiles even after a failed test.
+  set(_coverage_reset)
+  set(_keep_going)
+  if(WITH_COVERAGE)
+    set(_coverage_reset COMMAND "${CMAKE_COMMAND}" -E rm -rf "${DEFOLD_COVERAGE_PROFILE_DIR}")
+    set(_keep_going --keep-going)
+  endif()
   add_custom_target(run_tests_parallel
+    ${_coverage_reset}
     COMMAND "${_python}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/run_tests.py"
       "${_manifest}" --jobs "${DEFOLD_TEST_JOBS}" --lock-dir "${CMAKE_BINARY_DIR}/test-locks"
+      ${_keep_going}
     DEPENDS ${_deps}
     USES_TERMINAL
     VERBATIM
@@ -647,6 +657,7 @@ function(defold_register_test_target target_name)
   set_target_properties(${target_name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
   add_dependencies(build_tests ${target_name})
+  defold_coverage_register_test(${target_name})
 
   set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
   set(_legacy_args "")
