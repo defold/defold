@@ -328,6 +328,30 @@ TEST(dmPlatform, WindowsInputMessages)
     dmPlatform::DeleteWindow(window);
 }
 
+// A second mouse press must preserve the first button and keep capture until the last release.
+TEST(dmPlatform, WindowsMouseButtonChord)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, 0);
+    SendMessageW(hwnd, WM_RBUTTONDOWN, MK_LBUTTON | MK_RBUTTON, 0);
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT));
+    SendMessageW(hwnd, WM_RBUTTONUP, MK_LBUTTON, 0);
+    EXPECT_EQ(hwnd, GetCapture());
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT));
+    SendMessageW(hwnd, WM_LBUTTONUP, 0, 0);
+    EXPECT_EQ((HWND)0, GetCapture());
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    dmPlatform::DeleteWindow(window);
+}
+
 // Independent Ctrl and Right Alt transitions survive different timestamps or an intervening mouse message.
 TEST(dmPlatform, WindowsSeparateCtrlAndRightAlt)
 {

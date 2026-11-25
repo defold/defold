@@ -318,7 +318,7 @@ namespace dmPlatform
 
     static void Button(HWindow window, int button, bool pressed)
     {
-        if (pressed)
+        if (pressed && GetCapture() != window->m_Window)
         {
             SetCapture(window->m_Window);
         }
