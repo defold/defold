@@ -389,7 +389,7 @@ void dmNativeOSPollEvents( void )
 // Called from the looper thread
 void dmNativeAndroidPollEvents()
 {
-    int timeoutMillis = 0;
+    int timeoutMillis = 1;
     if (dmNativeWin.iconified) {
         timeoutMillis = 300;
     }
