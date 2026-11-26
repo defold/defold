@@ -460,14 +460,17 @@ namespace dmRender
 
     // Material
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
-    // Hash of shared draw state. Attribute values and textures are resolved by the component.
+    // Cached hash of shared draw state. Attribute values and textures are resolved by the component.
     // Engine-owned skinning and morph samplers are not persistent material state.
     // Mutate material constants through the material setters to invalidate the cached hash.
     uint64_t                        GetMaterialInstancingHash(HMaterial material);
     // Portable material settings, shared with the compiler. Not a complete draw key.
     uint64_t                        GetMaterialRenderHash(HMaterial material);
     void                            SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash);
+    // Invalidates component batch-key caches, including tag and attribute-only changes.
+    // This revision is not part of material compatibility or batch identity.
     uint32_t                        GetMaterialVersion(HMaterial material);
+    // Invalidates generated vertex data when attribute layouts or defaults change.
     uint32_t                        GetMaterialAttributeVersion(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);

@@ -29,7 +29,8 @@ namespace dmGameSystem
         dmhash_t            m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmhash_t            m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        uint32_t            m_Version;
+        // Texture bindings can change independently of the material's render state.
+        uint32_t            m_TextureBindingsVersion;
         uint32_t            m_NumTextures;
     };
 }

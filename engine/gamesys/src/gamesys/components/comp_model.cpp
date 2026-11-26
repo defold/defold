@@ -121,7 +121,7 @@ namespace dmGameSystem
         dmRender::HRenderItem       m_RenderItem;
         uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_MaterialVersion;
-        uint32_t                    m_MaterialResourceVersion;
+        uint32_t                    m_TextureBindingsVersion;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
         uint16_t                    m_AttributeRenderDataIndex;
@@ -168,6 +168,7 @@ namespace dmGameSystem
         uint8_t                          m_BlendWeightsOverrideActive : 1;
         uint8_t                          m_TransformIsIdentity : 1;
         uint8_t                          m_RenderItemsDirty : 1;
+        uint8_t                          m_HasUniformMorphWeights : 1;
     };
 
     struct ModelSkinnedAnimationData
@@ -698,6 +699,7 @@ namespace dmGameSystem
                 // handles overrides which replace the instance attribute with a uniform.
                 if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
                 {
+                    component->m_HasUniformMorphWeights = 1;
                     const float* weights;
                     uint32_t weights_count;
                     GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
@@ -762,6 +764,7 @@ namespace dmGameSystem
 
     static void ReHash(ModelWorld* world, ModelComponent* component)
     {
+        component->m_HasUniformMorphWeights = 0;
         // material, textures and render constants
         HashState32 state;
         bool reverse = false;
@@ -780,7 +783,7 @@ namespace dmGameSystem
             component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
             MaterialResource* material = GetMaterialResource(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex);
             component->m_RenderItems[i].m_MaterialVersion = dmRender::GetMaterialVersion(material->m_Material);
-            component->m_RenderItems[i].m_MaterialResourceVersion = material->m_Version;
+            component->m_RenderItems[i].m_TextureBindingsVersion = material->m_TextureBindingsVersion;
             dmRender::SetBatchKey(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem, component->m_RenderItems[i].m_InstanceRenderHash);
             SetRenderItemMaterial(world, &component->m_RenderItems[i], GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
         }
@@ -800,11 +803,12 @@ namespace dmGameSystem
                 continue;
             }
 
+            // Reuse the final batch keys until a component or shared resource changes.
             for (uint32_t j = 0; j < component.m_RenderItems.Size() && !component.m_ReHash; ++j)
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
                 MaterialResource* material = GetMaterialResource(&component, component.m_Resource, render_item.m_MaterialIndex);
-                component.m_ReHash = render_item.m_MaterialResourceVersion != material->m_Version ||
+                component.m_ReHash = render_item.m_TextureBindingsVersion != material->m_TextureBindingsVersion ||
                                      render_item.m_MaterialVersion != dmRender::GetMaterialVersion(material->m_Material);
             }
 
@@ -1347,7 +1351,7 @@ namespace dmGameSystem
             item.m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             item.m_InstanceRenderHash = 0;
             item.m_MaterialVersion = 0;
-            item.m_MaterialResourceVersion = 0;
+            item.m_TextureBindingsVersion = 0;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
@@ -1375,6 +1379,7 @@ namespace dmGameSystem
             dmRender::Enable(world->m_RenderContext, render_item.m_RenderItem, component->m_DoRender && render_item.m_Enabled);
         }
         component->m_RenderItemsDirty = 1;
+        component->m_ReHash = 1;
 
         SetupRequiresBindPoseCaching(component);
 
@@ -1484,8 +1489,6 @@ namespace dmGameSystem
             dmRender::SetRenderListPrepareFn(world->m_RenderContext, world->m_RenderDispatch, PrepareRenderList);
         }
         SetupRenderItems(world, component, resource);
-
-        component->m_ReHash = 1;
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -2835,6 +2838,10 @@ namespace dmGameSystem
                 }
             }
 
+            // Rig updates can change uniform morph weights even when the material and
+            // texture bindings are unchanged. Instance-stream weights do not split batches.
+            component.m_ReHash |= component.m_HasUniformMorphWeights && !component.m_BlendWeightsOverrideActive;
+
             // Purge old mesh attribute data
             const uint8_t current_tick = world->m_CurrentFrameTick;
             const uint32_t num_render_datas = component.m_MeshAttributeRenderDatas.Size();
@@ -2982,7 +2989,6 @@ namespace dmGameSystem
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
         SetRenderConstant(component->m_RenderConstants, GetComponentMaterial(component, component->m_Resource, 0), name_hash, value_index, element_index, var);
-        component->m_ReHash = 1;
     }
 
     dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback, dmRig::AnimationLayerError* error)
@@ -3071,9 +3077,9 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
+                if (component->m_RenderConstants)
                 {
-                    component->m_ReHash = 1;
+                    dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash);
                 }
             }
         }
@@ -3112,8 +3118,6 @@ namespace dmGameSystem
         }
 
         SetupRenderItems(world, component, component->m_Resource);
-
-        component->m_ReHash = 1;
 
         return true;
     }
@@ -3323,23 +3327,20 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
-            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
-            if (res == dmGameObject::PROPERTY_RESULT_OK)
-            {
-                for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
-                    SetRenderItemMaterial(world, &component->m_RenderItems[i], GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex));
-            }
-            return res;
+            MaterialResource* previous = component->m_Material;
+            dmGameObject::PropertyResult result = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            component->m_ReHash |= result == dmGameObject::PROPERTY_RESULT_OK && previous != component->m_Material;
+            return result;
         }
         for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
                 dmhash_t ext_hashes[] = { TEXTURE_EXT_HASH, RENDER_TARGET_EXT_HASH };
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
-                component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
-                return res;
+                TextureResource* previous = component->m_Textures[i];
+                dmGameObject::PropertyResult result = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
+                component->m_ReHash |= result == dmGameObject::PROPERTY_RESULT_OK && previous != component->m_Textures[i];
+                return result;
             }
         }
 
@@ -3376,8 +3377,10 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*) params->m_UserData;
         const void*                     resource = dmResource::GetResource(params->m_Resource);
-        dmRender::HMaterial reloaded_material = ResourceTypeGetNameHash(params->m_Type) == MATERIAL_EXT_HASH
+        dmhash_t resource_type = ResourceTypeGetNameHash(params->m_Type);
+        dmRender::HMaterial reloaded_material = resource_type == MATERIAL_EXT_HASH
             ? ((const MaterialResource*)resource)->m_Material : 0;
+        bool texture_reloaded = resource_type == TEXTURE_EXT_HASH || resource_type == RENDER_TARGET_EXT_HASH;
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -3391,18 +3394,28 @@ namespace dmGameSystem
                     if (component->m_Resource->m_Materials[j].m_Material == resource)
                         material_changed = true;
                 }
+                if (material_changed || texture_reloaded)
+                {
+                    // Reloads can replace GPU handles while retaining resource pointers.
+                    component->m_ReHash = 1;
+                }
+                if (texture_reloaded)
+                {
+                    for (uint32_t j = 0; j < component->m_RenderItems.Size(); ++j)
+                    {
+                        TextureResource* morph_texture = component->m_Resource->m_Meshes[j].m_MorphTargetTexture;
+                        if (morph_texture == resource)
+                        {
+                            component->m_RenderItems[j].m_MorphTargetTexture = morph_texture->m_Texture;
+                        }
+                    }
+                }
                 // A recreated material can reuse a handle and revision, including a render-script override.
                 for (uint32_t j = 0; j < component->m_MeshAttributeRenderDatas.Size(); ++j)
                 {
                     MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[j];
                     if (material_changed || (reloaded_material && rd.m_Material == reloaded_material))
                         ReleaseMeshAttributeRenderData(&rd);
-                }
-                if (material_changed)
-                {
-                    component->m_ReHash = 1;
-                    for (uint32_t j = 0; j < component->m_RenderItems.Size(); ++j)
-                        dmRender::SetMaterial(world->m_RenderContext, component->m_RenderItems[j].m_RenderItem, GetComponentMaterial(component, component->m_Resource, component->m_RenderItems[j].m_MaterialIndex));
                 }
                 if(component->m_Resource == dmResource::GetResource(params->m_Resource))
                 {

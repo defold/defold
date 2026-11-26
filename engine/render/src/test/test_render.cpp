@@ -1470,7 +1470,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalTextureDrawsPreserveCompatibility)
         dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
     uint64_t hash = dmRender::GetMaterialRenderHash(material);
     uint64_t instancing_hash = dmRender::GetMaterialInstancingHash(material);
-    uint32_t version = dmRender::GetMaterialVersion(material);
     dmGraphics::HVertexDeclaration declaration = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HTexture textures[5];
@@ -1499,7 +1498,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalTextureDrawsPreserveCompatibility)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
     ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(material));
     ASSERT_EQ(instancing_hash, dmRender::GetMaterialInstancingHash(material));
-    ASSERT_EQ(version, dmRender::GetMaterialVersion(material));
     const int32_t units[] = { 0, 1, 1, 1, 2 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(textures); ++i)
     {
@@ -1532,8 +1530,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalTextureMaterialOverride)
         dmRender::GetMaterialInternalTextureSlot(effective, dmRender::SAMPLER_POSE_MATRIX_CACHE));
     const uint64_t source_hash = dmRender::GetMaterialRenderHash(source);
     const uint64_t effective_hash = dmRender::GetMaterialRenderHash(effective);
-    const uint32_t source_version = dmRender::GetMaterialVersion(source);
-    const uint32_t effective_version = dmRender::GetMaterialVersion(effective);
     dmGraphics::HTexture pose = MakeDummyTexture(m_GraphicsContext);
     dmGraphics::HTexture morph = MakeDummyTexture(m_GraphicsContext);
     dmRender::RenderObject ro;
@@ -1551,8 +1547,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalTextureMaterialOverride)
     ASSERT_EQ(1, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, morph, 0));
     ASSERT_EQ(source_hash, dmRender::GetMaterialRenderHash(source));
     ASSERT_EQ(effective_hash, dmRender::GetMaterialRenderHash(effective));
-    ASSERT_EQ(source_version, dmRender::GetMaterialVersion(source));
-    ASSERT_EQ(effective_version, dmRender::GetMaterialVersion(effective));
     m_Context->m_Material = 0;
     dmRender::SetTextureBindingByHash(m_Context, dmRender::SAMPLER_MORPH_TARGETS, 0);
     dmRender::ClearRenderObjects(m_Context);
@@ -1808,9 +1802,9 @@ TEST_F(dmRenderTest, ArraySamplerMutationsConverge)
             ASSERT_EQ(options[0].m_MagFilter, actual.m_MagFilter);
             ASSERT_EQ(options[0].m_MaxAnisotropy, actual.m_MaxAnisotropy);
         }
-        uint32_t version = dmRender::GetMaterialVersion(materials[1]);
         ASSERT_TRUE(dmRender::SetMaterialSamplerOptions(materials[1], name, options[0]));
-        ASSERT_EQ(version, dmRender::GetMaterialVersion(materials[1]));
+        ASSERT_FALSE(materials[1]->m_RenderHashDirty);
+        ASSERT_FALSE(materials[1]->m_InstancingHashDirty);
 
         if (fallback)
         {
@@ -2032,7 +2026,6 @@ TEST_F(dmMaterialInstancingHashTest, SharedState)
 {
     const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
     ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[1]));
-    ASSERT_NE(0u, dmRender::GetMaterialVersion(m_Materials[0]));
     ASSERT_NE(0u, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
 
     dmGraphics::HProgram other_program = NewMaterialHashTestProgram(m_GraphicsContext);
@@ -2043,9 +2036,7 @@ TEST_F(dmMaterialInstancingHashTest, SharedState)
     dmGraphics::DeleteProgram(m_GraphicsContext, other_program);
 
     dmhash_t tag = dmHashString64("other_pass");
-    uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
     dmRender::SetMaterialTags(m_Materials[0], 1, &tag);
-    ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
     ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
     dmRender::ClearMaterialTags(m_Materials[0]);
     ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
@@ -2066,26 +2057,75 @@ TEST_F(dmMaterialInstancingHashTest, SharedState)
     ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
 }
 
+// Hash caches and batch-cache revisions must track mutations independently, including tags and no-op setters.
+// Reading the portable hash must not hide a pending runtime hash update.
+TEST_F(dmMaterialInstancingHashTest, CachedHashesFollowMaterialMutations)
+{
+    dmRender::HMaterial material = m_Materials[0];
+    const uint64_t render_hash = dmRender::GetMaterialRenderHash(material);
+    const uint64_t instancing_hash = dmRender::GetMaterialInstancingHash(material);
+    uint32_t version = dmRender::GetMaterialVersion(material);
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+    ASSERT_EQ(instancing_hash, dmRender::GetMaterialInstancingHash(material));
+
+    dmhash_t name = dmHashString64("tint");
+    Vector4 value(1.0f, 0.5f, 0.25f, 1.0f);
+    dmRender::SetMaterialProgramConstant(material, name, &value, 1);
+    ASSERT_NE(version, dmRender::GetMaterialVersion(material));
+    ASSERT_TRUE(material->m_RenderHashDirty);
+    ASSERT_TRUE(material->m_InstancingHashDirty);
+    ASSERT_NE(render_hash, dmRender::GetMaterialRenderHash(material));
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_TRUE(material->m_InstancingHashDirty);
+    ASSERT_NE(instancing_hash, dmRender::GetMaterialInstancingHash(material));
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+
+    version = dmRender::GetMaterialVersion(material);
+    dmRender::SetMaterialProgramConstant(material, name, &value, 1);
+    ASSERT_EQ(version, dmRender::GetMaterialVersion(material));
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+    dmhash_t tag = dmHashString64("other_pass");
+    dmRender::SetMaterialTags(material, 1, &tag);
+    ASSERT_NE(version, dmRender::GetMaterialVersion(material));
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+
+    version = dmRender::GetMaterialVersion(material);
+    dmRender::SetMaterialTags(material, 1, &tag);
+    ASSERT_EQ(version, dmRender::GetMaterialVersion(material));
+    dmRender::ClearMaterialTags(material);
+    ASSERT_NE(version, dmRender::GetMaterialVersion(material));
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+
+    dmRender::SetMaterialRenderState(material, dmRender::GetMaterialRenderStateDDF(m_Materials[1]->m_RenderState), render_hash);
+    ASSERT_FALSE(material->m_RenderHashDirty);
+    ASSERT_TRUE(material->m_InstancingHashDirty);
+    ASSERT_EQ(instancing_hash, dmRender::GetMaterialInstancingHash(material));
+    ASSERT_FALSE(material->m_InstancingHashDirty);
+    ASSERT_NE(dmRender::GetMaterialVersion(material), dmRender::GetMaterialVersion(m_Materials[1]));
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(material), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+}
+
 // Runtime constants split batches and become compatible again when independently edited values agree.
 TEST_F(dmMaterialInstancingHashTest, ConstantMutationsConverge)
 {
     dmhash_t name = dmHashString64("tint");
     Vector4 value(1.0f, 0.5f, 0.25f, 1.0f);
     const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
-    uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
     uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[0]);
     dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
-    ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
     ASSERT_EQ(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
     ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
     ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
     dmRender::SetMaterialProgramConstant(m_Materials[1], name, &value, 1);
     ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
 
-    version = dmRender::GetMaterialVersion(m_Materials[0]);
     dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
-    ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
-
+    ASSERT_FALSE(m_Materials[0]->m_RenderHashDirty);
+    ASSERT_FALSE(m_Materials[0]->m_InstancingHashDirty);
     dmRender::SetMaterialProgramConstantType(m_Materials[0], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
     ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
     dmRender::SetMaterialProgramConstantType(m_Materials[1], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
@@ -2146,9 +2186,7 @@ TEST_F(dmMaterialInstancingHashTest, SamplerMutationsConverge)
         ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[1], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
         ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
-        uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
         ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
-        ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
     }
 }
 
@@ -2196,7 +2234,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalSamplersPreserveCompatibility)
 {
     const uint64_t render_hash = dmRender::GetMaterialRenderHash(m_Materials[0]);
     const uint64_t instancing_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
-    const uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
     const dmhash_t names[] = { dmRender::SAMPLER_POSE_MATRIX_CACHE, dmRender::SAMPLER_MORPH_TARGETS };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
     {
@@ -2207,7 +2244,6 @@ TEST_F(dmMaterialInstancingHashTest, InternalSamplersPreserveCompatibility)
         ASSERT_EQ(render_hash, dmRender::GetMaterialRenderHash(m_Materials[0]));
         ASSERT_EQ(instancing_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
         ASSERT_EQ(instancing_hash, dmRender::GetMaterialInstancingHash(m_Materials[1]));
-        ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
     }
     ASSERT_FALSE(dmRender::IsMaterialInternalSampler(dmHashString64("texture_sampler")));
 }

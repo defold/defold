@@ -34,6 +34,7 @@ namespace dmRender
     static void InvalidateMaterial(HMaterial material)
     {
         material->m_RenderHashDirty = 1;
+        material->m_InstancingHashDirty = 1;
         ++material->m_Version;
     }
 
@@ -573,6 +574,11 @@ namespace dmRender
 
     uint64_t GetMaterialInstancingHash(HMaterial material)
     {
+        if (!material->m_InstancingHashDirty)
+        {
+            return material->m_InstancingHash;
+        }
+
         uint64_t render_hash = GetMaterialRenderHash(material);
         HashState64 state;
         dmHashInit64(&state, false);
@@ -599,7 +605,9 @@ namespace dmRender
             dmHashUpdateBuffer64(&state, &sampler.m_MagFilter, sizeof(sampler.m_MagFilter));
             dmHashUpdateBuffer64(&state, &sampler.m_MaxAnisotropy, sizeof(sampler.m_MaxAnisotropy));
         }
-        return dmHashFinal64(&state);
+        material->m_InstancingHash = dmHashFinal64(&state);
+        material->m_InstancingHashDirty = 0;
+        return material->m_InstancingHash;
     }
 
     uint32_t GetMaterialVersion(HMaterial material)
@@ -871,17 +879,25 @@ namespace dmRender
     {
         HConstant constant;
         if (!GetProgramConstant(material->m_Constants, name_hash, constant))
+        {
             return;
+        }
+
         uint32_t num_values;
         Vector4* current_values = GetConstantValues(constant, &num_values);
         // Retain logical array values even when a backend optimizes away a tail.
         bool state_changed = SetMaterialRenderConstantValues(material->m_RenderState, name_hash, (const dmMath::Vector4*)values, count);
         count = dmMath::Min(count, num_values);
+
         bool values_changed = count && memcmp(current_values, values, count * sizeof(Vector4)) != 0;
         if (!values_changed && !state_changed)
+        {
             return;
+        }
         if (values_changed)
+        {
             SetProgramRenderConstant(material->m_Constants, name_hash, values, count);
+        }
         InvalidateMaterial(material);
     }
 
@@ -1036,20 +1052,31 @@ namespace dmRender
     {
         uint32_t unit = GetMaterialSamplerUnit(material, name_hash);
         if (unit == INVALID_SAMPLER_UNIT)
+        {
             return false;
+        }
+
         dmhash_t logical_name_hash = material->m_Samplers[unit].m_LogicalNameHash;
-        uint32_t version = material->m_Version;
+        bool changed = false;
         for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
         {
             const Sampler& sampler = material->m_Samplers[i];
-            if (sampler.m_LogicalNameHash == logical_name_hash)
+            if (sampler.m_LogicalNameHash == logical_name_hash &&
+                (sampler.m_UWrap != options.m_UWrap || sampler.m_VWrap != options.m_VWrap || sampler.m_WWrap != options.m_WWrap ||
+                 sampler.m_MinFilter != options.m_MinFilter || sampler.m_MagFilter != options.m_MagFilter ||
+                 sampler.m_MaxAnisotropy != options.m_MaxAnisotropy))
             {
                 SetMaterialSamplerBinding(material, sampler.m_NameHash, i, options.m_UWrap, options.m_VWrap, options.m_WWrap,
-                    options.m_MinFilter, options.m_MagFilter, options.m_MaxAnisotropy, false);
+                                          options.m_MinFilter, options.m_MagFilter, options.m_MaxAnisotropy, false);
+                changed = true;
             }
         }
-        if (material->m_Version != version)
+
+        if (changed)
+        {
             UpdateMaterialSamplerRenderState(material, material->m_Samplers[unit]);
+        }
+
         return true;
     }
 
@@ -1163,7 +1190,9 @@ namespace dmRender
     void ClearMaterialTags(HMaterial material)
     {
         if (material->m_TagListKey != 0)
+        {
             ++material->m_Version;
+        }
         material->m_TagListKey = 0;
     }
 

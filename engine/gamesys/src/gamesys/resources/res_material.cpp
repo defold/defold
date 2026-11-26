@@ -120,7 +120,7 @@ namespace dmGameSystem
 
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
-        resource->m_Version++;
+        ++resource->m_TextureBindingsVersion;
         resource->m_NumTextures = 0;
         memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
         memset(resource->m_TextureResourcePaths, 0, sizeof(resource->m_TextureResourcePaths));

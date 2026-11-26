@@ -102,6 +102,7 @@ namespace dmRender
             m_Version = 1;
             m_AttributeVersion = 1;
             m_RenderHashDirty = 1;
+            m_InstancingHashDirty = 1;
         }
 
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
@@ -116,6 +117,7 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         MaterialRenderState*                        m_RenderState;
         uint64_t                                    m_RenderHash;
+        uint64_t                                    m_InstancingHash;
         uint64_t                                    m_UniformBufferProgramVersion;
         dmRender::HRenderContext                    m_RenderContext;
         dmGraphics::HProgram                        m_Program;
@@ -136,6 +138,7 @@ namespace dmRender
         uint8_t                                     m_HasMorphTargetsSampler : 1;
         uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
         uint8_t                                     m_RenderHashDirty : 1;
+        uint8_t                                     m_InstancingHashDirty : 1;
     };
 
     struct ComputeProgram

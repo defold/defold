@@ -85,7 +85,9 @@ namespace dmRender
     {
         const RenderConstant* rc = GetRenderConstant(constants, name_hash);
         if (!rc)
+        {
             return;
+        }
 
         uint32_t num_default_values;
         dmVMath::Vector4* constant_values = dmRender::GetConstantValues(rc->m_Constant, &num_default_values);

@@ -31,30 +31,6 @@ extern "C"
 
 namespace dmGameSystem
 {
-    static dmGraphics::TextureType NormalizeBindableTextureType(dmGraphics::TextureType texture_type)
-    {
-        switch (texture_type)
-        {
-            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D:       return dmGraphics::TEXTURE_TYPE_2D;
-            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-            case dmGraphics::TEXTURE_TYPE_TEXTURE_3D:       return dmGraphics::TEXTURE_TYPE_3D;
-            case dmGraphics::TEXTURE_TYPE_TEXTURE_CUBE:     return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-            default:                                        return texture_type;
-        }
-    }
-
-    static dmGraphics::CoordinateSpace ResolveMaterialCoordinateSpace(dmRender::HMaterial material, dmGraphics::CoordinateSpace coordinate_space)
-    {
-        if (coordinate_space != dmGraphics::COORDINATE_SPACE_DEFAULT)
-        {
-            return coordinate_space;
-        }
-
-        return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL
-            ? dmGraphics::COORDINATE_SPACE_LOCAL
-            : dmGraphics::COORDINATE_SPACE_WORLD;
-    }
-
     /*# Material API documentation
      *
      * Functions for interacting with materials.
@@ -237,22 +213,61 @@ namespace dmGameSystem
 
     struct MaterialModule
     {
-        dmResource::HFactory m_Factory;
+        dmResource::HFactory      m_Factory;
         dmArray<dmVMath::Vector4> m_ScratchValues;
     } g_MaterialModule;
+
+    static dmGraphics::TextureType NormalizeBindableTextureType(dmGraphics::TextureType texture_type)
+    {
+        switch (texture_type)
+        {
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D:
+                return dmGraphics::TEXTURE_TYPE_2D;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+                return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_3D:
+                return dmGraphics::TEXTURE_TYPE_3D;
+            case dmGraphics::TEXTURE_TYPE_TEXTURE_CUBE:
+                return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            default:
+                return texture_type;
+        }
+    }
+
+    static dmGraphics::CoordinateSpace ResolveMaterialCoordinateSpace(dmRender::HMaterial material, dmGraphics::CoordinateSpace coordinate_space)
+    {
+        if (coordinate_space != dmGraphics::COORDINATE_SPACE_DEFAULT)
+        {
+            return coordinate_space;
+        }
+
+        return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL
+            ? dmGraphics::COORDINATE_SPACE_LOCAL
+            : dmGraphics::COORDINATE_SPACE_WORLD;
+    }
 
     static bool VertexAttributeVectorTypeFromValueCount(uint32_t value_count, dmGraphics::VertexAttribute::VectorType fallback, dmGraphics::VertexAttribute::VectorType* vector_type)
     {
         switch (value_count)
         {
-            case 1:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR; return true;
-            case 2:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;   return true;
-            case 3:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;   return true;
+            case 1:
+                *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+                return true;
+            case 2:
+                *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+                return true;
+            case 3:
+                *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+                return true;
             case 4:
                 *vector_type = fallback == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2 ? fallback : dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
                 return true;
-            case 9:  *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;   return true;
-            case 16: *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;   return true;
+            case 9:
+                *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
+                return true;
+            case 16:
+                *vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+                return true;
             default: return false;
         }
     }
@@ -860,9 +875,8 @@ namespace dmGameSystem
                 dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
-        // Texture bindings belong to the resource; render-state mutations are
-        // tracked by dmRender::Material itself.
-        material_res->m_Version++;
+        bool bindings_changed = material_res->m_Textures[unit] != texture_res || material_res->m_SamplerNames[unit] != name_hash;
+        uint32_t previous_texture_count = material_res->m_NumTextures;
         material_res->m_TextureResourcePaths[unit] = texture_path;
         material_res->m_SamplerNames[unit]         = name_hash;
 
@@ -887,6 +901,12 @@ namespace dmGameSystem
             }
             material_res->m_NumTextures++;
         }
+
+        if (bindings_changed || previous_texture_count != material_res->m_NumTextures)
+        {
+            ++material_res->m_TextureBindingsVersion;
+        }
+
         return 0;
     }
 
