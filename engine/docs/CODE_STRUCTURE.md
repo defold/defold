@@ -31,7 +31,7 @@ E.g. `render` may use `graphics`, but the reverse order is not allowed.
 * [modelc](../modelc/README.md) - Model importer. Builds `modelimporter.jar` and a native shared library for Bob.
 * shaderc - Shader compiler and Java bindings.
 * ddf - Our runtime data format. It's a slimmed down version of Protobuf.
-* platform - Handles some platform specific concepts, like a Window.
+* [platform](../platform/README.md) - Window lifecycle, native input, and rendering surfaces.
 * graphics - Graphics layer with e.g. vertex buffers and shader programs. Backends for OpenGL, Vulkan etc.
 * [font](../font/README.md) - Font processing, layout and rendering data.
 * particle - Simulates particles for the [particle effect component](../gamesys/src/gamesys/components/comp_particlefx.cpp).
@@ -78,4 +78,4 @@ Run `./scripts/build.py install_ext` from the repository root. It unpacks prebui
 
 [share/ext](../../share/ext/) contains custom packaging scripts for dependencies such as glslang and Tremolo.
 
-Defold builds its desktop, mobile and web window backends in [engine/platform](../platform/src/). The [Linux backend](../platform/src/linux/) supports X11 and Wayland.
+Defold builds its desktop, mobile and web window backends in [engine/platform](../platform/README.md). The [Linux backend](../platform/src/linux/README.md) supports X11 and Wayland.

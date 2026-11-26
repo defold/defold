@@ -18,6 +18,8 @@ Here we collect engine specific documentation for developers.
 
 * [The input system](./INPUT_SYSTEM.md)
 
+* [The platform module and its window backends](../platform/README.md)
+
 * [The data store](./DATASTORE.md)
 
 * [Live Update](./LIVEUPDATE.md)
