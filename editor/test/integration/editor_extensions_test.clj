@@ -40,6 +40,7 @@
             [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
+            [editor.panes :as panes]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -67,7 +68,7 @@
            [java.util.concurrent CompletableFuture TimeUnit]
            [java.util.zip ZipEntry]
            [javafx.scene Node Scene]
-           [javafx.scene.control Labeled]
+           [javafx.scene.control Button Labeled Tab]
            [javafx.scene.layout StackPane]
            [javafx.stage Stage]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
@@ -528,25 +529,18 @@ end")))
                                             {:selection [(g/node-value (test-util/resource-node project path) :resource)]})]}))]
       (ui/run-now
         (let [component
-              (volatile! (fx/create-component (describe "/game.project")))
-
-              ^StackPane root (fx/instance @component)]
+              (volatile! (fx/create-component (describe "/game.project")))]
           (try
-            (Scene. root)
-            (.resize root 180.0 120.0)
-            (.applyCss root)
-            (.layout root)
             (testing "Top-level and nested renders share one lifecycle context"
               (is (= ["render" "component"] (mapv :label @observations)))
               (is (apply identical? (mapv :runtime @observations)))
               (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
             (reset! fail true)
             (vswap! component fx/advance-component (describe "/logic/main.gui"))
-            (.applyCss root)
-            (.layout root)
             (vswap! component fx/advance-component (describe "/logic/main.gui"))
             (testing "The error message wraps and is reported once"
-              (let [^Labeled error-label (.lookup root ".label")]
+              (let [^Labeled error-label
+                    (.lookup ^Node (fx/instance @component) ".label")]
                 (is (string/ends-with? (.getText error-label)
                                        "Expected pane render failure with enough words to wrap inside a narrow pane."))
                 (is (.isWrapText error-label))
@@ -556,12 +550,97 @@ end")))
             (reset! fail false)
             (vswap! component fx/advance-component (describe "/game.project"))
             (testing "Changed props recover inside the same pane with a fresh context"
-              (is (identical? root (fx/instance @component)))
-              (is (= "Ready" (.getText ^Labeled (.lookup root ".label"))))
+              (let [^Labeled label
+                    (.lookup ^Node (fx/instance @component) ".label")]
+                (is (= "Ready" (.getText label))))
               (is (not (identical? (:runtime (first @observations)) (:runtime (last @observations)))))
               (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
             (finally
               (fx/delete-component @component))))))))
+
+;; A nil component result hides its tab while keeping hooks. A nil pane render
+;; unmounts the component.
+(deftest editor-script-pane-nil-output-test
+  (test-util/with-loaded-project
+    (let [flip (atom nil)
+          hide (atom false)
+          prefs (test-util/make-test-prefs)
+
+          rt
+          (rt/make
+            :env {"editor" {"ui" (ui-components/env workspace project (.toPath (workspace/project-directory workspace)) test-util/localization)}
+                  "hide_pane" (rt/lua-fn [_] (rt/->lua @hide))
+                  "on_toggle" (rt/lua-fn [_ setter]
+                                (reset! flip setter)
+                                (rt/->lua nil))})
+
+          render
+          (rt/invoke-immediate-1 rt
+                                 (rt/bind rt
+                                          (rt/read "local ui = editor.ui
+local mounted = 0
+local function next_generation()
+    mounted = mounted + 1
+    return mounted
+end
+local pane = ui.component(function()
+    local generation = ui.use_state(next_generation)
+    local visible, set_visible = ui.use_state(true)
+    on_toggle(set_visible)
+    if not visible then return nil end
+    return ui.button {text = tostring(generation)}
+end)
+return function()
+    if hide_pane() then return nil end
+    return pane {}
+end")))
+
+          pane
+          (ext.panes/compile-pane project workspace test-util/localization rt "/nil.editor_script"
+                                  {:id :test.nil
+                                   :title "Optional pane"
+                                   :location :bottom
+                                   :query {:selection {:type :resource :cardinality :one}}
+                                   :render render})
+
+          describe
+          (fn describe [path]
+            {:fx/type panes/pane
+             :id :test.nil
+             :title "Optional pane"
+             :location :bottom
+             :localization-state @test-util/localization
+             :prefs prefs
+             :content-desc ((:content pane)
+                            {:contexts [(handler/->context :workbench
+                                                           {:selection [(g/node-value (test-util/resource-node project path) :resource)]})]})})
+
+          component
+          (volatile! (ui/run-now (fx/create-component (describe "/game.project"))))
+
+          button-text
+          (fn button-text []
+            (ui/run-now
+              (when-let [^Tab tab (fx/instance @component)]
+                (when-let [^Button button (.lookup ^Node (.getContent tab) ".ext-button")]
+                  (.getText button)))))]
+      (try
+        (is (= "1" (button-text)))
+        (let [setter @flip]
+          (rt/invoke-immediate-1 rt setter (rt/->lua false))
+          @(fx/run-later)
+          (is (nil? (button-text)))
+          (rt/invoke-immediate-1 rt setter (rt/->lua true))
+          @(fx/run-later)
+          (is (= "1" (button-text)))
+          (is (identical? setter @flip)))
+        (reset! hide true)
+        (ui/run-now (vswap! component fx/advance-component (describe "/logic/main.gui")))
+        (is (nil? (fx/instance @component)))
+        (reset! hide false)
+        (ui/run-now (vswap! component fx/advance-component (describe "/game.project")))
+        (is (= "2" (button-text)))
+        (finally (ui/run-now (fx/delete-component @component)))))))
 
 ;; Region hiding preserves script component state and localization watches;
 ;; individual pane hiding unmounts the component and releases its watch.

@@ -14,7 +14,6 @@
 
 (ns editor.editor-extensions.panes
   (:require [cljfx.api :as fx]
-            [cljfx.fx.stack-pane :as fx.stack-pane]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
@@ -62,7 +61,7 @@
                       :label (:error-label props)}}]}
   [{:keys [rt render props]}]
   (rt/->clj
-    rt ui-docs/component-coercer
+    rt ui-docs/nilable-component-coercer
     (rt/invoke-immediate-1 rt
                            {:evaluation-context (ui-components/lifecycle-evaluation-context)}
                            render
@@ -75,13 +74,11 @@
               :workspace (:workspace props)
               :owner-window (:owner-window props)}]}
   [{:keys [rt render props error-label]}]
-  {:fx/type fx.stack-pane/lifecycle
-   :alignment :top-left
-   :children [{:fx/type render-content
-               :rt rt
-               :render render
-               :props props
-               :error-label error-label}]})
+  {:fx/type render-content
+   :rt rt
+   :render render
+   :props props
+   :error-label error-label})
 
 (defn compile-pane [project workspace localization rt path {:keys [id location title query render]}]
   (let [query-fn

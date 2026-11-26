@@ -134,7 +134,7 @@
                     {:name "title" :types ["string" "editor.message"] :doc "visible pane title"}
                     {:name "location" :types ["editor.pane.location"] :doc "initial placement in the editor"}
                     {:name "query?" :types ["editor.pane.query"] :doc "show the pane while the query matches"}
-                    {:name "render" :types ["fun(props:editor.pane.context):editor.component"] :doc "return pane content for the matched context. Use editor.ui.component for local state and hooks."}]}
+                    {:name "render" :types ["fun(props:editor.pane.context):editor.component|nil"] :doc "return pane content for the matched context, or nil to remove the tab and unmount its content."}]}
          {:name "editor.pane"
           :type :function
           :description "Create a pane. Return an array of panes from get_panes() in an editor script. Panes without a query receive an empty props table. When a query stops matching, its tab disappears."

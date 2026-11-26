@@ -49,6 +49,7 @@
             [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.fn :as fn]
             [util.path :as path])
   (:import [com.defold.editor.luart DefoldLuaFn]
@@ -1030,129 +1031,100 @@
 ;;   :rt                    editor extensions runtime
 ;;   :lua-fn                the component lua function
 ;;   :lua-props             the component lua props table
-;;   :opts                  cljfx opts
-;;   :render-counter        render counter. atom has a watcher that schedules
-;;                          the view refresh when counter is set from 0 to 1.
-;;                          Hooks might increment the counter, which will
-;;                          schedule a refresh. Since JavaFX is mutable, cljfx
-;;                          updates cannot be retried. The watcher performs a
-;;                          refresh on the UI thread with a particular counter
-;;                          in mind, and then updates the atom, either resetting
-;;                          the counter back to zero if the counter didn't
-;;                          change, or scheduling another refresh if it changed
-;;                          during the update.
+;;   :request-render        asks the owning cljfx root to reconcile
+;;   :render-counter        represents hook updates not yet rendered. Clear it
+;;                          only if no hook update arrived during the advance.
 (def ^:private ^:dynamic *current-component-atom* nil)
 
-;; used in `swap!`
-(defn- complete-component-rendering [component-state desc child render-counter]
-  (-> component-state
-      (assoc :desc desc :child child)
-      (cond-> (= render-counter (:render-counter component-state))
-        (assoc :render-counter 0))))
-
-;; used in `swap!`
-(defn- complete-component-advance [component-state lua-props desc child opts render-counter]
-  (-> component-state
-      (assoc :lua-props lua-props :opts opts)
-      (complete-component-rendering desc child render-counter)))
-
-;; used in `swap!`
-(defn- complete-hook-triggered-advance [component-state desc child render-counter]
-  (complete-component-rendering component-state desc child render-counter))
-
-;; not used in `swap!` since fx.lifecycle/advance cannot be retried. returns new child
-(defn- advance-component-child [old-child desc opts]
-  (let [old-instance (fx.component/instance old-child)
-        new-child (fx.lifecycle/advance fx.lifecycle/root old-child desc opts)
-        new-instance (fx.component/instance new-child)]
-    ;; It's not allowed to change the final JavaFX node instance on a component atom
-    ;; because the change will not be picked up by cljfx. In cljfx, components are
-    ;; considered immutable descriptions of mutable objects. Re-assigning the node
-    ;; happens if node instance of old component is not the same as node instance of
-    ;; the new component. But since function component stays the same — an atom —
-    ;; both old and new instances are going to be the same. In practice, this is not
-    ;; an issue, since function components typically return the same root instance,
-    ;; and the function is only needed for local state that affects behavior.
-    (when-not (identical? old-instance new-instance)
-      (throw (LuaError. "component function returned a different UI component instance, which is not allowed")))
-    new-child))
+(defn- complete-component-rendering [component-state render-counter]
+  (cond-> component-state
+    (= render-counter (:render-counter component-state))
+    (assoc :render-counter 0)))
 
 (defn- invoke-with-hooks [component-atom rt lua-fn lua-props]
   (binding [*current-component-atom* component-atom]
-    (let [ret (rt/invoke-immediate-1 rt {:evaluation-context (lifecycle-evaluation-context)} lua-fn lua-props)
-          {:keys [hooks current-hook-index]} @component-atom]
-      (swap! component-atom assoc :current-hook-index 0)
-      (when (< current-hook-index (count hooks))
-        ;; the check if there were more hooks than necessary is in the main hook
-        ;; dispatcher: see make-hook-lua-fn
-        (throw (LuaError. "component function used fewer hooks than expected")))
-      ret)))
+    (try
+      (let [ret
+            (rt/invoke-immediate-1 rt
+                                   {:evaluation-context (lifecycle-evaluation-context)}
+                                   lua-fn
+                                   lua-props)
 
-(defn- perform-hook-triggered-render [component-atom]
-  (try
-    (let [{:keys [mode render-counter lua-fn lua-props rt child opts]} @component-atom]
-      (when (and (not= :delete mode) (pos? render-counter))
-        (try
-          (let [new-state (with-nestable-evaluation-context
-                            (let [lua-desc (invoke-with-hooks component-atom rt lua-fn lua-props)
-                                  desc (rt/->clj rt ui-docs/component-coercer lua-desc)
-                                  new-child (advance-component-child child desc opts)]
-                              (swap! component-atom complete-hook-triggered-advance desc new-child render-counter)))]
-            (when (and (not= :delete (:mode new-state))
-                       (pos? (:render-counter new-state)))
-              (fx/run-later (perform-hook-triggered-render component-atom))))
-          (catch LuaError e (report-error-to-script rt (rt/->clj rt coerce/to-string lua-fn) e)))))
-    (catch Throwable e (error-reporting/report-exception! e))))
+            {:keys [hooks current-hook-index]} @component-atom]
+        (when (< current-hook-index (count hooks))
+          ;; the check if there were more hooks than necessary is in the main
+          ;; hook dispatcher: see make-hook-lua-fn
+          (throw (LuaError. "component function used fewer hooks than expected")))
+        ret)
+      (finally
+        (swap! component-atom assoc :current-hook-index 0)))))
 
-(defn- component-atom-watcher [_ component-atom old-component-state new-component-state]
-  (when (and (not= :delete (:mode new-component-state))
-             (zero? (:render-counter old-component-state))
-             (pos? (:render-counter new-component-state)))
-    (fx/run-later (perform-hook-triggered-render component-atom))))
-
-(def ^:private component-atom-meta
-  {`fx.component/instance #(fx.component/instance (:child @%))})
+;; Keep the child outside the atom so cljfx can compare old and new instances.
+(defonce/type LuaComponent [state child]
+  fx.component/Component
+  (instance [_] (fx.component/instance child)))
 
 (def ^:private lua-component-lifecycle
   (reify fx.lifecycle/Lifecycle
-    (create [this {:keys [rt lua-fn lua-props]} opts]
-      (let [component-atom (doto (atom {:hooks []
-                                        :current-hook-index 0
-                                        :mode :create       ;; or :advance, :delete
-                                        :rt rt
-                                        :lua-fn lua-fn
-                                        :lua-props lua-props
-                                        :opts opts
-                                        :render-counter 0}
-                                       :meta component-atom-meta)
-                             (add-watch this component-atom-watcher))
-            lua-desc (invoke-with-hooks component-atom rt lua-fn lua-props)
-            desc (rt/->clj rt ui-docs/component-coercer lua-desc)]
-        (doto component-atom
-          (swap! assoc
-                 :mode :advance
-                 :desc desc
-                 :child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)))))
-    (advance [this component-atom {:keys [rt lua-fn lua-props] :as this-desc} opts]
-      (let [component-state @component-atom]
+    (create [_ {:keys [rt lua-fn lua-props]} opts]
+      (let [state
+            (atom {:hooks []
+                   :current-hook-index 0
+                   :mode :create
+                   :rt rt
+                   :lua-fn lua-fn
+                   :lua-props lua-props
+                   :request-render fx.lifecycle/*request-render*
+                   :render-counter 0})
+
+            desc
+            (rt/->clj rt ui-docs/nilable-component-coercer
+                      (invoke-with-hooks state rt lua-fn lua-props))
+
+            child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)]
+        (swap! state assoc :mode :advance :desc desc)
+        (->LuaComponent state child)))
+    (advance [this component {:keys [rt lua-fn lua-props] :as this-desc} opts]
+      (let [^LuaComponent component component
+            state (.-state component)
+            child (.-child component)
+            component-state @state]
         (if (and (= (:rt component-state) rt)
                  (= (:lua-fn component-state) lua-fn))
-          (do
+          (let [render-counter (:render-counter component-state)]
             (try
-              (let [desc (if (rt/tables-shallow-eq? rt (:lua-props component-state) lua-props)
-                           (:desc component-state)
-                           (rt/->clj rt ui-docs/component-coercer (invoke-with-hooks component-atom rt lua-fn lua-props)))
-                    new-child (advance-component-child (:child component-state) desc opts)]
-                (swap! component-atom complete-component-advance lua-props desc new-child opts (:render-counter component-state)))
-              (catch LuaError e (report-error-to-script rt (rt/->clj rt coerce/to-string lua-fn) e))
-              (catch Throwable e (error-reporting/report-exception! e)))
-            component-atom)
-          (do (fx.lifecycle/delete this component-atom opts)
+              (let [desc
+                    (if (and (zero? render-counter)
+                             (rt/tables-shallow-eq? rt (:lua-props component-state) lua-props))
+                      (:desc component-state)
+                      (rt/->clj rt ui-docs/nilable-component-coercer
+                                (invoke-with-hooks state rt lua-fn lua-props)))
+
+                    ;; Advancing mutates JavaFX and cannot be retried.
+                    new-child
+                    (fx.lifecycle/advance fx.lifecycle/dynamic child desc opts)]
+                (swap! state
+                       (fn finish-advance [current-state]
+                         (-> current-state
+                             (assoc :lua-props lua-props :desc desc)
+                             (complete-component-rendering render-counter))))
+                (if (identical? child new-child)
+                  component
+                  (->LuaComponent state new-child)))
+              (catch LuaError e
+                (swap! state complete-component-rendering render-counter)
+                (report-error-to-script rt (rt/->clj rt coerce/to-string lua-fn) e)
+                component)
+              (catch Throwable e
+                (swap! state complete-component-rendering render-counter)
+                (error-reporting/report-exception! e)
+                component)))
+          (do (fx.lifecycle/delete this component opts)
               (fx.lifecycle/create this this-desc opts)))))
-    (delete [this component-atom opts]
-      (remove-watch component-atom this)
-      (let [{:keys [child]} (swap! component-atom assoc :mode :delete)]
-        (fx.lifecycle/delete fx.lifecycle/dynamic child opts)))))
+    (delete [_ component opts]
+      (let [^LuaComponent component component]
+        (swap! (.-state component) assoc :mode :delete)
+        (fx.lifecycle/delete fx.lifecycle/dynamic (.-child component) opts)))))
 
 (def ^:private function-component-lua-fn
   (rt/lua-fn function-component [{:keys [rt]} lua-fn]
@@ -1182,6 +1154,8 @@
             (cond-> (apply update-in current-state [:hooks hook-index :state] f args)
               request-render
               (update :render-counter inc))))]
+    (when (and request-render (not= :delete (:mode new-state)))
+      ((:request-render new-state)))
     (-> new-state :hooks (get hook-index) :state)))
 
 (defn- vectors-with-eq-lua-values? [rt as bs]
