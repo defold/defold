@@ -312,6 +312,55 @@
   (property zort g/Int
             (value (g/fnk [zort] zort))))
 
+(g/defnode ResultVisibilityNode
+  (property show-result g/Bool))
+
+(g/defnode OriginalPropertyGetterNode
+  (input show-result g/Bool)
+  (property original-value g/Str)
+  (property result g/Str
+            (value (g/fnk [original-value] original-value))
+            (dynamic visible (g/fnk [show-result] show-result)))
+  (output cached-result g/Str :cached (g/fnk [result] result)))
+
+(g/defnode ReplacedPropertyGetterNode
+  (inherits OriginalPropertyGetterNode)
+  (property replacement-value g/Str)
+  (property result g/Str
+            (value (g/fnk [replacement-value] replacement-value))))
+
+;; Changing the input to the inherited visibility dynamic must refresh the
+;; property map while the result from the replacement getter stays cached.
+(deftest replacing-inherited-property-getter-test
+  (with-clean-system
+    (let [source-id (g/make-node! ResultVisibilityNode :show-result false)
+
+          node-id
+          (g/make-node! ReplacedPropertyGetterNode :replacement-value "first")
+
+          cached-result-endpoint (g/endpoint node-id :cached-result)
+          property-map-endpoint (g/endpoint node-id :_declared-properties)]
+      (g/connect! source-id :show-result node-id :show-result)
+      (is (= [(g/endpoint node-id :replacement-value)]
+             (g/immediate-predecessor-endpoints (g/now) node-id :result)))
+      (is (= "first" (g/node-value node-id :cached-result)))
+
+      (g/set-property! node-id :original-value "unused")
+      (is (contains? (cached-endpoints) cached-result-endpoint))
+
+      (is (false? (get-in (g/node-value node-id :_declared-properties)
+                          [:properties :result :visible])))
+      (is (contains? (cached-endpoints) property-map-endpoint))
+
+      (g/set-property! source-id :show-result true)
+      (is (not (contains? (cached-endpoints) property-map-endpoint)))
+      (is (contains? (cached-endpoints) cached-result-endpoint))
+      (is (true? (get-in (g/node-value node-id :_declared-properties)
+                         [:properties :result :visible])))
+
+      (g/set-property! node-id :replacement-value "second")
+      (is (= "second" (g/node-value node-id :cached-result))))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode :a-property nil)]
@@ -481,6 +530,33 @@
 
   (output direct-calculation g/Str (g/fnk [a-property] a-property))
   (output indirect-calculation g/Str (g/fnk [direct-calculation] direct-calculation)))
+
+(g/defnode StoredCalculationNode
+  (inherits TwoLayerDependencyNode)
+  (property indirect-calculation g/Str)
+  (output direct-calculation g/Str :cached
+          (g/fnk [indirect-calculation] indirect-calculation)))
+
+;; A stored property can feed the output it used to depend on. Retaining the
+;; inherited producer's dependencies would create a cycle and cause changes to
+;; :a-property to evict the cached output.
+(deftest replacing-inherited-output-with-property-test
+  (with-clean-system
+    (let [node-id
+          (g/make-node! StoredCalculationNode :indirect-calculation "first")
+
+          basis (g/now)]
+      (is (= []
+             (g/immediate-predecessor-endpoints basis node-id :indirect-calculation)))
+      (is (= [(g/endpoint node-id :indirect-calculation)]
+             (g/immediate-predecessor-endpoints basis node-id :direct-calculation)))
+      (is (= "first" (g/node-value node-id :direct-calculation)))
+
+      (g/set-property! node-id :a-property "changed")
+      (is (contains? (cached-endpoints) (g/endpoint node-id :direct-calculation)))
+
+      (g/set-property! node-id :indirect-calculation "second")
+      (is (= "second" (g/node-value node-id :direct-calculation))))))
 
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
@@ -813,6 +889,7 @@
   (input input-one g/Any)
   (input input-two g/Any)
   (input input-three g/Any)
+  (input shadowed-getter-input g/Any)
 
   (property a-property g/Any
             (default (g/constantly false))
@@ -822,34 +899,51 @@
   (property overridden g/Any
             (default (g/constantly false))
             (dynamic error (g/fnk [input-three] (nil? input-three)))
-            (value (g/fnk [input-two] (inc input-two))))
+            (value (g/fnk [shadowed-getter-input] (inc shadowed-getter-input))))
 
   (output an-output g/Any
           (g/fnk [input-one a-property] :ok))
 
   (output overridden g/Any (g/fnk [] "this overriding output should not be dependent on the corresponding property's stuff.")))
 
-(defn- affected-by? [out in]
-  (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
-    (contains? affected-outputs out)))
+(g/defnode OutputsReadingOwnProperty
+  (inherits PropertiesWithDynamics)
+  (output a-property g/Any (g/fnk [a-property] a-property))
+  (output overridden g/Any (g/fnk [^:raw overridden] overridden)))
 
-(deftest properties-depend-on-their-dynamic-inputs
-  (testing "as output"
-    (is (affected-by? :an-output :input-three)))
+;; An input used only by dynamics affects the property maps, including when an
+;; explicit output shadows the property. Value consumers track the getter.
+;; The cached property map must still refresh when a shadowed getter changes.
+(deftest property-dynamic-input-dependencies-test
+  (doseq [node-type [PropertiesWithDynamics OutputsReadingOwnProperty]]
+    (testing (in/type-name node-type)
+      (let [dependencies (g/input-dependencies node-type)]
+        (is (= #{:_declared-properties :_properties} (:input-three dependencies)))
+        (is (= #{:_declared-properties :_properties}
+               (:shadowed-getter-input dependencies)))
+        (is (= #{:a-property :an-output :_declared-properties :_properties}
+               (:input-two dependencies)))
+        (are [label] (not (contains? (get dependencies label) :a-property))
+          :input-one
+          :_properties
+          :_declared-properties))
 
-  (testing "as property"
-    (are [input] (affected-by? :a-property input)
-      :input-two
-      :input-three)
+      (with-clean-system
+        (let [source-id (g/make-node! OutputFunctionArgumentsNode :a 0 :b 10)
+              target-id (g/make-node! node-type)
+              property-map-endpoint (g/endpoint target-id :_declared-properties)
+              value-path [:properties :overridden :value]]
+          (g/connect! source-id :a target-id :input-two)
+          (g/connect! source-id :b target-id :shadowed-getter-input)
 
-    (are [input] (not (affected-by? :a-property input))
-      :input-one
-      :_properties
-      :_declared-properties)))
+          (is (= 11
+                 (get-in (g/node-value target-id :_declared-properties) value-path)))
+          (is (contains? (cached-endpoints) property-map-endpoint))
 
-#_(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
-    ;; TODO: This test fails. The error it suggests does not cause any serious problems - at worst, some output gets unnecessarily invalidated.
-    (is (not (affected-by? :overridden :input-three))))
+          (g/set-property! source-id :b 20)
+          (is (not (contains? (cached-endpoints) property-map-endpoint)))
+          (is (= 21
+                 (get-in (g/node-value target-id :_declared-properties) value-path))))))))
 
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached
@@ -941,6 +1035,18 @@
       (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
       (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :defnk-intrinsics))))))))
+
+;; Predecessor queries skip synthesized fnk arguments and keep declared
+;; properties such as :_node-id.
+(deftest immediate-predecessor-endpoints-exclude-synthesized-arguments-test
+  (with-clean-system
+    (let [node-id (g/make-node! AsAllNode)
+          basis (g/now)]
+      (is (= []
+             (g/immediate-predecessor-endpoints basis node-id :_overridden-properties)))
+      (is (= #{(g/endpoint node-id :test)
+               (g/endpoint node-id :_node-id)}
+             (set (g/immediate-predecessor-endpoints basis node-id :inline-intrinsics)))))))
 
 ;; try on output
 (g/defnode TryModifierOnErrorOutput

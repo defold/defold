@@ -780,9 +780,11 @@
 ;;; ----------------------------------------
 ;;; Parsing defnode forms
 
+(def synthesized-arguments #{:_this :_evaluation-context})
+
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this :_evaluation-context}
+  (set/union synthesized-arguments
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -1126,7 +1128,8 @@
   ([l r]
    {:property (merge-with merge (:property l) (:property r))
     :input (merge-with merge (:input l) (:input r))
-    :output (merge-with merge (:output l) (:output r))
+    ;; An output override replaces the producer and its dependency metadata.
+    :output (merge (:output l) (:output r))
     :supertypes (into (:supertypes l) (:supertypes r))
     :register-type-info (into (or (:register-type-info l) {}) (:register-type-info r))
     ;; Display order gets resolved at runtime
@@ -1199,17 +1202,22 @@
 (defn- remove-annotations [description]
   (update-fn-maps description #(dissoc % :annotations)))
 
-(defn- prop+args [[pname pdef]]
-  (into #{pname} (:arguments pdef)))
-
 (defn- attach-declared-properties-output
   [description]
-  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) intrinsic-properties)]
+  (let [properties (apply dissoc (:property description) intrinsic-properties)
+        property-labels (coll/key-set properties)
+
+        ;; Use the getter and dynamics that survived property inheritance.
+        dependencies
+        (coll/into-> (coll/vals properties) property-labels
+          (mapcat (fn [{:keys [value dynamics]}]
+                    (into [value] (coll/vals dynamics))))
+          (mapcat :dependencies))]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
                :flags #{:cached}
-               :arguments publics
-               :dependencies publics})))
+               :arguments property-labels
+               :dependencies dependencies})))
 
 (defn- attach-declared-properties-behavior
   [description]
@@ -1228,27 +1236,25 @@
                                    (remove intrinsic-properties))
                              property)))
 
-(defn- all-subtree-dependencies
-  [tree]
-  (into #{}
-        (mapcat :dependencies)
-        (tree-seq map? vals tree)))
-
-(defn- merge-property-dependencies
-  [tree]
-  (update tree :property
-          (fn [properties]
-            (reduce-kv
-              (fn [props pname pdef]
-                (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
-              properties
-              properties))))
-
-(defn- apply-property-dependencies-to-outputs
+(defn- apply-property-getter-dependencies-to-outputs
   [tree]
   (reduce-kv
-    (fn [tree pname pdef]
-      (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
+    (fn [tree property-label property]
+      (let [output (get-in tree [:output property-label])
+            arguments (:arguments output)
+
+            ;; An explicit output can read its same-named property's getter.
+            ;; Dependency traversal resolves that label to the output itself,
+            ;; so include the getter's dependencies to invalidate the output
+            ;; when they change. A ^:raw argument bypasses the getter and
+            ;; depends only on the stored property value.
+            dependencies
+            (cond-> arguments
+              (and (explicit? output)
+                   (contains? arguments property-label)
+                   (not (get-in output [:annotations property-label :raw])))
+              (into (get-in property [:value :dependencies])))]
+        (assoc-in tree [:output property-label :dependencies] dependencies)))
     tree
     (:property tree)))
 
@@ -1262,8 +1268,7 @@
       wrap-constant-fns
       defer-display-order-resolution
       extract-fn-arguments
-      merge-property-dependencies
-      apply-property-dependencies-to-outputs
+      apply-property-getter-dependencies-to-outputs
       attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors
