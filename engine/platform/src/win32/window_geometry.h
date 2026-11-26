@@ -35,6 +35,7 @@ namespace dmPlatform
     dmWindowState::Rect Win32ClientRect(HWindow window);
     Win32Frame          Win32FrameInsets(HWindow window);
     float               Win32WindowScale(HWindow window);
-    void                Win32MoveClient(HWindow window, int x, int y);
+    // A move can trigger a DPI resize. Return whether the original native window is still attached.
+    bool                Win32MoveClient(HWindow window, int x, int y);
 }
 #endif

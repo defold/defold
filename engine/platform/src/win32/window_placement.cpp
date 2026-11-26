@@ -79,15 +79,17 @@ namespace dmPlatform
         return true;
     }
 
-    static void Clamp(HWindow window, Rect rect, const Rect& work)
+    static bool Clamp(HWindow window, Rect rect, const Rect& work)
     {
         Win32Frame frame = Win32FrameInsets(window);
         dmWindowState::ClampPosition(&rect, work, frame.m_Left, frame.m_Top, frame.m_Right, frame.m_Bottom);
         Rect current = Win32ClientRect(window);
         if (current.m_X != rect.m_X || current.m_Y != rect.m_Y)
         {
-            Win32MoveClient(window, rect.m_X, rect.m_Y);
+            return Win32MoveClient(window, rect.m_X, rect.m_Y);
         }
+
+        return true;
     }
 
     bool RestorePlacementGeometry(HWindow window, const dmWindowState::State& saved, bool restore_size)
@@ -156,9 +158,8 @@ namespace dmPlatform
         Win32GetDisplays(displays);
         Rect rect = Win32ClientRect(window);
         const Monitor* monitor = Containing(displays, rect);
-        if (monitor && Usable(*monitor))
+        if (monitor && Usable(*monitor) && Clamp(window, rect, monitor->m_WorkArea))
         {
-            Clamp(window, rect, monitor->m_WorkArea);
             Clamp(window, Win32ClientRect(window), monitor->m_WorkArea);
         }
     }

@@ -53,6 +53,60 @@ TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
     dmPlatform::DeleteWindow(window);
 }
 
+struct ResizeAction
+{
+    HWindow                   m_Window;
+    const WindowCreateParams* m_ReopenParams;
+    uint32_t                  m_Callbacks;
+};
+
+static void CloseOnResize(void* data, uint32_t, uint32_t)
+{
+    ResizeAction* action = (ResizeAction*)data;
+    if (++action->m_Callbacks != 1)
+    {
+        return;
+    }
+
+    if (action->m_ReopenParams)
+    {
+        dmPlatform::CloseWindow(action->m_Window);
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action->m_Window, *action->m_ReopenParams));
+    }
+    else
+    {
+        dmPlatform::DeleteWindow(action->m_Window);
+        action->m_Window = 0;
+    }
+}
+
+// A synchronous resize may delete the window or reopen the same handle without notifying the replacement.
+TEST(dmPlatform, WindowsResizeCallbackCanDeleteOrReopenWindow)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_ResizeCallback = CloseOnResize;
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        ResizeAction action = { dmPlatform::NewWindow(), reopen ? &params : 0, 0 };
+        ASSERT_NE((HWindow)0, action.m_Window);
+        params.m_ResizeCallbackUserData = &action;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action.m_Window, params));
+        HWND original = dmPlatform::GetWindowsHWND(action.m_Window);
+        const uint32_t width = dmPlatform::GetWindowWidth(action.m_Window) + 1;
+        dmPlatform::SetWindowSize(action.m_Window, width, dmPlatform::GetWindowHeight(action.m_Window));
+        EXPECT_FALSE(IsWindow(original));
+        EXPECT_EQ(1u, action.m_Callbacks);
+        if (reopen)
+        {
+            EXPECT_TRUE(IsWindow(dmPlatform::GetWindowsHWND(action.m_Window)));
+            dmPlatform::DeleteWindow(action.m_Window);
+        }
+    }
+}
+
 static void CountFocus(void* data, uint32_t focused)
 {
     ++((unsigned*)data)[focused];

@@ -227,10 +227,12 @@ namespace dmPlatform
         return insets;
     }
 
-    void Win32MoveClient(HWindow window, int x, int y)
+    bool Win32MoveClient(HWindow window, int x, int y)
     {
+        const HWND hwnd = window->m_Window;
         Win32Frame frame = Win32FrameInsets(window);
-        SetWindowPos(window->m_Window, 0, x - frame.m_Left, y - frame.m_Top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE);
+        SetWindowPos(hwnd, 0, x - frame.m_Left, y - frame.m_Top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE);
+        return (HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window;
     }
 
     void ApplyPlacementSize(HWindow window, int width, int height)

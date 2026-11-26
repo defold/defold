@@ -118,12 +118,13 @@ namespace dmPlatform
         return g_HasWindowContentScale && window->m_Monitor->m_HasContentScale ? window->m_Monitor->m_State.m_ScaleX : 0;
     }
 
-    void Win32MoveClient(HWindow window, int x, int y)
+    bool Win32MoveClient(HWindow window, int x, int y)
     {
         dmWindowState::Rect rect = window->m_Rect;
         rect.m_X = x;
         rect.m_Y = y;
         SetGeometry(window, rect);
+        return true;
     }
 
     void ApplyPlacementSize(HWindow window, int width, int height)

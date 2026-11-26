@@ -594,11 +594,18 @@ namespace dmPlatform
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
+        const HWND hwnd = window->m_Window;
         const uint32_t count = window->m_ResizeCallbackCount;
         WindowPlacementSizeRequested(window);
         ApplyPlacementSize(window, width, height);
+        // SetWindowPos can synchronously deliver a resize callback that closes or replaces the HWND.
+        if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+        {
+            return;
+        }
+
         ClampWindowPlacement(window);
-        if (window->m_Ready && window->m_ResizeCallbackCount == count)
+        if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window && window->m_Ready && window->m_ResizeCallbackCount == count)
         {
             NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
         }
