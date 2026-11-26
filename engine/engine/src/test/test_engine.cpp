@@ -1194,6 +1194,7 @@ static void StartupRenderDispatch(const dmRender::RenderListDispatchParams&)
 // Neither loading nor frame-queue service hooks execute work while the context is lost.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL));
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = 16;
@@ -1300,6 +1301,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
+    dmGraphics::Finalize();
 }
 
 // Verify engine startup creates gamesys and installs loading progress before
@@ -1309,7 +1311,7 @@ TEST_F(EngineTest, GameSystemReadyBeforeExtensions)
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
     SKIP(); // The development gate rejects startup before gamesys is created.
 #endif
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     GraphicsServiceProbe probe = {};
     g_GameSystemStartupProbe = &probe;
@@ -1317,12 +1319,13 @@ TEST_F(EngineTest, GameSystemReadyBeforeExtensions)
     g_GameSystemStartupProbe = 0;
 
     dmEngine::Delete(engine);
+    bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
     dmEngineFinalize();
 
     ASSERT_TRUE(initialized);
     ASSERT_EQ(1u, probe.m_Completed);
     ASSERT_EQ(42u, probe.m_Value);
-    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::GetInstalledContext());
+    ASSERT_TRUE(graphics_cleaned);
 }
 
 // Failure between render-context creation and Lua initialization must drain accepted
@@ -1332,7 +1335,7 @@ TEST_F(EngineTest, EarlyRenderContextStartupCleanup)
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
     return; // The development gate rejects startup before a render context is created.
 #endif
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char project_path[512];
     const char* argv[] = {
@@ -1369,7 +1372,7 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
     SKIP(); // The development gate rejects production threaded startup.
 #endif
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
     dmRender::HGraphicsService service = dmRender::GetGraphicsService(engine->m_RenderContext);
@@ -1454,7 +1457,7 @@ TEST_F(EngineTest, GraphicsShutdownStopsProducersBeforeDraining)
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
     SKIP(); // Production threaded startup is still gated.
 #endif
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
     GraphicsShutdownProbe probe = {};
