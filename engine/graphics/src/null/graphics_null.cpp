@@ -1586,6 +1586,7 @@ namespace dmGraphics
 
         NullTexture* tex = new NullTexture();
         tex->m_Data          = 0;
+        tex->m_AllocatedMipMapMask = 0;
         tex->m_LastBoundUnit = new int32_t[num_texture_ids];
 
         Texture& b     = tex->m_Base;
@@ -1751,6 +1752,13 @@ namespace dmGraphics
         g_NullContext->m_Samplers[g_NullContext->m_TextureUnit].m_MagFilter = magfilter == TEXTURE_FILTER_DEFAULT ? g_NullContext->m_BaseContext.m_DefaultTextureMagFilter : magfilter;
     }
 
+    static bool NullIsTextureUploadValid(HContext context, HTexture texture, const TextureParams& params)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
+        const NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
+        return !params.m_SubUpdate || (tex->m_AllocatedMipMapMask & (1u << params.m_MipMap));
+    }
+
     static void NullSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
@@ -1775,8 +1783,18 @@ namespace dmGraphics
         // The width/height of the texture can change from this function as well
         if (!params.m_SubUpdate && params.m_MipMap == 0)
         {
+            if (tex->m_Base.m_Width != params.m_Width || tex->m_Base.m_Height != params.m_Height)
+            {
+                tex->m_AllocatedMipMapMask = 0;
+            }
+
             tex->m_Base.m_Width  = params.m_Width;
             tex->m_Base.m_Height = params.m_Height;
+        }
+
+        if (!params.m_SubUpdate && params.m_MipMap < 16)
+        {
+            tex->m_AllocatedMipMapMask |= 1u << params.m_MipMap;
         }
 
         tex->m_Base.m_Depth        = dmMath::Max(1u, (uint32_t)params.m_Depth);

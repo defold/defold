@@ -1317,6 +1317,9 @@ namespace dmResource
         DM_PROFILE("UpdateResourceLoads");
         LoadContext* context = request->m_Context;
         uint64_t start = dmTime::GetMonotonicTime();
+        // Synchronous Get has no engine frame loop. Progress graphics requests
+        // before retrying resources whose PostCreate is waiting for completion.
+        RunFactoryService(context->m_Factory);
         CallComplete(request, callback, params);
         Result result = CompleteRequest(request);
         if (result != RESULT_PENDING)

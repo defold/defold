@@ -5847,6 +5847,15 @@ namespace dmGraphics
         texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
     }
 
+    static bool VulkanIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+               (!tex->m_Destroyed && tex->m_Handle.m_Image != VK_NULL_HANDLE && params.m_MipMap < tex->m_Handle.m_MipMapCount);
+    }
+
     static void VulkanSetTextureInternal(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp

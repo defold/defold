@@ -23,6 +23,7 @@
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/message.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
@@ -478,6 +479,7 @@ namespace dmRender
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         HRenderExecution            m_Execution;
+        HGraphicsService            m_GraphicsService;
         dmArray<RenderObject*>      m_RenderObjects;
 
         dmArray<RenderListEntry>    m_RenderList;
@@ -522,6 +524,8 @@ namespace dmRender
 
         uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
+        // Full type for atomic access between context events and the graphics owner.
+        int32_atomic_t              m_IsContextLost;
         uint16_t                    m_MaxLightCount;
         uint16_t                    m_LightBufferDirty             : 1;
         uint16_t                    m_OutOfResources                : 1;
@@ -530,6 +534,9 @@ namespace dmRender
         uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint16_t                    m_IsRenderPaused                : 1;
+        uint16_t                    m_RendererInitialized           : 1;
+        uint16_t                    m_OwnsGraphicsService           : 1;
+        uint16_t                    m_RunWhileIconified             : 1;
     };
 
     struct BufferedRenderBuffer
