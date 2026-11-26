@@ -306,6 +306,8 @@ static bool MakeOggWithLargeVorbisComment(const uint8_t* src, uint32_t src_size,
     return true;
 }
 
+// Expands the fixture's metadata so streaming can stall while skipping OpusTags,
+// without changing the encoded audio used for the sample comparisons.
 static bool MakeOpusWithLargeTags(const uint8_t* src, uint32_t src_size, dmArray<uint8_t>& out)
 {
     uint32_t page_offset;
@@ -321,6 +323,8 @@ static bool MakeOpusWithLargeTags(const uint8_t* src, uint32_t src_size, dmArray
     dmArray<uint8_t> packet;
     packet.SetCapacity(24 + comment_size);
     packet.PushArray((const uint8_t*)"OpusTags", 8);
+    // OpusTags stores a length-prefixed vendor string, then a comment count
+    // followed by length-prefixed comments. One large TITLE is enough here.
     PushLE32(packet, 4);
     packet.PushArray((const uint8_t*)"test", 4);
     PushLE32(packet, 1);
@@ -336,6 +340,8 @@ static bool MakeOpusWithLargeTags(const uint8_t* src, uint32_t src_size, dmArray
     PushPacketLacing(segments, packet.Size());
     uint32_t new_page_size = 27 + segments.Size() + packet.Size();
     out.SetCapacity(src_size - old_page_size + new_page_size);
+    // Reuse the page header, but rebuild its lacing table (packet segment sizes)
+    // and checksum for the larger body. The checksum field must be zero for CRC calculation.
     out.PushArray(src, page_offset + 27);
     WriteLE32(out.Begin() + page_offset + 22, 0);
     out[page_offset + 26] = (uint8_t)segments.Size();
@@ -1603,6 +1609,8 @@ TEST(SoundDecoder, StbVorbisLargeStartupComment)
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
 }
 
+// Models a cache containing only the first m_Available bytes of a complete file.
+// The test releases the rest explicitly, so no threads, I/O, or sleeps are needed.
 struct StreamingSoundData
 {
     const uint8_t*  m_Data;
@@ -1612,6 +1620,8 @@ struct StreamingSoundData
     dmSound::Result m_UnavailableResult;
 };
 
+// Reads stop at the cache boundary. Reaching that boundary means temporary
+// starvation; only reaching the full file size means a real end of stream.
 static dmSound::Result ReadStreamingSoundData(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
 {
     StreamingSoundData* data = (StreamingSoundData*)context;
@@ -1638,6 +1648,8 @@ static dmSound::Result ReadStreamingSoundData(void* context, uint32_t offset, ui
     return *out_size == size ? dmSound::RESULT_OK : dmSound::RESULT_PARTIAL_DATA;
 }
 
+// Shares the same encoded file between a fully loaded reference (index 0) and
+// a streaming source (index 1). Loopback captures mixer output without an audio device.
 struct SoundStreamingTest : jc_test_base_class
 {
     StreamingSoundData               m_Source;
@@ -1686,6 +1698,8 @@ struct SoundStreamingTest : jc_test_base_class
         ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
     }
 
+    // 'available' must include the headers needed to open the decoder, but stop
+    // inside metadata or audio that the decoder will need during playback.
     void CreateSoundData(const uint8_t* data, uint32_t size, uint32_t available, dmSound::SoundDataType type)
     {
         m_Source.m_Data = data;
@@ -1695,6 +1709,8 @@ struct SoundStreamingTest : jc_test_base_class
         ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadStreamingSoundData, &m_Source, type, &m_Data[1], 0));
     }
 
+    // Drain the cached input, verify the decoder yields without advancing, then
+    // release the rest and compare every decoded byte through end of stream.
     void VerifyDecode(const char* decoder_name)
     {
         m_Decoder = dmSoundCodec::FindDecoderByName(decoder_name);
@@ -1724,6 +1740,8 @@ struct SoundStreamingTest : jc_test_base_class
             ASSERT_LE(m_Source.m_EmptyReads, 64U);
             if (result == dmSoundCodec::RESULT_END_OF_STREAM)
             {
+                // Matching samples so far is not enough: both streams must end
+                // together to catch truncated output as well as sample corruption.
                 ASSERT_TRUE(resumed);
                 ASSERT_EQ(0U, decoded);
                 uint32_t reference_decoded = 0;
@@ -1744,11 +1762,14 @@ struct SoundStreamingTest : jc_test_base_class
                 ASSERT_EQ(0U, decoded);
                 ASSERT_EQ(position, m_Decoder->m_GetInternalStreamPosition(m_Stream[1]));
                 ASSERT_LE(m_Source.m_EmptyReads, 64U);
+                // Simulate the pending chunk arriving before the next decode call.
                 m_Source.m_Available = m_Source.m_Size;
                 resumed = true;
                 continue;
             }
 
+            // A streaming read can produce a short block. Advance the reference
+            // by exactly that amount to compare the same part of the audio.
             uint32_t reference_decoded = 0;
             ASSERT_EQ(dmSoundCodec::RESULT_OK, m_Decoder->m_DecodeStream(m_Stream[0], reference_buffers, decoded, &reference_decoded));
             ASSERT_EQ(decoded, reference_decoded);
@@ -1765,6 +1786,7 @@ struct SoundStreamingTest : jc_test_base_class
 // Verifies PCM streaming resumes without losing or repeating samples after an empty read.
 TEST_F(SoundStreamingTest, WavDecodeRetry)
 {
+    // The WAV header is available; the cache ends partway through the PCM data.
     CreateSoundData(MONO_TONE_440_44100_11025_WAV, MONO_TONE_440_44100_11025_WAV_SIZE, 4096, dmSound::SOUND_DATA_TYPE_WAV);
     VerifyDecode("WavDecoder");
 }
@@ -1772,6 +1794,8 @@ TEST_F(SoundStreamingTest, WavDecodeRetry)
 // Verifies the same sample comparison for Vorbis using its explicit input-dry result.
 TEST_F(SoundStreamingTest, OggDecodeRetry)
 {
+    // This fixture's setup headers fit in 4096 bytes, but its audio does not.
+    // STB Vorbis uses RESULT_NO_DATA to signal that input is temporarily unavailable.
     m_Source.m_UnavailableResult = dmSound::RESULT_NO_DATA;
     CreateSoundData(MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, 4096, dmSound::SOUND_DATA_TYPE_OGG_VORBIS);
     VerifyDecode("VorbisDecoderStb");
@@ -1781,6 +1805,7 @@ TEST_F(SoundStreamingTest, OggDecodeRetry)
 TEST_F(SoundStreamingTest, OpusTagsDecodeRetry)
 {
     ASSERT_TRUE(MakeOpusWithLargeTags(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, m_Opus));
+    // The initial cache ends inside the enlarged tags page, before any audio.
     CreateSoundData(m_Opus.Begin(), m_Opus.Size(), 16 * 1024, dmSound::SOUND_DATA_TYPE_OPUS);
     VerifyDecode("OpusDecoder");
 }
@@ -1791,6 +1816,8 @@ TEST_F(SoundStreamingTest, OpusPacketDecodeRetry)
     uint32_t page_offset;
     uint32_t page_size;
     ASSERT_TRUE(GetOggPage(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, 2, &page_offset, &page_size));
+    // Page 2 is the first audio page. Include its header and lacing table,
+    // then only 13 bytes of its first packet so decoding must wait for the rest.
     uint32_t available = page_offset + 27 + MONO_RESAMPLE_FRAMECOUNT_16000_OPUS[page_offset + 26] + 13;
     CreateSoundData(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, available, dmSound::SOUND_DATA_TYPE_OPUS);
     VerifyDecode("OpusDecoder");
@@ -1802,6 +1829,8 @@ TEST_F(SoundStreamingTest, OpusTagsPlaybackRetry)
     ASSERT_TRUE(MakeOpusWithLargeTags(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, m_Opus));
     CreateSoundData(m_Opus.Begin(), m_Opus.Size(), 16 * 1024, dmSound::SOUND_DATA_TYPE_OPUS);
 
+    // Record a complete reference playback first, then replay through the streaming
+    // callback. Compare the final mixed samples, including resampling and the tail.
     dmArray<int16_t> reference;
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -1813,6 +1842,8 @@ TEST_F(SoundStreamingTest, OpusTagsPlaybackRetry)
             // Opening the decoder can prefetch beyond the available data too.
             // Count only reads made by Update when checking playback starvation.
             m_Source.m_EmptyReads = 0;
+            // Loopback may need several updates before it requests another buffer.
+            // Wait for the callback's empty-read signal, with a bound to catch failure.
             for (uint32_t update = 0; update < 64 && m_Source.m_EmptyReads == 0; ++update)
             {
                 ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
@@ -1820,6 +1851,8 @@ TEST_F(SoundStreamingTest, OpusTagsPlaybackRetry)
 
             ASSERT_GT(m_Source.m_EmptyReads, 0U);
             ASSERT_LE(m_Source.m_EmptyReads, 64U);
+            // Waiting for tags must leave the instance playing at sample zero;
+            // the mixer may queue silence, but must not consume any audio yet.
             ASSERT_TRUE(dmSound::IsPlaying(m_Instance));
             ASSERT_EQ(0, dmSound::GetInternalPos(m_Instance));
             for (uint32_t sample = 0; sample < g_LoopbackDevice->m_AllOutput.Size(); ++sample)
