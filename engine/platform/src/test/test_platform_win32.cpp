@@ -133,6 +133,75 @@ TEST(dmPlatform, WindowsFocusLossReportsPressedInput)
     dmPlatform::DeleteWindow(window);
 }
 
+// Capture loss before a modal focus change must leave held buttons visible to the focus callback.
+TEST(dmPlatform, WindowsCaptureLossBeforeFocusCallback)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+    for (int poll_first = 0; poll_first <= 1; ++poll_first)
+    {
+        dmWindowTest::FocusLossInput observed = { window, 0, 0, 0 };
+        params.m_FocusCallbackUserData = &observed;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        if (poll_first)
+        {
+            dmPlatform::PollEvents(window);
+        }
+
+        SendMessageW(hwnd, WM_KEYDOWN, 'A', 0x001e0001);
+        SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+        ASSERT_EQ(hwnd, GetCapture());
+        ASSERT_TRUE(ReleaseCapture());
+        EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 0));
+        SetFocus(0);
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(1, observed.m_Losses);
+        EXPECT_EQ(1, observed.m_Key);
+        EXPECT_EQ(1, observed.m_Button);
+        EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// Capture loss without a focus change must clear stale held buttons by the end of the poll.
+TEST(dmPlatform, WindowsCaptureLossClearsButtons)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    dmPlatform::PollEvents(window);
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+    ASSERT_EQ(hwnd, GetCapture());
+    ASSERT_TRUE(ReleaseCapture());
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 0));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+    ASSERT_TRUE(ReleaseCapture());
+    SendMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(10, 10));
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 1));
+    SendMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(10, 10));
+    dmPlatform::DeleteWindow(window);
+}
+
 // Losing focus before the first poll must deliver the gain and loss in order after graphics startup.
 TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
 {

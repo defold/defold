@@ -221,6 +221,8 @@ namespace dmPlatform
                     {
                         ReleaseCapture();
                     }
+
+                    window->m_PendingButtonReset = false;
                 }
 
                 break;
@@ -557,6 +559,16 @@ namespace dmPlatform
         {
             if (current->m_Ready && current->m_EventThread == thread)
             {
+                if (current->m_PendingButtonReset)
+                {
+                    if (GetCapture() != current->m_Window)
+                    {
+                        memset(current->m_Input.m_Buttons, 0, sizeof(current->m_Input.m_Buttons));
+                    }
+
+                    current->m_PendingButtonReset = false;
+                }
+
                 UpdateWindowPlacement(current, false);
                 if (current->m_Window == focus_root && current->m_CursorLocked)
                 {

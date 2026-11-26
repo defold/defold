@@ -318,6 +318,12 @@ namespace dmPlatform
 
     static void Button(HWindow window, int button, bool pressed)
     {
+        if (pressed && window->m_PendingButtonReset)
+        {
+            memset(window->m_Input.m_Buttons, 0, sizeof(window->m_Input.m_Buttons));
+            window->m_PendingButtonReset = false;
+        }
+
         if (pressed && GetCapture() != window->m_Window)
         {
             SetCapture(window->m_Window);
@@ -457,7 +463,8 @@ namespace dmPlatform
             }
             case WM_CAPTURECHANGED:
             {
-                memset(window->m_Input.m_Buttons, 0, sizeof(window->m_Input.m_Buttons));
+                // A modal dialog can take capture before WM_KILLFOCUS delivers the focus callback.
+                window->m_PendingButtonReset = true;
                 if (!lp && window->m_CaptionAction)
                 {
                     window->m_CaptionAction = false;

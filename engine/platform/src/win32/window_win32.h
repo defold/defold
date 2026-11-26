@@ -55,7 +55,7 @@ struct dmWindow
     double                         m_Wheel;
     uint16_t                       m_HighSurrogate;
     dmPlatform::WindowPressedInput m_Input;
-    bool                           m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop, m_DeletePending;
+    bool                           m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop, m_DeletePending, m_PendingButtonReset;
 };
 
 namespace dmPlatform
