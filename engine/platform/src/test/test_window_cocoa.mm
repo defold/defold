@@ -295,6 +295,25 @@ TEST_F(CocoaWindowTest, CloseCallbackCanReplaceOrDeleteWindow)
     }
 }
 
+static void DeleteOnResize(void* data, uint32_t, uint32_t)
+{
+    HWindow* window = (HWindow*)data;
+    dmPlatform::DeleteWindow(*window);
+    *window = 0;
+}
+
+// A synchronous resize callback can delete its window without SetWindowSize using the freed handle.
+TEST_F(CocoaWindowTest, ResizeCallbackCanDeleteWindow)
+{
+    HWindow resized = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, resized);
+    params.m_ResizeCallback = DeleteOnResize;
+    params.m_ResizeCallbackUserData = &resized;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(resized, params));
+    dmPlatform::SetWindowSize(resized, 517, 317);
+    EXPECT_EQ((HWindow)0, resized);
+}
+
 // The Window menu must route Control-Command-F to AppKit's native fullscreen toggle.
 TEST_F(CocoaWindowTest, FullscreenShortcut)
 {

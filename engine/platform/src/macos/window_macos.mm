@@ -529,10 +529,27 @@ namespace dmPlatform
         @autoreleasepool
         {
             const uint32_t count = window->m_ResizeCallbackCount;
+            NSWindow* native = [[window->m_Window retain] autorelease];
+            DMWindowDelegate* delegate = [[window->m_Delegate retain] autorelease];
             WindowPlacementSizeRequested(window);
-            [window->m_Window setContentSize:NSMakeSize(width, height)];
+            [native setContentSize:NSMakeSize(width, height)];
+            if (native.delegate != delegate)
+            {
+                return;
+            }
+
             ClampWindowPlacement(window);
+            if (native.delegate != delegate)
+            {
+                return;
+            }
+
             UpdateWindowMetrics(window, true);
+            if (native.delegate != delegate)
+            {
+                return;
+            }
+
             if (window->m_Ready && window->m_ResizeCallbackCount == count)
             {
                 NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
