@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +32,10 @@ public final class AppManifestMigration {
     // GLFW 2 backends are now compiled into the engine platform libraries.
     public static final Map<String, String> NATIVE_PLATFORM_LIBRARY_NAMES = Collections.unmodifiableMap(
             new HashMap<>(Map.of("dmglfw", "platform", "dmglfw_vulkan", "platform_vulkan")));
+
+    private static final Set<String> TREMOLO_LIBRARIES = Set.of("tremolo", "libtremolo", "libtremolo.a", "tremolo.lib", "libtremolo.lib");
+    private static final Set<String> STB_ONLY_PLATFORMS = Set.of("web", "wasm-web", "wasm_pthread-web", "win32", "x86-win32", "x86_64-win32",
+            "linux", "arm64-linux", "x86_64-linux");
 
     static {
         Map<String, String> names = new HashMap<>();
@@ -149,6 +154,37 @@ public final class AppManifestMigration {
                 && !additions.contains("graphics_dx12") && !additions.contains("GraphicsAdapterDX12")
                 && !removals.contains("graphics_dx12") && !removals.contains("GraphicsAdapterDX12")
                 && !removals.contains("graphics_vulkan") && !removals.contains("GraphicsAdapterVulkan");
+    }
+
+    // Extender registered both implementations on Apple and Android. Excluding one
+    // there selected the other, while excluding both disabled Vorbis altogether.
+    public static List<?> migrateVorbisItems(String key, List<?> items, String platform) {
+        if ("symbols".equals(key) || "excludeSymbols".equals(key)) {
+            boolean stb = items.contains("AudioDecoderStbVorbis");
+            boolean tremolo = items.contains("AudioDecoderTremolo");
+            if (!stb && !tremolo) {
+                return items;
+            }
+            boolean replace = "symbols".equals(key) || (stb && (tremolo || STB_ONLY_PLATFORMS.contains(platform)));
+            List<Object> result = new ArrayList<>(items.size());
+            for (Object item : items) {
+                if ("AudioDecoderStbVorbis".equals(item) || "AudioDecoderTremolo".equals(item)) {
+                    if (replace && !items.contains("AudioDecoderVorbis")) {
+                        result.add("AudioDecoderVorbis");
+                        replace = false;
+                    }
+                } else {
+                    result.add(item);
+                }
+            }
+            return result;
+        }
+        if ("libs".equals(key) || "engineLibs".equals(key) || "excludeLibs".equals(key)) {
+            List<Object> result = new ArrayList<>(items);
+            result.removeIf(item -> item instanceof String && TREMOLO_LIBRARIES.contains(item));
+            return result;
+        }
+        return items;
     }
 
     private static Set<String> normalizeGraphicsItems(Collection<?> items) {

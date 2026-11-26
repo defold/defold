@@ -2,8 +2,8 @@
 include(FetchContent)
 find_package(Git REQUIRED)
 FetchContent_Declare(defold_libnogg
-  URL https://achurch.org/libnogg/tarballs/libnogg-1.18.tar.gz
-  URL_HASH SHA256=9600b7d2c03e447bb0ccbb3541bbe07714f5cd4fe00225ae754463b1b592a370
+  URL "${DEFOLD_HOME}/packages/libnogg-1.18-source.tar.gz"
+  URL_HASH SHA256=7bee6d63c0808f879696a4d1781ab1d251929a40b6f7a571daa0997aff7f8a9c
   PATCH_COMMAND "${CMAKE_COMMAND}" "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
                 "-DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/defold-simd.patch"
                 -P "${CMAKE_CURRENT_LIST_DIR}/apply_patch.cmake")
@@ -22,24 +22,25 @@ set(USIZE64 uint64_t)
 configure_file("${_ogg}/include/ogg/config_types.h.in" "${CMAKE_CURRENT_BINARY_DIR}/nogg/ogg/config_types.h" @ONLY)
 
 set(_nogg_sources decode/crc32.c decode/decode.c decode/io.c decode/packet.c
-  decode/setup.c decode/stb_vorbis.c util/memory.c)
+  decode/setup.c decode/stb_vorbis.c util/float-to-int16.c util/memory.c)
 list(TRANSFORM _nogg_sources PREPEND "${defold_libnogg_SOURCE_DIR}/src/")
-defold_add_library(decoder_nogg STATIC
-  "${SOUND_SRC_DIR}/decoders/decoder_ogg.cpp" "${_ogg}/src/framing.c" ${_nogg_sources})
-target_include_directories(decoder_nogg PRIVATE "${SOUND_SRC_DIR}" "${defold_libnogg_SOURCE_DIR}"
-  "${_ogg}/include" "${CMAKE_CURRENT_BINARY_DIR}/nogg")
-defold_target_link_libraries(decoder_nogg "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+function(sound_add_vorbis_decoder target)
+  defold_add_library(${target} STATIC
+    "${SOUND_SRC_DIR}/decoders/decoder_vorbis.cpp" "${_ogg}/src/framing.c" ${_nogg_sources})
+  target_include_directories(${target} PRIVATE "${SOUND_SRC_DIR}" "${defold_libnogg_SOURCE_DIR}"
+    "${_ogg}/include" "${CMAKE_CURRENT_BINARY_DIR}/nogg")
+  defold_target_link_libraries(${target} "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+endfunction()
 
+sound_add_vorbis_decoder(decoder_ogg)
 if(TARGET_PLATFORM MATCHES "^arm64" OR
    (TARGET_PLATFORM STREQUAL "armv7-android" AND (CMAKE_ANDROID_ARM_NEON OR ANDROID_ARM_NEON)))
-  target_compile_definitions(decoder_nogg PRIVATE ENABLE_ASM_ARM_NEON)
+  target_compile_definitions(decoder_ogg PRIVATE ENABLE_ASM_ARM_NEON)
 elseif(TARGET_PLATFORM MATCHES "^x86_64")
-  defold_target_simd_x86_isa(decoder_nogg SSE2)
-  target_compile_definitions(decoder_nogg PRIVATE ENABLE_ASM_X86_SSE2)
+  defold_target_simd_x86_isa(decoder_ogg SSE2)
+  target_compile_definitions(decoder_ogg PRIVATE ENABLE_ASM_X86_SSE2)
 elseif(TARGET_PLATFORM MATCHES "web$")
-  defold_feature_enabled(simd _nogg_web_simd)
-  if(_nogg_web_simd)
-    target_compile_options(decoder_nogg PRIVATE -msimd128 -mfpu=neon)
-    target_compile_definitions(decoder_nogg PRIVATE ENABLE_ASM_ARM_NEON)
-  endif()
+  sound_add_vorbis_decoder(decoder_ogg_simd)
+  target_compile_options(decoder_ogg_simd PRIVATE -msimd128 -mfpu=neon)
+  target_compile_definitions(decoder_ogg_simd PRIVATE ENABLE_ASM_ARM_NEON)
 endif()

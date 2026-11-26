@@ -42,7 +42,7 @@ excluded_paths = [
     "./engine/lua/src/lua",
     "./engine/modelc/src/cgltf",
     "./engine/profiler/src/remotery/lib",
-    "./engine/sound/src/stb_vorbis",
+    "./engine/sound/src/test/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
 ]

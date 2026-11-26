@@ -35,7 +35,7 @@ For native Linux MemorySanitizer builds, run
 `./scripts/build.py build_ext -- --with-msan`. The normal dependency installation
 is kept for host tools and JNI. A second build under `external/build/<platform>-msan`
 installs instrumented libraries under `ext/msan/<platform>`, including a pinned
-LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, patched GLFW, and Tremolo are rebuilt
+LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, and patched GLFW are rebuilt
 from pinned downloads. LuaJIT and Protobuf's code generator remain host tools;
 the instrumented engine uses vanilla Lua. OpenH264 uses its instrumentable C++
 kernels. `clean_ext` also removes this platform's MSan build and installation.

@@ -413,6 +413,26 @@
             (is (coll/not-any? #{"EngineRecord"}
                                (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
 
+;; Older Ogg exclusions can be cleared and saved with the current decoder.
+(deftest vorbis-exclusion-load-migration-test
+  (test-util/with-temp-project-content
+    {"/legacy.appmanifest"
+     (coll/into-> app-manifest/all-platforms
+       ["platforms:"]
+       (map (fn [platform]
+              (str "  " (name platform) ": {context: {excludeLibs: [decoder_ogg], "
+                   "excludeSymbols: [AudioDecoderStbVorbis, AudioDecoderTremolo, ResourceTypeOgg]}}"))))}
+    (let [node (test-util/resource-node project "/legacy.appmanifest")]
+      (is (true? (g/node-value node :exclude-sound-decoder-ogg)))
+      (g/set-property! node :exclude-sound-decoder-ogg false)
+      (is (false? (g/node-value node :exclude-sound-decoder-ogg)))
+      (g/set-property! node :exclude-sound-decoder-ogg true)
+      (let [manifest
+            (yaml/load (resource-node/save-data-content (g/node-value node :save-data)) keyword)]
+        (doseq [platform app-manifest/all-platforms]
+          (is (= ["AudioDecoderVorbis" "ResourceTypeOgg"]
+                 (get-in manifest [:platforms platform :context :excludeSymbols]))))))))
+
 (deftest toggle-test
   (testing "contains toggles"
     (let [toggle (app-manifest/contains-toggle :common :libs "foo")]

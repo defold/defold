@@ -1050,7 +1050,7 @@ namespace dmSound
                 }
             } else {
                 // decode PCM
-                r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size, &decoded);
+                r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size - total_decoded, &decoded);
             }
             if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                 if (sound_instance->m_Looping && sound_instance->m_Loopcounter != 0) {

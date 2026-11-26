@@ -627,6 +627,29 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Old decoder exclusions and explicit selections must still link the intended engine before upload.
+    @Test
+    public void testLegacyVorbisManifest() throws Exception {
+        String source = """
+                context: {excludeSymbols: [AudioDecoderStbVorbis, AudioDecoderTremolo, ResourceTypeOgg], excludeLibs: [decoder_ogg, libtremolo.lib]}
+                platforms:
+                  osx: {context: {symbols: [AudioDecoderStbVorbis], excludeSymbols: [AudioDecoderTremolo], libs: [tremolo, custom]}}
+                  wasm-web: {context: {excludeSymbols: [AudioDecoderStbVorbis]}}
+                """;
+        createFile(fileSystem, "vorbis.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("vorbis.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+        byte[] migrated = resource.getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        assertEquals(Map.of("excludeSymbols", List.of("AudioDecoderVorbis", "ResourceTypeOgg"), "excludeLibs", List.of("decoder_ogg")),
+                manifest.get("context"));
+        assertEquals(Map.of(
+                "osx", Map.of("context", Map.of("symbols", List.of("AudioDecoderVorbis"), "excludeSymbols", List.of(), "libs", List.of("custom"))),
+                "wasm-web", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis")))), manifest.get("platforms"));
+        createFile(fileSystem, "vorbis.appmanifest", migrated);
+        assertArrayEquals(migrated, resource.getContent());
+    }
+
     @Test
     public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
         for (String manifestYaml : List.of(

@@ -52,13 +52,6 @@ else()
   list(APPEND SOUND_SOURCES "${SOUND_SRC_DIR}/devices/device_openal.cpp")
 endif()
 
-set(SOUND_DECODER_OGG_SOURCES
-  "${SOUND_SRC_DIR}/decoders/decoder_stb_vorbis.cpp"
-  "${SOUND_SRC_DIR}/stb_vorbis/stb_vorbis.c")
-if(NOT TARGET_PLATFORM MATCHES "^(arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
-  list(APPEND SOUND_DECODER_OGG_SOURCES "${SOUND_SRC_DIR}/decoders/decoder_tremolo.cpp")
-endif()
-
 function(sound_configure_target target)
   target_include_directories(${target} PUBLIC "${SOUND_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"SOUND\"")
@@ -97,9 +90,7 @@ defold_add_library(decoder_wav STATIC "${SOUND_SRC_DIR}/decoders/decoder_wav.cpp
 target_include_directories(decoder_wav PUBLIC "${SOUND_SRC_DIR}")
 defold_target_link_libraries(decoder_wav "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DEPENDENCIES})
 
-defold_add_library(decoder_ogg STATIC ${SOUND_DECODER_OGG_SOURCES})
-target_include_directories(decoder_ogg PUBLIC "${SOUND_SRC_DIR}")
-defold_target_link_libraries(decoder_ogg "${TARGET_PLATFORM}" SCOPE PUBLIC ${SOUND_DEPENDENCIES})
+include("${DEFOLD_HOME}/external/libnogg/decoder.cmake")
 
 defold_add_library(decoder_opus STATIC "${SOUND_SRC_DIR}/decoders/decoder_opus.cpp")
 target_include_directories(decoder_opus PUBLIC "${SOUND_SRC_DIR}")
@@ -122,11 +113,6 @@ sound_configure_target(sound_null)
 set_target_properties(sound_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
 
 set(SOUND_INSTALL_TARGETS decoder_wav decoder_ogg decoder_opus sound sound_null)
-defold_feature_enabled(nogg SOUND_WITH_NOGG)
-if(SOUND_WITH_NOGG)
-  include("${DEFOLD_HOME}/external/libnogg/decoder.cmake")
-  list(APPEND SOUND_INSTALL_TARGETS decoder_nogg)
-endif()
 if(TARGET sound_openal)
   list(APPEND SOUND_INSTALL_TARGETS sound_openal)
 endif()
@@ -135,7 +121,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   sound_configure_target(sound_nosimd)
   sound_apply_simd_flags(sound_nosimd ON)
   set_target_properties(sound_nosimd PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
-  list(APPEND SOUND_INSTALL_TARGETS sound_nosimd)
+  list(APPEND SOUND_INSTALL_TARGETS sound_nosimd decoder_ogg_simd)
 endif()
 
 if(TARGET_PLATFORM MATCHES "web$")

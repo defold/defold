@@ -1,11 +1,15 @@
-# libnogg Vorbis decoder trial
+# Ogg Vorbis decoding
 
-Add `nogg` to `DEFOLD_ENABLE_FEATURES` when configuring a Defold engine with CMake. On ARM64 macOS this enables libnogg's NEON path. On HTML5 add both `nogg` and `simd` to compile that path to Wasm SIMD128. The normal engine link selects a single Vorbis decoder.
+Defold uses libnogg 1.18 to decode Vorbis packets and libogg to read Ogg pages. The sound adapter supports mono and stereo, pauses when streamed data runs out, and trims each logical stream at its final granule position. Chained streams must share a sample rate and channel count.
 
-CMake fetches the pinned libnogg 1.18 release and applies a local patch. The patch groups bins with identical floor gains for vector multiplication and reconstructs four coupled stereo coefficients at a time. [Upstream libnogg](https://achurch.org/libnogg/) and [SIMD patch](defold-simd.patch)
+ARM64 builds use NEON and x86-64 builds use SSE2. HTML5 uses the scalar decoder by default. Set `-DDEFOLD_ENABLE_FEATURES=simd` in a CMake build to use Wasm SIMD128. The web SDK includes both archives. To select the SIMD decoder in an app manifest, add `decoder_ogg_simd` to `libs` and `decoder_ogg` to `excludeLibs` in the web context.
 
-The Defold stream adapter uses the vendored libogg page reader so it can pause on a partial page and resume when the resource supplies more bytes. It passes page granule positions to libnogg's packet decoder to trim the final output. Playback ends at the first logical stream in a chained Ogg file.
+## Source and patch
 
-Build `test_sound` and `test_sound_perf` in the configured build directory. On macOS, run either executable directly. On Wasm, run `node test_sound.js --test-filter=SoundDecoder` for the decoder checks and `node test_sound_perf.js --test-filter=MeasureNogg` for the seven-file decode and skip benchmark. The same benchmark accepts `--test-filter=MeasureStdb` for Defold's stb_vorbis adapter. Configure without `nogg` on macOS to benchmark Tremolo with `--test-filter=MeasureTremolo`.
+The source package contains the unmodified `include/`, `src/`, `COPYING`, and `README` from the 1.18 release. Its SHA-256 is recorded in CMake. The complete upstream release has SHA-256 `9600b7d2c03e447bb0ccbb3541bbe07714f5cd4fe00225ae754463b1b592a370`. [Upstream release](https://achurch.org/libnogg/tarballs/libnogg-1.18.tar.gz) · [Source package](../../packages/libnogg-1.18-source.tar.gz)
 
-To measure upstream libnogg with the same Defold adapter, set `FETCHCONTENT_SOURCE_DIR_DEFOLD_LIBNOGG` to a pristine extracted 1.18 release. This CMake override uses the supplied source directly and skips the patch step.
+CMake applies `defold-simd.patch` to the extracted sources. It groups bins with equal floor gains for vector multiplication and reconstructs four coupled stereo coefficients at a time on NEON and Wasm SIMD. To benchmark upstream libnogg with the same adapter, set `FETCHCONTENT_SOURCE_DIR_DEFOLD_LIBNOGG` to a pristine extracted release. [SIMD patch](defold-simd.patch)
+
+## Tests
+
+Build the `test_sound` and `test_sound_perf` targets. Run `test_sound --test-filter=SoundDecoder` for streaming, chaining, and large Vorbis headers. Run `test_sound_perf --test-filter=MeasureVorbis` to time decoding and skipping seven mono and stereo clips. For Wasm, use the same filters with `node test_sound.js` and `node test_sound_perf.js`.

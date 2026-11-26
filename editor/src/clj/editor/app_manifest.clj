@@ -432,8 +432,8 @@
 (def sound-setting
   (make-check-box-setting
     (concat
-      (exclude-libs-toggles all-platforms ["sound" "tremolo"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
+      (exclude-libs-toggles all-platforms ["sound"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderVorbis"])
       (libs-toggles all-platforms ["sound_null"]))))
 
 (def gui-setting
@@ -464,7 +464,7 @@
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["decoder_ogg"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis" "AudioDecoderTremolo" "ResourceTypeOgg"]))))
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderVorbis" "ResourceTypeOgg"]))))
 
 (def sound-decoder-opus-setting
   (make-check-box-setting
@@ -1079,7 +1079,18 @@
                     (remove (set excluded-symbols))))
                 [:libs :engineLibs])))))
 
-(defn- migrate-record-exclusions [manifest]
+(defn- migrate-sound-context [context platform]
+  (let [platform-name (if (keyword? platform) (name platform) "common")]
+    (reduce
+      (fn [context key]
+        (let [items (get context key)]
+          (if-not (vector? items)
+            context
+            (assoc context key (vec (AppManifestMigration/migrateVorbisItems (name key) items platform-name))))))
+      context
+      [:symbols :excludeSymbols :libs :engineLibs :excludeLibs])))
+
+(defn- update-manifest-contexts [manifest migrate-context]
   (if-not (map? manifest)
     manifest
     (let [context-paths
@@ -1088,18 +1099,23 @@
             (map (fn [[platform _]]
                    [platform [:platforms platform :context]])))]
       (reduce (fn [manifest [platform path]]
-                ;; Contexts come from arbitrary YAML. Validate their shape here
-                ;; so the context migration only handles valid library lists.
                 (let [context (get-in manifest path)]
-                  (if-not (and (map? context)
-                               (coll/every? #(or (nil? (get context %))
-                                                 (vector? (get context %)))
-                                            [:excludeLibs :excludeSymbols :libs :engineLibs]))
+                  (if-not (map? context)
                     manifest
-                    (assoc-in manifest path
-                              (migrate-record-context context platform)))))
+                    (assoc-in manifest path (migrate-context context platform)))))
               manifest
               context-paths))))
+
+(defn- migrate-record-exclusions [manifest]
+  (update-manifest-contexts
+    manifest
+    (fn [context platform]
+      ;; Recording settings depend on several lists from arbitrary YAML.
+      (if-not (coll/every? #(or (nil? (get context %))
+                                (vector? (get context %)))
+                           [:excludeLibs :excludeSymbols :libs :engineLibs])
+        context
+        (migrate-record-context context platform)))))
 
 (defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
@@ -1113,7 +1129,8 @@
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
                                       migrate-bullet3d-exclusions
-                                      migrate-record-exclusions)]
+                                      migrate-record-exclusions
+                                      (update-manifest-contexts migrate-sound-context))]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
               (g/flag-nodes-as-migrated! evaluation-context [self])

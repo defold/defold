@@ -26,11 +26,12 @@ extern "C"
 #include "src/common.h"
 #include "src/decode/common.h"
 #include "src/decode/packet.h"
+#include "src/util/float-to-int16.h"
 }
 
 namespace dmSoundCodec
 {
-    struct NoggStream
+    struct VorbisStream
     {
         dmSound::HSoundData m_Data;
         ogg_sync_state      m_Sync;
@@ -52,7 +53,7 @@ namespace dmSoundCodec
 
     // Packet and frame pointers belong to their respective decoders until the next read.
     // A null packet with RESULT_OK means the resource is temporarily out of data.
-    static Result NextPacket(NoggStream* stream, ogg_packet* packet)
+    static Result NextPacket(VorbisStream* stream, ogg_packet* packet)
     {
         packet->packet = 0;
         for (;;)
@@ -154,7 +155,7 @@ namespace dmSoundCodec
         }
     }
 
-    static Result ReadHeaders(NoggStream* stream)
+    static Result ReadHeaders(VorbisStream* stream)
     {
         while (!stream->m_Decoder)
         {
@@ -205,7 +206,8 @@ namespace dmSoundCodec
                 }
 
                 stb_vorbis_info info = stb_vorbis_get_info(decoder);
-                if (info.channels != 1 && info.channels != 2)
+                if ((info.channels != 1 && info.channels != 2) ||
+                    (stream->m_Info.m_Channels && (info.channels != stream->m_Info.m_Channels || info.sample_rate != stream->m_Info.m_Rate)))
                 {
                     stb_vorbis_close(decoder);
                     return RESULT_UNSUPPORTED;
@@ -222,7 +224,7 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static void ClearPacketStream(NoggStream* stream)
+    static void ClearPacketStream(VorbisStream* stream)
     {
         if (stream->m_Decoder)
         {
@@ -235,43 +237,63 @@ namespace dmSoundCodec
             ogg_stream_clear(&stream->m_Ogg);
             stream->m_HaveStream = false;
         }
+
+        stream->m_FinalPage = false;
+        stream->m_HeaderCount = 0;
     }
 
-    static void CloseNogg(HDecodeStream handle)
+    static void VorbisCloseStream(HDecodeStream handle)
     {
-        NoggStream* stream = (NoggStream*)handle;
+        VorbisStream* stream = (VorbisStream*)handle;
         ClearPacketStream(stream);
         ogg_sync_clear(&stream->m_Sync);
         delete stream;
     }
 
-    static Result OpenNogg(dmSound::HSoundData data, HDecodeStream* out)
+    static Result VorbisOpenStream(dmSound::HSoundData data, HDecodeStream* out)
     {
-        NoggStream* stream = new NoggStream();
+        VorbisStream* stream = new VorbisStream();
         stream->m_Data = data;
         ogg_sync_init(&stream->m_Sync);
         Result result = ReadHeaders(stream);
         if (result != RESULT_OK || !stream->m_Decoder)
         {
-            CloseNogg(stream);
+            VorbisCloseStream(stream);
             return result == RESULT_OK || result == RESULT_END_OF_STREAM ? RESULT_INVALID_FORMAT : result;
         }
 
         dmSound::DecoderOutputSettings settings;
         dmSound::GetDecoderOutputSettings(&settings);
         stream->m_Info.m_IsInterleaved = settings.m_UseInterleaved;
-        stream->m_Info.m_BitsPerSample = 32;
+        // Core OpenAL supports interleaved 16-bit PCM on every device.
+        stream->m_Info.m_BitsPerSample = settings.m_UseInterleaved ? 16 : 32;
         stream->m_Scale = settings.m_UseNormalizedFloatRange ? 1.0f : 32767.0f;
         *out = stream;
         return RESULT_OK;
     }
 
-    static Result ReadFrame(NoggStream* stream)
+    static Result ReadFrame(VorbisStream* stream)
     {
         while (stream->m_FramesLeft == 0)
         {
+            if (!stream->m_Decoder)
+            {
+                Result result = ReadHeaders(stream);
+                if (result != RESULT_OK || !stream->m_Decoder)
+                {
+                    return result;
+                }
+            }
+
             ogg_packet packet;
             Result result = NextPacket(stream, &packet);
+            if (result == RESULT_END_OF_STREAM && stream->m_FinalPage)
+            {
+                // The next logical stream may already be buffered in m_Sync.
+                ClearPacketStream(stream);
+                continue;
+            }
+
             if (result != RESULT_OK || !packet.packet)
             {
                 return result;
@@ -306,21 +328,12 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static Result DecodeNogg(HDecodeStream handle, char* buffers[], uint32_t buffer_size, uint32_t* decoded)
+    static Result VorbisDecodeStream(HDecodeStream handle, char* buffers[], uint32_t buffer_size, uint32_t* decoded)
     {
-        NoggStream* stream = (NoggStream*)handle;
+        VorbisStream* stream = (VorbisStream*)handle;
         *decoded = 0;
-        if (!stream->m_Decoder)
-        {
-            Result result = ReadHeaders(stream);
-            if (result != RESULT_OK || !stream->m_Decoder)
-            {
-                return result;
-            }
-        }
-
         uint32_t channels = stream->m_Info.m_Channels;
-        uint32_t stride = sizeof(float) * (stream->m_Info.m_IsInterleaved ? channels : 1);
+        uint32_t stride = stream->m_Info.m_IsInterleaved ? sizeof(int16_t) * channels : sizeof(float);
         uint32_t frames = buffer_size / stride;
         uint32_t done = 0;
         while (done < frames)
@@ -332,26 +345,25 @@ namespace dmSoundCodec
             }
 
             uint32_t count = dmMath::Min(frames - done, stream->m_FramesLeft);
-            if (buffers)
+            if (buffers && stream->m_Info.m_IsInterleaved)
+            {
+                float* src[2];
+                for (uint32_t c = 0; c < channels; ++c)
+                {
+                    src[c] = stream->m_Frame[c] + stream->m_FrameOffset;
+                }
+
+                float_to_int16_interleave((int16_t*)buffers[0] + done * channels, src, channels, count);
+            }
+            else if (buffers)
             {
                 for (uint32_t c = 0; c < channels; ++c)
                 {
                     const float* src = stream->m_Frame[c] + stream->m_FrameOffset;
-                    if (stream->m_Info.m_IsInterleaved)
+                    float* dst = (float*)buffers[c] + done;
+                    for (uint32_t i = 0; i < count; ++i)
                     {
-                        float* dst = (float*)buffers[0] + done * channels + c;
-                        for (uint32_t i = 0; i < count; ++i)
-                        {
-                            dst[i * channels] = src[i] * stream->m_Scale;
-                        }
-                    }
-                    else
-                    {
-                        float* dst = (float*)buffers[c] + done;
-                        for (uint32_t i = 0; i < count; ++i)
-                        {
-                            dst[i] = src[i] * stream->m_Scale;
-                        }
+                        dst[i] = src[i] * stream->m_Scale;
                     }
                 }
             }
@@ -366,34 +378,32 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static Result ResetNogg(HDecodeStream handle)
+    static Result VorbisResetStream(HDecodeStream handle)
     {
-        NoggStream* stream = (NoggStream*)handle;
+        VorbisStream* stream = (VorbisStream*)handle;
         ClearPacketStream(stream);
         ogg_sync_reset(&stream->m_Sync);
-        stream->m_FinalPage = false;
-        stream->m_HeaderCount = 0;
         stream->m_FramesLeft = 0;
         stream->m_ReadOffset = 0;
         stream->m_Position = 0;
         return RESULT_OK;
     }
 
-    static Result SkipNogg(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    static Result VorbisSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-        return DecodeNogg(stream, 0, bytes, skipped);
+        return VorbisDecodeStream(stream, 0, bytes, skipped);
     }
 
-    static void GetNoggInfo(HDecodeStream handle, Info* info)
+    static void VorbisGetInfo(HDecodeStream handle, Info* info)
     {
-        *info = ((NoggStream*)handle)->m_Info;
+        *info = ((VorbisStream*)handle)->m_Info;
     }
 
-    static int64_t GetNoggPosition(HDecodeStream handle)
+    static int64_t VorbisGetInternalPos(HDecodeStream handle)
     {
-        return ((NoggStream*)handle)->m_Position;
+        return ((VorbisStream*)handle)->m_Position;
     }
 
-    DM_DECLARE_SOUND_DECODER(AudioDecoderNogg, "VorbisDecoderNogg", FORMAT_VORBIS, 9,
-                             OpenNogg, CloseNogg, DecodeNogg, ResetNogg, SkipNogg, GetNoggInfo, GetNoggPosition);
+    DM_DECLARE_SOUND_DECODER(AudioDecoderVorbis, "VorbisDecoder", FORMAT_VORBIS, 5,
+                             VorbisOpenStream, VorbisCloseStream, VorbisDecodeStream, VorbisResetStream, VorbisSkipInStream, VorbisGetInfo, VorbisGetInternalPos);
 }

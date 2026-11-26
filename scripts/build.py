@@ -167,25 +167,20 @@ PACKAGES_ALL=[
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
-    "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.15",
     "vulkan-v1.4.307"]
 
-PACKAGES_HOST=[
-    "tremolo-b0cb4d1"]
+PACKAGES_HOST=[]
 
-PACKAGES_IOS_SIMULATOR=[
-    "tremolo-b0cb4d1"]
+PACKAGES_IOS_SIMULATOR=[]
 
 PACKAGES_IOS_64=[
-    "tremolo-b0cb4d1",
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
     "dxc-1.9.2609",
-    "tremolo-b0cb4d1",
     "spirv-cross-vulkan-sdk-1.4.363.0",
     "spirv-tools-2026.4",
     "glslang-16.6.0",
@@ -205,7 +200,6 @@ PACKAGES_MACOS_X86_64=[
 PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
     "dxc-1.9.2609",
-    "tremolo-b0cb4d1",
     "spirv-cross-vulkan-sdk-1.4.363.0",
     "spirv-tools-2026.4",
     "glslang-16.6.0",
@@ -245,7 +239,6 @@ PACKAGES_LINUX_X86_64=[
     "spirv-cross-vulkan-sdk-1.4.363.0",
     "spirv-tools-2026.4",
     "vulkan-v1.4.307",
-    "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-20261113.214538",
@@ -263,7 +256,6 @@ PACKAGES_LINUX_ARM64=[
     "spirv-cross-vulkan-sdk-1.4.363.0",
     "spirv-tools-2026.4",
     "vulkan-v1.4.307",
-    "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-20261113.214538",
@@ -272,15 +264,12 @@ PACKAGES_LINUX_ARM64=[
 
 # Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
-    "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_64=[
-    "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_X86_64=[
-    "tremolo-b0cb4d1",
     "vkquality-1.1-2642a0d"]
 
 PACKAGES_EMSCRIPTEN=[
@@ -331,6 +320,7 @@ SDK_EXCLUDED_LIBS = {
     'test_script',
     'testmain',
     'texc',
+    'tremolo',
     'utf8_range',
     'utf8_validity',
 }

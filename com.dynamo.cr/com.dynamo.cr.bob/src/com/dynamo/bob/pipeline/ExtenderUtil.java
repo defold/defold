@@ -647,6 +647,25 @@ public class ExtenderUtil {
 
     // Migrate legacy app manifest settings before upload, even without opening
     // the editor.
+    @SuppressWarnings("unchecked")
+    private static boolean migrateVorbisContext(Object value, String platform) {
+        if (!(value instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) value;
+        boolean modified = false;
+        for (String key : List.of("symbols", "excludeSymbols", "libs", "engineLibs", "excludeLibs")) {
+            if (context.get(key) instanceof List<?> items) {
+                List<?> migrated = AppManifestMigration.migrateVorbisItems(key, items, platform);
+                if (!items.equals(migrated)) {
+                    context.put(key, migrated);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
     private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
@@ -660,6 +679,7 @@ public class ExtenderUtil {
 
         Map<?, ?> manifest = (Map<?, ?>) manifestValue;
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
+        modified |= migrateVorbisContext(manifest.get("context"), "common");
         modified |= migrateRecordExclusions(manifest.get("context"), null);
         Object platformsValue = manifest.get("platforms");
         if (platformsValue instanceof Map<?, ?>) {
@@ -667,6 +687,7 @@ public class ExtenderUtil {
                 Object platformValue = platform.getValue();
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
+                    modified |= migrateVorbisContext(context, String.valueOf(platform.getKey()));
                     modified |= addBullet3DCompatibilityExclusions(context);
                     if (List.of("android", "armv7-android", "arm64-android", "x86_64-android",
                             "ios", "arm64-ios", "arm64_sim-ios", "web", "wasm-web", "wasm_pthread-web").contains(platform.getKey())) {

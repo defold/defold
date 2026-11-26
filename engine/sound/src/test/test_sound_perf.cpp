@@ -194,39 +194,17 @@ public:
 };
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
-TEST_F(dmSoundTest, MeasureStdb)
+// Measures decoding the seven mono and stereo Vorbis fixtures.
+TEST_F(dmSoundTest, MeasureVorbis)
 {
-    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
-}
-
-TEST_F(dmSoundTest, MeasureStdbSkip)
-{
-    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
-}
-
-#if defined(DM_TEST_VORBIS_NOGG)
-// Measures decoding with libnogg on the same corpus as the shipping decoders.
-TEST_F(dmSoundTest, MeasureNogg)
-{
-    RunSuite("VorbisDecoderNogg", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
+    RunSuite("VorbisDecoder", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
 // Measures the cost of advancing an inaudible Vorbis voice with libnogg.
-TEST_F(dmSoundTest, MeasureNoggSkip)
+TEST_F(dmSoundTest, MeasureVorbisSkip)
 {
-    RunSuite("VorbisDecoderNogg", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
+    RunSuite("VorbisDecoder", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
-#else
-TEST_F(dmSoundTest, MeasureTremolo)
-{
-    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
-}
-
-TEST_F(dmSoundTest, MeasureTremoloSkip)
-{
-    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
-}
-#endif
 
 TEST_F(dmSoundTest, MeasureOpus)
 {
