@@ -107,7 +107,8 @@ elseif(TARGET_PLATFORM_OS STREQUAL "win32")
         "${PLAT_SRC_DIR}/win32/window_joystick.cpp"
         "${PLAT_SRC_DIR}/win32/joystick_driver.cpp"
         "${PLAT_SRC_DIR}/win32/joystick_packet.cpp"
-        "${PLAT_SRC_DIR}/win32/window_opengl.cpp")
+        "${PLAT_SRC_DIR}/win32/window_opengl.cpp"
+        "${PLAT_SRC_DIR}/win32/window_egl.cpp")
 elseif(TARGET_PLATFORM_OS STREQUAL "linux")
     set(PLATFORM_USE_LINUX ON)
     include("${PLAT_SRC_DIR}/linux/wayland_protocols.cmake")

@@ -287,6 +287,11 @@ namespace dmPlatform
 
     uintptr_t GetProcAddress(HWindow window, const char* name)
     {
+        if (window->m_EGL)
+        {
+            return Win32EGLGetProcAddress(window, name);
+        }
+
         if (!window->m_Context || !wglGetCurrentContext())
         {
             return 0;
@@ -298,6 +303,12 @@ namespace dmPlatform
 
     void SetSwapInterval(HWindow window, uint32_t interval)
     {
+        if (window->m_EGL)
+        {
+            Win32EGLSetSwapInterval(window, interval);
+            return;
+        }
+
         if (window->m_SwapInterval)
         {
             window->m_SwapInterval(interval);
@@ -306,6 +317,12 @@ namespace dmPlatform
 
     void SwapBuffers(HWindow window)
     {
+        if (window->m_EGL)
+        {
+            Win32EGLSwapBuffers(window);
+            return;
+        }
+
         if (window->m_Context)
         {
             ::SwapBuffers(window->m_DC);
@@ -314,11 +331,22 @@ namespace dmPlatform
 
     void* AcquireAuxContext(HWindow window)
     {
+        if (window->m_EGL)
+        {
+            return Win32EGLAcquireAuxContext(window);
+        }
+
         return window->m_AuxContext && wglMakeCurrent(window->m_AuxDC, window->m_AuxContext) ? window->m_AuxContext : 0;
     }
 
     void UnacquireAuxContext(HWindow window, void* context)
     {
+        if (window->m_EGL)
+        {
+            Win32EGLUnacquireAuxContext(window, context);
+            return;
+        }
+
         if (context && context == window->m_AuxContext && context == wglGetCurrentContext())
         {
             wglMakeCurrent(0, 0);

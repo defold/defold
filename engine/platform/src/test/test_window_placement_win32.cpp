@@ -15,6 +15,7 @@
 #include "test_window_placement_native.h"
 #include "../win32/window_win32.h"
 #include <jc_test/jc_test.h>
+#include <GL/gl.h>
 
 namespace dmWindowTest
 {
@@ -92,6 +93,71 @@ namespace dmWindowTest
 static void CountResize(void* data, uint32_t, uint32_t)
 {
     ++*(unsigned*)data;
+}
+
+// WebGPU clients must receive an HWND without requiring a graphics context.
+TEST(Win32Desktop, WebGPUOpensWindow)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_WEBGPU;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_NE((HWND)0, dmPlatform::GetWindowsHWND(window));
+    EXPECT_EQ((HGLRC)0, window->m_Context);
+    dmPlatform::DeleteWindow(window);
+}
+
+// OpenGL ES must create a current ANGLE context that can resolve GL calls and draw.
+TEST(Win32Desktop, OpenGLESContextRenders)
+{
+    HMODULE egl = LoadLibraryW(L"libEGL.dll");
+    HMODULE gles = LoadLibraryW(L"libGLESv2.dll");
+    if (egl)
+    {
+        FreeLibrary(egl);
+    }
+
+    if (gles)
+    {
+        FreeLibrary(gles);
+    }
+
+    if (!egl || !gles)
+    {
+        SKIP();
+    }
+
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_NE((HWND)0, dmPlatform::GetWindowsHWND(window));
+    EXPECT_EQ((HGLRC)0, window->m_Context);
+    typedef void (APIENTRY* ClearColorFn)(GLfloat, GLfloat, GLfloat, GLfloat);
+    typedef void (APIENTRY* ClearFn)(GLbitfield);
+    typedef void (APIENTRY* ReadPixelsFn)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*);
+    ClearColorFn clear_color = (ClearColorFn)dmPlatform::GetProcAddress(window, "glClearColor");
+    ClearFn clear = (ClearFn)dmPlatform::GetProcAddress(window, "glClear");
+    ReadPixelsFn read_pixels = (ReadPixelsFn)dmPlatform::GetProcAddress(window, "glReadPixels");
+    ASSERT_NE((ClearColorFn)0, clear_color);
+    ASSERT_NE((ClearFn)0, clear);
+    ASSERT_NE((ReadPixelsFn)0, read_pixels);
+    clear_color(1, 0, 0, 1);
+    clear(GL_COLOR_BUFFER_BIT);
+    GLubyte pixel[4] = {};
+    read_pixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+    EXPECT_EQ(255u, pixel[0]);
+    EXPECT_EQ(0u, pixel[1]);
+    EXPECT_EQ(0u, pixel[2]);
+    EXPECT_EQ(255u, pixel[3]);
+    dmPlatform::SwapBuffers(window);
+    dmPlatform::DeleteWindow(window);
 }
 
 // DPI changes must notify once, including when the window retains its pixel dimensions.

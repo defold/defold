@@ -22,6 +22,8 @@
 #define WM_DPICHANGED 0x02E0
 #endif
 
+struct Win32EGL;
+
 struct Win32InputCallbacks
 {
     FWindowAddKeyboardCharCallback m_Char;
@@ -34,23 +36,24 @@ struct Win32InputCallbacks
 
 struct dmWindow
 {
-    HWND  m_Window;
-    HWND  m_AuxWindow;
-    HDC   m_DC, m_AuxDC;
-    HGLRC m_Context, m_AuxContext;
-    HCURSOR m_HiddenCursor;
+    HWND      m_Window;
+    HWND      m_AuxWindow;
+    HDC       m_DC, m_AuxDC;
+    HGLRC     m_Context, m_AuxContext;
+    Win32EGL* m_EGL;
+    HCURSOR   m_HiddenCursor;
     BOOL(WINAPI * m_SwapInterval)(int);
-    WindowPlacement*    m_Placement;
-    WindowCreateParams  m_Params;
-    Win32InputCallbacks m_Callbacks;
-    dmPlatform::WindowFocusState m_Focus;
-    HWindow             m_Next;
-    DWORD               m_EventThread;
-    POINT               m_SavedCursor, m_VirtualCursor, m_LastCursor;
-    uint32_t            m_Width, m_Height, m_Samples, m_ResizeCallbackCount;
-    float               m_Scale, m_LastResizeScale;
-    double              m_Wheel;
-    uint16_t            m_HighSurrogate;
+    WindowPlacement*               m_Placement;
+    WindowCreateParams             m_Params;
+    Win32InputCallbacks            m_Callbacks;
+    dmPlatform::WindowFocusState   m_Focus;
+    HWindow                        m_Next;
+    DWORD                          m_EventThread;
+    POINT                          m_SavedCursor, m_VirtualCursor, m_LastCursor;
+    uint32_t                       m_Width, m_Height, m_Samples, m_ResizeCallbackCount;
+    float                          m_Scale, m_LastResizeScale;
+    double                         m_Wheel;
+    uint16_t                       m_HighSurrogate;
     dmPlatform::WindowPressedInput m_Input;
     bool                           m_Ready, m_Iconified, m_CursorLocked, m_CursorCaptured, m_CaptionAction, m_InModalLoop, m_DeletePending;
 };
@@ -64,19 +67,28 @@ namespace dmPlatform
     };
 
     extern const wchar_t* const WIN32_WINDOW_CLASS;
-    float Win32MonitorScale(HMONITOR monitor);
-    void  Win32InitDpi();
-    bool  Win32UpdateDisplayLayout();
-    void  Win32AdjustFrame(RECT* rect, DWORD style, DWORD ex_style, UINT dpi);
-    bool  Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result);
-    void  Win32UpdateCursor(HWindow window, bool focused);
-    void  Win32CenterCursor(HWindow window);
-    void  Win32JoysticksChanged();
-    void  Win32PollJoysticks(bool initialize);
-    void  Win32ShutdownJoysticks();
-    void  Win32NotifyGamepad(int index, WindowGamepadEvent event);
-    bool  Win32JoystickPresent(int index);
-    bool  Win32OpenGLCreate(HWindow window);
-    void  Win32OpenGLDestroy(HWindow window);
+    float     Win32MonitorScale(HMONITOR monitor);
+    void      Win32InitDpi();
+    bool      Win32UpdateDisplayLayout();
+    void      Win32AdjustFrame(RECT* rect, DWORD style, DWORD ex_style, UINT dpi);
+    bool      Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result);
+    void      Win32UpdateCursor(HWindow window, bool focused);
+    void      Win32CenterCursor(HWindow window);
+    void      Win32JoysticksChanged();
+    void      Win32PollJoysticks(bool initialize);
+    void      Win32ShutdownJoysticks();
+    void      Win32NotifyGamepad(int index, WindowGamepadEvent event);
+    bool      Win32JoystickPresent(int index);
+    bool      Win32OpenGLCreate(HWindow window);
+    void      Win32OpenGLDestroy(HWindow window);
+    bool      Win32EGLCreate(HWindow window);
+    void      Win32EGLDestroy(HWindow window);
+    uintptr_t Win32EGLGetProcAddress(HWindow window, const char* name);
+    void      Win32EGLSetSwapInterval(HWindow window, uint32_t interval);
+    void      Win32EGLSwapBuffers(HWindow window);
+    void*     Win32EGLAcquireAuxContext(HWindow window);
+    void      Win32EGLUnacquireAuxContext(HWindow window, void* context);
+    bool      Win32EGLHasAuxContext(HWindow window);
+    int       Win32EGLGetConfigParam(HWindow window, WindowState state);
 }
 #endif

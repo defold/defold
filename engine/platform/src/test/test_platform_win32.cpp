@@ -357,7 +357,7 @@ TEST(dmPlatform, WindowsCloseAndReopen)
     params.m_Hidden = true;
     params.m_CloseCallback = CloseRequested;
     params.m_CloseCallbackUserData = &events;
-    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
     ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
     dmPlatform::CloseWindow(window);
     ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
