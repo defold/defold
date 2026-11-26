@@ -14,14 +14,14 @@
 
 package com.dynamo.bob.fs;
 
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
-
-import org.apache.commons.io.FilenameUtils;
 
 public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResource> implements IFileSystem {
     protected F fileSystem;

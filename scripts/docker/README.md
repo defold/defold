@@ -9,7 +9,7 @@ Currently supported platforms:
 
 # Installation
 
-* Download and install Docker from [www.docker.com](www.docker.com)
+* [Install Docker](https://docs.docker.com/get-started/get-docker/).
 * Build the container
 
 ```sh
@@ -45,5 +45,5 @@ Possible values: `linux/amd64`, `linux/arm64`.
 * Run the debug script
 
 ```sh
-  defold$ ./scripts/docker/run.sh
+  defold$ ./scripts/docker/debug.sh
 ```

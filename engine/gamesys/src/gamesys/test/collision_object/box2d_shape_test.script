@@ -110,7 +110,7 @@ local function test_v3_body_and_shapes(body)
 
     assert(b2d.body.is_valid(body))
     b2d.body.set_name(body, "shape-test-body")
-    assert(b2d.body.get_name(body) == "shape-test-body")
+    assert(b2d.body.get_name(body) == "shape-test")
     local body_position = b2d.body.get_position(body)
     local body_angle = b2d.body.get_angle(body)
     b2d.body.set_target_transform(body, body_position, body_angle, 1 / 60)

@@ -14,8 +14,8 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.composite :as fx.composite]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
@@ -30,6 +30,7 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
@@ -48,6 +49,7 @@
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [com.defold.control ClippingContainer]
+           [com.sun.javafx.util Utils]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
@@ -73,14 +75,13 @@
 (def ^:private dialogs-css-delay
   (delay (str (io/resource "dialogs.css"))))
 
-(defn max-dialog-stage-height []
-  (let [screens (Screen/getScreens)
-        n (.size screens)]
-    (loop [i 0
-           max-height 0.0]
-      (if (= i n)
-        max-height
-        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
+(defn- max-dialog-height [owner]
+  (let [^Window window (if (instance? Window owner) owner (ui/main-stage))
+        screen (if window
+                 (Utils/getScreen window)
+                 (Screen/getPrimary))
+        screen-margin 32.0]
+    (- (.getHeight (.getVisualBounds ^Screen screen)) (* 2.0 screen-margin))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -96,54 +97,59 @@
     :size          dialog width, either :small, :default or :large
     :width         explicit dialog width, overriding :size width
     :height        explicit dialog height, overriding :size content height cap
+    :owner         the owner window, defaults to main stage; the dialog's max
+                   height is limited to the owner's screen
     :content       a content of a dialog, not padded; you can use
                    \"dialog-content-padding\" style class to set desired padding
                    (or \"text-area-with-dialog-content-padding\" for text areas)
     :root-props    extra props to scene root's v-box lifecycle (sans :children)"
-  [{:keys [size header content footer root-props width height]
+  [{:keys [size header content footer root-props width height owner]
     :or {size :default root-props {}}
     :as props}]
-  (-> props
-      (dissoc :size :header :content :footer :root-props)
-      (assoc :fx/type fxui/dialog-stage
-             :max-height (max-dialog-stage-height)
-             :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [@dialogs-css-delay]
-                     :root (-> root-props
-                               (fxui/add-style-classes "dialog-body")
-                               (cond->
-                                 (not width)
-                                 (fxui/add-style-classes
-                                   (case size
-                                     :small "dialog-body-small"
-                                     :default "dialog-body-default"
-                                     :large "dialog-body-large")))
-                               (assoc :fx/type fx.v-box/lifecycle
-                                      :children (if content
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-content"
-                                                    :v-box/vgrow :always
-                                                    :children [(cond-> {:fx/type clipping-container
-                                                                        :v-box/vgrow :always
-                                                                        :children [content]}
-                                                                 (not height)
-                                                                 (assoc :pref-height-cap (case size
-                                                                                           :small 480.0
-                                                                                           :default 600.0
-                                                                                           :large 720.0)))]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-footer"
-                                                    :children [footer]}]
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-footer"
-                                                    :children [footer]}])))})))
+  (let [max-height (max-dialog-height owner)]
+    (-> props
+        (dissoc :size :header :content :footer :root-props)
+        (cond-> height (assoc :height (min height max-height)))
+        (assoc :fx/type fxui/dialog-stage
+               :max-height max-height
+               :scene {:fx/type fx.scene/lifecycle
+                       :stylesheets [@dialogs-css-delay]
+                       :root (-> root-props
+                                 (util/provide-defaults :max-height max-height)
+                                 (fxui/add-style-classes "dialog-body")
+                                 (cond->
+                                   (not width)
+                                   (fxui/add-style-classes
+                                     (case size
+                                       :small "dialog-body-small"
+                                       :default "dialog-body-default"
+                                       :large "dialog-body-large")))
+                                 (assoc :fx/type fx.v-box/lifecycle
+                                        :children (if content
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-content"
+                                                      :v-box/vgrow :always
+                                                      :children [(cond-> {:fx/type clipping-container
+                                                                          :v-box/vgrow :always
+                                                                          :children [content]}
+                                                                   (not height)
+                                                                   (assoc :pref-height-cap (case size
+                                                                                             :small 480.0
+                                                                                             :default 600.0
+                                                                                             :large 720.0)))]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-footer"
+                                                      :children [footer]}]
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-footer"
+                                                      :children [footer]}])))}))))
 
 (defn- confirmation-dialog-header->fx-desc [localization header]
   {:pre [header]}
@@ -582,16 +588,22 @@
     {:items (fx.prop/make (fxui/identity-aware-observable-list-mutator #(.getItems ^ListView %))
                           fx.lifecycle/scalar)}))
 
-(defn- select-first-list-item-on-items-changed! [^ListView view]
+(def ^:private list-view-items-selected-index-prop
+  "Prop for the index to select when the list's items change"
+  (fx.prop/make
+    (fx.mutator/setter #(.put (.getProperties ^ListView %1) ::items-selected-index %2))
+    fx.lifecycle/scalar))
+
+(defn- select-list-item-on-items-changed! [^ListView view]
   (let [items (.getItems view)
         properties (.getProperties view)
         selection-model (.getSelectionModel view)]
     (when (pos? (count items))
-      (.select selection-model 0))
+      (.select selection-model (int (.getOrDefault properties ::items-selected-index 0))))
     (.addListener items (reify ListChangeListener
                           (onChanged [_ _]
                             (when (pos? (count items))
-                              (.select selection-model 0)
+                              (.select selection-model (int (.getOrDefault properties ::items-selected-index 0)))
                               ;; ListViewBehavior's selectedIndicesListener sets the selection anchor
                               ;; to the end of the list on items change unless the list view has default anchor.
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
@@ -622,7 +634,9 @@
                                    (preview! (.getFocusedItem focus-model) :focused))))
             items-listener (reify ListChangeListener
                              (onChanged [_ _]
-                               (preview! (first items) :items)))]
+                               (let [index (int (.getOrDefault (.getProperties view) ::items-selected-index 0))]
+                                 (when (< index (count items))
+                                   (preview! (.get items index) :items)))))]
         (.addListener (.focusedIndexProperty focus-model) focused-index-listener)
         (.addListener (.focusedProperty view) focused-listener)
         (.addListener items items-listener)
@@ -632,108 +646,137 @@
            (.removeListener items items-listener))))
     fx.lifecycle/scalar))
 
-(defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
+(defn- select-list-dialog-filter-input [{:keys [items-state items filter-term]}]
+  [(if items-state (:items items-state) items) filter-term])
+
+;; The filter term updates as soon as the user types, but the list only
+;; updates when the background filter finishes. Until then, the visible rows
+;; belong to the previous term, so confirming would pick the wrong item.
+(defn- select-list-dialog-can-confirm? [{:keys [filter-term filtered-items filtered-items-input]}]
+  (and (not (coll/empty? filtered-items))
+       (= filter-term (second filtered-items-input))))
+
+(ui/defc select-list-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:items-ref props)
+              :key :items-state}
+             {:fx/type fx/ext-effect
+              :fn (:start-filter props)
+              :args (select-list-dialog-filter-input props)}]}
+  [{:keys [items-state filter-term filtered-items filtered-items-input items-selected-index title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
     :as props}]
-  {:fx/type dialog-stage
-   :title (localization title)
-   :showing (fxui/dialog-showing? props)
-   :owner owner
-   :on-close-request {:event-type :cancel}
-   :size :large
-   :header {:fx/type fxui/legacy-text-field
-            :prompt-text (localization prompt)
-            :text filter-term
-            :on-text-changed {:event-type :set-filter-term}}
-   :root-props {:event-filter {:event-type :filter-root-events}}
-   :content {:fx/type fx.ext.list-view/with-selection-props
-             :props {:selection-mode selection
-                     :on-selected-indices-changed {:event-type :set-selected-indices}}
-             :desc {:fx/type fx/ext-on-instance-lifecycle
-                    :on-created select-first-list-item-on-items-changed!
-                    :desc {:fx/type ext-with-identity-items-props
-                           :props {:items filtered-items}
-                           :desc (cond-> {:fx/type fx.list-view/lifecycle
-                                          :fixed-cell-size 27
-                                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                         :describe cell-fn}}
-                                   preview-item-fn
-                                   (assoc list-view-selection-preview-prop preview-item-fn))}}}
-   :footer {:fx/type fx.h-box/lifecycle
-            :alignment :center-left
-            :children [{:fx/type fx.progress-indicator/lifecycle
-                        :h-box/hgrow :never
-                        :pref-width 32.0
-                        :pref-height 32.0
-                        :visible filter-in-progress}
-                       {:fx/type dialog-buttons
-                        :h-box/hgrow :always
-                        :children [{:fx/type fxui/legacy-button
-                                    :text (localization ok-label)
-                                    :variant :primary
-                                    :disable (zero? (count filtered-items))
-                                    :on-action {:event-type :confirm}
-                                    :default-button true}]}]}})
+  (let [loading (:loading items-state)
+        filter-in-progress (not= (select-list-dialog-filter-input props) filtered-items-input)]
+    {:fx/type dialog-stage
+     :title (localization title)
+     :showing (fxui/dialog-showing? props)
+     :owner owner
+     :on-close-request {:event-type :cancel}
+     :size :large
+     :header {:fx/type fxui/legacy-text-field
+              :prompt-text (localization prompt)
+              :text filter-term
+              :on-text-changed {:event-type :set-filter-term}}
+     :root-props {:event-filter {:event-type :filter-root-events}}
+     :content {:fx/type fx.ext.list-view/with-selection-props
+               :props {:selection-mode selection
+                       :on-selected-indices-changed {:event-type :set-selected-indices}}
+               :desc {:fx/type fx/ext-on-instance-lifecycle
+                      :on-created select-list-item-on-items-changed!
+                      :desc {:fx/type ext-with-identity-items-props
+                             :props {:items filtered-items}
+                             :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                            list-view-items-selected-index-prop (or items-selected-index 0)
+                                            :fixed-cell-size 27
+                                            :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                           :describe cell-fn}}
+                                     preview-item-fn
+                                     (assoc list-view-selection-preview-prop preview-item-fn))}}}
+     :footer {:fx/type fx.h-box/lifecycle
+              :alignment :center-left
+              :spacing 8
+              ;; Shrink the spinner a bit, it's huge at 32.0
+              :children [(let [size (if loading 16.0 32.0)]
+                           {:fx/type fx.progress-indicator/lifecycle
+                            :h-box/hgrow :never
+                            :pref-width size
+                            :pref-height size
+                            :max-width size
+                            :max-height size
+                            :visible (boolean (or filter-in-progress loading))})
+                         {:fx/type fxui/legacy-label
+                          :h-box/hgrow :never
+                          :visible (boolean (and loading loading-message))
+                          :text (if (and loading loading-message) (localization loading-message) "")}
+                         {:fx/type dialog-buttons
+                          :h-box/hgrow :always
+                          :children [{:fx/type fxui/legacy-button
+                                      :text (localization ok-label)
+                                      :variant :primary
+                                      :disable (not (select-list-dialog-can-confirm? props))
+                                      :on-action {:event-type :confirm}
+                                      :default-button true}]}]}}))
 
 (defn- wrap-cell-fn [f localization]
   (fn [item]
     (when (some? item)
       (assoc (f item localization) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
 
-(defn- select-list-dialog-event-handler [set-filter-term-fn]
-  (fn [state event]
-    (case (:event-type event)
-      :cancel (assoc state ::fxui/result nil)
-      :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
+(defn- select-list-dialog-event-handler [state event]
+  (case (:event-type event)
+    :cancel (assoc state ::fxui/result nil)
+    :confirm (if (select-list-dialog-can-confirm? state)
+               (assoc state ::fxui/result {:filter-term (:filter-term state)
                                            :selected-items (mapv (:filtered-items state) (:selected-indices state))})
-      :set-selected-indices (assoc state :selected-indices (:fx/event event))
-      :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
-                                     (if (and (= MouseButton/PRIMARY (.getButton e))
-                                              (= 2 (.getClickCount e)))
-                                       (recur state (assoc event :event-type :confirm))
-                                       state))
-      :filter-root-events (let [^Event e (:fx/event event)]
-                            (if (and (instance? KeyEvent e)
-                                     (= KeyEvent/KEY_PRESSED (.getEventType e)))
-                              (let [^KeyEvent e e]
-                                (condp = (.getCode e)
-                                  KeyCode/UP (let [view (.getTarget e)]
-                                               (when (instance? ListView (.getTarget e))
-                                                 (let [^ListView view view]
-                                                   (when (zero? (.getSelectedIndex (.getSelectionModel view)))
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift true
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false)))))
+               state)
+    :set-selected-indices (assoc state :selected-indices (:fx/event event))
+    :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
+                                   (if (and (= MouseButton/PRIMARY (.getButton e))
+                                            (= 2 (.getClickCount e)))
+                                     (recur state (assoc event :event-type :confirm))
+                                     state))
+    :filter-root-events (let [^Event e (:fx/event event)]
+                          (if (and (instance? KeyEvent e)
+                                   (= KeyEvent/KEY_PRESSED (.getEventType e)))
+                            (let [^KeyEvent e e]
+                              (condp = (.getCode e)
+                                KeyCode/UP (let [view (.getTarget e)]
+                                             (when (instance? ListView (.getTarget e))
+                                               (let [^ListView view view]
+                                                 (when (zero? (.getSelectedIndex (.getSelectionModel view)))
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift true
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false)))))
+                                             state)
+                                KeyCode/DOWN (let [view (.getTarget e)]
+                                               (when (instance? TextField view)
+                                                 (let [^TextField view view]
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift false
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false))))
                                                state)
-                                  KeyCode/DOWN (let [view (.getTarget e)]
-                                                 (when (instance? TextField view)
-                                                   (let [^TextField view view]
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift false
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false))))
-                                                 state)
-                                  KeyCode/ENTER (if (empty? (:filtered-items state))
-                                                  state
-                                                  (recur state (assoc event :event-type :confirm)))
-                                  KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
-                                  state))
-                              state))
-      :set-filter-term (let [filter-term (:fx/event event)]
-                         (set-filter-term-fn state filter-term)))))
+                                KeyCode/ENTER (recur state (assoc event :event-type :confirm))
+                                KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
+                                state))
+                            state))
+    :set-filter-term (let [filter-term (:fx/event event)]
+                       (if (= (:filter-term state) filter-term)
+                         state
+                         (assoc state :filter-term filter-term)))))
 
 (defn- default-cell-fn [item _localization]
   item)
@@ -768,6 +811,15 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
+      :items-ref      optional watched reference containing a map with :items,
+                      replacing the items argument, and :loading, true while
+                      more items are expected
+      :loading-message
+                      optional string or MessagePattern shown beside the footer
+                      spinner while :items-ref value has :loading set
+      :item-key       optional fn of item that returns a value identifying it,
+                      used to keep the selection when :items-ref replaces the
+                      items; defaults to identity
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -778,7 +830,8 @@
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
-   (let [items (localization/sort-if-annotated @localization items)
+   (let [items-ref (:items-ref options)
+         item-key (:item-key options identity)
          cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
@@ -787,44 +840,50 @@
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")
-         filter-future-atom (atom nil)
-         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
-                           :filter-in-progress false
+         state-atom (atom {:filter-term filter-term
                            :filtered-items []
+                           :filtered-items-input nil
                            :selected-indices []})
-
-         set-filter-term
-         (fn set-filter-term [state filter-term]
-           (if (= (:filter-term state) filter-term)
-             state
-             (do (swap! filter-future-atom
-                        (fn [pending-filter-future]
-                          (thread-util/cancel-future! pending-filter-future)
-                          (future
-                            (try
-                              (let [filtered-items (vec (filter-fn filter-term items))
-                                    selected-indices (if (coll/empty? filtered-items) [] [0])]
+         start-filter
+         (fn start-filter [items filter-term]
+           (let [filter-future
+                 (future
+                   (try
+                     (let [sorted-items (localization/sort-if-annotated @localization items)
+                           filtered-items (vec (filter-fn filter-term sorted-items))]
+                       (thread-util/throw-if-interrupted!)
+                       (swap! state-atom
+                              (fn [state]
                                 (thread-util/throw-if-interrupted!)
-                                (swap! state-atom
-                                       (fn [state]
-                                         (thread-util/throw-if-interrupted!)
-                                         (assoc state
-                                           :filter-in-progress false
-                                           :filtered-items filtered-items
-                                           :selected-indices selected-indices))))
-                              (catch InterruptedException _
-                                nil)
-                              (catch Throwable error
-                                (error-reporting/report-exception! error))))))
-                 (assoc state
-                   :filter-term filter-term
-                   :filter-in-progress true))))
-         _ (swap! state-atom set-filter-term filter-term)
-         event-handler (select-list-dialog-event-handler set-filter-term)
+                                (if (and (= filter-term (:filter-term state))
+                                         (or (not items-ref)
+                                             (= items (:items @items-ref))))
+                                  (let [selected-key (when (= filter-term (second (:filtered-items-input state)))
+                                                       (some->> (first (:selected-indices state))
+                                                                (get (:filtered-items state))
+                                                                item-key))
+                                        selected-index (or (when (some? selected-key)
+                                                             (coll/first-index-where #(= selected-key (item-key %)) filtered-items))
+                                                           0)]
+                                    (assoc state
+                                      :filtered-items filtered-items
+                                      :filtered-items-input [items filter-term]
+                                      :items-selected-index selected-index
+                                      :selected-indices (if (coll/empty? filtered-items) [] [selected-index])))
+                                  state))))
+                     (catch InterruptedException _
+                       nil)
+                     (catch Throwable error
+                       (error-reporting/report-exception! error))))]
+             (fn cancel-filter []
+               (thread-util/cancel-future! filter-future))))
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
-                  :event-handler event-handler
+                  :event-handler select-list-dialog-event-handler
                   :description {:fx/type select-list-dialog
+                                :items-ref items-ref
+                                :items items
+                                :start-filter start-filter
                                 :localization localization
                                 ;; The list only tells us focus moved or its items
                                 ;; changed. Split "items changed" into :opened (nothing
@@ -846,9 +905,9 @@
                                 :prompt (or (:prompt options)
                                             (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
+                                :loading-message (:loading-message options)
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
-     (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]
          (when (and filter-atom selected-items)

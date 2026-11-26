@@ -59,7 +59,10 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [java.io File FileNotFoundException]
+  (:import [clojure.lang ArityException]
+           [com.dynamo.bob ClassLoaderScanner]
+           [com.dynamo.bob.archive.packages PackageProviders]
+           [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
 
@@ -112,6 +115,20 @@
        :script-intelligence script-intelligence
        :workspace workspace})))
 
+(defn- resource-load-error [node-id resource exception]
+  (if-not (instance? ArityException exception)
+    (resource-io/invalid-content-error node-id nil :fatal resource exception)
+    ;; Only callback arity errors get extension-update advice. Other illegal
+    ;; arguments can come from malformed content in built-in resource types.
+    (g/->error
+      node-id nil :fatal nil
+      (localization/message
+        "error.resource-not-loaded-update-extension"
+        {"resource" (resource/proj-path resource)})
+      {:type :invalid-content
+       :resource resource
+       :exception exception})))
+
 (defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
   (try
     (let [load-fn (:load-fn resource-type)
@@ -133,11 +150,11 @@
         not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (:node-type resource-type)
-            invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
-        (g/mark-defective node-id node-type invalid-content-error)))
+      (let [node-type (resource-type->node-type resource-type)
+            error (resource-load-error node-id resource exception)]
+        (g/mark-defective node-id node-type error)))
     (catch Throwable throwable
-      (let [node-type (:node-type resource-type)
+      (let [node-type (resource-type->node-type resource-type)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                         {:node-type node-type
@@ -231,11 +248,11 @@
               (make-file-not-found-error node-id resource))
             (catch Exception exception
               (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
-              (resource-io/invalid-content-error node-id nil :fatal resource exception))
+              (resource-load-error node-id resource exception))
             (catch Throwable throwable
               (let [proj-path (resource/proj-path resource)]
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
-                                {:node-type (:node-type resource-type)
+                                {:node-type (resource-type->node-type resource-type)
                                  :proj-path proj-path}
                                 throwable)))))
 
@@ -260,20 +277,32 @@
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
                 (not-empty (vec (dependencies-fn read-opts resource source-value))))
+              (catch ArityException exception
+                (log/warn :msg (format "Unable to determine dependencies for resource '%s'"
+                                       (resource/proj-path resource))
+                          :exception exception)
+                (resource-load-error node-id resource exception))
               (catch Exception exception
                 (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                        (resource/proj-path resource))
                           :exception exception)
-                nil))))]
+                nil))))
 
-    (cond-> {:node-id node-id
-             :owner-resource resource
-             :resource resource
-             :resource-type resource-type}
-      read-error (assoc :read-error read-error)
-      source-value (assoc :source-value source-value)
-      disk-sha256 (assoc :disk-sha256 disk-sha256)
-      dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+        read-error (if (g/error-value? dependency-proj-paths)
+                     dependency-proj-paths
+                     read-error)
+
+        node-load-info {:node-id node-id
+                        :owner-resource resource
+                        :resource resource
+                        :resource-type resource-type}]
+
+    (if read-error
+      (assoc node-load-info :read-error read-error)
+      (cond-> node-load-info
+        source-value (assoc :source-value source-value)
+        disk-sha256 (assoc :disk-sha256 disk-sha256)
+        dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -300,12 +329,20 @@
 
 (defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
-  (e/cons
-    (g/set-property node-id :loaded true)
-    (if read-error
-      (let [node-type (resource-node-type resource)]
-        (g/mark-defective node-id node-type read-error))
-      (load-resource-node load-opts node-load-info transpiler-tx-data-fn))))
+  (let [load-tx-data
+        (if-not read-error
+          (load-resource-node load-opts node-load-info transpiler-tx-data-fn)
+          (let [node-type (resource-node-type resource)]
+            (g/mark-defective node-id node-type read-error)))]
+
+    (e/cons
+      (g/set-property node-id :loaded true)
+      (g/expand-ec
+        (fn apply-resource-load-tx-data [evaluation-context]
+          ;; Connection, reading, or source-value conversion may have failed.
+          ;; Keep that error and avoid applying load or save connections.
+          (when-not (g/defective? (:basis evaluation-context) node-id)
+            load-tx-data))))))
 
 (defn- sort-node-load-infos-for-loading
   "Sorts the node-load-infos so that referenced nodes are loaded before the
@@ -450,32 +487,42 @@
       node-id+resource-pairs)))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
-  (let [[disk-sha256s-by-node-id
-         node-id+source-value-pairs]
-        (iutil/into-multiple
-          [{} []]
-          [(keep (fn [{:keys [resource] :as node-load-info}]
-                   (when (and (resource/file-resource? resource)
-                              (resource/stateful? resource))
-                     (let [{:keys [disk-sha256 node-id]} node-load-info]
-                       (pair node-id disk-sha256)))))
-           (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
-                   ;; The source-value output will never be evaluated for
-                   ;; non-editable or stateless resources, so there is no need
-                   ;; to store their entries.
-                   (when (and (some? source-value)
-                              (resource/editable? resource)
-                              (resource/stateful? resource))
-                     (pair node-id
-                           (or read-error
-                               (let [resource-type (resource/resource-type resource)]
-                                 ;; Note: Here, source-value is whatever was
-                                 ;; returned by the read-fn, so it's technically
-                                 ;; a save-value.
-                                 (resource-node/save-value->source-value source-value resource-type)))))))]
-          node-load-infos)]
-    {:disk-sha256s-by-node-id disk-sha256s-by-node-id
-     :node-id+source-value-pairs node-id+source-value-pairs}))
+  (coll/reduce-> node-load-infos
+    {:disk-sha256s-by-node-id {}
+     :node-id+source-value-pairs []
+     :error-tx-data []}
+    (fn [disk-state {:keys [disk-sha256 node-id read-error resource source-value]}]
+      (let [stateful (resource/stateful? resource)
+            disk-state (cond-> disk-state
+                         (and stateful (resource/file-resource? resource))
+                         (assoc-in [:disk-sha256s-by-node-id node-id] disk-sha256))]
+        ;; The source-value output is unused for non-editable or stateless
+        ;; resources, so there is no need to store their entries.
+        (if-not (and stateful
+                     (resource/editable? resource)
+                     (or (some? source-value)
+                         (some? read-error)))
+          disk-state
+          (let [resource-type (resource/resource-type resource)
+
+                stored-source-value
+                (or read-error
+                    ;; Convert the read-fn result to a stored source-value.
+                    (try
+                      (resource-node/save-value->source-value source-value resource-type)
+                      (catch ArityException exception
+                        (log/warn :msg (format "Unable to convert source value for resource '%s'"
+                                               (resource/proj-path resource))
+                                  :exception exception)
+                        (resource-load-error node-id resource exception))))]
+
+            (cond-> (update disk-state :node-id+source-value-pairs
+                            conj (pair node-id stored-source-value))
+              (g/error-value? stored-source-value)
+              ;; Apply read or conversion errors after creating the nodes.
+              (update :error-tx-data into
+                      (let [node-type (resource-type->node-type resource-type)]
+                        (g/mark-defective node-id node-type stored-source-value))))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -904,16 +951,18 @@
 
 (declare workspace)
 
-(defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
-  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)
+(defn load-nodes! [project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts]
+  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]} (node-load-infos->stored-disk-state node-load-infos)
         workspace (workspace project)]
     (resource-node/merge-source-values! node-id+source-value-pairs)
     (let [{:keys [basis] :as tx-result}
           (g/transact transact-opts
             (e/concat
               prelude-tx-data
+              error-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
               (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
+              postlude-tx-data
               (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
           migrated-resource-node-ids
@@ -1000,7 +1049,13 @@
         :resource resource))
     (g/connect node-id :node-id+resource project :node-id+resources)
     (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
-      (connect-fn project node-id resource))))
+      (try
+        (g/eager-tx-data
+          (connect-fn project node-id resource))
+        (catch ArityException exception
+          (log/warn :msg (format "Unable to connect resource '%s'" (resource/proj-path resource)) :exception exception)
+          (let [error-value (resource-load-error node-id resource exception)]
+            (g/mark-defective node-id node-type error-value)))))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
   {:pre [(g/node-id? project)]}
@@ -1068,7 +1123,7 @@
          migrated-resource-node-ids
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
-             (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+             (load-nodes! project prelude-tx-data node-load-infos nil render-progress! resource-metrics transact-opts)))]
 
      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
      (render-progress! progress/done)
@@ -1348,6 +1403,28 @@
             ;; dependencies.
             (e/map g/delete-node (:delete plan)))
 
+          postlude-tx-data
+          (g/expand-ec
+            (fn transfer-outgoing-arcs-tx-data [evaluation-context]
+              (let [basis (:basis evaluation-context)]
+                (e/mapcat
+                  (fn [[source-resource output-arcs]]
+                    (let [source-node (resource->node-id source-resource)
+                          existing-arcs (set (gu/explicit-outputs basis source-node))]
+                      (coll/into-> output-arcs :eduction
+                        (remove existing-arcs)
+                        ;; if (g/node-by-id target-node), the target of the
+                        ;; outgoing arc has not been deleted above -
+                        ;; implying it has not been replaced by a new
+                        ;; version. Otherwise, the target-node has probably
+                        ;; been replaced by another version (reloaded) and
+                        ;; that should have reestablished any incoming arcs
+                        ;; to it already
+                        (keep (fn [[source-label [target-node target-label]]]
+                                (when (g/node-by-id basis target-node)
+                                  (g/connect source-node source-label target-node target-label)))))))
+                  (:transfer-outgoing-arcs plan)))))
+
           read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
@@ -1395,7 +1472,7 @@
           migrated-node-ids
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
             (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+              (load-nodes! project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts)))]
 
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
@@ -1404,20 +1481,6 @@
       (du/measuring process-metrics :update-cache-with-save-data
         (cache-loaded-save-data! node-load-infos project migrated-node-ids))
       (render-progress! progress/done))
-
-    (du/measuring process-metrics :transfer-outgoing-arcs
-      (g/transact transact-opts
-        (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
-          (let [source-node (resource->node-id source-resource)
-                existing-arcs (set (gu/explicit-outputs source-node))]
-            (for [[source-label [target-node target-label]] (remove existing-arcs output-arcs)]
-              ;; if (g/node-by-id target-node), the target of the outgoing arc
-              ;; has not been deleted above - implying it has not been replaced by a
-              ;; new version.
-              ;; Otherwise, the target-node has probably been replaced by another version
-              ;; (reloaded) and that should have reestablished any incoming arcs to it already
-              (when (g/node-by-id target-node)
-                (g/connect source-node source-label target-node target-label)))))))
 
     (du/measuring process-metrics :redirect
       (g/transact transact-opts
@@ -1498,13 +1561,50 @@
                :resource-metrics @resource-metrics
                :transaction-metrics @transaction-metrics}))))
 
+(defn- describe-package-providers []
+  (try
+    (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
+    (catch Exception error
+      (g/error-fatal (ex-message error)))
+    (catch LinkageError error
+      (g/error-fatal (or (ex-message error)
+                         (some-> error ex-cause ex-message)
+                         (str error))))))
+
+(defn- reload-package-provider-schemas! [project]
+  (let [request (Object.)
+        publish! (fn publish! [schemas]
+                   (when (identical? request (g/user-data project ::package-provider-request))
+                     (g/transact {:undoable false}
+                       (g/set-property project :live-update-provider-schemas schemas))))]
+    (g/user-data! project ::package-provider-request request)
+    (if-not (ui/on-ui-thread?)
+      (publish! (describe-package-providers))
+      (future
+        (let [schemas (describe-package-providers)]
+          (ui/run-later (publish! schemas)))))))
+
 (defn reload-plugins! [project touched-resources]
   (g/let-ec [basis (:basis evaluation-context)
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers basis)]
-    (workspace/unpack-editor-plugins! basis workspace touched-resources)
+             code-transpilers (code-transpilers basis)
+             provider-schemas (g/node-value project :live-update-provider-schemas evaluation-context)
+             resources (g/node-value project :resources evaluation-context)]
+    (let [plugins-touched (workspace/unpack-editor-plugins! basis workspace touched-resources)]
+      (when plugins-touched
+        (g/invalidate-outputs! [(g/endpoint code-transpilers :build-output)]))
+      (when (or plugins-touched (nil? provider-schemas))
+        (if (coll/any? #(and (= :file (resource/source-type %))
+                             (= "archivemanifest" (resource/type-ext %)))
+                       (if plugins-touched resources touched-resources))
+          (reload-package-provider-schemas! project)
+          (when plugins-touched
+            (g/user-data! project ::package-provider-request nil)
+            (when provider-schemas
+              (g/transact {:undoable false}
+                (g/set-property project :live-update-provider-schemas nil)))))))
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1623,6 +1723,7 @@
 
 (g/defnode Project
   (property workspace g/Any)
+  (property live-update-provider-schemas g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
@@ -1813,8 +1914,9 @@
             tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
 
             node-load-info (read-node-load-info read-opts node-id resource)
-            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
+            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
+                           error-tx-data
                            (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
             loaded-resources' (conj (or loaded-resources #{}) resource)
@@ -1951,6 +2053,7 @@
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
     (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    :build-output (= node-id (code-transpilers (:basis evaluation-context)))
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]

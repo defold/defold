@@ -1034,8 +1034,8 @@ TEST_F(LuaTableTest, CorruptedTables)
     lua_pushnumber(L, 5);
     lua_settable(L, -3);
 
-    // Make sure we write to the buffer so that Valgrind doesn't complain
-    // at the lua_pushlstring below.
+    // Initialize the whole buffer because lua_pushlstring below copies it,
+    // including bytes beyond the serialized table.
     memset(g_Buf, 0, sizeof(g_Buf));
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);

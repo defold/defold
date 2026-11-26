@@ -585,6 +585,10 @@ EXCEPTION_POINTERS* g_ExceptionPointers = 0;
 
 LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr)
 {
+    if (!g_UserCallback)
+    {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
     g_ExceptionPointers = ptr;
     g_UserCallback(0xDEAD, g_UserContext);
     return EXCEPTION_EXECUTE_HANDLER;

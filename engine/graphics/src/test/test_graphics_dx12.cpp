@@ -19,6 +19,7 @@
 #include <dlib/time.h>
 #include <wrl/client.h>
 #include "graphics_adapter.h"
+#include "shaderc_dxc.h"
 #include "test_app_graphics.h"
 #include "read_pixels_tests.h"
 #include "dx12/graphics_dx12_private.h"
@@ -46,12 +47,23 @@ static void RequireHR(HRESULT hr)
     ASSERT_EQ(S_OK, hr);
 }
 
-// Build real DXBC and serialized signatures, then load via the public program API.
+static HRESULT CompileShaderSM6(const char* source, const char* profile, IDxcBlob** shader, ID3D12ShaderReflection** reflection = 0)
+{
+    ComPtr<IDxcBlobUtf8> errors;
+    HRESULT hr = dmShaderc::CompileDXC(source, strlen(source), "main", profile, shader, &errors, reflection);
+    if (FAILED(hr) && errors)
+    {
+        printf("%s\n", errors->GetStringPointer());
+    }
+    return hr;
+}
+
+// Build real DXIL and serialized signatures, then load via the public program API.
 struct TestProgram
 {
-    ShaderDesc m_Desc;
+    ShaderDesc         m_Desc;
     // Own the compiled blobs referenced by the descriptor until the test finishes.
-    dmArray<ID3DBlob*> m_Blobs;
+    dmArray<IUnknown*> m_Blobs;
 
     TestProgram()
     {
@@ -62,27 +74,63 @@ struct TestProgram
     ~TestProgram()
     {
         for (uint32_t i = 0; i < m_Desc.m_Shaders.m_Count; ++i)
+        {
             free(m_Desc.m_Shaders[i].m_HlslResourceMapping.m_Data);
+            free(m_Desc.m_Shaders[i].m_HlslShaderOutputs.m_Data);
+        }
         DeleteShaderDesc(&m_Desc);
         for (uint32_t i = 0; i < m_Blobs.Size(); ++i)
+        {
             m_Blobs[i]->Release();
+        }
     }
 
     void AddShaderStage(const char* source, ShaderDesc::ShaderType stage)
     {
-        ComPtr<ID3DBlob> code, errors;
-        const char* profile = "ps_5_1";
+        ComPtr<IDxcBlob> code;
+        const char* profile = "ps_6_0";
         if (stage == ShaderDesc::SHADER_TYPE_COMPUTE)
-            profile = "cs_5_1";
+        {
+            profile = "cs_6_0";
+        }
         else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
-            profile = "vs_5_1";
-        HRESULT hr = D3DCompile(source, strlen(source), 0, 0, 0, "main", profile, 0, 0, &code, &errors);
-        if (FAILED(hr) && errors)
-            printf("%s\n", (const char*)errors->GetBufferPointer());
+        {
+            profile = "vs_6_0";
+        }
+        ComPtr<ID3D12ShaderReflection> reflection;
+        HRESULT hr = CompileShaderSM6(source, profile, &code, &reflection);
         RequireHR(hr);
-        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_51, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_60, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        if (stage == ShaderDesc::SHADER_TYPE_FRAGMENT)
+        {
+            dmArray<dmShaderc::HLSLShaderOutput> outputs;
+            RequireHR(dmShaderc::GetHLSLShaderOutputs(reflection.Get(), outputs));
+            ShaderDesc::Shader& shader = m_Desc.m_Shaders[m_Desc.m_Shaders.m_Count - 1];
+            shader.m_HlslShaderOutputs.m_Count = outputs.Size();
+            shader.m_HlslShaderOutputs.m_Data = (ShaderDesc::HLSLShaderOutput*)calloc(outputs.Size(), sizeof(ShaderDesc::HLSLShaderOutput));
+            for (uint32_t i = 0; i < outputs.Size(); ++i)
+            {
+                ShaderDesc::HLSLShaderOutput& output = shader.m_HlslShaderOutputs[i];
+                output.m_Location = outputs[i].m_Location;
+                output.m_ComponentCount = outputs[i].m_ComponentCount;
+                switch (outputs[i].m_Type)
+                {
+                    case dmShaderc::BASE_TYPE_UINT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_UINT32;
+                        break;
+                    case dmShaderc::BASE_TYPE_INT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_SINT32;
+                        break;
+                    default:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_FLOAT32;
+                        break;
+                }
+            }
+        }
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(code.Detach());
     }
 
@@ -99,7 +147,9 @@ struct TestProgram
         m_Desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
         m_Desc.m_HlslRootSignature.m_Count = (uint32_t)root->GetBufferSize();
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(root.Detach());
     }
 
@@ -121,7 +171,9 @@ struct TestProgram
         char error[1024] = {};
         HProgram program = NewProgram(context, &m_Desc, error, sizeof(error));
         if (!program)
+        {
             printf("Program load: %s\n", error);
+        }
         return program;
     }
 };
@@ -311,10 +363,48 @@ struct DX12Test : public jc_test_base_class
         bytes.SetCapacity(byte_count);
         bytes.SetSize(byte_count);
         for (UINT row = 0; row < rows * footprint.Footprint.Depth; ++row)
+        {
             memcpy(bytes.Begin() + row * row_bytes, mapped + footprint.Offset + row * footprint.Footprint.RowPitch, (size_t)row_bytes);
+        }
         readback->Unmap(0, 0);
     }
 };
+
+// Repeated and aliased UBO bindings must all be cleared on deletion while their
+// GPU allocation remains queued for retirement behind the frame fence.
+TEST_F(DX12Test, UniformBufferBindingsAndDeferredDeletion)
+{
+    ASSERT_TRUE(IsContextFeatureSupported(GetContext(), CONTEXT_FEATURE_UNIFORM_BUFFER));
+    HUniformBuffer buffer = NewUniformBuffer(GetContext(), 0, 64);
+    HUniformBuffer replacement = NewUniformBuffer(GetContext(), 0, 64);
+    DX12UniformBuffer* data = (DX12UniformBuffer*) buffer;
+    DX12UniformBuffer* replacement_data = (DX12UniformBuffer*) replacement;
+    ASSERT_NE((HUniformBuffer) 0, buffer);
+    ASSERT_NE((HUniformBuffer) 0, replacement);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    DisableUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 1, 3);
+    EnableUniformBuffer(GetContext(), replacement, 1, 3);
+    ASSERT_EQ(data, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+
+    DX12FrameResource& frame = m_Context->m_FrameResources[m_Context->m_CurrentFrameIndex];
+    uint32_t deferred_count = frame.m_ResourcesToDestroy.Size();
+    ID3D12Resource* resource = data->m_DeviceBuffer.m_Resource;
+    DeleteUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+    ASSERT_EQ(deferred_count + 1, frame.m_ResourcesToDestroy.Size());
+    ASSERT_EQ(resource, frame.m_ResourcesToDestroy.Back());
+
+    DeleteUniformBuffer(GetContext(), replacement);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[1][3]);
+}
 
 // Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
@@ -409,6 +499,305 @@ TEST_F(DX12Test, MaximumArrayLayersAndCubemapMips)
     ASSERT_EQ(33, bytes[0]);
 }
 
+// Verifies startup uploads preserve each BC1 block, including mips smaller than 4x4.
+TEST_F(DX12Test, CompressedMipUploads)
+{
+    const uint8_t blocks[][8] = {
+        { 1, 2, 3, 4, 5, 6, 7, 8 },
+        { 9, 10, 11, 12, 13, 14, 15, 16 },
+        { 17, 18, 19, 20, 21, 22, 23, 24 },
+    };
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 4, 4, 1, DM_ARRAY_SIZE(blocks));
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_DataSize = sizeof(blocks[0]);
+    m_Context->m_FrameBegun = 0;
+    for (uint32_t mip = 0; mip < DM_ARRAY_SIZE(blocks); ++mip)
+    {
+        params.m_MipMap = mip;
+        params.m_Width = params.m_Height = 4 >> mip;
+        params.m_Data = blocks[mip];
+        SetTexture(GetContext(), texture, params);
+    }
+
+    m_Context->m_FrameBegun = 1;
+
+    dmArray<uint8_t> bytes;
+    for (uint32_t mip = 0; mip < DM_ARRAY_SIZE(blocks); ++mip)
+    {
+        ReadTexture(texture, mip, 0, bytes);
+        ASSERT_EQ(sizeof(blocks[mip]), bytes.Size());
+        ASSERT_EQ(0, memcmp(blocks[mip], bytes.Begin(), bytes.Size()));
+    }
+}
+
+// Verifies a partial BC1 update at the padded edge of a 6x2 mip preserves its other block.
+TEST_F(DX12Test, CompressedMipEdgeSubUpdate)
+{
+    const uint8_t blocks[][8] = { { 1 }, { 2 }, { 3 } };
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 12, 4, 1, 2);
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_NEAREST;
+    params.m_Width = 12;
+    params.m_Height = 4;
+    params.m_Data = blocks;
+    params.m_DataSize = sizeof(blocks);
+    SetTexture(GetContext(), texture, params);
+
+    params.m_MipMap = 1;
+    params.m_Width = 6;
+    params.m_Height = 2;
+    params.m_DataSize = 2 * sizeof(blocks[0]);
+    SetTexture(GetContext(), texture, params);
+
+    params.m_SubUpdate = 1;
+    params.m_X = 4;
+    params.m_Width = 2;
+    params.m_Data = blocks[2];
+    params.m_DataSize = sizeof(blocks[2]);
+    SetTexture(GetContext(), texture, params);
+
+    // The same 2x2 update inside the first block must preserve the block and its sampler.
+    DX12Texture* tex = GetTextureData(texture);
+    const uint16_t sampler = tex->m_TextureSamplerIndex;
+    params.m_X = 0;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_LINEAR;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+
+    // An uncompressed texel also cannot replace part of a compressed block.
+    const uint8_t rgba[] = { 4, 5, 6, 7 };
+    params.m_Width = params.m_Height = 1;
+    params.m_Format = TEXTURE_FORMAT_RGBA;
+    params.m_Data = rgba;
+    params.m_DataSize = sizeof(rgba);
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(TEXTURE_FORMAT_RGB_BC1, tex->m_Base.m_Format);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 1, 0, bytes);
+    ASSERT_EQ(2 * sizeof(blocks[0]), bytes.Size());
+    ASSERT_EQ(0, memcmp(blocks[0], bytes.Begin(), sizeof(blocks[0])));
+    ASSERT_EQ(0, memcmp(blocks[2], bytes.Begin() + sizeof(blocks[0]), sizeof(blocks[2])));
+}
+
+// Verifies reused mips accept RGB repacked to RGBA and reject BC1 before staging a copy.
+TEST_F(DX12Test, TextureUpdateFormatMustMatchStorage)
+{
+    uint8_t base[6 * 2 * 4];
+    memset(base, 0x5a, sizeof(base));
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 6, 2, 1, 2);
+    TextureParams params;
+    params.m_Width = 6;
+    params.m_Height = 2;
+    params.m_Data = base;
+    params.m_DataSize = sizeof(base);
+    SetTexture(GetContext(), texture, params);
+
+    const uint8_t rgb[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    params.m_SubUpdate = 1;
+    params.m_MipMap = 1;
+    params.m_Width = 3;
+    params.m_Height = 1;
+    params.m_Format = TEXTURE_FORMAT_RGB;
+    params.m_Data = rgb;
+    params.m_DataSize = sizeof(rgb);
+    SetTexture(GetContext(), texture, params);
+
+    const uint32_t staged = GetFrame().m_ResourcesToDestroy.Size();
+    const uint32_t resource_size = GetTextureResourceSize(GetContext(), texture);
+    const uint8_t block[8] = { 10 };
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_Data = block;
+    params.m_DataSize = sizeof(block);
+    params.m_SubUpdate = 0;
+    SetTexture(GetContext(), texture, params);
+
+    params.m_SubUpdate = 1;
+    params.m_MipMap = 0;
+    params.m_X = 4;
+    params.m_Width = params.m_Height = 2;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(staged, GetFrame().m_ResourcesToDestroy.Size());
+    ASSERT_EQ(TEXTURE_FORMAT_RGBA, GetTextureData(texture)->m_Base.m_Format);
+    ASSERT_EQ(resource_size, GetTextureResourceSize(GetContext(), texture));
+
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(base), bytes.Size());
+    ASSERT_EQ(0, memcmp(base, bytes.Begin(), bytes.Size()));
+    const uint8_t rgba[] = { 1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255 };
+    ReadTexture(texture, 1, 0, bytes);
+    ASSERT_EQ(sizeof(rgba), bytes.Size());
+    ASSERT_EQ(0, memcmp(rgba, bytes.Begin(), bytes.Size()));
+}
+
+// Verifies writes in a color attachment's declared format preserve texel spacing and the render target resource.
+TEST_F(DX12Test, PromotedRenderTargetTextureUploads)
+{
+    const uint16_t r16f[] = { 0x3800, 0x4000 }; // 0.5, 2.0
+    const uint16_t rgba16f[] = { 0x3800, 0, 0, 0x3c00, 0x4000, 0, 0, 0x3c00 };
+    const uint8_t rg8[] = { 11, 22, 33, 44 };
+    const uint8_t rgba8[] = { 11, 22, 0, 255, 33, 44, 0, 255 };
+    const float rgb32f[] = { 0.25f, 0.5f, 0.75f, 2.0f, 3.0f, 4.0f };
+    const float rgba32f[] = { 0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 3.0f, 4.0f, 1.0f };
+    const struct
+    {
+        TextureFormat m_Format;
+        TextureFormat m_IncompatibleFormat;
+        const void*   m_Pixels;
+        uint32_t      m_Size;
+        const void*   m_Expected;
+        uint32_t      m_ExpectedSize;
+    } cases[] = {
+        { TEXTURE_FORMAT_R16F, TEXTURE_FORMAT_RG16F, r16f, sizeof(r16f), rgba16f, sizeof(rgba16f) },
+        { TEXTURE_FORMAT_LUMINANCE_ALPHA, TEXTURE_FORMAT_LUMINANCE, rg8, sizeof(rg8), rgba8, sizeof(rgba8) },
+        { TEXTURE_FORMAT_RGB32F, TEXTURE_FORMAT_R32F, rgb32f, sizeof(rgb32f), rgba32f, sizeof(rgba32f) },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        RenderTargetCreationParams creation;
+        creation.m_ColorBufferCreationParams[0].m_Width = creation.m_ColorBufferParams[0].m_Width = 2;
+        creation.m_ColorBufferCreationParams[0].m_Height = creation.m_ColorBufferParams[0].m_Height = 1;
+        creation.m_ColorBufferParams[0].m_Format = cases[i].m_Format;
+        HRenderTarget target = NewRenderTarget(GetContext(), BUFFER_TYPE_COLOR0_BIT, creation);
+        HTexture color = GetRenderTargetTexture(GetContext(), target, BUFFER_TYPE_COLOR0_BIT);
+        ID3D12Resource* attachment = GetTextureData(color)->m_Resource;
+
+        TextureParams params;
+        params.m_Format = cases[i].m_Format;
+        params.m_Width = 2;
+        params.m_Height = 1;
+        params.m_Data = cases[i].m_Pixels;
+        params.m_DataSize = cases[i].m_Size;
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        dmArray<uint8_t> bytes;
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+
+        // Overwrite only the second texel with the first texel's value.
+        params.m_X = 1;
+        params.m_Width = 1;
+        params.m_DataSize = cases[i].m_Size / 2;
+        SetTexture(GetContext(), color, params);
+        ReadTexture(color, 0, 0, bytes);
+        const uint32_t stride = cases[i].m_ExpectedSize / 2;
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), stride));
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin() + stride, stride));
+
+        params.m_SubUpdate = 0;
+        params.m_X = 0;
+        params.m_Width = 2;
+        params.m_DataSize = cases[i].m_Size;
+        SetTexture(GetContext(), color, params);
+
+        // Reject another narrow format that would promote to the same render-target storage.
+        const uint32_t zeros[2] = {};
+        params.m_Format = cases[i].m_IncompatibleFormat;
+        params.m_Data = zeros;
+        params.m_DataSize = GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height);
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        params.m_SubUpdate = 0;
+        SetTexture(GetContext(), color, params);
+        ASSERT_EQ(attachment, GetTextureData(color)->m_Resource);
+        ASSERT_EQ(cases[i].m_Format, GetTextureData(color)->m_Base.m_Format);
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+        DeleteRenderTarget(GetContext(), target);
+    }
+}
+
+// Verifies a rejected mip-zero redefinition preserves the original resource until a valid upload replaces it.
+TEST_F(DX12Test, TextureRedefinitionCommitsAfterUpload)
+{
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 1, 1, 1, 1);
+    const uint8_t pixel[] = { 1, 2, 3, 4 };
+    TextureParams params;
+    params.m_Width = params.m_Height = 1;
+    params.m_Data = pixel;
+    params.m_DataSize = sizeof(pixel);
+    SetTexture(GetContext(), texture, params);
+
+    const uint8_t block[8] = { 5 };
+    params.m_X = 1;
+    params.m_Width = params.m_Height = 4;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_Data = block;
+    params.m_DataSize = sizeof(block);
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(1u, GetTextureWidth(GetContext(), texture));
+    ASSERT_EQ(TEXTURE_FORMAT_RGBA, GetTextureData(texture)->m_Base.m_Format);
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(pixel), bytes.Size());
+    ASSERT_EQ(0, memcmp(pixel, bytes.Begin(), bytes.Size()));
+
+    params.m_X = 0;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(4u, GetTextureWidth(GetContext(), texture));
+    ASSERT_EQ(TEXTURE_FORMAT_RGB_BC1, GetTextureData(texture)->m_Base.m_Format);
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(block), bytes.Size());
+    ASSERT_EQ(0, memcmp(block, bytes.Begin(), bytes.Size()));
+}
+
+// Verifies a failed pre-frame Close() restores each layer's state and a subsequent upload succeeds.
+TEST_F(DX12Test, FailedStartupUploadRestoresLayerStates)
+{
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D_ARRAY, 1, 1, 2, 1);
+    TextureParams params;
+    params.m_Width = params.m_Height = 1;
+    params.m_LayerCount = 2;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_NEAREST;
+    SetTexture(GetContext(), texture, params);
+    DX12Texture* tex = GetTextureData(texture);
+    const uint16_t sampler = tex->m_TextureSamplerIndex;
+    TransitionTexture(m_Context->m_CommandList, tex, D3D12_RESOURCE_STATE_COPY_SOURCE, 1, 1);
+    SubmitAndWait();
+
+    // Overstate the cached width for one upload. WARP rejects both copies when the list closes.
+    D3D12_MESSAGE_ID expected = D3D12_MESSAGE_ID_COPYTEXTUREREGION_DSTREGIONOUTOFBOUNDS;
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumIDs = 1;
+    filter.DenyList.pIDList = &expected;
+    RequireHR(m_Info->PushStorageFilter(&filter));
+    const UINT64 denied = m_Info->GetNumMessagesDeniedByStorageFilter();
+    const uint8_t pixels[][4] = { { 1 }, { 2 }, { 3 }, { 4 } };
+    params.m_SubUpdate = 1;
+    params.m_Width = 2;
+    params.m_Data = pixels;
+    params.m_DataSize = 2 * sizeof(pixels[0]);
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_LINEAR;
+    m_Context->m_FrameBegun = 0;
+    tex->m_ResourceDesc.Width = 2;
+    SetTexture(GetContext(), texture, params);
+    tex->m_ResourceDesc.Width = 1;
+    m_Info->PopStorageFilter();
+    ASSERT_GT(m_Info->GetNumMessagesDeniedByStorageFilter(), denied);
+    ASSERT_EQ(D3D12_RESOURCE_STATE_COPY_DEST, tex->m_ResourceStates[0]);
+    ASSERT_EQ(D3D12_RESOURCE_STATE_COPY_SOURCE, tex->m_ResourceStates[1]);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+    RequireHR(m_Context->m_Device->GetDeviceRemovedReason());
+
+    params.m_Width = 1;
+    params.m_DataSize = sizeof(pixels[0]);
+    SetTexture(GetContext(), texture, params);
+    m_Context->m_FrameBegun = 1;
+    dmArray<uint8_t> bytes;
+    for (uint32_t layer = 0; layer < 2; ++layer)
+    {
+        ReadTexture(texture, 0, layer, bytes);
+        ASSERT_EQ(sizeof(pixels[layer]), bytes.Size());
+        ASSERT_EQ(0, memcmp(pixels[layer], bytes.Begin(), bytes.Size()));
+    }
+}
+
 // Verifies compressed array updates preserve blocks outside the updated region.
 TEST_F(DX12Test, CompressedArraySubUpdatePreservesOtherBlocks)
 {
@@ -501,8 +890,9 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
         "Texture2D<float4> tex:register(t0); SamplerState smp:register(s0);"
         "cbuffer Values:register(b0){uint index;float value;} RWStructuredBuffer<float4> output:register(u0);"
         "[numthreads(1,1,1)] void main(){output[index]=tex.SampleLevel(smp,float2(0.5,0.5),0)+value;}";
-    ComPtr<ID3DBlob> shader, errors, signature;
-    RequireHR(D3DCompile(source, strlen(source), 0, 0, 0, "main", "cs_5_1", 0, 0, &shader, &errors));
+    ComPtr<IDxcBlob> shader;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(source, "cs_6_0", &shader));
     D3D12_DESCRIPTOR_RANGE ranges[2] = {};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[0].NumDescriptors = 1;
@@ -624,9 +1014,10 @@ TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
     Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1, 0);
     const char* vs = FULLSCREEN_VS;
     const char* ps = "float4 main():SV_Target {return float4(1,0,0,1);}";
-    ComPtr<ID3DBlob> vertex, fragment, errors, signature;
-    RequireHR(D3DCompile(vs, strlen(vs), 0, 0, 0, "main", "vs_5_1", 0, 0, &vertex, &errors));
-    RequireHR(D3DCompile(ps, strlen(ps), 0, 0, 0, "main", "ps_5_1", 0, 0, &fragment, &errors));
+    ComPtr<IDxcBlob> vertex, fragment;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(vs, "vs_6_0", &vertex));
+    RequireHR(CompileShaderSM6(ps, "ps_6_0", &fragment));
     D3D12_ROOT_SIGNATURE_DESC desc = {};
     desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     RequireHR(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors));
@@ -749,7 +1140,7 @@ TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
     DeleteRenderTarget(GetContext(), other);
 }
 
-// Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
+// Verifies sparse, typed MRT outputs use compiler metadata with no DX12 validation warnings.
 TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
 {
     HRenderTarget target = CreateTestRenderTarget(4, 4);
@@ -761,16 +1152,21 @@ TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
     shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
     shader.AddShaderStage(
         "struct Out {float4 color:SV_Target0;"
-        "float4 extra:SV_Target1;"
+        "uint2 extra:SV_Target3;"
         "};"
         " Out main(){Out o;"
         "o.color=float4(1,0,0,1);"
-        "o.extra=float4(0,1,0,1);"
+        "o.extra=uint2(1,2);"
         "return o;"
         "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
     shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
     HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
+    DX12ShaderProgram* dx12_program = (DX12ShaderProgram*)program;
+    ASSERT_EQ(4u, dx12_program->m_PixelShaderOutputCount);
+    ASSERT_EQ(DXGI_FORMAT_R32G32B32A32_FLOAT, dx12_program->m_PixelShaderOutputFormats[0]);
+    ASSERT_EQ(DXGI_FORMAT_UNKNOWN, dx12_program->m_PixelShaderOutputFormats[1]);
+    ASSERT_EQ(DXGI_FORMAT_R32G32_UINT, dx12_program->m_PixelShaderOutputFormats[3]);
     EnableProgram(GetContext(), program);
     Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixel[4] = {};
@@ -1618,13 +2014,204 @@ TEST_F(DX12Test, PackedMatrixVertexInputs)
     DeleteRenderTarget(GetContext(), target);
 }
 
+// Verifies original handles unbind every matching copy without clearing a replacement binding.
+TEST_F(DX12Test, DisableCopiedVertexDeclarations)
+{
+    TestProgram shader;
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main():SV_Target {return float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration a = NewVertexDeclaration(GetContext(), streams);
+    HVertexDeclaration b = NewVertexDeclaration(GetContext(), streams);
+
+    EnableVertexDeclaration(GetContext(), a, 0, 16, program);
+    EnableVertexDeclaration(GetContext(), a, 1, 32, program);
+    EnableVertexDeclaration(GetContext(), b, 0, 48, program);
+    DisableVertexDeclaration(GetContext(), a);
+    ASSERT_EQ((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[1]);
+    ASSERT_EQ(0u, m_Context->m_CurrentVertexBufferOffset[1]);
+    ASSERT_NE((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[0]);
+    ASSERT_EQ(48u, m_Context->m_CurrentVertexBufferOffset[0]);
+
+    EnableVertexDeclaration(GetContext(), b, 1, 32, program);
+    DisableVertexDeclaration(GetContext(), b);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[i]);
+        ASSERT_EQ((HVertexDeclaration)0, m_Context->m_EnabledVertexDeclarations[i]);
+        ASSERT_EQ(0u, m_Context->m_CurrentVertexBufferOffset[i]);
+    }
+    DeleteVertexDeclaration(a);
+    DeleteVertexDeclaration(b);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+}
+
+// Verifies a fresh per-vertex pipeline after an instanced draw does not inherit duplicate bar_value inputs (#13609).
+TEST_F(DX12Test, InstancedThenPerVertexDeclaration)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.AddShaderStage(
+        "struct Output {float4 position:SV_Position; float4 value:TEXCOORD0;};"
+        "Output main(float4 position:TEXCOORD1, float4 value:TEXCOORD0) {"
+
+        "Output o; o.position=position; o.value=value; return o;}", ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main(float4 position:SV_Position, float4 value:TEXCOORD0):SV_Target {return value;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    AddShaderResource(&shader.m_Desc, "bar_value", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    AddShaderResource(&shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+    float data[] = {0,1,0,1, -1,-1,0.5f,1, 0,1,0,1, -1,3,0.5f,1, 0,1,0,1, 3,-1,0.5f,1};
+    HVertexBuffer buffer = NewVertexBuffer(GetContext(), sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration instance = NewVertexDeclaration(GetContext(), streams);
+    AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration vertex = NewVertexDeclaration(GetContext(), streams);
+    instance->m_StepFunction = VERTEX_STEP_FUNCTION_INSTANCE;
+    HVertexStreamDeclaration position_streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(position_streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration position = NewVertexDeclaration(GetContext(), position_streams, 32);
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexBuffer(GetContext(), buffer, 1);
+    EnableVertexDeclaration(GetContext(), position, 0, 16, program);
+    EnableVertexDeclaration(GetContext(), instance, 1, 0, program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), position);
+    DisableVertexDeclaration(GetContext(), instance);
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexDeclaration(GetContext(), vertex, 0, 0, program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixel[4] = {};
+    ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
+    ASSERT_EQ(255, pixel[1]);
+    SubmitAndWait();
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), vertex);
+    DeleteVertexBuffer(buffer);
+    DeleteVertexDeclaration(position);
+    DeleteVertexDeclaration(instance);
+    DeleteVertexDeclaration(vertex);
+    DeleteVertexStreamDeclaration(position_streams);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies instance color overrides mesh color without duplicate DX12 input semantics.
+TEST_F(DX12Test, InstanceAttributeOverridesMeshAttribute)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+
+    const char* vertex_shader =
+        "struct Output\n"
+        "{\n"
+        "    float4 position : SV_Position;\n"
+        "    float4 value : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "Output main(float4 position : TEXCOORD1, float4 value : TEXCOORD0)\n"
+        "{\n"
+        "    Output output;\n"
+        "    output.position = position;\n"
+        "    output.value = value;\n"
+        "    return output;\n"
+        "}\n";
+
+    const char* fragment_shader =
+        "float4 main(float4 position : SV_Position, float4 value : TEXCOORD0) : SV_Target\n"
+        "{\n"
+        "    return value;\n"
+        "}\n";
+
+    TestProgram shader;
+    shader.AddShaderStage(vertex_shader, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage(fragment_shader, ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+
+    AddShaderResource(
+        &shader.m_Desc, "bar_value", ShaderDesc::SHADER_TYPE_VEC4,
+        0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    AddShaderResource(
+        &shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4,
+        1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+
+    // Each mesh vertex has a red color followed by its position.
+    float data[] = {
+        1, 0, 0, 1,    -1, -1, 0.5f, 1,
+        1, 0, 0, 1,    -1,  3, 0.5f, 1,
+        1, 0, 0, 1,     3, -1, 0.5f, 1,
+    };
+    float instance_data[] = {0, 1, 0, 1};
+
+    HVertexBuffer instance_buffer = NewVertexBuffer(
+        GetContext(), sizeof(instance_data), instance_data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexBuffer buffer = NewVertexBuffer(
+        GetContext(), sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration instance = NewVertexDeclaration(GetContext(), streams);
+
+    AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration vertex = NewVertexDeclaration(GetContext(), streams);
+    instance->m_StepFunction = VERTEX_STEP_FUNCTION_INSTANCE;
+
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexBuffer(GetContext(), instance_buffer, 1);
+    EnableVertexDeclaration(GetContext(), vertex, 0, 0, program);
+    EnableVertexDeclaration(GetContext(), instance, 1, 0, program);
+
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+    // The green instance color must override the red mesh color.
+    uint8_t instance_pixel[4] = {};
+    ReadPixels(GetContext(), 1, 1, 1, 1, instance_pixel, sizeof(instance_pixel));
+    ASSERT_EQ(0, instance_pixel[0]);
+    ASSERT_EQ(255, instance_pixel[1]);
+
+    DisableVertexBuffer(GetContext(), instance_buffer);
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), vertex);
+    DisableVertexDeclaration(GetContext(), instance);
+    SubmitAndWait();
+
+    DeleteVertexBuffer(instance_buffer);
+    DeleteVertexBuffer(buffer);
+    DeleteVertexDeclaration(instance);
+    DeleteVertexDeclaration(vertex);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
+}
+
 int main(int argc, char** argv)
 {
     GraphicsAdapterDX12();
     // The fixture supplies WARP; do not require a hardware adapter or a window.
     GetRegisteredAdapter(0)->m_IsSupportedCb = IsTestAdapterSupported;
-    if (!InstallAdapter(ADAPTER_FAMILY_DIRECTX))
+    if (InstallAdapter(ADAPTER_FAMILY_DIRECTX) != RESULT_OK)
+    {
         return 1;
+    }
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

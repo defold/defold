@@ -13,7 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 package com.dynamo.bob.util;
+
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.logging.Logger;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -22,8 +24,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
-
-import com.dynamo.bob.logging.Logger;
 
 public class Exec {
 

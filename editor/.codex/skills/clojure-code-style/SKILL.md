@@ -7,9 +7,19 @@ Applies to your changes only, keep the rest of the code untouched unless explici
 
 # Rules
 
+## Naming
+
+Use full names when referring to concepts or values. For example, shortening "evaluation-context" to just "context" can confuse it with "transaction-context".
+
+If there is already a canonical name for something in the code base, use that name.
+
+## Comments
+
+Do not remove or rephrase existing comments that provide valuable context. You may of course update and move them to reflect changes.
+
 ## if/if-not
 
-When one branch of an `if` is trivial, prefer placing the trivial branch in the true position.
+When one branch of an `if` spans multiple lines, prefer placing it in the false position.
 
 ## Functions
 
@@ -19,11 +29,21 @@ Avoid introducing multiple arities to functions. Prefer updating call sites with
 
 Name functions that are stored or invoked later for clearer stack traces. Small inline transformations and `#(...)` may remain unnamed.
 
+## Readability
+
+Don't do too much on a single line. Instead of nesting expressions, introduce `let` bindings for non-trivial work.
+
+If any of the arguments to a function or macro invocation are non-trivial, put each argument on its own line.
+
 ## Grouping and spacing
 
 Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals) to keep indentation under control. Separate blocks with blank lines.
 
-## Keep requires sorted
+## Requires and imports
+
+Keep requires sorted.
+
+Import classes instead of using fully-qualified names.
 
 ## Validate at edges, trust internals
 
@@ -46,7 +66,7 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 ## Linting
 
-Use `clj-kondo` to find and fix lint issues in your changes.
+Use `lein lint <file> [<file> ...]` to find and fix lint issues in your changes.
 
 ## Formatting
 
@@ -61,7 +81,7 @@ If your change causes the running editor to disable handlers or timers after an 
   (editor.ui/enable-disabled-functionality!))
 ```
 
-## Inline single-use trivial helpers/constants/locals
+## Inline single-use trivial helpers/constants
 
 They make the code worse because they make the logic/behavior non-local, introducing a separation where there is none.
 

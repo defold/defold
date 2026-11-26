@@ -206,8 +206,12 @@
 (def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
 
 (defn- make-textured-quad-vertex-buffer
-  [vertex-description renderables]
-  (let [vertex-buffer-capacity (* (count renderables) 6)
+  [renderables]
+  ;; Both preview shaders use the paged layout: position, UV, and page index.
+  ;; Keep this layout so the vertex stride matches the data written below; the
+  ;; tone-mapping shader consumes only position and UV, ignoring the page index.
+  (let [vertex-description (shaders/vertex-description textured-quad-shader)
+        vertex-buffer-capacity (* (count renderables) 6)
         vertex-buffer (vtx/make-vertex-buffer vertex-description :stream vertex-buffer-capacity)
         byte-buffer (vtx/buf vertex-buffer)
         float-buffer (.asFloatBuffer byte-buffer)
@@ -244,16 +248,16 @@
   [^GL3 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
+        shader (:shader user-data)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
-        vertex-description (shaders/vertex-description textured-quad-shader)
-        vertex-buffer (make-textured-quad-vertex-buffer vertex-description renderables)
-        vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
-    (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
-      (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
+        vertex-buffer (make-textured-quad-vertex-buffer renderables)
+        vertex-binding (vtx/use-with ::textured-quad vertex-buffer shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+      (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
       (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vertex-buffer)))))
 
 (defn- make-textured-quad-renderable
-  [tags x y width height gpu-texture page-index]
+  [shader tags x y width height gpu-texture page-index]
   {:pre [(graphics.types/renderable-tags? tags)
          (number? x)
          (number? y)
@@ -263,18 +267,18 @@
          (nat-int? page-index)]}
   {:render-fn render-textured-quad
    :tags tags
-   :batch-key gpu-texture
+   :batch-key [shader gpu-texture]
    :passes [pass/transparent]
    :user-data {:x x
                :y y
                :width width
                :height height
                :page-index page-index
+               :shader shader
                :gpu-texture gpu-texture}})
 
-;; SDK api
-(defn make-outlined-textured-quad-scene
-  [tags pose-or-transform width height gpu-texture page-index]
+(defn- make-outlined-textured-quad-scene-impl
+  [shader tags pose-or-transform width height gpu-texture page-index]
   (let [min (Point3d. 0.0 0.0 0.0)
         max (Point3d. (double width) (double height) 0.0)
         aabb (types/->AABB min max)
@@ -293,6 +297,15 @@
                           {:value pose-or-transform})))]
     {:aabb aabb
      :pose pose
-     :renderable (make-textured-quad-renderable tags 0.0 0.0 width height gpu-texture page-index)
+     :renderable (make-textured-quad-renderable shader tags 0.0 0.0 width height gpu-texture page-index)
      :children [{:aabb aabb
                  :renderable (make-aabb-outline-renderable tags)}]}))
+
+;; SDK api
+(defn make-outlined-textured-quad-scene
+  [tags pose-or-transform width height gpu-texture page-index]
+  (make-outlined-textured-quad-scene-impl textured-quad-shader tags pose-or-transform width height gpu-texture page-index))
+
+(defn make-outlined-tone-mapped-textured-quad-scene
+  [tags pose-or-transform width height gpu-texture page-index]
+  (make-outlined-textured-quad-scene-impl shaders/basic-texture-tone-mapped-world-space tags pose-or-transform width height gpu-texture page-index))

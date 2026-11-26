@@ -58,8 +58,10 @@ protected:
         m_Context = dmScript::NewContext(script_context_params);
 
         dmExtension::AppParams app_params;
+        dmExtension::AppParamsInitialize(&app_params);
         app_params.m_ConfigFile = m_ConfigFile;
         dmExtension::AppInitialize(&app_params);
+        dmExtension::AppParamsFinalize(&app_params);
 
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -74,8 +76,10 @@ protected:
         dmScript::DeleteContext(m_Context);
 
         dmExtension::AppParams app_params;
+        dmExtension::AppParamsInitialize(&app_params);
         app_params.m_ConfigFile = m_ConfigFile;
         dmExtension::AppFinalize(&app_params);
+        dmExtension::AppParamsFinalize(&app_params);
     }
 
     dmScript::HContext m_Context;

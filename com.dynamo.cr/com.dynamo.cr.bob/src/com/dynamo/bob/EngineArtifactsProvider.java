@@ -38,6 +38,8 @@ public final class EngineArtifactsProvider {
     private static final Logger logger = Logger.getLogger(EngineArtifactsProvider.class.getName());
     private static File sCacheBase;
 
+    public static final String LINUX_UNSTRIPPED_ENGINE_NAME = "dmengine_unstripped";
+
     private EngineArtifactsProvider() {}
 
     public static synchronized void setCacheBase(File cacheBase) {
@@ -83,6 +85,10 @@ public final class EngineArtifactsProvider {
                 String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
 
                 if (symbolsFilename != null) {
+                    if (p.getOsID() == OS.OS_ID_LINUX) {
+                        // Not removed by cleanEngines(), so a failed download must not leave symbols from an earlier build
+                        FileUtils.deleteQuietly(new File(new File(project.getBinaryOutputDirectory(), p.getExtenderPair()), LINUX_UNSTRIPPED_ENGINE_NAME));
+                    }
                     try {
                         String fallbackKey = (p != null) ? p.getOs() : null;
                         File cached = getOrDownloadArtifact(Bob.ARTIFACTS_URL, platformKey, symbolsFilename, fallbackKey, false);
@@ -96,6 +102,9 @@ public final class EngineArtifactsProvider {
                             if (!expectedDir.exists()) {
                                 unzipIfZip(cached, targetFolder);
                             }
+                        } else if (p.getOsID() == OS.OS_ID_LINUX) {
+                            // Fixed name so a debug variant symbol file isn't mistaken for an extender built dmengine
+                            FileUtils.copyFile(cached, new File(targetFolder, LINUX_UNSTRIPPED_ENGINE_NAME));
                         } else {
                             File target = new File(targetFolder, symbolsFilename);
                             if (!target.exists()) {
@@ -194,6 +203,9 @@ public final class EngineArtifactsProvider {
         }
         if (os == OS.OS_ID_WEB) {
             return String.format("dmengine%s.js.symbols", variantSuffix);
+        }
+        if (os == OS.OS_ID_LINUX) {
+            return String.format("dmengine%s", variantSuffix);
         }
         return null;
     }

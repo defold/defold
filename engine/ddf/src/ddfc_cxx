@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-DDFC=`dirname $0`/ddfc.py
+DDFC="$(dirname "$0")/ddfc.py"
 
 # NOTE: The output here is parsed later on, so don't print invalid code!
 
-python3 $DDFC --cxx $@
+# Use the bundled dependencies on PYTHONPATH without importing host site-packages.
+exec python3 -S "$DDFC" --cxx "$@"

@@ -14,17 +14,17 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.util.PathUtil;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import com.dynamo.bob.util.PathUtil;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PathUtilTest {
 

@@ -14,30 +14,28 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.hamcrest.CoreMatchers.is;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashSet;
-
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.liveupdate.proto.Manifest;
-import org.junit.Test;
-
-import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.liveupdate.proto.Manifest;
 import com.google.protobuf.Message;
+import org.junit.Test;
 
-import com.dynamo.bob.util.MurmurHash;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 

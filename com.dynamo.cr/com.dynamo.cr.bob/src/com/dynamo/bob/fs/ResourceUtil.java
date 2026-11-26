@@ -16,13 +16,12 @@ package com.dynamo.bob.fs;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
+import org.apache.commons.lang3.StringUtils;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Collections;
-
-import org.apache.commons.lang3.StringUtils;
 
 public class ResourceUtil {
 
@@ -189,6 +188,11 @@ public class ResourceUtil {
         cachedPaths.put(path, minifiedPath);
         minifiedPaths.add(minifiedPath);
         return minifiedPath;
+    }
+
+    public static void clearMinifiedPaths() {
+        cachedPaths.clear();
+        minifiedPaths.clear();
     }
 
     public static Map<String, String> snapshotMinifiedPaths() {

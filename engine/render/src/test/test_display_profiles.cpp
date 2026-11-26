@@ -138,6 +138,35 @@ TEST(dmDisplayProfilesTest, TestProjectWithoutProfiles)
     dmRender::DeleteDisplayProfiles(profiles);
 }
 
+// Recreating profiles with empty data removes old layouts and their device-model qualifiers.
+TEST(dmDisplayProfilesTest, ReplacingProfilesWithEmptyData)
+{
+    const char* device_models[] = { "a device model" };
+    dmRenderDDF::DisplayProfileQualifier qualifiers[] = {
+        { 1280, 720, { 0, 0 } },
+        { 720, 1280, { device_models, 1 } }
+    };
+    dmRenderDDF::DisplayProfile profile = { "landscape", { qualifiers, 2 } };
+    dmRenderDDF::DisplayProfiles populated = { { &profile, 1 } };
+    dmRenderDDF::DisplayProfiles empty = {};
+    dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
+    dmRender::DisplayProfilesParams params;
+    params.m_DisplayProfilesDDF = &populated;
+    ASSERT_EQ(1u, dmRender::SetDisplayProfiles(profiles, params));
+    ASSERT_EQ(dmHashString64("landscape"), dmRender::GetOptimalDisplayProfile(profiles, 1280, 720, 0, 0));
+
+    params.m_DisplayProfilesDDF = &empty;
+    ASSERT_EQ(0u, dmRender::SetDisplayProfiles(profiles, params));
+    ASSERT_EQ((dmhash_t)0, dmRender::GetOptimalDisplayProfile(profiles, 1280, 720, 0, 0));
+
+    params.m_DisplayProfilesDDF = &populated;
+    ASSERT_EQ(1u, dmRender::SetDisplayProfiles(profiles, params));
+    params.m_DisplayProfilesDDF = 0;
+    ASSERT_EQ(0u, dmRender::SetDisplayProfiles(profiles, params));
+    ASSERT_EQ((dmhash_t)0, dmRender::GetOptimalDisplayProfile(profiles, 1280, 720, 0, 0));
+    dmRender::DeleteDisplayProfiles(profiles);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

@@ -14,18 +14,18 @@
 
 package com.dynamo.bob.util;
 
+import org.apache.commons.io.IOUtils;
+
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.IOException;
-import java.io.FileInputStream;
-import java.io.BufferedInputStream;
-import java.util.zip.Checksum;
-import java.util.zip.CRC32;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
-import org.apache.commons.io.IOUtils;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 public class FileUtil {
 

@@ -41,7 +41,7 @@ function(defold_target_link_opengl target platform)
 
     elseif(_PLAT_OS STREQUAL "linux")
         # Linux OpenGL libraries
-        target_link_libraries(${target} ${DOGL_SCOPE} GL GLU)
+        target_link_libraries(${target} ${DOGL_SCOPE} GL)
 
     elseif(_PLAT_OS STREQUAL "android")
         # Android EGL + GLES

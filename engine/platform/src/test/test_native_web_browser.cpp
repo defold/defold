@@ -50,29 +50,57 @@ static void OnCharacter(void* user_data, int character)
     g_LastChar = character;
 }
 
+static int OpenWindow(WindowsGraphicsApi graphics_api)
+{
+    if (g_Window)
+    {
+        dmPlatform::CloseWindow(g_Window);
+    }
+    else
+    {
+        g_Window = dmPlatform::NewWindow();
+    }
+
+    if (!g_Window)
+    {
+        return -1;
+    }
+
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Width = 640;
+    params.m_Height = 480;
+    params.m_GraphicsApi = graphics_api;
+    params.m_GraphicsApiVersionHint = 2;
+    params.m_ContextAlphabits = 8;
+    params.m_HighDPI = 1;
+    params.m_ResizeCallback = OnResize;
+    params.m_FocusCallback = OnFocus;
+    params.m_CloseCallback = OnClose;
+    WindowResult result = dmPlatform::OpenWindow(g_Window, params);
+    if (result == WINDOW_RESULT_OK)
+    {
+        dmPlatform::SetKeyboardCharCallback(g_Window, OnCharacter, 0);
+    }
+
+    return result;
+}
+
 extern "C"
 {
     EMSCRIPTEN_KEEPALIVE int TestOpen()
     {
-        g_Window = dmPlatform::NewWindow();
-        if (!g_Window)
-            return -1;
+        return OpenWindow(WINDOW_GRAPHICS_API_OPENGLES);
+    }
 
-        WindowCreateParams params;
-        WindowCreateParamsInitialize(&params);
-        params.m_Width = 640;
-        params.m_Height = 480;
-        params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
-        params.m_GraphicsApiVersionHint = 2;
-        params.m_ContextAlphabits = 8;
-        params.m_HighDPI = 1;
-        params.m_ResizeCallback = OnResize;
-        params.m_FocusCallback = OnFocus;
-        params.m_CloseCallback = OnClose;
-        WindowResult result = dmPlatform::OpenWindow(g_Window, params);
-        if (result == WINDOW_RESULT_OK)
-            dmPlatform::SetKeyboardCharCallback(g_Window, OnCharacter, 0);
-        return result;
+    EMSCRIPTEN_KEEPALIVE int TestOpenWebGPU()
+    {
+        return OpenWindow(WINDOW_GRAPHICS_API_WEBGPU);
+    }
+
+    EMSCRIPTEN_KEEPALIVE int TestRequestClose()
+    {
+        return dmPlatform::TriggerCloseCallback(g_Window);
     }
 
     EMSCRIPTEN_KEEPALIVE void TestClose()

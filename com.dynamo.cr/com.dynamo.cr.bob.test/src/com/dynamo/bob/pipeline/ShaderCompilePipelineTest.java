@@ -14,19 +14,29 @@
 
 package com.dynamo.bob.pipeline;
 
-import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
-import static org.junit.Assert.*;
-
-import java.io.IOException;
-import java.util.ArrayList;
-
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Test;
 
-import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
-import com.dynamo.bob.pipeline.shader.SPIRVReflector;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ShaderCompilePipelineTest {
 
@@ -39,6 +49,62 @@ public class ShaderCompilePipelineTest {
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+    }
+
+    private void assertNoMatrixPhi(byte[] spirv) {
+        ByteBuffer words = ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
+        Set<Integer> matrixTypes = new HashSet<>();
+        for (int offset = 20; offset < words.limit();) {
+            int instruction = words.getInt(offset);
+            int opcode = instruction & 0xffff;
+            if (opcode == 24) { // OpTypeMatrix
+                matrixTypes.add(words.getInt(offset + 4));
+            } else if (opcode == 245) { // OpPhi
+                assertFalse("Matrix-valued OpPhi fails on Adreno 530", matrixTypes.contains(words.getInt(offset + 4)));
+            }
+            offset += (instruction >>> 16) * 4;
+        }
+    }
+
+    // Guards built-in skinning against matrix-valued OpPhi instructions rejected by Adreno 530.
+    @Test
+    public void testSkinningWithoutMatrixPhi() throws Exception {
+        String skinning;
+        try (InputStream stream = getClass().getResourceAsStream("/builtins/materials/skinning.glsl")) {
+            assertNotNull(stream);
+            skinning = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        for (boolean instanced : new boolean[] { false, true }) {
+            for (boolean editor : new boolean[] { false, true }) {
+                ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+                module.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+                module.source = "#version 140\n"
+                    + "in vec4 position;\nin vec3 normal;\nin vec4 bone_indices;\nin vec4 bone_weights;\n"
+                    + (instanced ? "in vec4 animation_data;\n" : "uniform uniforms { vec4 animation_data; };\n")
+                    + skinning
+                    + "\nvoid main() {\n"
+                    + "    vec4 p = get_skinned_position(position);\n"
+                    + "    vec3 n = get_skinned_normal(normal);\n"
+                    + "    vec4 t = get_skin_matrix() * vec4(normal, 0.0);\n"
+                    + "    gl_Position = p + vec4(n + t.xyz, 0.0);\n}\n";
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                if (editor) {
+                    options.defines.add("EDITOR");
+                }
+                ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testSkinningWithoutMatrixPhi");
+                try {
+                    ShaderCompilePipeline.createShaderPipeline(pipeline, module, options);
+                    for (ShaderDesc.Language language : allLanguages) {
+                        Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, language, null, false);
+                        if (language == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                            assertNoMatrixPhi(result.data);
+                        }
+                    }
+                } finally {
+                    ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+                }
+            }
+        }
     }
 
     @Test
@@ -627,6 +693,42 @@ public class ShaderCompilePipelineTest {
         }
         assertTrue(didException);
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+    }
+
+    // Reject native compiler errors even when JNI returns a non-null, empty shader byte array.
+    @Test
+    public void testLegacyCrossCompilationPropagatesCompilerError() throws Exception {
+        Shaderc.ShaderCompileResult failureResult = new Shaderc.ShaderCompileResult();
+        failureResult.data = new byte[0];
+        failureResult.lastError = "Native shader compiler diagnostic";
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyCompilerError") {
+            @Override
+            protected void prepare() {}
+
+            @Override
+            protected Shaderc.ShaderCompileResult generateCrossCompiledShader(CrossCompileOptions compileOptions) {
+                return failureResult;
+            }
+        };
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, fsDesc, new ShaderCompilePipeline.Options());
+            for (ShaderDesc.Language language : new ShaderDesc.Language[] {
+                    ShaderDesc.Language.LANGUAGE_HLSL_60,
+                    ShaderDesc.Language.LANGUAGE_MSL_22}) {
+                try {
+                    pipeline.crossCompile(fsDesc.type, language, null, false);
+                    fail("Expected native compiler error for " + language);
+                } catch (CompileExceptionError e) {
+                    assertTrue(e.getMessage().contains(failureResult.lastError));
+                }
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     @Test

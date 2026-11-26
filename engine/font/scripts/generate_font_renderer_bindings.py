@@ -59,6 +59,8 @@ FUNCTIONS = (
     "FontcGetEffectTexture",
     "FontcGetVectorTextures",
     "FontcFreeTexture",
+    "FontcGetArc",
+    "FontcFreeArc",
     "FontcGetVertexBufferSize",
     "FontcGetVertices",
 )
@@ -80,6 +82,7 @@ STRUCTS = (
     "FontcMarkupData",
     "FontcProperties",
     "FontcTexture",
+    "FontcArc",
 )
 TYPEDEFS = (
     "HFontRenderer",

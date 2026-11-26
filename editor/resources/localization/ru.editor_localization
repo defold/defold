@@ -2456,7 +2456,7 @@ form.help.project.liveupdate.enabled = Инициализирует во вре�
 form.label.project.liveupdate.exclude_entries_from_main_manifest = Искл. из осн. манифеста
 form.help.project.liveupdate.exclude_entries_from_main_manifest = **Устарело и игнорируется.** При публикации содержимого Live Update Defold всегда удаляет исключённые записи из встроенного `game.dmanifest`, а `liveupdate.game.dmanifest` сохраняет полный список ресурсов. Любое существующее значение этого параметра ни на что не влияет.
 form.label.project.liveupdate.settings = Настройки
-form.help.project.liveupdate.settings = Ресурс настроек Live Update, используемый для публикации исключённого содержимого при создании бандла. Он выбирает вывод в Zip, папку или Amazon S3 и задаёт место назначения. При публикации выбранный файл должен существовать.
+form.help.project.liveupdate.settings = Ресурс настроек Live Update, используемый для публикации исключённого содержимого при создании бандла. Он выбирает вывод в Zip или папку и задаёт место назначения. При публикации выбранный файл должен существовать.
 
 form.label.project.native_extension = Нативное расширение
 form.help.project.native_extension = Настройки нативных расширений
@@ -2627,14 +2627,7 @@ form.label.light.outer-cone-angle = Внешний угол конуса
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Режим
-form.help.liveupdate.liveupdate.mode = Выбирает способ публикации исключённых ресурсов, когда во время создания сборки включён параметр **Публиковать содержимое Live Update**. В режиме **Zip** создаётся архив, в режиме **Folder** отдельные скомпилированные файлы сохраняются в промежуточной папке, а в режиме **Amazon** они загружаются в S3.
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = Профиль
-form.help.liveupdate.liveupdate.amazon-credential-profile = Профиль учётных данных AWS, используемый для загрузки. Редактор выбирает первый существующий файл из указанных переменными `AWS_SHARED_CREDENTIALS_FILE` и `AWS_CREDENTIAL_PROFILES_FILE` (в таком порядке), а затем пробует `~/.aws/credentials`; незаданные и несуществующие пути пропускаются.
-form.label.liveupdate.liveupdate.amazon-bucket = Бакет
-form.help.liveupdate.liveupdate.amazon-bucket = Имя бакета Amazon S3, в который при публикации загружаются исключённые ресурсы Live Update. Выбранный профиль должен разрешать просмотр бакета и запись в него; отдельно настройте доступ на чтение, чтобы игровые клиенты могли загружать опубликованное содержимое.
-form.label.liveupdate.liveupdate.amazon-prefix = Префикс
-form.help.liveupdate.liveupdate.amazon-prefix = Обязательный префикс ключа объекта S3, добавляемый перед каждым хешем ресурса, например `my-game/liveupdate`. Используйте разные префиксы, чтобы разделять проекты или выпуски в одном бакете.
+form.help.liveupdate.liveupdate.mode = Выбирает способ публикации исключённых ресурсов, когда во время создания сборки включён параметр **Публиковать содержимое Live Update**. В режиме **Zip** создаётся архив, а в режиме **Folder** отдельные скомпилированные файлы сохраняются в промежуточной папке.
 form.label.liveupdate.zip = ZIP
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Zip в папке сборки
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Перемещает созданный ZIP-архив Live Update в выходную папку сборки приложения после её создания. Если параметр включён, эта конечная папка имеет приоритет над **Папкой для zip**.

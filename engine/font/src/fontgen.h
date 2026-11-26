@@ -24,7 +24,9 @@
 /*# Runtime font glyph generation
  *
  * Asynchronously generates glyphs and hands them to a caller-owned cache.
- * The callbacks are invoked on the main thread. The caller context must remain
+ * Glyph insertion and completion callbacks run on the job context owner, or on
+ * the caller of FontGenUpdateGlyphs for a batch started with FontGenStartGlyphs.
+ * Cache lookup runs while preparing the batch. The caller context must remain
  * valid until the completion callback has run or the job has been cancelled.
  *
  * @document
@@ -110,12 +112,39 @@ struct FontGenJobData;
  */
 FontGenJobData* FontGenCreateJobData(const FontGenParams* params, uint32_t num_glyphs);
 
+/*# Releases a generation batch and its untransferred glyphs.
+ * Batches started with FontGenStartGlyphs cancel and wait for their own jobs.
+ * Other batches must already have finished or been canceled by the caller.
+ * @name FontGenDestroyJobData
+ * @param jobdata [type: FontGenJobData*] Batch to release.
+ */
 void FontGenDestroyJobData(FontGenJobData* jobdata);
 
 HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index);
 HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs);
 
-// If we're busy waiting for created glyphs
-void FontGenFlushFinishedJobs(HJobContext jobs, uint64_t timeout);
+/*# Starts a batch whose results are consumed by its caller.
+ * Worker jobs generate glyphs without invoking callbacks. Call FontGenUpdateGlyphs
+ * on the resource's creation thread to install the results. That update can take
+ * over queued glyphs, including when the caller occupies the last worker. With
+ * no workers it generates all glyphs. The job context must outlive the batch.
+ * @name FontGenStartGlyphs
+ * @param jobdata [type: FontGenJobData*] Fresh batch; keep alive until completion or destruction.
+ * @param glyphs [type: ::TextGlyph*] Input glyphs, copied during this call.
+ * @param num_glyphs [type: uint32_t] Number of input glyphs.
+ * @return started [type: bool] False when runtime generation is unsupported.
+ */
+bool FontGenStartGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs);
+
+/*# Consumes results for a batch started with FontGenStartGlyphs.
+ * Generates queued glyphs or consumes finished results without dispatching other
+ * jobs or callbacks. Running jobs keep ownership until they finish. The completion
+ * callback may destroy the batch. Calls for one batch must be serialized by its owner.
+ * @name FontGenUpdateGlyphs
+ * @param jobdata [type: FontGenJobData*] Batch to advance.
+ * @param time_limit [type: uint64_t] Soft time limit in microseconds; 0 processes at most one glyph.
+ * @return complete [type: bool] True once all glyphs and the completion callback have been processed.
+ */
+bool FontGenUpdateGlyphs(FontGenJobData* jobdata, uint64_t time_limit);
 
 #endif // DM_FONTGEN_H

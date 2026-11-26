@@ -21,6 +21,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/http/http_cache.h>
 #include <dlib/jobsystem.h>
+#include <dlib/message.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -44,6 +45,11 @@ namespace dmResourceMounts
 namespace dmResourceProvider
 {
     typedef struct Archive* HArchive;
+}
+
+namespace dmResourceDDF
+{
+    struct Reload;
 }
 
 namespace dmResource
@@ -122,8 +128,13 @@ namespace dmResource
     };
 
     /**
-     * New factory parmetes
+     * Progress external work while loading, outside the loader lock. Called on the
+     * thread updating the preloader, including synchronous Get. Check thread ownership
+     * before running thread-owned work. Do not start another synchronous resource load.
      */
+    typedef void (*FResourceService)(void* context);
+
+    /** New factory parameters. */
     struct NewFactoryParams
     {
         /// Maximum number of resource in factory. Default is 1024
@@ -152,6 +163,13 @@ namespace dmResource
      * @return Factory handle. NULL if out of memory or invalid uri.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
+
+    /**
+     * Set the loading progress callback before starting resource loads. The callback
+     * and its context must remain alive until factory deletion, or until replaced
+     * while no loads are updating. A null callback disables external servicing.
+     */
+    void SetFactoryService(HFactory factory, FResourceService service, void* context);
 
     /**
      * Delete a factory
@@ -191,7 +209,9 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         during PostCreate or an ongoing recreation, including reload notifications;
+     *         retry after that operation returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
@@ -200,7 +220,9 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         during PostCreate or an ongoing recreation, including reload notifications;
+     *         retry after that operation returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
 
@@ -210,9 +232,17 @@ namespace dmResource
      * @param factory Resource factory
      * @param name Name that identifies the resource, i.e. the same name used in Get
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
+     * @return RESULT_PENDING with a null descriptor if the resource is executing
+     *         PostCreate or undergoing recreation, including reload notifications.
+     *         No update is applied; retry after that operation returns.
      * @see Get
      */
     Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
+
+    // Queue an entire reload batch without copying it into a message page.
+    // reload must be loaded with dmDDF::OPTION_OFFSET_POINTERS. Ownership
+    // transfers on success; otherwise the caller must free the DDF message.
+    dmMessage::Result PostReloadMessage(dmMessage::HSocket socket, dmResourceDDF::Reload* reload);
 
     /**
      * Get type for resource
@@ -254,6 +284,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param name Resource to load
      * @return CREATE_RESULT_OK on success
@@ -262,6 +294,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
@@ -269,8 +303,14 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
 
     /**
-     * Perform one update tick of the preloader, with a soft time limit for
-     * how much time to spend.
+     * Process ready work for this request in the factory's shared
+     * dependency scheduler, with a soft time limit. Returns without waiting when
+     * no work is ready;
+     * worker jobs continue discovering and loading dependencies independently.
+     * Started loads finish even if recreation removes their dependency edges.
+     * Once complete, the request keeps its result across later resource reloads.
+     * Call from the requesting thread to execute Create/PostCreate. The soft
+     * limit is checked between callbacks; a single callback cannot be interrupted.
      * @param preloader Preloader
      * @param complete_callback Preloader complete callback
      * @param complete_callback_params PreloaderCompleteCallbackParams passed to the complete callback
@@ -281,7 +321,8 @@ namespace dmResource
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until
-     * all loads have completed, if there still are any pending.
+     * all loads have completed, if there still are any pending. A completed
+     * request does not wait for dependencies added by later resource reloads.
      * @param preloader Preloader
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */

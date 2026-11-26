@@ -36,7 +36,8 @@ public class Task {
     public enum OutputFlags {
         NONE,
         UNCOMPRESSED,
-        ENCRYPTED
+        ENCRYPTED,
+        BUILD_ONLY
     }
 
     private static final OutputFlags[] OUTPUT_FLAG_VALUES = OutputFlags.values();

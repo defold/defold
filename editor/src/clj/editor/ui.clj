@@ -650,11 +650,22 @@
   we check if the focus owner is below a deselected tab and if so return nil."
   ^Node [^Scene scene]
   (when-some [focus-owner (.getFocusOwner scene)]
-    (if-some [owning-tab (owning-tab focus-owner)]
-      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
-        (when (identical? owning-tab selected-tab-in-owning-tab-pane)
-          focus-owner))
-      focus-owner)))
+    ;; NOTE: We need to check if .getScene returns nil. In certain scenarios,
+    ;; like the notification popup where you click on a button that is
+    ;; immediately removed from the scene, there is a moment where JavaFX has
+    ;; cleared the focus-owner's scene property while still holding onto the
+    ;; current focus owner, which in the notification's case is the button.
+    ;; Because we walk up from the currently focused node to collect menu items
+    ;; for the top menu bar, we were returning the button but eventually got
+    ;; nil, so no menu items were collected and the menu bar would disappear
+    ;; until another action was taken that would restore focus to the main
+    ;; scene.
+    (when (identical? scene (.getScene focus-owner))
+      (if-some [owning-tab (owning-tab focus-owner)]
+        (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
+          (when (identical? owning-tab selected-tab-in-owning-tab-pane)
+            focus-owner))
+        focus-owner))))
 
 (defn- ensure-some-focus-owner! [^Window window]
   (run-later
@@ -2470,18 +2481,23 @@
              :managed toolbar-visible
              :visible toolbar-visible}}))
 
-(defn- refresh-toolbar [td toolbar-visible command-contexts localization evaluation-context]
+(defn- refresh-toolbar [td toolbar-visible command-contexts keymap localization evaluation-context]
   (let [^HBox control (:control td)]
     (when (.getScene control)
       (let [items
             (transduce
               (keep
-                (fn [{:keys [command user-data label] :as menu-item}]
+                (fn [{:keys [command user-data label tooltip] :as menu-item}]
                   (if (= :separator label)
                     {:type :separator}
                     (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                       (assoc menu-item
                         :type :item
+                        :tooltip (when tooltip
+                                   (localization/message
+                                     "command.tooltip"
+                                     {"command" tooltip
+                                      "shortcut" (keymap/display-text keymap command "none")}))
                         :label (or (handler/label handler-ctx evaluation-context) label)
                         :enabled (handler/enabled? handler-ctx evaluation-context)
                         :options (handler/options handler-ctx evaluation-context)
@@ -2554,7 +2570,7 @@
         (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
 (defn- refresh-toolbars!
-  [^Scene scene localization evaluation-context]
+  [^Scene scene keymap localization evaluation-context]
   (let [command-contexts (current-command-contexts scene evaluation-context)
         root (.getRoot scene)
         app-view (-> command-contexts first :env :app-view)
@@ -2562,7 +2578,7 @@
     (doseq [td (vals (user-data root ::toolbars))]
       (let [control (:control td)
             visible (or (nil? active-tab) (nodes-along-path? control (.getContent active-tab) root))]
-        (refresh-toolbar td visible command-contexts localization evaluation-context)))))
+        (refresh-toolbar td visible command-contexts keymap localization evaluation-context)))))
 
 (defn- refresh-accelerators! [scene keymap]
   (when-not (identical? keymap (user-data scene ::accelerators))
@@ -2579,7 +2595,7 @@
      (assert (some? localization))
      (refresh-accelerators! scene keymap)
      (refresh-menus! scene keymap localization evaluation-context)
-     (refresh-toolbars! scene localization evaluation-context))))
+     (refresh-toolbars! scene keymap localization evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress

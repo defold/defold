@@ -263,6 +263,13 @@ float dmNativeOSGetDisplayScaleFactor()
     return 1.0f;
 }
 
+float dmNativeOSGetDisplayDensity()
+{
+    // iOS expresses sizes in points, and a point is roughly 1/160 inch regardless of the device
+    // scale factor, so the native scale is the density relative to that baseline.
+    return (float) [UIScreen mainScreen].nativeScale * 160.0f;
+}
+
 void* dmNativeOSAcquireAuxContext()
 {
     if (dmNativeWin.clientAPI == NATIVE_NO_API)

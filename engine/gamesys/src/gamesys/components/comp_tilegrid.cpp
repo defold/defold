@@ -277,11 +277,13 @@ namespace dmGameSystem
         HashState32 state;
         TileGridResource* resource = component->m_Resource;
         dmRender::HMaterial material = GetMaterial(component);
+        TextureSetResource* texture_set = GetTextureSet(component);
 
-        // NOTE: Use the same order as comp_sprite, since they both use the "tile" tag by default
+        // Batch by texture-set identity. Reloads update this resource in place;
+        // its container storage and padding do not describe render state.
         dmHashInit32(&state, false);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        dmHashUpdateBuffer32(&state, GetTextureSet(component), sizeof(TextureSetResource));
+        dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
         if (component->m_RenderConstants) {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
@@ -743,6 +745,7 @@ namespace dmGameSystem
                 uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
                 uint32_t vertex_data_size = sizeof(TileGridVertex) * vertex_count;
 
+                // A selected region can be occupied only in another layer.
                 if (vertex_data_size > 0)
                 {
                     dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);

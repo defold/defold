@@ -11,6 +11,7 @@ end
 
 local function test_load_buffer_invalid(self)
     assert_error(function() sys.load_buffer("invalid_path.ext") end)
+    assert_error(function() sys.load_buffer("build") end)
 end
 
 local function test_load_buffer_path(self, path)

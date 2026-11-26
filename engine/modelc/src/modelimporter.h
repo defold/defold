@@ -262,6 +262,7 @@ namespace dmModelImporter
 
         dmArray<uint32_t>   m_Indices;
         uint32_t            m_VertexCount;
+        uint32_t            m_BufferIndex; // Canonical range assigned by the native model-buffer compiler.
         PrimitiveType       m_PrimitiveType;
 
         dmArray<MorphTarget> m_MorphTargets;
@@ -371,6 +372,7 @@ namespace dmModelImporter
         dmArray<Image>      m_Images;
         dmArray<Texture>    m_Textures;
         dmArray<Buffer>     m_Buffers;
+        dmArray<uint8_t>    m_ModelBuffers; // Compiled geometry; mesh buffer indices refer to this DMMB file.
 
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
@@ -387,6 +389,8 @@ namespace dmModelImporter
         bool m_LoadMaterialsOnly;
         bool m_LoadMeshMetadata;
         bool m_SkipImageData; // Enumerate image locations without resolving their contents
+        bool m_PackModelBuffers; // Compile native geometry before copying the scene to Java.
+        bool m_OnlyModelMetadata; // Omit Java vertex/index arrays for Bob's geometry task discovery.
     };
 
     // End of JNI struct api

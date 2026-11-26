@@ -146,6 +146,10 @@ static inline dsimd_byte16_t SimdUintToBytes(dsimd_uint4_t value)
     memcpy(&result, &value, sizeof(result));
     return result;
 }
+static inline dsimd_byte16_t SimdOrBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return SimdUintToBytes(SimdOrUint(SimdBytesToUint(a), SimdBytesToUint(b)));
+}
 static inline dsimd_uint4_t SimdNotUint(dsimd_uint4_t value)
 {
     return SimdXorUint(value, SimdSplatUint(UINT32_MAX));
@@ -172,7 +176,13 @@ static inline dsimd_float4_t SimdMax(dsimd_float4_t a, dsimd_float4_t b)
 }
 static inline int SimdAny(dsimd_uint4_t mask)
 {
+#if defined(DM_SIMD_NEON_H) && (defined(__aarch64__) || defined(_M_ARM64))
+    // Only the sign bits determine truth. Unsigned max preserves whether any
+    // lane has that bit set, without constructing the four-bit lane mask.
+    return (int)(vmaxvq_u32(mask) >> 31);
+#else
     return SimdMaskBits(mask) != 0;
+#endif
 }
 static inline int SimdAll(dsimd_uint4_t mask)
 {

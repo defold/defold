@@ -1,13 +1,14 @@
+local LOAD_TIMEOUT_SECONDS = 30
+
 function init(self)
-	self.count = 0
+	self.load_started_at = socket.gettime()
 	msg.post("#collectionproxy", "async_load")
 end
 
 function update(self, dt)
-	self.count = self.count + 1
-
-	if self.count > 100 then
-		print("Waited too long to load!")
+	-- Headless CI can run hundreds of frames before the async load completes.
+	if socket.gettime() - self.load_started_at > LOAD_TIMEOUT_SECONDS then
+		print("Timed out waiting for proxy_loaded after " .. LOAD_TIMEOUT_SECONDS .. " seconds!")
 		sys.exit(1)
 	end
 end

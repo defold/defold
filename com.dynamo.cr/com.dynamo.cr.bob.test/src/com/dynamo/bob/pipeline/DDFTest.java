@@ -14,12 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
+import com.dynamo.proto.DdfStruct;
 import org.junit.Test;
 
-import com.dynamo.proto.DdfStruct;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class DDFTest {
 

@@ -16,7 +16,8 @@
   (:require [clojure.core.cache :as cc]
             [internal.graph.types :as gt]
             [util.coll :refer [pair]])
-  (:import [clojure.core.cache BasicCache]))
+  (:import [clojure.core.cache BasicCache]
+           [clojure.lang IPersistentMap ITransientMap Indexed]))
 
 (set! *warn-on-reflection* true)
 
@@ -28,7 +29,7 @@
   (retained-count [this] "Returns the number of retained entries in the cache.")
   (hit-many [this ks] "Hits all the supplied keys. Potentially faster than calling one-by-one.")
   (miss-many [this kvs retain-arg] "Encaches all the supplied keys. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")
-  (evict-many [this ks] "Evicts all the supplied keys. Potentially faster than calling one-by-one."))
+  (evict-many [this ks] "Evicts all keys from an Indexed collection."))
 
 ;; ----------------------------------------
 ;; Null cache for testing / uncached queries
@@ -163,25 +164,25 @@
                   kvs)]
       [(persistent! base-after) lru-after tick-after])))
 
-(defn- evict-many-lru [base lru ks]
-  (let [did-change (volatile! false)
-        [base-after lru-after]
-        (reduce (fn [result k]
-                  (assert (gt/endpoint? k))
-                  (if (contains? base k) ; Assumes ks are distinct. Lots faster than checking existence in transient result.
-                    (do
-                      (vreset! did-change true)
-                      (pair (dissoc! (first result) k)
-                            (dissoc (second result) k)))
-                    result))
-                (pair (transient base)
-                      lru)
-                ks)]
-    (if @did-change
-      (pair (persistent! base-after)
-            lru-after)
-      (pair base
-            lru))))
+(defn- evict-many-lru [^IPersistentMap base ^IPersistentMap lru ^Indexed ks]
+  (let [size (.count ks)]
+    (loop [index (int 0)
+           ^ITransientMap values (transient base)
+           ^IPersistentMap remaining-lru lru
+           changed false]
+      (if (= index size)
+        (if changed
+          (pair (persistent! values) remaining-lru)
+          (pair base lru))
+        (let [endpoint (.nth ks index)
+              next-index (unchecked-inc-int index)]
+          (assert (gt/endpoint? endpoint))
+          (if-not (.containsKey base endpoint) ; Assumes ks are distinct. Lots faster than checking existence in transient result.
+            (recur next-index values remaining-lru changed)
+            (recur next-index
+                   (.without values endpoint)
+                   (.without remaining-lru endpoint)
+                   true)))))))
 
 (defn- seed-lru [base limit retain?]
   (let [unretained-base (if (nil? retain?)
@@ -326,6 +327,10 @@
   (miss-many cache kvs retain-arg))
 
 (defn cache-invalidate
+  "Evicts the supplied keys.
+
+  The default LRU cache requires a collection of keys that implements
+  clojure.lang.Indexed, such as a vector."
   [cache ks]
   (evict-many cache ks))
 

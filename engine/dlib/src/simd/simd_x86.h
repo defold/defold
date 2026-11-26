@@ -15,6 +15,35 @@
 #ifndef DM_SIMD_X86_H
 #define DM_SIMD_X86_H
 #include <string.h>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+static inline dsimd_byte16_t SimdEqualBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return _mm_cmpeq_epi8(a, b);
+}
+static inline dsimd_byte16_t SimdLessBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    // Flipping the sign bits lets the signed comparison order unsigned bytes.
+    __m128i high = _mm_set1_epi8((char)0x80);
+    return _mm_cmpgt_epi8(_mm_xor_si128(b, high), _mm_xor_si128(a, high));
+}
+static inline unsigned SimdFirstTrueByte(dsimd_byte16_t mask)
+{
+    unsigned bits = (unsigned)_mm_movemask_epi8(mask);
+    if (!bits)
+    {
+        return 16;
+    }
+#if defined(_MSC_VER)
+    unsigned long first;
+    _BitScanForward(&first, bits);
+    return (unsigned)first;
+#else
+    return (unsigned)__builtin_ctz(bits);
+#endif
+}
 
 // SSE3 is the configured baseline; SSE4.2 also permits SSE4.1 lane operations.
 static inline dsimd_float4_t SimdMake(float x, float y, float z, float w)

@@ -25,7 +25,7 @@
             [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline ModelImporterJni$DataResolver ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$ModelMetadata ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
-           [com.dynamo.bob.pipeline Modelimporter$Material Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
+           [com.dynamo.bob.pipeline Modelimporter$Material Modelimporter$Mesh Modelimporter$Model Modelimporter$Options Modelimporter$PrimitiveType]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
 
@@ -103,7 +103,9 @@
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
-        options nil
+        options (let [options (Modelimporter$Options.)]
+                  (set! (.packModelBuffers options) true)
+                  options)
         ^ModelImporterJni$DataResolver data-resolver (gltf/make-data-resolver #(workspace/resolve-workspace-resource workspace %))
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
@@ -116,6 +118,7 @@
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
+       :model-buffers (.modelBuffers scene)
        :skeleton skeleton
        :bones bones
        :buffers (.buffers scene)

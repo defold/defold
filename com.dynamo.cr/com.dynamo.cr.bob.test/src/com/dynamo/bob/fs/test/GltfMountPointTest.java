@@ -14,16 +14,31 @@
 
 package com.dynamo.bob.fs.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.AbstractResource;
+import com.dynamo.bob.fs.FileSystemMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.GltfContainer;
+import com.dynamo.bob.fs.GltfImageResource;
+import com.dynamo.bob.fs.GltfMaterialResource;
+import com.dynamo.bob.fs.GltfMeshResource;
+import com.dynamo.bob.fs.GltfMountPoint;
+import com.dynamo.bob.fs.GltfResource;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.Ktx2TextureGeneratorTest;
+import com.dynamo.bob.pipeline.ModelImporterJni;
+import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.TextFormat;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -44,32 +59,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 
-import javax.imageio.ImageIO;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.AbstractResource;
-import com.dynamo.bob.fs.FileSystemMountPoint;
-import com.dynamo.bob.fs.FileSystemWalker;
-import com.dynamo.bob.fs.GltfContainer;
-import com.dynamo.bob.fs.GltfImageResource;
-import com.dynamo.bob.fs.GltfMaterialResource;
-import com.dynamo.bob.fs.GltfMeshResource;
-import com.dynamo.bob.fs.GltfMountPoint;
-import com.dynamo.bob.fs.GltfResource;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.Ktx2TextureGeneratorTest;
-import com.dynamo.bob.pipeline.TextureGenerator;
-import com.dynamo.bob.pipeline.ModelImporterJni;
-import com.dynamo.bob.pipeline.Modelimporter;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
-import com.dynamo.render.proto.Material.MaterialDesc;
-import com.google.protobuf.TextFormat;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class GltfMountPointTest {
 

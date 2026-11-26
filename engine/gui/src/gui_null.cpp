@@ -588,6 +588,40 @@ namespace dmGui
         return 0.0f;
     }
 
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcRadius(HScene scene, HNode node)
+    {
+        return 100.0f;
+    }
+
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcAngle(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
+    dmVMath::Vector4 GetNodeTextSize(HScene scene, HNode node)
+    {
+        return dmVMath::Vector4(0.0f);
+    }
+
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve)
+    {
+    }
+
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
@@ -935,6 +969,11 @@ namespace dmGui
         return false;
     }
 
+    Matrix4 GetNodeScreenTransform(HScene scene, HNode node)
+    {
+        return Matrix4::identity();
+    }
+
     bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
     {
         return false;
@@ -967,12 +1006,19 @@ namespace dmGui
         return Point3(0,0,0);
     }
 
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
     }
 
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
+    }
+
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        return INVALID_HANDLE;
     }
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)

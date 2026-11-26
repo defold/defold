@@ -112,7 +112,8 @@ namespace dmGraphics
         CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
         // Availability for the current surface; query after BeginFrame.
         CONTEXT_FEATURE_BACKBUFFER_READBACK    = 10,
-        MAX_CONTEXT_FEATURE_COUNT              = 11,
+        CONTEXT_FEATURE_UNIFORM_BUFFER         = 11,
+        MAX_CONTEXT_FEATURE_COUNT              = 12,
     };
 
     // Binding family for shader resources in a program.
@@ -163,6 +164,27 @@ namespace dmGraphics
         uint32_t    m_MaxComputeSharedMemorySize;
     };
 
+    // Bit positions preserve the serialized SemanticType values. NONE represents generic
+    // attributes with no engine semantic; an empty mask is zero.
+    // TODO: Consider defining these bitmask flags directly in graphics_ddf.proto's
+    // VertexAttribute.SemanticType enum instead of shifting the values at runtime.
+    enum VertexAttributeSemanticFlags
+    {
+        SEMANTIC_FLAG_NONE                  = 1u << VertexAttribute::SEMANTIC_TYPE_NONE,
+        SEMANTIC_FLAG_POSITION              = 1u << VertexAttribute::SEMANTIC_TYPE_POSITION,
+        SEMANTIC_FLAG_TEXCOORD              = 1u << VertexAttribute::SEMANTIC_TYPE_TEXCOORD,
+        SEMANTIC_FLAG_PAGE_INDEX            = 1u << VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX,
+        SEMANTIC_FLAG_COLOR                 = 1u << VertexAttribute::SEMANTIC_TYPE_COLOR,
+        SEMANTIC_FLAG_NORMAL                = 1u << VertexAttribute::SEMANTIC_TYPE_NORMAL,
+        SEMANTIC_FLAG_TANGENT               = 1u << VertexAttribute::SEMANTIC_TYPE_TANGENT,
+        SEMANTIC_FLAG_WORLD_MATRIX          = 1u << VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX,
+        SEMANTIC_FLAG_NORMAL_MATRIX         = 1u << VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX,
+        SEMANTIC_FLAG_BONE_WEIGHTS          = 1u << VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS,
+        SEMANTIC_FLAG_BONE_INDICES          = 1u << VertexAttribute::SEMANTIC_TYPE_BONE_INDICES,
+        SEMANTIC_FLAG_TEXTURE_TRANSFORM_2D  = 1u << VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D,
+        SEMANTIC_FLAG_MORPH_TARGET_WEIGHTS  = 1u << VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS,
+    };
+
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
     // Should be used over the protobuf type when possible.
     struct VertexAttributeInfo
@@ -191,6 +213,7 @@ namespace dmGraphics
         uint32_t                               m_NumInfos;
         uint32_t                               m_VertexStride;
         uint32_t                               m_StructSize;
+        uint32_t                               m_SemanticFlags[VERTEX_STEP_FUNCTION_INSTANCE + 1]; // Indexed by VertexStepFunction.
     };
 
     struct VertexAttributeInfoMetadata
@@ -207,6 +230,7 @@ namespace dmGraphics
         uint32_t m_HasAttributeNone               : 1;
         uint32_t m_HasAttributeTextureTransform2D : 1;
         uint32_t m_HasAttributeMorphTargetWeights : 1;
+        uint32_t m_SemanticFlags[VERTEX_STEP_FUNCTION_INSTANCE + 1]; // Indexed by VertexStepFunction.
     };
 
     struct WriteAttributeStreamDesc
@@ -249,8 +273,10 @@ namespace dmGraphics
             int16_t  m_Location;
             uint16_t m_Size;
             uint16_t m_Offset;
+            uint16_t m_Reserved0;
             Type     m_Type;
             bool     m_Normalize;
+            uint8_t  m_Reserved1[3];
         };
 
         Stream*            m_Streams;
@@ -303,6 +329,30 @@ namespace dmGraphics
         ShaderResourceMember* m_Members;
         uint32_t              m_MemberCount;
     };
+
+    // Read-only reflection owned by the program. Pointer fields remain valid until
+    // the program is deleted or ReloadProgram is called, including a failed reload.
+    struct UniformBufferBindingInfo
+    {
+        dmhash_t                      m_NameHash;
+        const char*                   m_Name;
+        const char*                   m_InstanceName;
+        const ShaderResourceTypeInfo* m_Types;
+        uint32_t                      m_NumTypes;
+        uint32_t                      m_RootTypeIndex;
+        uint32_t                      m_Size;
+        UniformBufferLayout           m_Layout;
+        uint16_t                      m_Set;
+        uint16_t                      m_Binding;
+    };
+
+    // Look up a uniform block by its reflected block name, not its instance name.
+    // The output is unchanged when the block is absent.
+    bool GetUniformBufferBinding(HProgram program, dmhash_t name_hash, UniformBufferBindingInfo* out);
+
+    // Unique across program creations and reload attempts within a graphics context.
+    // Use to invalidate caches containing program-owned reflection or resolved binding locations.
+    uint64_t GetProgramVersion(HProgram program);
 
     // Callback invoked for each resource binding in a program that matches the specified family.
     typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, UniformBufferLayout* layout, void* user_data);
@@ -471,7 +521,7 @@ namespace dmGraphics
     HUniformBuffer      NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
-    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
+    void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t set, uint32_t binding);
     void                DisableUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
@@ -496,6 +546,35 @@ namespace dmGraphics
     // Size in bytes of a single image slice, compressed or not
     uint32_t    GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height);
     uint8_t     GetTexturePageCount(HTexture texture);
+
+    /** Texture metadata copied from the graphics asset container. Dimensions are in pixels. */
+    struct TextureInfo
+    {
+        TextureType m_Type;
+        uint32_t    m_UsageHintFlags;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_Depth;
+        uint8_t     m_MipMapCount;
+        uint8_t     m_PageCount;
+    };
+
+    /**
+     * Copy texture metadata with one handle lookup under the asset container lock, when enabled.
+     * The returned value does not retain the texture or change the caller's lifetime responsibilities.
+     * @param context Graphics context owning the texture
+     * @param texture Texture handle
+     * @return Metadata, or zero dimensions/counts/flags and TEXTURE_TYPE_2D when the handle is absent
+     */
+    TextureInfo GetTextureInfo(HContext context, HTexture texture);
+
+    /**
+     * Check a 2D upload against the texture's current size and allocated mip levels.
+     * Partial updates require existing storage. Full uploads may allocate storage,
+     * depending on the adapter. Call on the graphics owner immediately before SetTexture;
+     * this does not check the source bytes or guarantee that GPU allocation will succeed.
+     */
+    bool IsTextureUploadValid(HContext context, HTexture texture, const TextureParams& params);
 
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
@@ -563,8 +642,9 @@ namespace dmGraphics
         stream->m_IsGlobalData = is_global_data;
     }
 
-    static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space)
+    static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space, VertexStepFunction step_function)
     {
+        metadata.m_SemanticFlags[step_function] |= 1u << semantic_type;
         switch(semantic_type)
         {
         case VertexAttribute::SEMANTIC_TYPE_POSITION:
@@ -612,7 +692,7 @@ namespace dmGraphics
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
             const VertexAttributeInfo& info = attribute_infos.m_Infos[i];
-            VertexAttributeInfoMetadataMember(metadata, info.m_SemanticType, info.m_CoordinateSpace);
+            VertexAttributeInfoMetadataMember(metadata, info.m_SemanticType, info.m_CoordinateSpace, info.m_StepFunction);
         }
         return metadata;
     }

@@ -1,0 +1,11 @@
+--- a/src/lz4hc.c
++++ b/src/lz4hc.c
+@@ -1442,7 +1442,7 @@
+     const dictCtx_directive dict,
+     const HCfavor_e favorDecSpeed);
+ 
+-static int
++LZ4_FORCE_INLINE int
+ LZ4HC_compress_generic_internal (
+             LZ4HC_CCtx_internal* const ctx,
+             const char* const src,

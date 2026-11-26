@@ -1,6 +1,6 @@
 # Engine guidance
 
-Follow [engine code style](docs/CODE_STYLE.md) and the repository's `.clang-format`.
+Follow [engine code style](docs/CODE_STYLE.md) and use Uncrustify with [.uncrustify.cfg](.uncrustify.cfg).
 
 ## Build and run
 

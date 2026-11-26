@@ -196,10 +196,7 @@ namespace dmGameSystem
         // Keep pending jobs with the swapped-out font state so the temporary resource
         // can cancel them during recreate teardown.
         this->m_PendingJobs.Swap(src->m_PendingJobs);
-
-        uint8_t dynamic = src->m_IsDynamic;
-        src->m_IsDynamic = m_IsDynamic;
-        m_IsDynamic = dynamic;
+        SwapVar(m_PrewarmJob, src->m_PrewarmJob);
     }
 
     static void PushPendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -208,7 +205,8 @@ namespace dmGameSystem
             font->m_PendingJobs.OffsetCapacity(2);
         font->m_PendingJobs.Push(job_info);
 
-        JobSystemPushJob(font->m_Jobs, job_info->m_Job);
+        if (job_info->m_Job)
+            JobSystemPushJob(font->m_Jobs, job_info->m_Job);
     }
 
     static void RemovePendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -242,17 +240,23 @@ namespace dmGameSystem
             FontJobResourceInfo* job_info = font->m_PendingJobs[i];
             HJob hjob = job_info->m_Job;
 
-            JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, hjob);
-            while (JOBSYSTEM_RESULT_PENDING == jr)
+            if (hjob)
             {
-                dmTime::Sleep(1000);
-                jr = JobSystemCancelJob(font->m_Jobs, hjob);
+                JobSystemResult jr = JobSystemCancelJob(font->m_Jobs, hjob);
+                while (JOBSYSTEM_RESULT_PENDING == jr)
+                {
+                    dmTime::Sleep(1000);
+                    jr = JobSystemCancelJob(font->m_Jobs, hjob);
+                }
             }
 
+            // Caller-updated batches must stop before their referenced fonts are released.
+            FontGenDestroyJobData(job_info->m_FontGenJobData);
             DecRefJobResourceInfo(font->m_Factory, font, job_info);
-            DeallocateJobResourceInfo(job_info);
+            delete job_info;
         }
         font->m_PendingJobs.SetSize(0);
+        font->m_PrewarmJob = 0;
         font->m_Destroying = 0;
     }
 
@@ -361,6 +365,8 @@ namespace dmGameSystem
     static void DestroyJobInfo(FontJobResourceInfo* job_info)
     {
         FontResource* resource = job_info->m_Resource;
+        if (resource->m_PrewarmJob == job_info)
+            resource->m_PrewarmJob = 0;
         DecRefJobResourceInfo(resource->m_Factory, resource, job_info);
         RemovePendingJob(resource, job_info);
         DeallocateJobResourceInfo(job_info);
@@ -386,7 +392,7 @@ namespace dmGameSystem
             callback(callback_context, result, callback_errmsg);
     }
 
-    dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
+    static dmResource::Result PrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx, bool update_from_resource)
     {
         if (!resource->m_IsDynamic)
         {
@@ -419,18 +425,32 @@ namespace dmGameSystem
 
         // Increment all resource before we send them to the thread
         FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, glyph_count, cbk, cbk_ctx);
-        job_info->m_Job = FontGenAddGlyphs(job_info->m_FontGenJobData, glyphs, glyph_count);
+        bool started;
+        if (update_from_resource)
+            started = FontGenStartGlyphs(job_info->m_FontGenJobData, glyphs, glyph_count);
+        else
+        {
+            job_info->m_Job = FontGenAddGlyphs(job_info->m_FontGenJobData, glyphs, glyph_count);
+            started = job_info->m_Job != 0;
+        }
 
         TextLayoutRelease(layout);
 
-        if (!job_info->m_Job)
+        if (!started)
         {
             DestroyJobInfo(job_info);
             return dmResource::RESULT_INVALID_DATA;
         }
 
+        if (update_from_resource)
+            resource->m_PrewarmJob = job_info;
         PushPendingJob(resource, job_info);
         return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontPrewarmText(FontResource* resource, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx)
+    {
+        return PrewarmText(resource, text, cbk, cbk_ctx, false);
     }
 
     static uint32_t GetResourceSize(FontResource* font)
@@ -720,9 +740,9 @@ namespace dmGameSystem
     }
 
     // Called by the fontmap, if the glyph didn't exist when it's time to render
-    static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
+    static FontResult OnGlyphCacheMiss(void*, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
-        FontResource* resource = (FontResource*)user_ctx;
+        FontResource* resource = (FontResource*)dmRender::GetFontMapUserData(font_map);
         if (resource->m_Destroying)
         {
             return FONT_RESULT_ERROR;
@@ -834,7 +854,6 @@ namespace dmGameSystem
         if (resource->m_IsDynamic)
         {
             params.m_OnGlyphCacheMiss        = OnGlyphCacheMiss;
-            params.m_OnGlyphCacheMissContext = resource;
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
@@ -854,11 +873,12 @@ namespace dmGameSystem
             dmLogError("Font material is not supported for resource '%s'", path);
             return dmResource::RESULT_NOT_SUPPORTED;
         }
-        dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
+
+        dmRender::SetFontMapUserData(resource->m_FontMap, resource);
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result PrewarmFont(dmResource::HFactory, const char* path, FontResource* font)
+    static dmResource::Result PrewarmFont(dmResource::HFactory, const char* path, FontResource* font, bool update_from_resource)
     {
         if (!font->m_IsDynamic)
         {
@@ -876,7 +896,7 @@ namespace dmGameSystem
         font->m_Prewarming = 1;
         font->m_PrewarmDone = 0;
 
-        dmResource::Result result = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
+        dmResource::Result result = PrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font, update_from_resource);
         if (result != dmResource::RESULT_OK)
         {
             font->m_Prewarming = 0;
@@ -947,7 +967,9 @@ namespace dmGameSystem
             return r;
         }
 
+        font->m_PostCreatePending = 1;
         dmResource::SetResource(params->m_Resource, font);
+        PrewarmFont(params->m_Factory, path, font, true);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return r;
     }
@@ -955,19 +977,10 @@ namespace dmGameSystem
     static dmResource::Result ResFontPostCreate(const dmResource::ResourcePostCreateParams* params)
     {
         FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
-        if (font->m_PrewarmDone)
-        {
-            return dmResource::RESULT_OK;
-        }
-
-        if (font->m_Prewarming)
-        {
-            // This is force updating the global job thread, so that we don't end up in a dead lock
-            // waiting for the font jobs to complete
-            FontGenFlushFinishedJobs(font->m_Jobs, 8000);
-            return font->m_PrewarmDone ? dmResource::RESULT_OK : dmResource::RESULT_PENDING;
-        }
-        return PrewarmFont(params->m_Factory, params->m_Filename, font);
+        if (!font->m_PrewarmDone)
+            FontGenUpdateGlyphs(font->m_PrewarmJob->m_FontGenJobData, 8000);
+        font->m_PostCreatePending = !font->m_PrewarmDone;
+        return font->m_PostCreatePending ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResFontDestroy(const dmResource::ResourceDestroyParams* params)
@@ -1021,16 +1034,15 @@ namespace dmGameSystem
             return r;
         }
 
-        // It's easiest to do the swap here
-        FontResource* resource_font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
-        // Copy the resources
-        resource_font_map->Swap(tmp_font_map);
-        // Setup the helper structs again
-        PrewarmFont(params->m_Factory, path, resource_font_map);
+        FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
+        font->Swap(tmp_font_map);
+        // The new map still points to the temporary resource after the swap.
+        dmRender::SetFontMapUserData(font->m_FontMap, font);
+        PrewarmFont(params->m_Factory, path, font, font->m_PostCreatePending);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
-        ++resource_font_map->m_Version;
-        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(resource_font_map));
+        ++font->m_Version;
+        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return dmResource::RESULT_OK;
     }
 
@@ -1131,7 +1143,7 @@ namespace dmGameSystem
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
-            dmLogError("Cannot only add font to a dynamic font collection!");
+            dmLogError("Fonts can only be added to dynamic font collections.");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 
@@ -1157,7 +1169,7 @@ namespace dmGameSystem
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
-            dmLogError("Cannot only add font to a dynamic font collection!");
+            dmLogError("Fonts can only be added to dynamic font collections.");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 

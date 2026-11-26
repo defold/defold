@@ -14,16 +14,15 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
+import com.dynamo.bob.util.MurmurHash;
+import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
 
-import org.junit.Test;
-
-import com.dynamo.bob.util.MurmurHash;
+import static org.junit.Assert.assertEquals;
 
 public class MurmurHashTest {
     @Test

@@ -44,6 +44,7 @@ extern PFN_vkAllocateMemory vkAllocateMemory;
 extern PFN_vkBindImageMemory vkBindImageMemory;
 extern PFN_vkGetImageSubresourceLayout vkGetImageSubresourceLayout;
 extern PFN_vkCmdCopyBuffer vkCmdCopyBuffer;
+extern PFN_vkCmdUpdateBuffer vkCmdUpdateBuffer;
 extern PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 extern PFN_vkCmdCopyImage vkCmdCopyImage;
 extern PFN_vkCmdBlitImage vkCmdBlitImage;
@@ -122,7 +123,9 @@ extern PFN_vkCmdCopyQueryPoolResults vkCmdCopyQueryPoolResults;
 extern PFN_vkResetDescriptorPool vkResetDescriptorPool;
 extern PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;
 
+#if defined(ANDROID)
 extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
+#endif
 extern PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;
 extern PFN_vkGetPhysicalDeviceSurfaceSupportKHR vkGetPhysicalDeviceSurfaceSupportKHR;
 extern PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
@@ -135,5 +138,11 @@ extern PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfaceP
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 extern PFN_vkResetCommandBuffer vkResetCommandBuffer;
 extern PFN_vkGetFenceStatus vkGetFenceStatus;
+
+namespace dmGraphics
+{
+    bool LoadVulkanLibrary();
+    void LoadVulkanFunctions(VkInstance vk_instance);
+}
 
 #endif // __GRAPHICS_VULKAN_DYNAMIC__

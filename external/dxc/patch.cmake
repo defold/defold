@@ -1,0 +1,53 @@
+# Upstream forces SPIR-V on for Unix even with ENABLE_SPIRV_CODEGEN=OFF.
+# Defold only needs DXIL here and already has a separate SPIR-V toolchain.
+set(path "${DXC_SOURCE_DIR}/CMakeLists.txt")
+file(READ "${path}" source)
+set(original "# Enable SPIR-V CodeGen for Linux by default.\nif(NOT WIN32)\n  set(ENABLE_SPIRV_CODEGEN ON)\nendif()")
+set(replacement "# Defold: honor ENABLE_SPIRV_CODEGEN on every host.")
+string(FIND "${source}" "${original}" found)
+if(found EQUAL -1)
+  string(FIND "${source}" "${replacement}" patched)
+  if(patched EQUAL -1)
+    message(FATAL_ERROR "DXC SPIR-V patch no longer matches the pinned source")
+  endif()
+else()
+  string(REPLACE "${original}" "${replacement}" source "${source}")
+  file(WRITE "${path}" "${source}")
+endif()
+
+# LLVM attribute sets and nodes use the same trailing-allocation pattern.
+set(path "${DXC_SOURCE_DIR}/lib/IR/LLVMContextImpl.cpp")
+file(READ "${path}" source)
+foreach(type AttributeSetImpl AttributeSetNode)
+  set(original "    FoldingSetIterator<${type}> Elem = I++;\n    delete &*Elem;")
+  set(replacement "    ${type} *Elem = &*I++;\n    Elem->~${type}();\n    ::operator delete(Elem);")
+  string(FIND "${source}" "${original}" found)
+  if(found EQUAL -1)
+    string(FIND "${source}" "${replacement}" patched)
+    if(patched EQUAL -1)
+      message(FATAL_ERROR "DXC ${type} deallocation patch no longer matches the pinned source")
+    endif()
+  else()
+    string(REPLACE "${original}" "${replacement}" source "${source}")
+  endif()
+endforeach()
+file(WRITE "${path}" "${source}")
+
+# CGFunctionInfo::create() co-allocates trailing ArgInfo entries. A delete
+# expression passes sizeof(CGFunctionInfo) to sized delete, which is smaller
+# than the allocation and triggers ASAN's new-delete-type-mismatch check.
+# Preserve destruction and pair the raw allocation with unsized deallocation.
+set(path "${DXC_SOURCE_DIR}/tools/clang/lib/CodeGen/CodeGenTypes.cpp")
+file(READ "${path}" source)
+set(original "    delete &*I++;")
+set(replacement "    {\n      CGFunctionInfo *FI = &*I++;\n      FI->~CGFunctionInfo();\n      ::operator delete(FI);\n    }")
+string(FIND "${source}" "${original}" found)
+if(found EQUAL -1)
+  string(FIND "${source}" "${replacement}" patched)
+  if(patched EQUAL -1)
+    message(FATAL_ERROR "DXC CGFunctionInfo deallocation patch no longer matches the pinned source")
+  endif()
+else()
+  string(REPLACE "${original}" "${replacement}" source "${source}")
+  file(WRITE "${path}" "${source}")
+endif()

@@ -29,6 +29,9 @@ add_custom_target(font_test_data DEPENDS "${_alignment_bank}")
 defold_test_run_settings(_font_test_runner _font_test_run_options font)
 
 function(font_configure_test target font_target)
+  if(target MATCHES "^test_font_bitmap_gen|^test_font_effects$")
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" graphics_test)
+  endif()
   set(_font_test_data)
   if(target MATCHES "^test_font(_skribidi)?$|^test_font_bitmap_gen")
     add_dependencies(${target} font_test_data)
@@ -54,6 +57,9 @@ function(font_configure_test target font_target)
   set(run ON)
   if(target MATCHES "^test_font_bitmap_gen")
     set(run OFF)
+  elseif(target STREQUAL "test_font_effects" AND WITH_MSAN)
+    # The system OpenGL/X11 libraries do not propagate MSan shadow memory.
+    set(run OFF)
   elseif(target STREQUAL "test_font_effects" AND DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
     # Like the font image tests, GPU tests require OpenGL, available only on Linux CI runners.
     set(run OFF)
@@ -67,6 +73,7 @@ endfunction()
 
 defold_add_executable(test_font
   "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_TEST_ROOT}/test_text_arc.c"
   "${FONT_TEST_ROOT}/test_font_glyphbank.cpp"
   "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
   "${FONT_SRC_DIR}/render/layout_vertex.cpp")
@@ -74,6 +81,7 @@ font_configure_test(test_font font)
 
 defold_add_executable(test_font_skribidi
   "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_TEST_ROOT}/test_text_arc.c"
   "${FONT_TEST_ROOT}/test_font_glyphbank.cpp"
   "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
   "${FONT_SRC_DIR}/render/layout_vertex.cpp")
@@ -117,6 +125,12 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   add_custom_target(generate_font_test_images COMMAND ${_font_test_runner} ${_font_image_command}
     DEPENDS run_test_font_images_python test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain
     ${_font_test_run_options} COMMENT "Rendering the font-library image matrix")
+  # The main CI workflow delegates the image matrix to ARM64. Keep the
+  # generator/reporting unit tests and all other native font tests on x86.
+  set(_font_run_image_tests ON)
+  if(WITH_MSAN OR "$ENV{DEFOLD_SKIP_FONT_IMAGE_TESTS}" STREQUAL "1")
+    set(_font_run_image_tests OFF)
+  endif()
   # Keep the manual target available on every desktop. GitHub CI runs the
   # automatic screenshot comparisons only on native Linux engine builds.
   if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
@@ -124,16 +138,27 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
-      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+      # Start the long image matrix early, keeping its generator/report checks first.
+      # Both commands retain the font lock so their shared fixtures stay serialized.
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font RUN_PRIORITY 1
         COMMAND ${_font_python_command}
         WORKING_DIRECTORY "${FONT_ROOT}"
         DEPENDS test_font_bitmap_gen)
-      defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
-        COMMAND ${_font_image_command}
+      if(_font_run_image_tests)
+        defold_add_to_run_tests(generate_font_test_images RUN_GROUP font RUN_PRIORITY 1
+          COMMAND ${_font_image_command}
+          DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+      endif()
+    endif()
+    if(_font_run_image_tests)
+      defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
         DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     endif()
-    defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
-      DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+  endif()
+  if(WITH_MSAN)
+    message(STATUS "MSan GPU font tests require instrumented OpenGL/X11 libraries; manual image targets remain available")
+  elseif(NOT _font_run_image_tests)
+    message(STATUS "Automatic font image matrix disabled by DEFOLD_SKIP_FONT_IMAGE_TESTS; manual image target remains available")
   endif()
 endif()
 
@@ -164,10 +189,20 @@ if(FONT_RENDERER_IS_DESKTOP)
     testmain
     dlib
     profile_null)
-  target_link_libraries(test_fontc_markup_api PRIVATE fontc_shared)
-  set_target_properties(test_fontc_markup_api PROPERTIES
-    BUILD_WITH_INSTALL_RPATH ON
-    INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
+  if(WITH_MSAN)
+    # Exercise the API with instrumented code; the JVM's shared library must
+    # keep its ordinary runtime and cannot supply MSan shadow memory.
+    get_target_property(_fontc_sources fontc_shared SOURCES)
+    target_sources(test_fontc_markup_api PRIVATE ${_fontc_sources})
+    target_include_directories(test_fontc_markup_api PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}")
+    target_compile_definitions(test_fontc_markup_api PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
+    defold_target_link_libraries(test_fontc_markup_api "${TARGET_PLATFORM}" font_skribidi image)
+  else()
+    target_link_libraries(test_fontc_markup_api PRIVATE fontc_shared)
+    set_target_properties(test_fontc_markup_api PROPERTIES
+      BUILD_WITH_INSTALL_RPATH ON
+      INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
+  endif()
   defold_target_link_socket(test_fontc_markup_api "${TARGET_PLATFORM}" PRIVATE)
   defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../.." RUN_GROUP font)
 endif()
@@ -288,12 +323,12 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     INPUT "${FONT_TEST_ROOT}/data/NotoSans-Regular.ttf"
     OUTPUT_HEADER "${FONTVIEWER_ENGLISH_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ENGLISH_FONT_CPP}"
-    SYMBOL FONTVIEWER_NOTO_SANS)
+    SYMBOL FONTVIEWER_NOTO_SANS WORD_ARRAY)
   defold_embed_to_header(
     INPUT "${FONT_TEST_ROOT}/data/NotoSansArabic-Regular.ttf"
     OUTPUT_HEADER "${FONTVIEWER_ARABIC_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ARABIC_FONT_CPP}"
-    SYMBOL FONTVIEWER_NOTO_SANS_ARABIC)
+    SYMBOL FONTVIEWER_NOTO_SANS_ARABIC WORD_ARRAY)
   # Standalone viewers bypass Bob's shader include preprocessor.
   set(_font_effect_shader "${FONT_ROOT}/content/builtins/fonts/font-effect.glsl")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_effect_shader}")
@@ -335,10 +370,16 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     list(GET _parts 0 _input)
     list(GET _parts 1 _symbol)
     get_filename_component(_name "${_input}" NAME)
+    set(_embed_options)
+    if(_name MATCHES "\\.ttf$")
+      # Keep the complete fonts in the standalone executable without compiling
+      # millions of individual byte initializers.
+      set(_embed_options WORD_ARRAY)
+    endif()
     defold_embed_to_header(INPUT "${_input}"
       OUTPUT_HEADER "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.h"
       OUTPUT_CPP "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp"
-      SYMBOL ${_symbol})
+      SYMBOL ${_symbol} ${_embed_options})
     list(APPEND _fontviewer_render_sources "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp")
   endforeach()
   defold_create_exported_symbols_file(
@@ -360,9 +401,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     "${FONT_SRC_DIR}"
     "${FONT_RENDER_SRC_DIR}"
     "${FONT_ROOT}"
-    "${FONTVIEWER_GENERATED_DIR}"
-    "${GRAPHICS_SRC_DIR}"
-    "${GRAPHICS_PROTO_ROOT}")
+    "${FONTVIEWER_GENERATED_DIR}")
   target_compile_definitions(fontviewer PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
   defold_target_link_libraries(fontviewer "${TARGET_PLATFORM}"
     testmain
@@ -371,7 +410,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     profile_null
     font_skribidi
     font_richtext
-    font_render)
+    font_render
+    graphics_test)
   set(WITH_OPENGL ON)
   defold_target_link_graphics(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_platform(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
@@ -392,8 +432,9 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
       WORKING_DIRECTORY "${FONT_ROOT}"
       ${_font_test_run_options})
     # Match the existing font graphics tests: local desktops and Linux CI
-    # with its configured display.
-    if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
+    # with its configured display. MSan also needs instrumented system X11
+    # and OpenGL libraries; keep this GPU test available as a manual target.
+    if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
       if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
         defold_add_to_run_tests(run_test_fontviewer_color RUN_GROUP font
           COMMAND ${_fontviewer_test_command} WORKING_DIRECTORY "${FONT_ROOT}" DEPENDS fontviewer)
@@ -443,7 +484,7 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   font_configure_test(test_font_effects font)
   foreach(target IN ITEMS test_font_effects test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     target_sources(${target} PRIVATE "${_font_image_generated}/exports.cpp" "${_font_image_generated}/font_image_cases.inc")
-    target_include_directories(${target} PRIVATE "${_font_image_generated}" "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+    target_include_directories(${target} PRIVATE "${_font_image_generated}")
     set(WITH_OPENGL ON)
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
     if(TARGET_PLATFORM STREQUAL "arm64-linux")

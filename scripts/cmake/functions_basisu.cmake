@@ -10,9 +10,8 @@ function(defold_import_basisu library platform)
     message(FATAL_ERROR "Missing ${_path}. Run ./scripts/build.py --platform=${platform} install_ext first.")
   endif()
 
-  add_library(${library} STATIC IMPORTED GLOBAL)
+  defold_import_external(${library} "${_path}")
   set_target_properties(${library} PROPERTIES
-    IMPORTED_LOCATION "${_path}"
     INTERFACE_INCLUDE_DIRECTORIES "${DEFOLD_SDK_ROOT}/ext/include"
     INTERFACE_COMPILE_FEATURES cxx_std_17)
   if(library STREQUAL "basis_encoder")

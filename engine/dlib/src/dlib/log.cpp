@@ -508,7 +508,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     /*
-     * This message is parsed by editor 2 - don't remove or change without
+     * This message is parsed by the editor - don't remove or change without
      * corresponding changes in engine.clj
      */
     dmLogInfo("Log server started on port %u", (unsigned int) port);
@@ -673,7 +673,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     // In release mode, if there are no custom listeners, and no log.txt file, we'll return here
     bool is_debug_mode = dLib::IsDebugMode();
-    if (!is_debug_mode && !dmLog::g_LogFile && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
+    if (!is_debug_mode && !dmLog::g_LogFile && (dmAtomicLoadAcquire32(&dmLog::g_ListenersCount) == 0))
     {
         return;
     }

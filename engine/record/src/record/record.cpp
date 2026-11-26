@@ -41,7 +41,7 @@ namespace dmRecord
         bool                                    m_WindowPrepared;
     };
     static RecordingOperation g_Recording;
-    static uint64_t           g_OperationId;
+    static uint32_t           g_OperationId;
 
     static void RestorePreparedWindow()
     {

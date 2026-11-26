@@ -59,6 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -484,7 +485,9 @@ public class Bob {
                 opt(null, "build-input-file", MANY, ABS_OR_CWD_REL_PATH, "File containing project resource paths to build instead of game.project. May be specified more than once"),
                 opt("v", "verbose", ZERO, "Verbose output"),
                 opt("h", "help", ZERO, "This help message"),
-                opt("a", "archive", ZERO, "Build archive"),
+                opt("a", "archive", ZERO, "DEPRECATED! Ignored; use the bundle command to create archives"),
+                opt(null, "all-packages", ZERO, "Build or bundle Base and all external packages"),
+                opt(null, "package", MANY, "Package name to build or bundle; use base for the application"),
                 opt("ea", "exclude-archive", ZERO, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target"),
                 opt("e", "email", ONE, "User email"),
                 opt("u", "auth", ONE, "User auth token"),
@@ -492,6 +495,7 @@ public class Bob {
                 opt("p", "platform", ONE, "Platform (when building and bundling)"),
                 opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
                 opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
+                opt(null, "bundle-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a standalone archive package report after bundling"),
 
                 opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
                 opt(null, "identity", ONE, "Sign identity (iOS)"),
@@ -517,6 +521,7 @@ public class Bob {
                 opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead"),
                 opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON"),
                 opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML"),
+                opt(null, "download-size-report", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save the estimated Google Play download size as JSON (Android)"),
 
                 opt(null, "build-server", ONE, "The build server (when using native extensions)"),
                 opt(null, "build-server-header", MANY, "Additional build server header to set"),
@@ -529,7 +534,7 @@ public class Bob {
                 opt(null, "use-lua-bytecode-delta", ZERO, "Use byte code delta compression when building for multiple architectures"),
                 opt(null, "archive-resource-padding", ONE, "The alignment of the resources in the game archive. Default is 4"),
 
-                opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published"),
+                opt("l", "liveupdate", ONE, "DEPRECATED! Use --all-packages or --package instead"),
 
                 opt(null, "with-sha1", ZERO, "Generate (and verify) sha1 signatures from build artifacts (when bunding for web)"),
 
@@ -769,7 +774,8 @@ public class Bob {
             build_report_json = build_report_json != null ? build_report_json : cmd.getOptionValue("build-report-json");
             build_report_html = build_report_html != null ? build_report_html : cmd.getOptionValue("build-report-html");
 
-            if (build_report_json != null || build_report_html != null) {
+            boolean hasBuildCommand = cmd.getArgs().length == 0 || Arrays.asList(cmd.getArgs()).contains("build");
+            if (hasBuildCommand && (build_report_json != null || build_report_html != null)) {
                 List<File> reportFiles = new ArrayList<>();
                 if (build_report_json != null) {
                     reportFiles.add(new File(build_report_json));
@@ -926,8 +932,22 @@ public class Bob {
 
                 project.setOption("architectures", String.join(",", uniqueArchitectures));
 
-                boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-                project.setOption("liveupdate", Boolean.toString(shouldPublish));
+                if (cmd.hasOption("archive")) {
+                    System.out.println("WARNING: --archive is deprecated and ignored. Use the bundle command to create archives.");
+                }
+                if (cmd.hasOption("liveupdate")) {
+                    System.out.println("WARNING: --liveupdate is deprecated. Use --all-packages or --package instead.");
+                }
+                if (cmd.hasOption("package")) {
+                    if (cmd.hasOption("all-packages") || cmd.hasOption("build-input") || cmd.hasOption("build-input-file")) {
+                        System.out.println("ERROR: --package cannot be combined with --all-packages, --build-input or --build-input-file.");
+                        throw new OptionValidationException(1);
+                    }
+                    project.setOption("package", String.join(",", cmd.getOptionValues("package")));
+                }
+                boolean splitPackages = cmd.hasOption("package") || cmd.hasOption("all-packages")
+                        || getOptionsValue(cmd, 'l', "no").equals("yes");
+                project.setOption("liveupdate", Boolean.toString(splitPackages));
 
                 if (!cmd.hasOption("variant")) {
                     if (cmd.hasOption("debug")) {
@@ -1068,6 +1088,14 @@ public class Bob {
             System.exit(success ? 0 : 1);
         } catch (OptionValidationException e) {
             System.exit(e.exitCode);
+        } catch (CompileExceptionError e) {
+            if (e.getResource() != null && e.getCause() == null && !logger.isLoggable(Level.FINE)) {
+                System.err.print(logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR,
+                        e.getResource(), e.getLineNumber(), e.getMessage()));
+                System.exit(1);
+            } else {
+                logErrorAndExit(e);
+            }
         } catch (Exception e) {
             logErrorAndExit(e);
         }

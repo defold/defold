@@ -364,8 +364,13 @@ namespace dmGameSystem
 
         b2ChainDef chain_def = b2DefaultChainDef();
         chain_def.userData = b2Body_GetUserData(*body);
-        chain_def.points = chain_points.Begin();
-        chain_def.count = chain_points.Size();
+        chain_def.points = chain_points.Begin() + (loop ? 0 : 1);
+        chain_def.pointCount = chain_points.Size() - (loop ? 0 : 2);
+        if (!loop)
+        {
+            chain_def.ghost1 = chain_points[0];
+            chain_def.ghost2 = chain_points[chain_points.Size() - 1];
+        }
         chain_def.materials = &material;
         chain_def.materialCount = 1;
         chain_def.isLoop = loop;
@@ -527,7 +532,7 @@ namespace dmGameSystem
     static int Chain_GetFriction(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2Chain_GetFriction(*CheckChain(L, 1)));
+        lua_pushnumber(L, b2Chain_GetSurfaceMaterial(*CheckChain(L, 1), 0).friction);
         return 1;
     }
 
@@ -536,14 +541,21 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2ChainId chain = *CheckChain(L, 1);
         CheckChainUnlocked(L, chain, "set_friction");
-        b2Chain_SetFriction(chain, luaL_checknumber(L, 2));
+        float friction = luaL_checknumber(L, 2);
+        int count = b2Chain_GetSegmentCount(chain);
+        for (int i = 0; i < count; ++i)
+        {
+            b2SurfaceMaterial material = b2Chain_GetSurfaceMaterial(chain, i);
+            material.friction = friction;
+            b2Chain_SetSurfaceMaterial(chain, &material, i);
+        }
         return 0;
     }
 
     static int Chain_GetRestitution(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2Chain_GetRestitution(*CheckChain(L, 1)));
+        lua_pushnumber(L, b2Chain_GetSurfaceMaterial(*CheckChain(L, 1), 0).restitution);
         return 1;
     }
 
@@ -552,14 +564,21 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2ChainId chain = *CheckChain(L, 1);
         CheckChainUnlocked(L, chain, "set_restitution");
-        b2Chain_SetRestitution(chain, luaL_checknumber(L, 2));
+        float restitution = luaL_checknumber(L, 2);
+        int count = b2Chain_GetSegmentCount(chain);
+        for (int i = 0; i < count; ++i)
+        {
+            b2SurfaceMaterial material = b2Chain_GetSurfaceMaterial(chain, i);
+            material.restitution = restitution;
+            b2Chain_SetSurfaceMaterial(chain, &material, i);
+        }
         return 0;
     }
 
     static int Chain_GetMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushinteger(L, b2Chain_GetMaterial(*CheckChain(L, 1)));
+        lua_pushinteger(L, b2Chain_GetSurfaceMaterial(*CheckChain(L, 1), 0).userMaterialId);
         return 1;
     }
 
@@ -568,7 +587,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2ChainId chain = *CheckChain(L, 1);
         CheckChainUnlocked(L, chain, "set_material");
-        b2Chain_SetMaterial(chain, luaL_checkinteger(L, 2));
+        uint64_t material_id = luaL_checkinteger(L, 2);
+        int count = b2Chain_GetSegmentCount(chain);
+        for (int i = 0; i < count; ++i)
+        {
+            b2SurfaceMaterial material = b2Chain_GetSurfaceMaterial(chain, i);
+            material.userMaterialId = material_id;
+            b2Chain_SetSurfaceMaterial(chain, &material, i);
+        }
         return 0;
     }
 

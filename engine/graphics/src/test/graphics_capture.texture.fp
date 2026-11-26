@@ -8,5 +8,5 @@ in vec3 vertex_color;
 
 void main()
 {
-    fragment_color = vec4(textureLod(SPIRV_Cross_Combinedtest_texturetest_sampler, vertex_color.xy, 0.0).xyz, 1.0);
+    fragment_color = vec4(textureLod(SPIRV_Cross_Combinedtest_texturetest_sampler, vertex_color.xy, vertex_color.z).xyz, 1.0);
 }

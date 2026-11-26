@@ -14,35 +14,214 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import com.dynamo.bob.util.MurmurHash;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
+
+    // Guards HLSL source selection from changing the text/binary formats of other targets.
+    @Test
+    public void testCommonShaderCompilerHLSLSourceDoesNotAffectOtherTargets() throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        ShaderDesc glsl = compileShaderWithCompiler(compiler, "opengl", "common-glsl-output");
+        assertTrue(glsl.getShaders(0).getSource().toStringUtf8().contains("void main"));
+        ShaderDesc spirv = compileShaderWithCompiler(compiler, "vulkan", "common-spirv-output");
+        assertEquals(0x07230203, spirv.getShaders(0).getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt());
+    }
+
+    // Verifies common HLSL source output skips binary finalization while binary output retains it.
+    @Test
+    public void testCommonShaderCompilerHLSLOutputModes() throws Exception {
+        String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
+        for (String source : sources) {
+            for (Shaderc.HLSLOutputMode mode : Shaderc.HLSLOutputMode.values()) {
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                options.hLSLOutputMode = mode;
+                IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+                ShaderDesc shader = compileShaderWithCompiler(compiler, "dx12", "common-hlsl-output-mode", source);
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+                byte[] data = shader.getShaders(0).getSource().toByteArray();
+                if (mode == Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE) {
+                    String text = new String(data, StandardCharsets.UTF_8);
+                    assertTrue(text.contains("SV_Target"));
+                    assertFalse(text.contains("RootSignature"));
+                    assertTrue(shader.getHlslRootSignature().isEmpty());
+                } else {
+                    assertEquals("DXBC", new String(data, 0, 4, StandardCharsets.US_ASCII));
+                    assertFalse(shader.getHlslRootSignature().isEmpty());
+                }
+            }
+        }
+    }
+
+    private ShaderDesc compileHLSLSourcePair(String fragmentSource) throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.shaderAdapters = "dx12";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();
+        vertex.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vertex.resourcePath = "/source-pair.vp";
+        vertex.source = vp;
+        modules.add(vertex);
+        ShaderCompilePipeline.ShaderModuleDesc fragment = new ShaderCompilePipeline.ShaderModuleDesc();
+        fragment.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        fragment.resourcePath = "/source-pair.fp";
+        fragment.source = fragmentSource;
+        modules.add(fragment);
+        return ShaderProgramBuilder.buildResultsToShaderDescBuildResults(
+            compiler.compile(modules, "/source-pair.spc", compileOptions)).shaderDesc;
+    }
+
+    // Source output must normalize both stage interfaces when the fragment shader reads gl_FragCoord.
+    @Test
+    public void testHLSLSourcePairWithFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(
+            "varying vec4 fragColor;\nvoid main() { gl_FragColor = fragColor + gl_FragCoord; }\n");
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int position = source.indexOf(": SV_Position");
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, position >= 0 && varying >= 0 && position < varying);
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
+    // Without gl_FragCoord, moving vertex SV_Position would shift varyings away from fragment inputs.
+    @Test
+    public void testHLSLSourcePairWithoutFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(fp);
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, varying >= 0);
+            if (stage.getShaderType() == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                assertTrue(source, source.indexOf(": SV_Position") > varying);
+            } else {
+                assertFalse(source.contains(": SV_Position"));
+            }
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
+    // Source output must bypass DXC while preserving compute workgroup reflection through JNI.
+    @Test
+    public void testSM6HLSLSourceOutput() throws Exception {
+        ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+        module.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        module.resourcePath = "source-output.cp";
+        module.source = "#version 450\nlayout(local_size_x=1) in;\n"
+            + "layout(rgba32f, binding=0) uniform writeonly image2D output_image;\n"
+            + "void main() { imageStore(output_image, ivec2(gl_GlobalInvocationID.xy), vec4(gl_NumWorkGroups, 1)); }\n";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        modules.add(module);
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline("source-output", modules, options);
+        try {
+            Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60);
+            String source = new String(result.data, StandardCharsets.UTF_8);
+            assertTrue(source.contains("numthreads"));
+            assertTrue(source.contains("SPIRV_Cross_NumWorkgroups"));
+            assertFalse(source.startsWith("DXBC"));
+            assertFalse(source.contains("RootSignature"));
+            assertEquals(0, result.hLSLRootSignature.length);
+            assertTrue(pipeline.getReflectionData(module.type).getUBOs().stream()
+                .anyMatch(resource -> resource.name.equals("SPIRV_Cross_NumWorkgroups")
+                    && resource.binding == result.hLSLNumWorkGroupsId));
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    // SM6 shader output must contain DXIL bytecode and a root signature.
+    @Test
+    public void testSM6ShaderLanguageAndBytecode() throws Exception {
+        ShaderDesc shader = compileShaderForPlatform(Platform.X86_64Win32, "dx12", "sm6-language");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertTrue(shader.getHlslRootSignature().size() > 0);
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            java.nio.ByteBuffer data = stage.getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            boolean dxil = false;
+            for (int part = 0; part < data.getInt(28); ++part) {
+                int offset = data.getInt(32 + part * 4);
+                if (data.getInt(offset) == 0x4c495844) { // DXIL
+                    assertEquals(6, (data.getShort(offset + 8) >> 4) & 15);
+                    dxil = true;
+                }
+            }
+            assertTrue("Expected SM6 DXIL", dxil);
+        }
+    }
+
+    // Pixel output metadata survives DXC, JNI and protobuf serialization, including sparse MRT slots.
+    @Test
+    public void testSM6PixelOutputMetadata() throws Exception {
+        String source = "#version 450\n"
+            + "layout(location=0) out vec4 color;\n"
+            + "layout(location=2) out ivec2 signedValue;\n"
+            + "layout(location=5) out uvec3 unsignedValue;\n"
+            + "void main() { color=vec4(1); signedValue=ivec2(-1,2); unsignedValue=uvec3(3,4,5); gl_FragDepth=0.5; }\n";
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.X86_64Win32),
+            "dx12", "sm6-output-metadata", source);
+        shader = ShaderDesc.parseFrom(shader.toByteArray());
+        ShaderDesc.Shader stage = shader.getShaders(0);
+        assertEquals(3, stage.getHlslShaderOutputsCount());
+        int[] locations = {0, 2, 5};
+        int[] components = {4, 2, 3};
+        ShaderDesc.HLSLShaderOutput.ComponentType[] types = {
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32
+        };
+        for (int i = 0; i < locations.length; ++i) {
+            ShaderDesc.HLSLShaderOutput output = stage.getHlslShaderOutputs(i);
+            assertEquals(locations[i], output.getLocation());
+            assertEquals(components[i], output.getComponentCount());
+            assertEquals(types[i], output.getComponentType());
+        }
+    }
+
+    // Xbox's shared language selection uses SM6; the bolt-on supplies its final platform compiler.
+    @Test
+    public void testSM6XboxLanguageSelection() throws Exception {
+        ShaderDesc shader = compileShaderWithCompiler(
+            ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone), "dx12", "sm6-xbox");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertFalse(shader.getHlslRootSignature().isEmpty());
+    }
 
     @Before
     public void setup() {
@@ -72,6 +251,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Platform platform = Platform.getHostPlatform();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
             return ShaderDesc.Language.LANGUAGE_MSL_22;
+        }
+        if (platform == Platform.X86_64Win32) {
+            return ShaderDesc.Language.LANGUAGE_HLSL_60;
         }
         return getPlatformGLSLLanguage();
     }
@@ -615,9 +797,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Object[][] platformLanguages = new Object[][] {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
-            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
-            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
-            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_HLSL_60 } },
+            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
@@ -647,7 +829,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_SPIRV,
-            ShaderDesc.Language.LANGUAGE_HLSL_50,
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_MSL_22,
             ShaderDesc.Language.LANGUAGE_WGSL
         };
@@ -694,6 +876,126 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
+    // Compute shaders need SPIR-V on both Linux targets and desktop GLSL only on x86-64.
+    @Test
+    public void testLinuxDefaultComputeShaderLanguages() throws Exception {
+        String source = "layout(local_size_x = 1) in;\nvoid main() {}";
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            String path = "/compute_" + platform.getPair();
+            ShaderDesc shader = addAndBuildShaderDesc(path + ".cp", source, path + ".shbundle");
+            if (platform == Platform.X86_64Linux) {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+            }
+        }
+    }
+
+    // A single-adapter Linux manifest should only compile shaders its engine can use.
+    @Test
+    public void testLinuxManifestShaderLanguages() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            String vulkan = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, vulkan, "manifest_vulkan_" + platform.getPair()),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+
+            String gl = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, gl, "manifest_gl_" + platform.getPair()),
+                arm ? new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 }
+                    : new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 });
+        }
+    }
+
+    // Linux symbol exclusions must match the registered adapter, including in shared platform settings.
+    @Test
+    public void testLinuxOpenGLSymbolExclusionsPreserveOtherAdapterShaders() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "linux.appmanifest");
+            for (String section : List.of("linux", platform.getPair())) {
+                for (String symbol : List.of("GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES")) {
+                    addFile("/linux.appmanifest", "platforms:\n  " + section + ":\n    context:\n"
+                            + "      excludeSymbols: [" + symbol + "]\n");
+                    getProject().configurePreBuildProjectOptions();
+                    String adapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+                    boolean excludesFallback = symbol.equals(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL");
+                    assertEquals(excludesFallback ? "vulkan" : arm ? "vulkan,opengles" : "vulkan,opengl", adapters);
+                    ShaderDesc shader = compileShaderForPlatform(platform, adapters,
+                            "manifest_" + platform.getPair() + "_" + section + "_" + symbol);
+                    if (excludesFallback) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+                    } else if (arm) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    } else {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                    }
+                }
+            }
+        }
+    }
+
+    // The Linux symbol distinction must preserve the legacy OpenGL alias on mobile and web.
+    @Test
+    public void testMobileAndWebOpenGLSymbolAlias() throws Exception {
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.Armv7Android, Platform.Arm64Android,
+                Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            assertEquals(platform == Platform.Armv7Android || platform == Platform.Arm64Android ? "vulkan" : "", Project.getShaderAdaptersOption(platform,
+                    List.of(platformSettings("excludeSymbols", List.of("GraphicsAdapterOpenGL")))));
+        }
+    }
+
+    // Windows defaults to DX12, but manifests can replace it or add fallback adapters.
+    @Test
+    public void testWindowsShaderAdapters() throws Exception {
+        assertEquals("dx12", Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of()));
+        String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, adapters, "windows_dx12_opengl"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("libs", List.of("graphics"), "excludeLibs", List.of("graphics_dx12"))));
+        assertEquals("opengl", adapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, adapters, "windows_opengl"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+    }
+
+    // Legacy Windows Vulkan-only choices stay Vulkan-only; unrelated Linux exclusions retain the defaults.
+    @Test
+    public void testLegacyWindowsVulkanAndLinuxGraphicsExclusion() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("libgraphics_vulkan.lib"),
+                                 "excludeLibs", List.of("libgraphics.lib"))));
+        assertEquals("vulkan", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.X86_64Win32, adapters, "legacy_vulkan"),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+        adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("graphics_vulkan", "graphics_dx12"),
+                                 "excludeLibs", List.of("graphics"))));
+        assertEquals("dx12,vulkan", adapters);
+        adapters = Project.getShaderAdaptersOption(Platform.Arm64Linux, List.of(
+                platformSettings("excludeLibs", List.of("graphics"))));
+        assertEquals("vulkan,opengles", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.Arm64Linux, adapters, "linux_defaults"),
+                ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.WasmWeb)) {
+            assertEquals("", Project.getShaderAdaptersOption(platform, List.of(
+                    platformSettings("excludeLibs", List.of("graphics")))));
+        }
+    }
+
     @Test
     public void testManifestShaderLanguages() throws Exception {
         String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
@@ -714,7 +1016,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
             platformSettings(
                 "symbols", List.of("GraphicsAdapterVulkan"),
-                "excludeSymbols", List.of("GraphicsAdapterOpenGL"))));
+                "excludeSymbols", List.of("GraphicsAdapterDX12"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -820,12 +1122,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
+    // Debug SPIR-V output adds a language without replacing the default Windows DX12 shaders.
     @Test
     public void testShaderLanguageOverrides() throws Exception {
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "default_windows"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60);
+
         getProject().setOption("debug-output-spirv", "true");
         checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.X86_64Linux.getPair(), Platform.X86_64Linux.getPair(), "debug_spirv_linux"),
-            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "debug_spirv_windows"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 
@@ -1217,6 +1524,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompute() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
         String source_no_version =
             "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
             "void main() {}";

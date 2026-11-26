@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debug-view-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -29,14 +30,14 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [support.dap-util :as dap-util]
             [support.process-util :as process-util]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.http-server :as http-server]
             [util.http-server.types :as http-server.types])
-  (:import [com.dynamo.render.proto Render$Resize]
-           [java.io ByteArrayOutputStream InputStream]
+  (:import [java.io ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
            [java.util Collection]
            [java.util.concurrent LinkedBlockingQueue]
@@ -341,10 +342,11 @@
         (prefs/set! settings [:run :simulated-resolution] {:width 501 :height 351})
         (prefs/set! settings [:run :simulate-rotated-device] true)
         (with-open [server (http-server/start!
-                             (fn [{:keys [body method path]}]
-                               (let [resize (Render$Resize/parseFrom ^InputStream body)]
-                                 (reset! resized [method path (.getWidth resize) (.getHeight resize)]))
-                               http-server/ok)
+                             (fn handle-resize [{:keys [body method path]}]
+                               (let [resize (json/read-str (slurp body) :key-fn keyword)]
+                                 (reset! resized [method path (:width resize) (:height resize)]))
+                               (http-server/json-response {:operation_id "r1" :state "queued"}
+                                                          202 {"location" "/window/resize/r1"}))
                              :host "127.0.0.1")]
           (targets/select-target! settings {:id "reset-resolution-test"
                                             :url (http-server/local-url server)})
@@ -355,10 +357,11 @@
                                                :workspace workspace
                                                :prefs settings})])]
             (is command)
-            (handler/run command)))
+            (log/without-logging
+              (handler/run command))))
         (is (nil? (prefs/get settings [:run :simulated-resolution])))
         (is (false? (prefs/get settings [:run :simulate-rotated-device])))
-        (is (= ["POST" "/post/@render/resize"
+        (is (= ["POST" "/window/resize"
                 (get project-settings ["display" "width"])
                 (get project-settings ["display" "height"])]
                @resized))

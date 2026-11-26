@@ -66,7 +66,7 @@ namespace dmGameSystem
         lua_setfield(L, -2, "inertia");
     }
 
-    static void PushCastOutput(lua_State* L, const b2CastOutput& output)
+    static void PushCastOutput(lua_State* L, const b2WorldCastOutput& output)
     {
         lua_newtable(L);
 
@@ -643,7 +643,7 @@ namespace dmGameSystem
         bool update_mass = lua_gettop(L) >= update_mass_index && !lua_isnil(L, update_mass_index) && lua_toboolean(L, update_mass_index);
         if (update_mass)
         {
-            b2Body_ApplyMassFromShapes(b2Shape_GetBody(shape));
+            b2Body_UpdateMassFromShapes(b2Shape_GetBody(shape));
         }
         return 0;
     }
@@ -710,14 +710,14 @@ namespace dmGameSystem
     static int Shape_GetMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushinteger(L, b2Shape_GetMaterial(CheckShape(L, 1)));
+        lua_pushinteger(L, b2Shape_GetUserMaterial(CheckShape(L, 1)));
         return 1;
     }
 
     static int Shape_SetMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Shape_SetMaterial(CheckShape(L, 1), luaL_checkinteger(L, GetShapeValueIndex(L, 1)));
+        b2Shape_SetUserMaterial(CheckShape(L, 1), luaL_checkinteger(L, GetShapeValueIndex(L, 1)));
         return 0;
     }
 
@@ -823,12 +823,11 @@ namespace dmGameSystem
         b2ShapeId shape = CheckShape(L, 1);
         int value_index = GetShapeValueIndex(L, 1);
 
-        b2RayCastInput input = {};
-        input.origin = CheckVec2(L, value_index, GetPhysicsScale());
-        input.translation = CheckVec2(L, value_index + 1, GetPhysicsScale());
-        input.maxFraction = lua_isnoneornil(L, value_index + 2) ? 1.0f : luaL_checknumber(L, value_index + 2);
-
-        b2CastOutput output = b2Shape_RayCast(shape, &input);
+        b2Pos origin = CheckVec2(L, value_index, GetPhysicsScale());
+        b2Vec2 translation = CheckVec2(L, value_index + 1, GetPhysicsScale());
+        float max_fraction = lua_isnoneornil(L, value_index + 2) ? 1.0f : luaL_checknumber(L, value_index + 2);
+        b2WorldCastOutput output = b2Shape_CastRay(shape, origin, b2MulSV(max_fraction, translation));
+        output.fraction *= max_fraction;
         if (!output.hit)
         {
             lua_pushnil(L);
@@ -844,7 +843,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2ShapeId shape = CheckShape(L, 1);
         CheckOptionalChildIndex(L, GetShapeValueIndex(L, 1));
-        b2AABB aabb = b2Shape_GetAABB(shape);
+        b2AABB aabb = b2Shape_GetBounds(shape);
 
         lua_newtable(L);
         dmScript::PushVector3(L, FromB2(aabb.lowerBound, GetInvPhysicsScale()));
@@ -908,7 +907,7 @@ namespace dmGameSystem
         dmArray<b2ShapeId> overlaps;
         overlaps.SetCapacity(capacity);
         overlaps.SetSize(capacity);
-        int count = b2Shape_GetSensorOverlaps(shape, overlaps.Begin(), capacity);
+        int count = b2Shape_GetSensorData(shape, overlaps.Begin(), capacity);
         int result_index = 1;
         for (int i = 0; i < count; ++i)
         {
@@ -928,7 +927,7 @@ namespace dmGameSystem
     static int Shape_GetMassData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        PushMassData(L, b2Shape_GetMassData(CheckShape(L, 1)));
+        PushMassData(L, b2Shape_ComputeMassData(CheckShape(L, 1)));
         return 1;
     }
 

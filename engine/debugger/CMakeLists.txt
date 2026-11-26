@@ -26,16 +26,20 @@ endif()
 
 defold_add_library(debugger STATIC src/dap.cpp src/debugger.cpp src/debugger_values.cpp src/debugger_inspect.cpp src/debugger_extension.cpp)
 target_include_directories(debugger PUBLIC "${CMAKE_CURRENT_LIST_DIR}/src")
-target_include_directories(debugger PRIVATE "${DEFOLD_HOME}/engine/script/src" "${DEFOLD_HOME}/engine")
 target_compile_definitions(debugger PRIVATE DLIB_LOG_DOMAIN="DEBUGGER")
 defold_target_link_libraries(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 defold_target_link_lua(debugger "${TARGET_PLATFORM}" SCOPE PUBLIC)
 defold_target_link_socket(debugger "${TARGET_PLATFORM}" PUBLIC)
 
-# gui_script.h consumes installed script headers alongside the local headers.
-if(TARGET script_sdk_headers)
-  add_dependencies(debugger script_sdk_headers)
-endif()
+# These module targets can be declared after debugger in an aggregate build.
+function(debugger_require_sdk_headers)
+  foreach(_headers IN ITEMS gui_public_sdk_headers script_sdk_headers)
+    if(TARGET ${_headers})
+      add_dependencies(debugger ${_headers})
+    endif()
+  endforeach()
+endfunction()
+cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL debugger_require_sdk_headers)
 
 defold_install_targets(TARGETS debugger ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
 install(FILES src/debugger.h DESTINATION include/debugger)

@@ -14,15 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.Before;
@@ -36,6 +29,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     private static final Map<String, String> invalidGLTFFiles = new HashMap<>();
@@ -170,8 +169,9 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies only recoverable clearcoat tangent errors pass validation for glTF and GLB.
     @Test
-    public void testGLTFValidatorRequiresTangentSpaceForClearcoat() throws IOException {
+    public void testGLTFValidatorAllowsGeneratedClearcoatTangents() throws IOException {
         String source = """
                 {
                     "asset": {"version": "2.0"},
@@ -195,10 +195,23 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 """;
         for (boolean hasNormalMap : new boolean[] {false, true}) {
             String gltf = source.formatted(hasNormalMap ? "\"normalTexture\": {\"index\": 0}," : "");
+            for (String suffix : new String[] {"gltf", "glb"}) {
+                byte[] content = suffix.equals("glb") ? makeGlb(gltf) : gltf.getBytes(StandardCharsets.UTF_8);
+                GLTFValidator.ValidateResult result = GLTFValidator.validateGltf(content, suffix, false);
+                assertTrue(result.errors().toString(), result.result());
+            }
+        }
+
+        String gltf = source.formatted("");
+        for (String unsupported : new String[] {
+                gltf.replace("\"NORMAL\": 1,", ""),
+                gltf.replace("\"TEXCOORD_0\"", "\"TEXCOORD_2\""),
+                gltf.replace("\"material\": 0", "\"mode\": 1, \"material\": 0")
+        }) {
             GLTFValidator.ValidateResult result = GLTFValidator.validateGltf(
-                    gltf.getBytes(StandardCharsets.UTF_8), "gltf", false);
-            assertEquals(hasNormalMap, result.result());
-            assertEquals(!hasNormalMap, result.errors().stream().anyMatch(
+                    unsupported.getBytes(StandardCharsets.UTF_8), "gltf", false);
+            assertFalse(result.result());
+            assertTrue(result.errors().toString(), result.errors().stream().anyMatch(
                     error -> "MESH_PRIMITIVE_NO_TANGENT_SPACE".equals(error.code())));
         }
     }
@@ -250,6 +263,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1, countInputs(meshsetTask, "buffers/mesh.bin"));
     }
 
+    // Morph output discovery must skip texture packing and defer atlas limits to build().
     @Test
     public void testMorphOutputsAreDiscoveredWithImporterFallback() throws Exception {
         String gltf = "{" +
@@ -262,6 +276,8 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "\"attributes\":{\"POSITION\":0},\"targets\":[{\"POSITION\":1}]}]}]," +
                 "\"nodes\":[{\"mesh\":0}],\"scenes\":[{\"nodes\":[0]}],\"scene\":0}";
         addFile("/morph.gltf", gltf);
+        getProject().getProjectProperties().putStringValue("model", "max_morph_target_texture_width", "1");
+        getProject().getProjectProperties().putStringValue("model", "max_morph_target_texture_height", "1");
 
         Task meshsetTask = getProject().createTask(getProject().getResource("/morph.gltf"), MeshsetBuilder.class);
 

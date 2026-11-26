@@ -62,6 +62,8 @@ int main(int argc, char **argv)
 
     lookup_stream << "const int EASING_SAMPLES = " << n_samples << ";\n";
 
+    lookup_stream << "extern float EASING_LOOKUP[];\n";
+    lookup_stream << "#if defined(DM_EASING_LOOKUP_IMPLEMENTATION)\n";
     lookup_stream << "float EASING_LOOKUP[] = { \n";
 
     QJsonArray curves;
@@ -83,7 +85,7 @@ int main(int argc, char **argv)
         o["values"] = values;
         curves.append(o);
     }
-    lookup_stream << "};\n";
+    lookup_stream << "};\n#endif\n";
 
     QJsonDocument d(curves);
     json_stream << d.toJson();

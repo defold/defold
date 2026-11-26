@@ -16,6 +16,9 @@
 #define DM_GRAPHICS_TEST_UTIL_H
 
 #include <stdint.h>
+#include <string.h>
+#include <dlib/array.h>
+#include <graphics/graphics_test.hpp>
 
 #include <dmsdk/graphics/graphics.h>
 
@@ -23,20 +26,6 @@
 
 namespace dmGraphics
 {
-    inline int GetShaderStageFlags(ShaderDesc::ShaderType type)
-    {
-        switch(type)
-        {
-        case ShaderDesc::SHADER_TYPE_VERTEX:
-            return SHADER_STAGE_FLAG_VERTEX;
-        case ShaderDesc::SHADER_TYPE_FRAGMENT:
-            return SHADER_STAGE_FLAG_FRAGMENT;
-        case ShaderDesc::SHADER_TYPE_COMPUTE:
-            return SHADER_STAGE_FLAG_COMPUTE;
-        }
-        return 0;
-    }
-
     class ShaderDescBuilder
     {
     public:

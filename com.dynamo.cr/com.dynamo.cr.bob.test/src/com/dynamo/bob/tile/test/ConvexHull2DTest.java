@@ -14,27 +14,25 @@
 
 package com.dynamo.bob.tile.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertThat;
-import static org.hamcrest.CoreMatchers.hasItem;
-
-import java.awt.image.BufferedImage;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
-import java.nio.ByteOrder;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-
-import javax.imageio.ImageIO;
-
+import com.dynamo.bob.tile.ConvexHull2D;
+import com.dynamo.bob.tile.ConvexHull2D.Point;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.tile.ConvexHull2D;
-import com.dynamo.bob.tile.ConvexHull2D.Point;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
+import java.util.Arrays;
+import java.util.HashSet;
+
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class ConvexHull2DTest {
 

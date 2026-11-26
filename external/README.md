@@ -21,11 +21,24 @@ versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on a
 platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
 [meshoptimizer](meshoptimizer/README.md), [Ogg](ogg/README.md), and Protobuf are
 built for desktop platforms; mobile and web builds use the host's tools.
+[DXC](dxc/README.md) is installed from
+`packages/dxc-1.9.2609-<platform>.tar.gz` for all five desktop host platforms:
+`x86_64-win32`, `arm64-macos`, `x86_64-macos`, `arm64-linux`, and `x86_64-linux`.
+Normal external builds do not compile DXC.
 Protobuf and Abseil use the same CMake toolchain and build graph as the other
 source dependencies and install directly into `ext`.
 Linux additionally builds [OpenH264](openh264/README.md) for video recording.
 The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
 `external/build` itself is generated build output.
+
+For native Linux MemorySanitizer builds, run
+`./scripts/build.py build_ext -- --with-msan`. The normal dependency installation
+is kept for host tools and JNI. A second build under `external/build/<platform>-msan`
+installs instrumented libraries under `ext/msan/<platform>`, including a pinned
+LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, patched GLFW, and Tremolo are rebuilt
+from pinned downloads. LuaJIT and Protobuf's code generator remain host tools;
+the instrumented engine uses vanilla Lua. OpenH264 uses its instrumentable C++
+kernels. `clean_ext` also removes this platform's MSan build and installation.
 
 CI caches built external dependencies for engine, Bob, and editor jobs using the
 [`build-external`](../.github/actions/build-external/action.yml) action.
@@ -34,6 +47,13 @@ Whenever a source dependency is added, removed, or moved in
 [`external/CMakeLists.txt`](CMakeLists.txt), update `SOURCE_PATHS` in
 [`ci/ext_cache.py`](../ci/ext_cache.py) as part of the same change. This ensures
 changes to every source-built library invalidate the CI cache.
+
+`SOURCE_PATHS` also lists the shared CMake configuration, toolchains, and
+library/install helpers used by external builds, including LuaJIT's host build.
+Update it when an external build starts using another shared helper or template.
+Engine-only helpers such as font embedding and test generation are excluded so
+their changes can reuse the external cache. The key still includes SDK and
+compiler identities, build configuration, and the generated Ninja commands.
 
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.
@@ -47,6 +67,11 @@ executed in the current build are counted.
 
 External libraries can also be distributed as packages. Rebuild the packages
 listed below with `build_external`, which writes archives under `defold/packages`.
+The DXC packages can be rebuilt with
+`./scripts/build.py build_external --package=dxc --platform=<platform>`.
+Each package includes `bin`, `lib`, `include`, and license files under `share`.
+Use the [DXC Linux rebuild instructions](dxc/README.md#linux-packages) with the
+repository's Ubuntu 22.04 Docker image for both Linux architectures.
 
 From the repository root, with the platform SDK set up:
 
@@ -71,7 +96,10 @@ non-SIMD libraries in the platform archive. `external/rebuild.sh` uses the same
 `build_external` command.
 
 Dawn is a desktop package built by `build_external`, with its revision pinned in
-`external/dawn/CMakeLists.txt`. The first build downloads its sources and
+`external/dawn/CMakeLists.txt`. It provides the native WebGPU runtime linked by
+the engine. The separate Tint executable built from `share/ext/tint` converts
+SPIR-V to WGSL for Bob; it does not replace the Dawn runtime package.
+The first build downloads its sources and
 dependencies and builds a static library with the native backend. Tests, samples,
 and command-line tools are disabled. Shader input is limited to WGSL, with only
 the MSL, SPIR-V, or HLSL output writer needed by the platform enabled. Sources
@@ -119,9 +147,10 @@ and compiles the library; later runs can reuse matching compiler results.
 ./scripts/build.py install_ext --platform=arm64-macos
 ```
 
-These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
-the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
-`ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
+These commands produce `packages/dawn-<revision>-arm64-macos.tar.gz`, where
+`<revision>` is the short hash pinned in [Dawn's CMake project](dawn/CMakeLists.txt).
+They install the library to `$DYNAMO_HOME/ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
+`$DYNAMO_HOME/ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
 cannot shadow Emscripten's WebGPU headers. When updating an existing installation,
 remove the old shared `ext/include/webgpu` and `ext/include/dawn` directories
 before running `install_ext`.

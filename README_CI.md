@@ -7,7 +7,7 @@ The Defold CI jobs are divided into separate GitHub Actions workflows:
 * [Main](/.github/workflows/main-ci.yml) - Builds and tests changes to all branches. The workflow varies slightly depending on the type of branch being built (dev, beta, master or a feature branch).
 * [PR - ok to test](/.github/workflows/pr-ok-to-test.yml) - Builds a reviewed external (fork) pull request through `Main`. See [External contributions](#external-contributions) below.
 * [PR - Release notes](/.github/workflows/check-release-notes.yml) - Checks release notes metadata for pull requests without building the engine or editor.
-* [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs Address Sanitizer (ASAN) and Valgrind nightly to detect leaks and other problems. This is done on the `dev` branch.
+* [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs desktop, Android emulator and web jobs against `dev`. Sanitizer coverage varies by target and includes AddressSanitizer(ASAN), UndefinedBehaviorSanitizer(UBSAN), ThreadSanitizer(TSAN) and MemorySanitizer(MSAN).
 
 The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
 
@@ -181,8 +181,9 @@ keeps the SDK and NDK tree in the Actions cache, is passed `cache: false`.
 Because there is no S3, a contrib build hands its output between jobs as artifacts instead:
 the engine jobs upload `$DYNAMO_HOME` (`dynamo-home-<platform>`), `build-bob` restores them
 and builds with `--skip-archive`, and the editor jobs build with
-`--engine-artifacts=dynamo-home --skip-distclean`. `build-sdk` is skipped, since it is a
-merge of the per-platform SDK archives on S3.
+`--engine-artifacts=dynamo-home --skip-distclean`. Contrib runs skip `build-sdk`.
+When enabled, that job downloads the per-platform SDKs from GitHub Actions
+artifacts, merges them and publishes the combined SDK to S3.
 
 Dispatching on the mirror branch runs the workflow file found **on that branch**, so the
 mirror is written with this repository's `.github/` spliced in place of the pull request's -

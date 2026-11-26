@@ -721,6 +721,7 @@
                             "--preview=true"]}
         shared-configuration {:Lua {:runtime {:pathStrict true}
                                     :completion {:workspaceWord false :callSnippet "Replace"}
+                                    :hover {:expandAlias false}
                                     :diagnostics {:enable true
                                                   :workspaceDelay -1
                                                   :workspaceEvent "None"
@@ -730,7 +731,7 @@
                                                                     :unused "Any"}
                                                   :disable ["trailing-space" "unused-local"]}
                                     :workspace {:checkThirdParty "Disable" :library [lua-annotations-path]}
-                                    :window {:progressBar false :statusBar false}}
+                                    :window {:progressBar true :statusBar false}}
                               :files {:exclude
                                       {"**/.git" true
                                        "**/.hg" true

@@ -31,3 +31,5 @@ font: "/checked.font"
 material: "/builtins/fonts/label-df.material"
 font_size: 24.0
 style: "notice"
+arc_radius: 200.0
+arc_angle: 120.0

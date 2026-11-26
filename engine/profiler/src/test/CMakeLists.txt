@@ -59,15 +59,38 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_profilerext_render ON "${PROFILER_ROOT}")
 
+if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
+  defold_add_executable(test_profiler_basic "${PROFILER_TEST_ROOT}/test_profiler_basic.cpp")
+  target_include_directories(test_profiler_basic PRIVATE "${PROFILER_SRC_DIR}")
+  defold_target_link_libraries(test_profiler_basic "${TARGET_PLATFORM}"
+    testmain
+    dlib
+    zip
+    mbedtls
+    extension
+    profile)
+  defold_target_link_socket(test_profiler_basic "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_app(test_profiler_basic "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    find_package(Threads REQUIRED)
+    target_link_libraries(test_profiler_basic PRIVATE Threads::Threads dl)
+  endif()
+  defold_register_test_target(test_profiler_basic ON "${PROFILER_ROOT}")
+endif()
+
 if(TARGET profiler_remotery)
   defold_add_executable(test_profiler_remotery "${PROFILER_TEST_ROOT}/test_profiler_remotery.cpp")
   target_include_directories(test_profiler_remotery PRIVATE "${PROFILER_SRC_DIR}")
   defold_target_link_libraries(test_profiler_remotery "${TARGET_PLATFORM}"
     testmain
     dlib
-    profile_null
+    zip
+    mbedtls
+    extension
+    profile
     profiler_remotery)
   defold_target_link_socket(test_profiler_remotery "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_app(test_profiler_remotery "${TARGET_PLATFORM}" SCOPE PRIVATE)
   if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     find_package(Threads REQUIRED)
     target_link_libraries(test_profiler_remotery PRIVATE Threads::Threads m)

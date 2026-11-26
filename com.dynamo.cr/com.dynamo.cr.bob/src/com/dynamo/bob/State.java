@@ -20,10 +20,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.dynamo.bob.fs.IResource;
 
@@ -35,7 +35,7 @@ import com.dynamo.bob.fs.IResource;
 public class State implements Serializable {
 
     private static final long serialVersionUID = -275410118302470802L + 1;
-    private Map<String, byte[]> signatures = new HashMap<String, byte[]>();
+    private Map<String, byte[]> signatures = new ConcurrentHashMap<String, byte[]>();
 
     /**
      * Get signature for path
@@ -82,9 +82,12 @@ public class State implements Serializable {
         if (content == null) {
             return new State();
         } else {
-            try {
-                ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content));
+            try (ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content))) {
                 State state = (State) is.readObject();
+                // Older caches contain a HashMap; deserialization skips the field initializer.
+                if (!(state.signatures instanceof ConcurrentHashMap)) {
+                    state.signatures = new ConcurrentHashMap<>(state.signatures);
+                }
                 return state;
             } catch (Throwable e) {
                 System.err.println("Unable to load state");

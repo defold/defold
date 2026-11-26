@@ -44,7 +44,9 @@ static void PushCommand(dmArray<FontOutlineCommand>& commands, FontOutlineComman
     // FontOutlineCommand always has room for the largest operation (a cubic),
     // so unused points remain zero-initialized for moves, lines, and quadratics.
     if (commands.Full())
+    {
         commands.OffsetCapacity(32);
+    }
     FontOutlineCommand command = {};
     command.m_Type = type;
     command.m_Points[0] = p0;
@@ -108,7 +110,9 @@ static void PushYMonotonicCubic(dmArray<FontOutlineCommand>& commands, FontOutli
     if (fabsf(a) < 1.0e-7f)
     {
         if (fabsf(b) >= 1.0e-7f)
+        {
             roots[root_count++] = -c / b;
+        }
     }
     else
     {
@@ -118,7 +122,9 @@ static void PushYMonotonicCubic(dmArray<FontOutlineCommand>& commands, FontOutli
             float root = sqrtf(discriminant);
             roots[root_count++] = (-b - root) / (2.0f * a);
             if (root != 0.0f)
+            {
                 roots[root_count++] = (-b + root) / (2.0f * a);
+            }
         }
     }
     if (root_count == 2 && roots[0] > roots[1])
@@ -134,7 +140,9 @@ static void PushYMonotonicCubic(dmArray<FontOutlineCommand>& commands, FontOutli
     {
         float root = roots[i];
         if (root <= previous + MONOTONIC_ROOT_EPSILON || root >= 1.0f - MONOTONIC_ROOT_EPSILON)
+        {
             continue;
+        }
 
         FontOutlinePoint left[4];
         FontOutlinePoint right[4];
@@ -161,22 +169,30 @@ FontResult FontOutlineMakeYMonotonic(FontOutline* outline)
         const FontOutlineCommand& command = outline->m_Commands[i];
         switch (command.m_Type)
         {
-        case FONT_OUTLINE_MOVE_TO:
-        case FONT_OUTLINE_LINE_TO:
-            PushCommand(commands, command.m_Type, command.m_Points[0]);
-            current = command.m_Points[0];
-            break;
-        case FONT_OUTLINE_QUADRATIC_TO:
-            PushYMonotonicQuadratic(commands, current, command.m_Points[0], command.m_Points[1]);
-            current = command.m_Points[1];
-            break;
-        case FONT_OUTLINE_CUBIC_TO:
-            PushYMonotonicCubic(commands, current, command.m_Points[0], command.m_Points[1], command.m_Points[2]);
-            current = command.m_Points[2];
-            break;
-        case FONT_OUTLINE_CLOSE:
-            PushCommand(commands, FONT_OUTLINE_CLOSE);
-            break;
+            case FONT_OUTLINE_MOVE_TO:
+            case FONT_OUTLINE_LINE_TO:
+            {
+                PushCommand(commands, command.m_Type, command.m_Points[0]);
+                current = command.m_Points[0];
+                break;
+            }
+            case FONT_OUTLINE_QUADRATIC_TO:
+            {
+                PushYMonotonicQuadratic(commands, current, command.m_Points[0], command.m_Points[1]);
+                current = command.m_Points[1];
+                break;
+            }
+            case FONT_OUTLINE_CUBIC_TO:
+            {
+                PushYMonotonicCubic(commands, current, command.m_Points[0], command.m_Points[1], command.m_Points[2]);
+                current = command.m_Points[2];
+                break;
+            }
+            case FONT_OUTLINE_CLOSE:
+            {
+                PushCommand(commands, FONT_OUTLINE_CLOSE);
+                break;
+            }
         }
     }
 
@@ -187,7 +203,9 @@ FontResult FontOutlineMakeYMonotonic(FontOutline* outline)
         // required by FontOutline before replacing the original allocation.
         normalized = (FontOutlineCommand*)malloc(sizeof(FontOutlineCommand) * commands.Size());
         if (!normalized)
+        {
             return FONT_RESULT_ERROR;
+        }
 
         memcpy(normalized, commands.Begin(), sizeof(FontOutlineCommand) * commands.Size());
     }
@@ -209,13 +227,21 @@ static void ExtendBounds(FontOutlinePoint point, float* x0, float* y0, float* x1
 {
     // Extend an initialized axis-aligned bounding box by one point.
     if (point.m_X < *x0)
+    {
         *x0 = point.m_X;
+    }
     if (point.m_Y < *y0)
+    {
         *y0 = point.m_Y;
+    }
     if (point.m_X > *x1)
+    {
         *x1 = point.m_X;
+    }
     if (point.m_Y > *y1)
+    {
         *y1 = point.m_Y;
+    }
 }
 
 static void ExtendBounds(FontOutlineBounds* bounds, FontOutlinePoint point)
@@ -252,14 +278,18 @@ static void ExtendQuadraticBounds(FontOutlinePoint from, FontOutlinePoint contro
     {
         float t = (from.m_X - control.m_X) / denominator;
         if (t > 0.0f && t < 1.0f)
+        {
             ExtendBounds({ EvaluateQuadratic(from.m_X, control.m_X, to.m_X, t), EvaluateQuadratic(from.m_Y, control.m_Y, to.m_Y, t) }, x0, y0, x1, y1);
+        }
     }
     denominator = from.m_Y - 2.0f * control.m_Y + to.m_Y;
     if (denominator != 0.0f)
     {
         float t = (from.m_Y - control.m_Y) / denominator;
         if (t > 0.0f && t < 1.0f)
+        {
             ExtendBounds({ EvaluateQuadratic(from.m_X, control.m_X, to.m_X, t), EvaluateQuadratic(from.m_Y, control.m_Y, to.m_Y, t) }, x0, y0, x1, y1);
+        }
     }
 }
 
@@ -275,7 +305,9 @@ static void ExtendCubicAxisBounds(float p0, float p1, float p2, float p3, FontOu
     if (fabsf(a) < 1.0e-8f)
     {
         if (b != 0.0f)
+        {
             roots[root_count++] = -c / b;
+        }
     }
     else
     {
@@ -335,7 +367,9 @@ void FontOutlineBoundsCubicTo(FontOutlineBounds* bounds, FontOutlinePoint contro
 void FontOutlineBoundsMerge(FontOutlineBounds* bounds, const FontOutlineBounds* source, float dx, float dy)
 {
     if (!source->m_HasBounds)
+    {
         return;
+    }
 
     ExtendBounds(bounds, { source->m_X0 + dx, source->m_Y0 + dy });
     ExtendBounds(bounds, { source->m_X1 + dx, source->m_Y1 + dy });
@@ -344,7 +378,9 @@ void FontOutlineBoundsMerge(FontOutlineBounds* bounds, const FontOutlineBounds* 
 bool FontOutlineBoundsGet(const FontOutlineBounds* bounds, float* x0, float* y0, float* x1, float* y1)
 {
     if (!bounds->m_HasBounds)
+    {
         return false;
+    }
 
     *x0 = bounds->m_X0;
     *y0 = bounds->m_Y0;
@@ -365,19 +401,29 @@ bool FontGetOutlineBounds(const FontOutline* outline, float* x0, float* y0, floa
         switch (command->m_Type)
         {
             case FONT_OUTLINE_MOVE_TO:
+            {
                 FontOutlineBoundsMoveTo(&bounds, command->m_Points[0]);
                 break;
+            }
             case FONT_OUTLINE_LINE_TO:
+            {
                 FontOutlineBoundsLineTo(&bounds, command->m_Points[0]);
                 break;
+            }
             case FONT_OUTLINE_QUADRATIC_TO:
+            {
                 FontOutlineBoundsQuadraticTo(&bounds, command->m_Points[0], command->m_Points[1]);
                 break;
+            }
             case FONT_OUTLINE_CUBIC_TO:
+            {
                 FontOutlineBoundsCubicTo(&bounds, command->m_Points[0], command->m_Points[1], command->m_Points[2]);
                 break;
+            }
             case FONT_OUTLINE_CLOSE:
+            {
                 break;
+            }
         }
     }
     return FontOutlineBoundsGet(&bounds, x0, y0, x1, y1);

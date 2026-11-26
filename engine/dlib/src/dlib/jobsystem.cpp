@@ -70,6 +70,8 @@ struct JobThreadContext
     dmMutex::HMutex         m_Mutex;        // On unsupported platforms, this is a null pointer
 #if defined(DM_HAS_THREADS)
     dmConditionVariable::HConditionVariable m_WakeupCond;
+    dmConditionVariable::HConditionVariable m_ProgressCond;
+    bool                                    m_WaitingForProgress;
     bool                                    m_Run;
 #endif
 };
@@ -78,6 +80,7 @@ struct JobContext
 {
 #if defined(DM_HAS_THREADS)
     dmArray<dmThread::Thread> m_Threads;
+    dmThread::TlsKey          m_UpdateThreadKey;
 #endif
     JobThreadContext    m_ThreadContext;
     int32_atomic_t      m_Initialized;
@@ -258,17 +261,16 @@ HJob JobSystemCreateJob(HJobContext context, Job* job)
     uint32_t index;
     uint64_t generation;
     JobItem* item;
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
 
-        if (ctx->m_Items.Full())
-            ctx->m_Items.OffsetCapacity(64);
+    if (ctx->m_Items.Full())
+        ctx->m_Items.OffsetCapacity(64);
 
-        index = ctx->m_Items.Alloc();
-        generation = ctx->m_Generation++;
-        item = &ctx->m_Items.Get(index);
-    }
+    index = ctx->m_Items.Alloc();
+    generation = ctx->m_Generation++;
+    item = &ctx->m_Items.Get(index);
 
+    // Workers can create jobs while another thread grows or compacts the pool.
     memset(item, 0, sizeof(JobItem));
 
     item->m_TimeCreated  = dmTime::GetMonotonicTime();
@@ -405,6 +407,14 @@ static JobSystemStatus PutWork(JobThreadContext* ctx, HJob job)
         ctx->m_Work.OffsetCapacity(16);
     ctx->m_Work.Push(job);
 
+#if defined(DM_HAS_THREADS)
+    if (ctx->m_WaitingForProgress)
+    {
+        dmConditionVariable::Signal(ctx->m_ProgressCond);
+    }
+
+#endif
+
     return item.m_Status;
 }
 
@@ -426,15 +436,31 @@ static void PutDone(JobThreadContext* ctx, HJob hjob, JobSystemStatus status, in
     item.m_Status = status;
     item.m_Result = result;
 
-    if (ctx->m_Done.Full())
-        ctx->m_Done.OffsetCapacity(16);
-    ctx->m_Done.Push(hjob);
-
     if (item.m_Parent != INVALID_JOB)
     {
-        JobItem& parent = ctx->m_Items.Get(item.m_Parent);
-        dmAtomicIncrement32(&parent.m_NumChildrenCompleted);
+        JobItem* parent = GetJobItem(ctx, item.m_Parent);
+        if (parent)
+            dmAtomicIncrement32(&parent->m_NumChildrenCompleted);
     }
+
+    // Keep parents alive until their remaining child callbacks can be canceled.
+    // Otherwise, callback-free jobs need no owner-thread completion dispatch.
+    if (!item.m_Job.m_Callback && item.m_FirstChild == INVALID_JOB)
+        FreeJob(ctx, hjob);
+    else
+    {
+        if (ctx->m_Done.Full())
+            ctx->m_Done.OffsetCapacity(16);
+        ctx->m_Done.Push(hjob);
+    }
+
+#if defined(DM_HAS_THREADS)
+    if (ctx->m_WaitingForProgress)
+    {
+        dmConditionVariable::Signal(ctx->m_ProgressCond);
+    }
+
+#endif
 }
 
 static void CancelAllJobs(HJobContext context)
@@ -485,7 +511,7 @@ static void ProcessOneJob(JobThreadContext* ctx, HJob hjob)
     PutDone(ctx, hjob, JOBSYSTEM_STATUS_FINISHED, result);
 }
 
-static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_item)
+static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, FJobFilter filter, void* filter_context, JobItem** out_item)
 {
     uint32_t size = ctx->m_Work.Size();
     for (uint32_t i = 0; i < size;)
@@ -511,6 +537,12 @@ static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_
             continue;
         }
 
+        if (filter && !filter(&item->m_Job, filter_context))
+        {
+            ++i;
+            continue;
+        }
+
         // The item is selected and removed from the array
         ctx->m_Work.Erase(i);
         *out_item = item;
@@ -518,6 +550,35 @@ static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_
     }
     *out_item = 0;
     return INVALID_JOB;
+}
+
+void JobSystemProcessOne(HJobContext context, bool wait, FJobFilter filter, void* filter_context)
+{
+#if !defined(DM_HAS_THREADS)
+    (void)wait;
+#endif
+    JobThreadContext* ctx = &context->m_ThreadContext;
+    HJob hjob;
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
+        JobItem* item = 0;
+        hjob = SelectAndPopJob(ctx, 0, filter, filter_context, &item);
+        if (hjob == INVALID_JOB)
+        {
+#if defined(DM_HAS_THREADS)
+            if (wait && context->m_UseThreads && ctx->m_Done.Empty())
+            {
+                ctx->m_WaitingForProgress = true;
+                dmConditionVariable::Wait(ctx->m_ProgressCond, ctx->m_Mutex);
+                ctx->m_WaitingForProgress = false;
+            }
+
+#endif
+            return;
+        }
+    }
+
+    ProcessOneJob(ctx, hjob);
 }
 
 // Good for unit testing with/without threads enabled
@@ -528,7 +589,7 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
         JobItem* item = 0;
-        HJob hjob = SelectAndPopJob(ctx, tstart, &item);
+        HJob hjob = SelectAndPopJob(ctx, tstart, 0, 0, &item);
         if (hjob == INVALID_JOB)
             return; // we had no valid job this frame
 
@@ -564,7 +625,7 @@ static void JobThread(void* _ctx)
 
             uint64_t time = dmTime::GetMonotonicTime();
             JobItem* item = 0;
-            hjob = SelectAndPopJob(ctx, time, &item);
+            hjob = SelectAndPopJob(ctx, time, 0, 0, &item);
             if (hjob == INVALID_JOB)
                 continue;
         }
@@ -619,6 +680,10 @@ HJobContext JobSystemCreate(const JobSystemCreateParams* create_params)
         return 0;
 
     JobContext* context = new JobContext();
+#if defined(DM_HAS_THREADS)
+    context->m_UpdateThreadKey = dmThread::AllocTls();
+    dmThread::SetTlsValue(context->m_UpdateThreadKey, context);
+#endif
     context->m_Initialized = 1;
 
     context->m_ThreadContext.m_Context = context;
@@ -626,11 +691,13 @@ HJobContext JobSystemCreate(const JobSystemCreateParams* create_params)
 
 #if defined(DM_HAS_THREADS)
     uint32_t thread_count = create_params->m_ThreadCount;
+    context->m_ThreadContext.m_WaitingForProgress = false;
     context->m_UseThreads = thread_count > 0;
     if (context->m_UseThreads)
     {
         context->m_ThreadContext.m_Mutex = dmMutex::New();
         context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
+        context->m_ThreadContext.m_ProgressCond = dmConditionVariable::New();
         context->m_ThreadContext.m_Run = true;
 
         context->m_Threads.SetCapacity(thread_count);
@@ -651,6 +718,7 @@ HJobContext JobSystemCreate(const JobSystemCreateParams* create_params)
     {
         context->m_ThreadContext.m_Mutex = 0;
         context->m_ThreadContext.m_WakeupCond = 0;
+        context->m_ThreadContext.m_ProgressCond = 0;
         context->m_ThreadContext.m_Run = false;
     }
 #else
@@ -685,8 +753,10 @@ void JobSystemDestroy(HJobContext context)
         }
 
         dmConditionVariable::Delete(context->m_ThreadContext.m_WakeupCond);
+        dmConditionVariable::Delete(context->m_ThreadContext.m_ProgressCond);
         dmMutex::Delete(context->m_ThreadContext.m_Mutex);
     }
+    dmThread::FreeTls(context->m_UpdateThreadKey);
 #endif // DM_HAS_THREADS
 
     delete context;
@@ -705,6 +775,14 @@ uint32_t JobSystemGetWorkerCount(HJobContext context)
 void JobSystemUpdate(HJobContext context, uint64_t time_limit)
 {
     DM_PROFILE("JobThreadUpdate");
+#if defined(DM_HAS_THREADS)
+    // Completion callbacks belong to the thread that owns this context.
+    if (dmThread::GetTlsValue(context->m_UpdateThreadKey) != context)
+    {
+        dmLogError("JobSystemUpdate must be called from the thread that created the job context.");
+        return;
+    }
+#endif
 
     if (!context->m_UseThreads)
     {

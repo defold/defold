@@ -23,9 +23,10 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$ShaderReflection]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Shader Graphics$ShaderDesc$ShaderReflection Graphics$ShaderDesc$ShaderType]
            [com.dynamo.render.proto Material$MaterialDesc]
            [com.google.protobuf ByteString]))
 
@@ -202,6 +203,7 @@
               :has-specular-glossiness true
               :has-ior true
               :has-parameters true
+              :has-fixed-layout true
               :has-emissive-strength true}
              pbr-parameters)))))
 
@@ -228,10 +230,10 @@
       (is (= (g/node-value node-id-material-1 :fragment-program)
              (g/node-value node-id-material-2 :fragment-program)
              (g/node-value node-id-material-3 :fragment-program)))
-      (is (= (:request-data shader-material-1)
-             (:request-data shader-material-2)
-             (:request-data shader-material-3)
-             (:request-data shader-material-with-uniforms)))
+      (is (= (dissoc (:request-data shader-material-1) :proj-path)
+             (dissoc (:request-data shader-material-2) :proj-path)
+             (dissoc (:request-data shader-material-3) :proj-path)
+             (dissoc (:request-data shader-material-with-uniforms) :proj-path)))
       ;; Each material needs its own mutable OpenGL uniform state.
       (is (distinct? (:request-id shader-material-1)
                      (:request-id shader-material-2)
@@ -252,6 +254,35 @@
                (= (:content-hash sp-dep-material-1)
                   (:content-hash sp-dep-material-2)
                   (:content-hash sp-dep-material-3)))))))
+
+;; Verifies local builds retain existing shader formats alongside DXIL and its
+;; root signature on every editor host for remote Windows Build and Run.
+(deftest material-shaders-for-remote-engines
+  (test-util/with-loaded-project
+    (let [settings (test-util/resource-node project "/game.project")
+          material (test-util/resource-node project "/materials/test.material")]
+      (doseq [exclude-gles-sm100 [false true]]
+        (test-util/set-setting! settings ["shader" "exclude_gles_sm100"] exclude-gles-sm100)
+        (let [targets (g/node-value material :build-targets)]
+          (is (not (g/error? targets)))
+          (when-not (g/error? targets)
+            (let [^Graphics$ShaderDesc shader
+                  (get-in targets [0 :deps 0 :user-data :shader-desc])
+
+                  expected-languages
+                  (cond-> #{:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100
+                            :language-glsl-sm430 :language-spirv :language-msl-22 :language-hlsl-60}
+                    exclude-gles-sm100 (disj :language-gles-sm100))]
+              (is (some? shader))
+              (when shader
+                (is (not (.isEmpty (.getHlslRootSignature shader))))
+                (doseq [shader-type [Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
+                                     Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT]]
+                  (is (= expected-languages
+                         (coll/into-> (.getShadersList shader)
+                           #{}
+                           (filter #(= shader-type (.getShaderType ^Graphics$ShaderDesc$Shader %)))
+                           (map #(protobuf/pb-enum->val (.getLanguage ^Graphics$ShaderDesc$Shader %)))))))))))))))
 
 (deftest material-validation
   (test-util/with-loaded-project

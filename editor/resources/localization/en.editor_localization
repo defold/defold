@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-poki.title = 3D Space Shooter web game for Poki
+welcome.new-project.sample-poki.description = This is a ready-to-play 3D shooter sample game featuring complete gameplay logic, a polished UI, an in-game shop with upgrades and skins, localization, audio settings and other best practices for a web game optimized for Poki.
 welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
 welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
@@ -105,6 +107,18 @@ welcome.new-project.perspective-parallax.title = Perspective Parallax
 welcome.new-project.perspective-parallax.description = This sample shows a perspective camera parallax effect.
 welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
+
+# Beta suggestions
+beta.notification.available = Defold {version} beta is out.
+beta.notification.try-it = Try It
+beta.button.do-not-suggest = Don''t Suggest Again
+beta.dialog.title = Try the Beta
+beta.dialog.header = Try Defold {version} beta?
+beta.dialog.button.later = Later
+beta.dialog.button.download = Download Beta
+beta.dialog.warning = Projects saved with the beta may not open in older versions of the editor. We recommend committing your changes or making a backup first.
+beta.no-newer-dialog.header = There is no newer beta version available at this time
+beta.check-failed-dialog.header = Couldn''t check for a beta version
 
 # Updater
 updater.button.update-available = Update Available
@@ -323,10 +337,12 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
 dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
 dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Unable to Load Plugin
 dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
+dialog.plugin-resource-type-error.title = Plugin Resource Type Error
+dialog.plugin-resource-type-error.header = The editor plugin resource type "{ext}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 
 # Desktop entry dialogs
 
@@ -598,6 +614,7 @@ dialog.bundle.label.android.key-pass = Key password
 dialog.bundle.label.android.bundle-format = Bundle format
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.option.android.download-size-report = Estimate download size
 dialog.bundle.title.choose-keystore = Choose Keystore
 dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
 dialog.bundle.title.choose-keystore-pass = Choose Keystore password
@@ -610,7 +627,7 @@ dialog.bundle.option.texture-compression.enabled = Enabled
 dialog.bundle.option.texture-compression.disabled = Disabled
 dialog.bundle.option.texture-compression.editor = Use Editor Preference
 dialog.bundle.label.with-symbols = Generate debug symbols
-dialog.bundle.label.build-report = Generate build report
+dialog.bundle.label.build-report = Generate bundle report
 dialog.bundle.label.liveupdate = Publish Live Update content
 dialog.bundle.label.contentless = Contentless bundle
 dialog.bundle.failed.title = Bundle Failed
@@ -781,11 +798,14 @@ prefs.keymap.inherited-from = Inherited from {context}
 progress.ready = Ready
 progress.writing = Writing {resource}
 progress.linting = Linting code…
+progress.language-server = {title}
+progress.language-server-with-message = {title}: {message}
 progress.fetching-engine = Fetching engine…
 progress.executing-pre-build-hooks = Executing pre-build hooks…
 progress.executing-post-build-hooks = Executing post-build hooks…
 progress.executing-bundle-hook = Executing bundle hook…
 progress.building-project = Building project…
+progress.checking-beta = Checking for beta…
 progress.installing-updated-libraries = Installing updated libraries…
 progress.initializing-editor = Initializing editor {lib}
 progress.loading-editor = Loading editor
@@ -814,6 +834,7 @@ progress.extracting-update = Extracting update
 progress.waiting = Waiting
 progress.bundling = Bundling…
 progress.building-engine = Building engine…
+progress.building-engine-stage = Building engine [{platform}]: {detail}
 progress.cleaning-engine = Cleaning engine…
 progress.downloading-symbols = Downloading symbols…
 progress.transpiling-to-lua = Transpiling to Lua…
@@ -857,6 +878,15 @@ menu.debug = Debug
 menu.view = View
 menu.help = Help
 menu.dock.new-window = New Window
+
+# Toolbar
+
+toolbar.select-tool = Select tool
+toolbar.move-tool = Move tool
+toolbar.rotate-tool = Rotate tool
+toolbar.scale-tool = Scale tool
+toolbar.2d-mode = 2D mode
+toolbar.visibility-settings = Visibility settings
 
 # Commands
 
@@ -1079,6 +1109,7 @@ command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
 command.help.check-for-updates = Check for Updates
+command.help.try-beta = Try the Beta Version…
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
@@ -1092,6 +1123,7 @@ code.find.prev = Previous
 code.find.next = Next
 code.replace.next = Replace
 code.replace.all = Replace All
+code.language-server.loading = Language server is loading…
 
 # About dialog
 
@@ -1159,6 +1191,7 @@ scene.font.style = Style: {style}
 
 scene-popup.reset-defaults-button = Reset to Defaults
 scene-popup.grid.plane = Plane
+scene-popup.grid.sync-plane-to-view = Align Plane to View
 scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
@@ -1244,6 +1277,8 @@ property.appmanifest.exclude-input = Exclude Input
 property.appmanifest.exclude-input.tooltip = Remove all input handling from the engine. Enable this only when the project does not use keyboard, mouse, touch, gamepad, or other input.
 property.appmanifest.exclude-liveupdate = Exclude Live Update
 property.appmanifest.exclude-liveupdate.tooltip = Remove Live Update functionality used to mount resources excluded from the initial bundle. Enable this only when the project does not download and mount Live Update content.
+property.appmanifest.exclude-datastore = Exclude Datastore
+property.appmanifest.exclude-datastore.tooltip = Remove the experimental datastore and its scheduler to reduce engine size. Enable this when native extensions do not use the datastore API.
 property.appmanifest.exclude-image = Exclude Image
 property.appmanifest.exclude-image.tooltip = Remove the `image` Lua module from the engine. Enable this only when project scripts do not use its image-loading and image-data functions.
 property.appmanifest.exclude-types = Exclude Types
@@ -1335,7 +1370,7 @@ property.camera.orthographic-mode.tooltip = **Orthographic only.** **Fixed** use
 property.collection-proxy.collection = Collection
 property.collection-proxy.collection.tooltip = Collection loaded as a separate game world. After loading, `enable` initializes it first when needed. When unloading, `unload` finalizes it first when needed; explicit lifecycle messages remain available for manual control.
 property.collection-proxy.exclude = Exclude
-property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it.
+property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it. An Archive Manifest selected in **game.project** controls packaging instead of this setting.
 
 # Properties: collision object
 
@@ -1560,6 +1595,11 @@ property.gui.y-anchor = Y Anchor
 property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or scene is resized. **Top** and **Bottom** keep the pivot at the same proportional distance from that edge; **None** keeps it relative to the adjusted center.
 
 # Properties: label
+
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
 
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
@@ -1969,7 +2009,7 @@ form.help.project.project.write_log_file = Controls when bundled applications wr
 form.label.project.project.minimum_log_level = Minimum Log Level
 form.help.project.project.minimum_log_level = The lowest severity that will be logged. Messages below the selected level are suppressed; messages at that level and above are kept.
 form.label.project.project.compress_archive = Compress Archive
-form.help.project.project.compress_archive = Compresses the game archive when bundling. This has no effect on Android because the APK already stores the data compressed.
+form.help.project.project.compress_archive = Compresses the game archive in the legacy workflow. Archive manifest projects use the File Compression settings on Base and each package.
 form.label.project.project.dependencies = Dependencies
 form.help.project.project.dependencies = URLs of Defold library projects to import. Prefer URLs pinned to a specific release or commit so library updates do not unexpectedly break the project.
 form.label.project.project.dependencies_metadata = Dependencies Metadata
@@ -2105,6 +2145,8 @@ form.label.project.ios = iOS
 form.help.project.ios = iOS related settings
 form.label.project.ios.home_indicator_mode = Home Indicator Mode
 form.help.project.ios.home_indicator_mode = **Deferred** preserves the default protection for all screen edges and requires two swipes to return Home. **System** allows normal system gestures, including a single swipe to return Home. **Auto Hide** also allows a single swipe and asks iOS to hide the Home Indicator automatically; iOS controls its visibility and may show it again when the screen is touched. System and Auto Hide also remove gesture protection from the other screen edges. On iOS 26 and later, the system may hide the Home Indicator in both System and Auto Hide modes.
+form.label.project.ios.use_high_refresh_rate = Use High Refresh Rate
+form.help.project.ios.use_high_refresh_rate = Allows rendering above 60 Hz on displays that support it, such as ProMotion. Adds `CADisableMinimumFrameDurationOnPhone` to the default `Info.plist` and requests **Update Frequency** from the display, or the display maximum when it is `0`. iOS may round the rate to one the display supports, for example 90 Hz to 80 Hz. A custom `Info.plist` must include the key itself. When disabled, the engine does not request a rate and `Info.plist` sets the limit as before, which is 60 Hz on iPhone with the default `Info.plist`. Higher rates increase power usage.
 form.label.project.ios.app_icon_76x76 = App Icon 76x76
 form.help.project.ios.app_icon_76x76 = Square **76 × 76 px PNG** used for the iPad home-screen icon. If omitted, Defold scales the largest configured iOS icon — or its built-in icon — to this size.
 form.label.project.ios.app_icon_120x120 = App Icon 120x120
@@ -2288,6 +2330,8 @@ form.label.project.box2d.position_iterations = Position Iterations
 form.help.project.box2d.position_iterations = Number of position-solver iterations per physics step in **Box2D 2.2**. Higher values reduce overlap and joint-position error, but use more CPU; lower values improve performance at the cost of positional accuracy.
 form.label.project.box2d.sub_step_count = Sub Step Count
 form.help.project.box2d.sub_step_count = Number of sub-steps used for each physics step in **Box2D 3.x**. Higher values improve collision and joint stability, especially for fast-moving bodies, but use more CPU; lower values improve performance at the cost of accuracy.
+form.label.project.box2d.worker_count = Worker Count
+form.help.project.box2d.worker_count = Number of background worker threads per **Box2D 3.x** world. **0** disables threading; **3** uses three workers plus the main thread. The main thread waits for each physics step to finish. Range: **0–31**. Read at startup. Ignored by Box2D 2.2 and on unsupported platforms.
 
 form.label.project.display = Display
 form.help.project.display = Resolution and other display related settings
@@ -2306,7 +2350,7 @@ form.help.project.display.display_profiles = Display Profiles resource used to s
 form.label.project.display.dynamic_orientation = Dynamic Orientation
 form.help.project.display.dynamic_orientation = Allows Android and iOS builds to use both portrait and landscape orientations and switch when the device rotates. When disabled, the supported orientation is inferred from **Width** and **Height**. The development app does not currently respect this setting.
 form.label.project.display.update_frequency = Update Frequency
-form.help.project.display.update_frequency = Desired game-loop and rendering rate in hertz. `0` uses a variable frame rate. On platforms where Defold owns the application loop, a positive value uses timer pacing and requests a **Swap Interval** of `0`; the requested interval is restored when this is set back to `0`. Update `dt` can vary to account for elapsed time. This is separate from `fixed_update()`.
+form.help.project.display.update_frequency = Desired game-loop and rendering rate in hertz. `0` uses a variable frame rate. On platforms where Defold owns the application loop, a positive value uses timer pacing and requests a **Swap Interval** of `0`; the requested interval is restored when this is set back to `0`. Update `dt` can vary to account for elapsed time. This is separate from `fixed_update()`. On iPhone, rates above 60 Hz require **Use High Refresh Rate** in the iOS settings.
 form.label.project.display.swap_interval = Swap Interval
 form.help.project.display.swap_interval = Requests presentation relative to the display refresh. `0` requests disabling vertical sync and `1` requests every refresh. OpenGL may support larger intervals, while Vulkan and Metal treat any nonzero value as enabling vertical sync. DX12 clamps the interval to `0` through `4`. Engine-side timer pacing temporarily requests interval `0`. Actual behavior depends on the backend, platform, and driver.
 form.label.project.display.vsync = Vsync
@@ -2318,12 +2362,14 @@ form.help.project.display.display_device_info = Logs graphics device details at 
 
 form.label.project.engine = Engine
 form.help.project.engine = Runtime settings for the engine
+form.label.project.engine.datastore = Datastore
+form.help.project.engine.datastore = Enables the experimental datastore and its scheduler. When disabled, the engine creates no datastore or datastore worker threads, and native extensions receive no datastore context. Disabled by default.
 form.label.project.engine.run_while_iconified = Run While Iconified
 form.help.project.engine.run_while_iconified = Keeps updates and sound running while the application window is minimized; rendering remains paused. When disabled, updates and sound also pause until the window is restored. Desktop platforms only.
 form.label.project.engine.fixed_update_frequency = Fixed Update Frequency
 form.help.project.engine.fixed_update_frequency = Sets the frequency of fixed updates in Hz. This controls `fixed_update(self, dt)` and physics when **Use Fixed Timestep** is enabled. `0` disables fixed updates.
 form.label.project.engine.max_time_step = Max Time Step
-form.help.project.engine.max_time_step = Limits elapsed time accounted for by regular updates, in seconds. Excess hitch time is discarded rather than caught up later. Engine-side timer pacing uses the larger of this limit and the requested frame interval, so a low frame cap can produce `dt` above this value. It does not limit the timestep passed to `fixed_update()`.
+form.help.project.engine.max_time_step = Limits elapsed time accounted for by regular updates, in seconds. Excess hitch time is discarded rather than caught up later. A positive **Update Frequency** uses the larger of this limit and the requested frame interval, so a low frame cap can produce `dt` above this value. It does not limit the timestep passed to `fixed_update()`.
 
 form.label.project.font = Font
 form.help.project.font = Font related settings
@@ -2485,6 +2531,11 @@ form.help.project.library.include_dirs = Top-level project directories exposed t
 form.label.project.library.defold_min_version = Defold Min Version
 form.help.project.library.defold_min_version = Minimum Defold version required by projects that use this library, in `major.minor.patch` form, for example `1.11.2`. Leave empty for no requirement. Projects using an older Defold version report the library as incompatible.
 
+form.label.project.archive = Archive
+form.help.project.archive = Archive settings
+form.label.project.archive.manifest = Manifest
+form.help.project.archive.manifest = Select an `.archivemanifest` file to configure Base, named packages, compression, and their output directory. Cannot be combined with an explicit Live Update Settings value.
+
 form.label.project.liveupdate = Live Update
 form.help.project.liveupdate = Live Update settings
 form.label.project.liveupdate.enabled = Enabled
@@ -2492,7 +2543,7 @@ form.help.project.liveupdate.enabled = Initializes the runtime Live Update syste
 form.label.project.liveupdate.exclude_entries_from_main_manifest = Exclude Entries from Main Manifest
 form.help.project.liveupdate.exclude_entries_from_main_manifest = **Deprecated and ignored.** When publishing Live Update content, Defold always removes excluded entries from the bundled `game.dmanifest`, while `liveupdate.game.dmanifest` retains the complete resource list. Any existing value has no effect.
 form.label.project.liveupdate.settings = Settings
-form.help.project.liveupdate.settings = Live Update settings resource used when publishing excluded content during bundling. It selects Zip, folder, or Amazon S3 output and configures its destination. The selected file must exist when publishing.
+form.help.project.liveupdate.settings = **Deprecated.** Legacy `.settings` files remain supported for bundling content selected by proxy Exclude. Use Archive Manifest for new projects. Cannot be explicitly set together with Archive Manifest. The selected file must exist when bundling Live Update content.
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
@@ -2525,7 +2576,7 @@ form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
 form.help.collectionproxy.collection = The collection this proxy loads into a **separate game world**, with its own object namespace and physics world. After loading, `enable` initializes the world first when needed. When unloading, `unload` finalizes it first when needed; explicit `init`, `disable`, and `final` messages remain available for manual lifecycle control.
 form.label.collectionproxy.exclude = Exclude
-form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it.
+form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it. An Archive Manifest selected in **game.project** controls packaging instead of this setting.
 
 form.label.render = Render
 form.label.render.script = Script
@@ -2666,19 +2717,12 @@ form.label.light.outer-cone-angle = Outer Cone Angle
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode
-form.help.liveupdate.liveupdate.mode = Selects the publisher used for excluded resources when **Publish Live Update Content** is enabled during bundling. **Zip** creates an archive, **Folder** stages individual compiled files, and **Amazon** uploads them to S3.
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = Credential Profile
-form.help.liveupdate.liveupdate.amazon-credential-profile = AWS credentials profile used for uploads. The Editor reads the first existing file named by `AWS_SHARED_CREDENTIALS_FILE`, then `AWS_CREDENTIAL_PROFILES_FILE`, falling back to `~/.aws/credentials`; unset or nonexistent paths are skipped.
-form.label.liveupdate.liveupdate.amazon-bucket = Bucket
-form.help.liveupdate.liveupdate.amazon-bucket = Name of the Amazon S3 bucket that receives excluded Live Update resources when publishing. The selected profile must be able to inspect and write to it; configure read access separately so game clients can download the published content.
-form.label.liveupdate.liveupdate.amazon-prefix = Prefix
-form.help.liveupdate.liveupdate.amazon-prefix = Required S3 object-key prefix placed before each resource hash, for example `my-game/liveupdate`. Use distinct prefixes to separate projects or releases within one bucket.
+form.help.liveupdate.liveupdate.mode = Selects the publisher used for excluded resources when **Publish Live Update Content** is enabled during bundling. **Zip** creates an archive, and **Folder** stages individual compiled files.
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Save in Bundle Folder
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Moves the generated Live Update Zip archive into the application bundle output after bundling. When enabled, this final destination takes precedence over **Output Directory**.
 form.label.liveupdate.liveupdate.zip-filepath = Output Directory
-form.help.liveupdate.liveupdate.zip-filepath = Directory where the generated Live Update Zip archive is written. Relative paths resolve from the project root. Leave empty to use the project root. **Save in Bundle Folder** takes precedence as the final destination.
+form.help.liveupdate.liveupdate.zip-filepath = Directory where the generated Live Update Zip archive is written. Relative paths resolve from the project root. Leave empty to use the project root. **Save in Bundle Folder** takes precedence as the final destination. When using an Archive Manifest, set **Output Directory** in the manifest instead.
 form.label.liveupdate.liveupdate.zip-filename = Filename
 form.help.liveupdate.liveupdate.zip-filename = Name of the generated Live Update Zip archive. The `.zip` extension is appended if omitted. Leave empty to use an automatically generated name.
 form.title.liveupdate.liveupdate.zip-filepath = Select Zip Output Directory
@@ -2688,7 +2732,7 @@ form.label.liveupdate.folder = Folder
 form.label.liveupdate.liveupdate.save-folder-in-bundle-folder = Save in Bundle Folder
 form.help.liveupdate.liveupdate.save-folder-in-bundle-folder = After publishing to the staging **Output Directory**, moves the generated resource folder beside the application bundle and replaces a destination folder with the same name.
 form.label.liveupdate.liveupdate.output-directory = Output Directory
-form.help.liveupdate.liveupdate.output-directory = Staging parent directory where Folder mode first creates its resource folder, even when **Save in Bundle Folder** later moves it beside the bundle. Relative paths resolve from the project root; when empty, the project root is used.
+form.help.liveupdate.liveupdate.output-directory = Staging parent directory where Folder mode first creates its resource folder, even when **Save in Bundle Folder** later moves it beside the bundle. Relative paths resolve from the project root; when empty, the project root is used. When using an Archive Manifest, set **Output Directory** in the manifest instead.
 form.title.liveupdate.liveupdate.output-directory = Select Output Directory
 form.label.liveupdate.liveupdate.output-folder-name = Output Folder
 form.help.liveupdate.liveupdate.output-folder-name = Name of the folder containing the Live Update manifest and resource files. When empty, Defold uses `defold_resources_<platform><Unix timestamp>`. Reusing an existing staging folder does not remove stale files from earlier publishes.
@@ -2824,7 +2868,9 @@ error.collision-object-mesh-shape-empty = The selected mesh contains no triangle
 error.collision-object-hull-shape-empty = The selected mesh contains no vertices.
 error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics.
+error.texture-profiles.compressor-not-found = Texture compressor "{compressor}" could not be found.
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor.
+error.texture-profiles.preset-not-found = Texture compressor preset "{preset}" could not be found.
 error.texture-profiles.preset-not-supported-by-texture-compressor = Texture preset is not supported by the texture compressor.
 error.property-cannot-exceed = "{property}" cannot exceed {value}.
 error.property-must-be-between = "{property}" must be between {min} and {max}.
@@ -2849,6 +2895,7 @@ error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" re
 error.resource-not-found = "{resource}" could not be found.
 error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path "{path}".
 error.resource-not-loaded = The file "{resource}" could not be loaded.
+error.resource-not-loaded-update-extension = The file "{resource}" could not be loaded because the plugin is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 error.resource-not-loaded-with-error = The file "{resource}" could not be loaded: {error}
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}.
 error.no-file-extension = no file extension
@@ -2888,3 +2935,82 @@ error.gui.layer-from-template-not-found-in-scene = Layer "{layer}" from template
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Adjust mode "Stretch" is not supported for ParticleFX nodes.
 error.gui.template-resource-conflicting-values = {type} "{resource}" has conflicting values in templates: {values}.
 error.gui.max-nodes-exceeded = The actual number of nodes ({count}) exceeds "{property}" ({max}).
+
+# Live Update package manifests
+resource.type.archivemanifest = Archive Manifest
+resource.view.archivemanifest = Packages
+liveupdate.add = Add
+liveupdate.remove = Remove
+liveupdate.path = Path
+liveupdate.copy-path = Copy Path
+liveupdate.open-folder = Open Folder
+property.liveupdate-manifest.output-directory = Output Directory
+liveupdate.providers = Providers
+liveupdate.provider.zip.label = ZIP
+liveupdate.provider.folder.label = Folder
+liveupdate.package = Package
+liveupdate.package-heading = Package: {name}
+liveupdate.package-rule = {operation} Package: {name}
+liveupdate.base = Base
+liveupdate.folder = Folder
+liveupdate.custom = Custom provider
+liveupdate.preview-progress = Updating preview…
+liveupdate.preview-transpiled-dependencies = Build the project to preview its transpiled Lua dependencies.
+liveupdate.preview-unloaded-resource = The package preview cannot determine dependencies for {path}. Review the matching .defunload pattern.
+liveupdate.add-package = Add Package
+liveupdate.add-rule = Add Rule
+liveupdate.resource-summary = {count, plural, one {# resource} other {# resources}}
+liveupdate.search = Search resources in all packages
+liveupdate.clear-search = Clear
+liveupdate.search-results = Search results
+liveupdate.empty = No compiled resources
+liveupdate.resource = Resource
+liveupdate.packages = Included in packages
+liveupdate.added-by = Rules
+liveupdate.dependency-path = Dependency path
+property.liveupdate-package.id = Name
+property.liveupdate-package.container-preset = Container Compression
+property.liveupdate-preset.provider = Type
+property.liveupdate-preset.custom-provider = Provider ID
+property.liveupdate-package.file-compression-preset = File Compression
+property.liveupdate-preset.id = Name
+property.liveupdate-preset.file-compression = File Compression
+property.liveupdate-preset.lz4-level = LZ4 Level (1–12)
+property.liveupdate-preset.zip-level = ZIP Level (−1–9)
+liveupdate.compression.types = Compression Types
+liveupdate.compression.container = Container
+liveupdate.compression.file = File
+liveupdate.compression.default-container = ZIP (Default)
+liveupdate.compression.default-file = LZ4 (Default)
+liveupdate.compression.unknown-file = Unknown file compression preset: {name}
+liveupdate.compression.unknown-container = Unknown container preset: {name}
+liveupdate.compression.error.file-name-required = A compression preset name is required
+liveupdate.compression.error.file-name-duplicate = Duplicate compression preset: {name}
+liveupdate.compression.error.container-name-required = A container preset name is required
+liveupdate.compression.error.container-name-duplicate = Duplicate container preset: {name}
+liveupdate.compression.error.provider-required = A container provider is required
+liveupdate.compression.error.level-range = {type} compression level must be between {min} and {max}
+liveupdate.compression.error.preset = Compression preset ''{name}'': {error}
+liveupdate.error.invalid-package-name = Invalid or reserved package name: {name}
+liveupdate.error.duplicate-package = Duplicate package: {name}
+liveupdate.error.missing-package-target = Select a package in rule "{rule}" of package "{package}"
+liveupdate.error.unknown-package-target = Unknown package "{target}" in rule "{rule}" of package "{package}"
+liveupdate.error.package-reference-cycle = Package reference cycle in rule "{rule}" of package "{package}": {cycle}
+liveupdate.error.invalid-rule-target = A rule must select either a path regex or a package
+liveupdate.error.build-configuration-match = Rule "{rule}" in package "{package}" matches build configuration: {path}
+liveupdate.error.no-source-match = Rule "{rule}" in package "{package}" matches no source files for Path "{pattern}". Patterns match the entire source path, including its leading "/".
+liveupdate.error.invalid-regex = Invalid regex in rule "{rule}" of package "{package}"{column, plural, =0 {} other { at column {column}}}: {reason}. Path: {pattern}
+liveupdate.error.unassigned-resource = Unassigned resource: {path}
+liveupdate.error.missing-compiled-resource = Missing compiled resource: {path}
+liveupdate.error.missing-dependency = Resource {path}, required by {requiredBy}, is absent from the base and all packages.
+liveupdate.add-preset = Add Preset
+liveupdate.compression.none = None
+property.liveupdate-rule.id = Name
+property.liveupdate-rule.operation = Operation
+property.liveupdate-rule.target = Target
+property.liveupdate-rule.path = Path
+property.liveupdate-rule.no-match = No matches
+liveupdate.no-match.warn = Warn
+liveupdate.no-match.error = Error
+liveupdate.no-match.ignore = Ignore
+property.liveupdate-rule.package = Package

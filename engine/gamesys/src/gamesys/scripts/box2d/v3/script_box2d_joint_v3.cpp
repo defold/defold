@@ -172,11 +172,45 @@ namespace dmGameSystem
         return AbsIndex(L, index);
     }
 
-    static void ReadCommonAnchoredDef(lua_State* L, int table_index, b2Vec2* local_anchor_a, b2Vec2* local_anchor_b, bool* collide_connected)
+    static b2Transform GetLocalFrame(lua_State* L, int index, b2Transform frame)
     {
-        *local_anchor_a    = GetVec2Field(L, table_index, "local_anchor_a", *local_anchor_a, GetPhysicsScale());
-        *local_anchor_b    = GetVec2Field(L, table_index, "local_anchor_b", *local_anchor_b, GetPhysicsScale());
-        *collide_connected = GetBoolField(L, table_index, "collide_connected", *collide_connected);
+        luaL_checktype(L, index, LUA_TTABLE);
+        frame.p = GetVec2Field(L, index, "position", frame.p, GetPhysicsScale());
+        if (HasField(L, index, "angle"))
+        {
+            frame.q = b2MakeRot(GetNumberField(L, index, "angle", 0.0f));
+        }
+        return frame;
+    }
+
+    static void PushLocalFrame(lua_State* L, b2Transform frame)
+    {
+        lua_newtable(L);
+        dmScript::PushVector3(L, FromB2(frame.p, GetInvPhysicsScale()));
+        lua_setfield(L, -2, "position");
+        lua_pushnumber(L, b2Rot_GetAngle(frame.q));
+        lua_setfield(L, -2, "angle");
+    }
+
+    static void ReadCommonJointDef(lua_State* L, int table_index, b2JointDef* def)
+    {
+        if (!table_index)
+        {
+            return;
+        }
+        lua_getfield(L, table_index, "local_frame_a");
+        if (!lua_isnil(L, -1))
+        {
+            def->localFrameA = GetLocalFrame(L, AbsIndex(L, -1), def->localFrameA);
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, table_index, "local_frame_b");
+        if (!lua_isnil(L, -1))
+        {
+            def->localFrameB = GetLocalFrame(L, AbsIndex(L, -1), def->localFrameB);
+        }
+        lua_pop(L, 1);
+        def->collideConnected = GetBoolField(L, table_index, "collide_connected", def->collideConnected);
     }
 
     void PushJoint(lua_State* L, b2JointId joint_id)
@@ -296,25 +330,43 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Joint_GetLocalAnchorA(lua_State* L)
+    static int Joint_GetLocalFrameA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Joint_GetLocalAnchorA(CheckJoint(L, 1)), GetInvPhysicsScale()));
+        PushLocalFrame(L, b2Joint_GetLocalFrameA(CheckJoint(L, 1)));
         return 1;
     }
 
-    static int Joint_GetLocalAnchorB(lua_State* L)
+    static int Joint_GetLocalFrameB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Joint_GetLocalAnchorB(CheckJoint(L, 1)), GetInvPhysicsScale()));
+        PushLocalFrame(L, b2Joint_GetLocalFrameB(CheckJoint(L, 1)));
         return 1;
+    }
+
+    static int Joint_SetLocalFrameA(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2JointId joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_local_frame_a");
+        b2Joint_SetLocalFrameA(joint, GetLocalFrame(L, 2, b2Joint_GetLocalFrameA(joint)));
+        return 0;
+    }
+
+    static int Joint_SetLocalFrameB(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2JointId joint = CheckJoint(L, 1);
+        CheckJointWorldUnlocked(L, joint, "set_local_frame_b");
+        b2Joint_SetLocalFrameB(joint, GetLocalFrame(L, 2, b2Joint_GetLocalFrameB(joint)));
+        return 0;
     }
 
     static int Joint_GetAnchorA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2JointId joint = CheckJoint(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(b2Joint_GetBodyA(joint), b2Joint_GetLocalAnchorA(joint)), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(b2Joint_GetBodyA(joint), b2Joint_GetLocalFrameA(joint).p), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -322,7 +374,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2JointId joint = CheckJoint(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(b2Joint_GetBodyB(joint), b2Joint_GetLocalAnchorB(joint)), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(b2Joint_GetBodyB(joint), b2Joint_GetLocalFrameB(joint).p), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -347,28 +399,24 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Joint_SetMouseTarget(lua_State* L)
+    static int Joint_SetConstraintTuning(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2JointId joint = CheckJoint(L, 1);
-        if (b2Joint_GetType(joint) != b2_mouseJoint)
-        {
-            return luaL_error(L, "b2d.joint.set_mouse_target can only be used with mouse joints.");
-        }
-        if (b2World_IsLocked(b2Joint_GetWorld(joint)))
-        {
-            return luaL_error(L, "Could not set mouse joint target. The world is locked.");
-        }
-        b2MouseJoint_SetTarget(joint, CheckVec2(L, 2, GetPhysicsScale()));
+        CheckJointWorldUnlocked(L, joint, "set_constraint_tuning");
+        b2Joint_SetConstraintTuning(joint, luaL_checknumber(L, 2), luaL_checknumber(L, 3));
         return 0;
     }
 
-    static int Joint_GetMouseTarget(lua_State* L)
+    static int Joint_GetConstraintTuning(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 1);
-        b2JointId joint = CheckJointType(L, 1, b2_mouseJoint, "get_mouse_target", "mouse");
-        dmScript::PushVector3(L, FromB2(b2MouseJoint_GetTarget(joint), GetInvPhysicsScale()));
-        return 1;
+        DM_LUA_STACK_CHECK(L, 2);
+        float hertz;
+        float damping_ratio;
+        b2Joint_GetConstraintTuning(CheckJoint(L, 1), &hertz, &damping_ratio);
+        lua_pushnumber(L, hertz);
+        lua_pushnumber(L, damping_ratio);
+        return 2;
     }
 
     static int Joint_SetLength(lua_State* L)
@@ -376,14 +424,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2JointId joint = CheckJointType(L, 1, b2_distanceJoint, "set_length", "distance");
         CheckJointWorldUnlocked(L, joint, "set_length");
-        b2DistanceJoint_SetLength(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        b2DistanceJoint_SetRestLength(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
     static int Joint_GetLength(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2DistanceJoint_GetLength(CheckJointType(L, 1, b2_distanceJoint, "get_length", "distance")) * (lua_Number)GetInvPhysicsScale());
+        lua_pushnumber(L, b2DistanceJoint_GetRestLength(CheckJointType(L, 1, b2_distanceJoint, "get_length", "distance")) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
@@ -428,11 +476,10 @@ namespace dmGameSystem
         switch (b2Joint_GetType(joint))
         {
             case b2_distanceJoint: b2DistanceJoint_SetSpringHertz(joint, hertz); break;
-            case b2_mouseJoint: b2MouseJoint_SetSpringHertz(joint, hertz); break;
             case b2_prismaticJoint: b2PrismaticJoint_SetSpringHertz(joint, hertz); break;
             case b2_revoluteJoint: b2RevoluteJoint_SetSpringHertz(joint, hertz); break;
             case b2_wheelJoint: b2WheelJoint_SetSpringHertz(joint, hertz); break;
-            default: return luaL_error(L, "b2d.joint.set_spring_hertz can only be used with distance, mouse, prismatic, revolute, or wheel joints.");
+            default: return luaL_error(L, "b2d.joint.set_spring_hertz can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 0;
     }
@@ -444,11 +491,10 @@ namespace dmGameSystem
         switch (b2Joint_GetType(joint))
         {
             case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetSpringHertz(joint)); break;
-            case b2_mouseJoint: lua_pushnumber(L, b2MouseJoint_GetSpringHertz(joint)); break;
             case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetSpringHertz(joint)); break;
             case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetSpringHertz(joint)); break;
             case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetSpringHertz(joint)); break;
-            default: return luaL_error(L, "b2d.joint.get_spring_hertz can only be used with distance, mouse, prismatic, revolute, or wheel joints.");
+            default: return luaL_error(L, "b2d.joint.get_spring_hertz can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 1;
     }
@@ -462,11 +508,10 @@ namespace dmGameSystem
         switch (b2Joint_GetType(joint))
         {
             case b2_distanceJoint: b2DistanceJoint_SetSpringDampingRatio(joint, damping_ratio); break;
-            case b2_mouseJoint: b2MouseJoint_SetSpringDampingRatio(joint, damping_ratio); break;
             case b2_prismaticJoint: b2PrismaticJoint_SetSpringDampingRatio(joint, damping_ratio); break;
             case b2_revoluteJoint: b2RevoluteJoint_SetSpringDampingRatio(joint, damping_ratio); break;
             case b2_wheelJoint: b2WheelJoint_SetSpringDampingRatio(joint, damping_ratio); break;
-            default: return luaL_error(L, "b2d.joint.set_spring_damping_ratio can only be used with distance, mouse, prismatic, revolute, or wheel joints.");
+            default: return luaL_error(L, "b2d.joint.set_spring_damping_ratio can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 0;
     }
@@ -478,11 +523,10 @@ namespace dmGameSystem
         switch (b2Joint_GetType(joint))
         {
             case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetSpringDampingRatio(joint)); break;
-            case b2_mouseJoint: lua_pushnumber(L, b2MouseJoint_GetSpringDampingRatio(joint)); break;
             case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetSpringDampingRatio(joint)); break;
             case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetSpringDampingRatio(joint)); break;
             case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetSpringDampingRatio(joint)); break;
-            default: return luaL_error(L, "b2d.joint.get_spring_damping_ratio can only be used with distance, mouse, prismatic, revolute, or wheel joints.");
+            default: return luaL_error(L, "b2d.joint.get_spring_damping_ratio can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 1;
     }
@@ -492,7 +536,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2JointId joint = CheckJointType(L, 1, b2_distanceJoint, "set_length_range", "distance");
         CheckJointWorldUnlocked(L, joint, "set_length_range");
-        b2DistanceJoint_SetLengthRange(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale(), (float)luaL_checknumber(L, 3) * GetPhysicsScale());
+        b2DistanceJoint_SetLimits(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale(), (float)luaL_checknumber(L, 3) * GetPhysicsScale());
         return 0;
     }
 
@@ -501,14 +545,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2JointId joint = CheckJointType(L, 1, b2_distanceJoint, "set_min_length", "distance");
         CheckJointWorldUnlocked(L, joint, "set_min_length");
-        b2DistanceJoint_SetLengthRange(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale(), b2DistanceJoint_GetMaxLength(joint));
+        b2DistanceJoint_SetLimits(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale(), b2DistanceJoint_GetUpperLimit(joint));
         return 0;
     }
 
     static int Joint_GetMinLength(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2DistanceJoint_GetMinLength(CheckJointType(L, 1, b2_distanceJoint, "get_min_length", "distance")) * (lua_Number)GetInvPhysicsScale());
+        lua_pushnumber(L, b2DistanceJoint_GetLowerLimit(CheckJointType(L, 1, b2_distanceJoint, "get_min_length", "distance")) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
@@ -517,14 +561,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2JointId joint = CheckJointType(L, 1, b2_distanceJoint, "set_max_length", "distance");
         CheckJointWorldUnlocked(L, joint, "set_max_length");
-        b2DistanceJoint_SetLengthRange(joint, b2DistanceJoint_GetMinLength(joint), (float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        b2DistanceJoint_SetLimits(joint, b2DistanceJoint_GetLowerLimit(joint), (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
     static int Joint_GetMaxLength(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2DistanceJoint_GetMaxLength(CheckJointType(L, 1, b2_distanceJoint, "get_max_length", "distance")) * (lua_Number)GetInvPhysicsScale());
+        lua_pushnumber(L, b2DistanceJoint_GetUpperLimit(CheckJointType(L, 1, b2_distanceJoint, "get_max_length", "distance")) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
@@ -656,10 +700,10 @@ namespace dmGameSystem
         float motor_speed = (float)luaL_checknumber(L, 2);
         switch (b2Joint_GetType(joint))
         {
-            case b2_distanceJoint: b2DistanceJoint_SetMotorSpeed(joint, motor_speed * GetPhysicsScale()); break;
-            case b2_prismaticJoint: b2PrismaticJoint_SetMotorSpeed(joint, motor_speed * GetPhysicsScale()); break;
-            case b2_revoluteJoint: b2RevoluteJoint_SetMotorSpeed(joint, motor_speed); break;
-            case b2_wheelJoint: b2WheelJoint_SetMotorSpeed(joint, motor_speed); break;
+            case b2_distanceJoint: b2DistanceJoint_SetTargetMotorSpeed(joint, motor_speed * GetPhysicsScale()); break;
+            case b2_prismaticJoint: b2PrismaticJoint_SetTargetMotorSpeed(joint, motor_speed * GetPhysicsScale()); break;
+            case b2_revoluteJoint: b2RevoluteJoint_SetTargetMotorSpeed(joint, motor_speed); break;
+            case b2_wheelJoint: b2WheelJoint_SetTargetMotorSpeed(joint, motor_speed); break;
             default: return luaL_error(L, "b2d.joint.set_motor_speed can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 0;
@@ -671,10 +715,10 @@ namespace dmGameSystem
         b2JointId joint = CheckJoint(L, 1);
         switch (b2Joint_GetType(joint))
         {
-            case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetMotorSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetMotorSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetMotorSpeed(joint)); break;
-            case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetMotorSpeed(joint)); break;
+            case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetTargetMotorSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetTargetMotorSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetTargetMotorSpeed(joint)); break;
+            case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetTargetMotorSpeed(joint)); break;
             default: return luaL_error(L, "b2d.joint.get_motor_speed can only be used with distance, prismatic, revolute, or wheel joints.");
         }
         return 1;
@@ -714,8 +758,8 @@ namespace dmGameSystem
         b2JointId joint = CheckJoint(L, 1);
         switch (b2Joint_GetType(joint))
         {
-            case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetMotorForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetMotorForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_distanceJoint: lua_pushnumber(L, b2DistanceJoint_GetCurrentMotorForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetCurrentMotorForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
             default: return luaL_error(L, "b2d.joint.get_motor_force can only be used with distance or prismatic joints.");
         }
         return 1;
@@ -755,102 +799,111 @@ namespace dmGameSystem
         b2JointId joint = CheckJoint(L, 1);
         switch (b2Joint_GetType(joint))
         {
-            case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetMotorTorque(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetMotorTorque(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_revoluteJoint: lua_pushnumber(L, b2RevoluteJoint_GetCurrentMotorTorque(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_wheelJoint: lua_pushnumber(L, b2WheelJoint_GetCurrentMotorTorque(joint) * (lua_Number)GetInvPhysicsScale()); break;
             default: return luaL_error(L, "b2d.joint.get_motor_torque can only be used with revolute or wheel joints.");
         }
         return 1;
     }
 
-    static int Joint_SetMaxForce(lua_State* L)
+    static int Joint_SetMaxVelocityTorque(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJoint(L, 1);
-        CheckJointWorldUnlocked(L, joint, "set_max_force");
-        float max_force = (float)luaL_checknumber(L, 2) * GetPhysicsScale();
-        switch (b2Joint_GetType(joint))
-        {
-            case b2_mouseJoint: b2MouseJoint_SetMaxForce(joint, max_force); break;
-            case b2_motorJoint: b2MotorJoint_SetMaxForce(joint, max_force); break;
-            default: return luaL_error(L, "b2d.joint.set_max_force can only be used with mouse or motor joints.");
-        }
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_max_velocity_torque", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_max_velocity_torque");
+        b2MotorJoint_SetMaxVelocityTorque(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
-    static int Joint_GetMaxForce(lua_State* L)
+    static int Joint_GetMaxVelocityTorque(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2JointId joint = CheckJoint(L, 1);
-        switch (b2Joint_GetType(joint))
-        {
-            case b2_mouseJoint: lua_pushnumber(L, b2MouseJoint_GetMaxForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            case b2_motorJoint: lua_pushnumber(L, b2MotorJoint_GetMaxForce(joint) * (lua_Number)GetInvPhysicsScale()); break;
-            default: return luaL_error(L, "b2d.joint.get_max_force can only be used with mouse or motor joints.");
-        }
+        lua_pushnumber(L, b2MotorJoint_GetMaxVelocityTorque(CheckJointType(L, 1, b2_motorJoint, "get_max_velocity_torque", "motor")) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
-    static int Joint_SetMaxTorque(lua_State* L)
+    static int Joint_SetMaxVelocityForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_max_torque", "motor");
-        CheckJointWorldUnlocked(L, joint, "set_max_torque");
-        b2MotorJoint_SetMaxTorque(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_max_velocity_force", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_max_velocity_force");
+        b2MotorJoint_SetMaxVelocityForce(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
-    static int Joint_GetMaxTorque(lua_State* L)
+    static int Joint_GetMaxVelocityForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2MotorJoint_GetMaxTorque(CheckJointType(L, 1, b2_motorJoint, "get_max_torque", "motor")) * (lua_Number)GetInvPhysicsScale());
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "get_max_velocity_force", "motor");
+        lua_pushnumber(L, b2MotorJoint_GetMaxVelocityForce(joint) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
-    static int Joint_SetLinearOffset(lua_State* L)
+    static int Joint_SetMaxSpringForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_linear_offset", "motor");
-        CheckJointWorldUnlocked(L, joint, "set_linear_offset");
-        b2MotorJoint_SetLinearOffset(joint, CheckVec2(L, 2, GetPhysicsScale()));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_max_spring_force", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_max_spring_force");
+        b2MotorJoint_SetMaxSpringForce(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
-    static int Joint_GetLinearOffset(lua_State* L)
+    static int Joint_GetMaxSpringForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::PushVector3(L, FromB2(b2MotorJoint_GetLinearOffset(CheckJointType(L, 1, b2_motorJoint, "get_linear_offset", "motor")), GetInvPhysicsScale()));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "get_max_spring_force", "motor");
+        lua_pushnumber(L, b2MotorJoint_GetMaxSpringForce(joint) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
-    static int Joint_SetAngularOffset(lua_State* L)
+    static int Joint_SetMaxSpringTorque(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_angular_offset", "motor");
-        CheckJointWorldUnlocked(L, joint, "set_angular_offset");
-        b2MotorJoint_SetAngularOffset(joint, (float)luaL_checknumber(L, 2));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_max_spring_torque", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_max_spring_torque");
+        b2MotorJoint_SetMaxSpringTorque(joint, (float)luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
-    static int Joint_GetAngularOffset(lua_State* L)
+    static int Joint_GetMaxSpringTorque(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2MotorJoint_GetAngularOffset(CheckJointType(L, 1, b2_motorJoint, "get_angular_offset", "motor")));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "get_max_spring_torque", "motor");
+        lua_pushnumber(L, b2MotorJoint_GetMaxSpringTorque(joint) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
-    static int Joint_SetCorrectionFactor(lua_State* L)
+    static int Joint_SetLinearVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_correction_factor", "motor");
-        CheckJointWorldUnlocked(L, joint, "set_correction_factor");
-        b2MotorJoint_SetCorrectionFactor(joint, (float)luaL_checknumber(L, 2));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_linear_velocity", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_linear_velocity");
+        b2MotorJoint_SetLinearVelocity(joint, CheckVec2(L, 2, GetPhysicsScale()));
         return 0;
     }
 
-    static int Joint_GetCorrectionFactor(lua_State* L)
+    static int Joint_GetLinearVelocity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2MotorJoint_GetCorrectionFactor(CheckJointType(L, 1, b2_motorJoint, "get_correction_factor", "motor")));
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "get_linear_velocity", "motor");
+        dmScript::PushVector3(L, FromB2(b2MotorJoint_GetLinearVelocity(joint), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Joint_SetAngularVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "set_angular_velocity", "motor");
+        CheckJointWorldUnlocked(L, joint, "set_angular_velocity");
+        b2MotorJoint_SetAngularVelocity(joint, (float)luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Joint_GetAngularVelocity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2JointId joint = CheckJointType(L, 1, b2_motorJoint, "get_angular_velocity", "motor");
+        lua_pushnumber(L, b2MotorJoint_GetAngularVelocity(joint));
         return 1;
     }
 
@@ -860,7 +913,7 @@ namespace dmGameSystem
         b2JointId joint = CheckJoint(L, 1);
         switch (b2Joint_GetType(joint))
         {
-            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetTranslation(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetCurrentTranslation(joint) * (lua_Number)GetInvPhysicsScale()); break;
             default: return luaL_error(L, "b2d.joint.get_joint_translation can only be used with prismatic joints.");
         }
         return 1;
@@ -872,7 +925,7 @@ namespace dmGameSystem
         b2JointId joint = CheckJoint(L, 1);
         switch (b2Joint_GetType(joint))
         {
-            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
+            case b2_prismaticJoint: lua_pushnumber(L, b2PrismaticJoint_GetCurrentSpeed(joint) * (lua_Number)GetInvPhysicsScale()); break;
             default: return luaL_error(L, "b2d.joint.get_joint_speed can only be used with prismatic joints.");
         }
         return 1;
@@ -881,87 +934,119 @@ namespace dmGameSystem
     static int Joint_GetJointAngle(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2RevoluteJoint_GetAngle(CheckJointType(L, 1, b2_revoluteJoint, "get_joint_angle", "revolute")));
-        return 1;
-    }
-
-    static int Joint_SetReferenceAngle(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_weldJoint, "set_reference_angle", "weld");
-        CheckJointWorldUnlocked(L, joint, "set_reference_angle");
-        b2WeldJoint_SetReferenceAngle(joint, (float)luaL_checknumber(L, 2));
-        return 0;
-    }
-
-    static int Joint_GetReferenceAngle(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2WeldJoint_GetReferenceAngle(CheckJointType(L, 1, b2_weldJoint, "get_reference_angle", "weld")));
+        lua_pushnumber(L, b2RevoluteJoint_GetCurrentAngle(CheckJointType(L, 1, b2_revoluteJoint, "get_joint_angle", "revolute")));
         return 1;
     }
 
     static int Joint_SetLinearHertz(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_weldJoint, "set_linear_hertz", "weld");
+        b2JointId joint = CheckJoint(L, 1);
         CheckJointWorldUnlocked(L, joint, "set_linear_hertz");
-        b2WeldJoint_SetLinearHertz(joint, (float)luaL_checknumber(L, 2));
+        float hertz = (float)luaL_checknumber(L, 2);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: b2WeldJoint_SetLinearHertz(joint, hertz); break;
+            case b2_motorJoint: b2MotorJoint_SetLinearHertz(joint, hertz); break;
+            default: return luaL_error(L, "b2d.joint.set_linear_hertz can only be used with weld or motor joints.");
+        }
         return 0;
     }
 
     static int Joint_GetLinearHertz(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2WeldJoint_GetLinearHertz(CheckJointType(L, 1, b2_weldJoint, "get_linear_hertz", "weld")));
+        b2JointId joint = CheckJoint(L, 1);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: lua_pushnumber(L, b2WeldJoint_GetLinearHertz(joint)); break;
+            case b2_motorJoint: lua_pushnumber(L, b2MotorJoint_GetLinearHertz(joint)); break;
+            default: return luaL_error(L, "b2d.joint.get_linear_hertz can only be used with weld or motor joints.");
+        }
         return 1;
     }
 
     static int Joint_SetLinearDampingRatio(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_weldJoint, "set_linear_damping_ratio", "weld");
+        b2JointId joint = CheckJoint(L, 1);
         CheckJointWorldUnlocked(L, joint, "set_linear_damping_ratio");
-        b2WeldJoint_SetLinearDampingRatio(joint, (float)luaL_checknumber(L, 2));
+        float damping_ratio = (float)luaL_checknumber(L, 2);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: b2WeldJoint_SetLinearDampingRatio(joint, damping_ratio); break;
+            case b2_motorJoint: b2MotorJoint_SetLinearDampingRatio(joint, damping_ratio); break;
+            default: return luaL_error(L, "b2d.joint.set_linear_damping_ratio can only be used with weld or motor joints.");
+        }
         return 0;
     }
 
     static int Joint_GetLinearDampingRatio(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2WeldJoint_GetLinearDampingRatio(CheckJointType(L, 1, b2_weldJoint, "get_linear_damping_ratio", "weld")));
+        b2JointId joint = CheckJoint(L, 1);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: lua_pushnumber(L, b2WeldJoint_GetLinearDampingRatio(joint)); break;
+            case b2_motorJoint: lua_pushnumber(L, b2MotorJoint_GetLinearDampingRatio(joint)); break;
+            default: return luaL_error(L, "b2d.joint.get_linear_damping_ratio can only be used with weld or motor joints.");
+        }
         return 1;
     }
 
     static int Joint_SetAngularHertz(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_weldJoint, "set_angular_hertz", "weld");
+        b2JointId joint = CheckJoint(L, 1);
         CheckJointWorldUnlocked(L, joint, "set_angular_hertz");
-        b2WeldJoint_SetAngularHertz(joint, (float)luaL_checknumber(L, 2));
+        float hertz = (float)luaL_checknumber(L, 2);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: b2WeldJoint_SetAngularHertz(joint, hertz); break;
+            case b2_motorJoint: b2MotorJoint_SetAngularHertz(joint, hertz); break;
+            default: return luaL_error(L, "b2d.joint.set_angular_hertz can only be used with weld or motor joints.");
+        }
         return 0;
     }
 
     static int Joint_GetAngularHertz(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2WeldJoint_GetAngularHertz(CheckJointType(L, 1, b2_weldJoint, "get_angular_hertz", "weld")));
+        b2JointId joint = CheckJoint(L, 1);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: lua_pushnumber(L, b2WeldJoint_GetAngularHertz(joint)); break;
+            case b2_motorJoint: lua_pushnumber(L, b2MotorJoint_GetAngularHertz(joint)); break;
+            default: return luaL_error(L, "b2d.joint.get_angular_hertz can only be used with weld or motor joints.");
+        }
         return 1;
     }
 
     static int Joint_SetAngularDampingRatio(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2JointId joint = CheckJointType(L, 1, b2_weldJoint, "set_angular_damping_ratio", "weld");
+        b2JointId joint = CheckJoint(L, 1);
         CheckJointWorldUnlocked(L, joint, "set_angular_damping_ratio");
-        b2WeldJoint_SetAngularDampingRatio(joint, (float)luaL_checknumber(L, 2));
+        float damping_ratio = (float)luaL_checknumber(L, 2);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: b2WeldJoint_SetAngularDampingRatio(joint, damping_ratio); break;
+            case b2_motorJoint: b2MotorJoint_SetAngularDampingRatio(joint, damping_ratio); break;
+            default: return luaL_error(L, "b2d.joint.set_angular_damping_ratio can only be used with weld or motor joints.");
+        }
         return 0;
     }
 
     static int Joint_GetAngularDampingRatio(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2WeldJoint_GetAngularDampingRatio(CheckJointType(L, 1, b2_weldJoint, "get_angular_damping_ratio", "weld")));
+        b2JointId joint = CheckJoint(L, 1);
+        switch (b2Joint_GetType(joint))
+        {
+            case b2_weldJoint: lua_pushnumber(L, b2WeldJoint_GetAngularDampingRatio(joint)); break;
+            case b2_motorJoint: lua_pushnumber(L, b2MotorJoint_GetAngularDampingRatio(joint)); break;
+            default: return luaL_error(L, "b2d.joint.get_angular_damping_ratio can only be used with weld or motor joints.");
+        }
         return 1;
     }
 
@@ -989,9 +1074,9 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2DistanceJointDef def = b2DefaultDistanceJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB, &def.collideConnected);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
         def.length = GetNumberField(L, def_index, "length", def.length) * GetPhysicsScale();
         def.minLength = GetNumberField(L, def_index, "min_length", def.minLength) * GetPhysicsScale();
         def.maxLength = GetNumberField(L, def_index, "max_length", def.maxLength) * GetPhysicsScale();
@@ -1008,28 +1093,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Joint_CreateMouse(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        b2BodyId* body_a = 0;
-        b2BodyId* body_b = 0;
-        b2WorldId world = b2_nullWorldId;
-        CheckJointDefBodies(L, 1, 2, &body_a, &body_b, &world);
-        int def_index = CheckDefinitionTable(L, 3);
-
-        b2MouseJointDef def = b2DefaultMouseJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        def.target = GetVec2Field(L, def_index, "target", def.target, GetPhysicsScale());
-        def.hertz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.hertz);
-        def.dampingRatio = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.dampingRatio);
-        def.maxForce = GetNumberField(L, def_index, "max_force", def.maxForce) * GetPhysicsScale();
-        def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
-
-        PushCreatedJoint(L, b2CreateMouseJoint(world, &def));
-        return 1;
-    }
-
     static int Joint_CreatePrismatic(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -1040,11 +1103,9 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2PrismaticJointDef def = b2DefaultPrismaticJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB, &def.collideConnected);
-        def.localAxisA = GetVec2Field(L, def_index, "local_axis_a", def.localAxisA, 1.0f);
-        def.referenceAngle = GetNumberField(L, def_index, "reference_angle", def.referenceAngle);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
         def.enableSpring = GetBoolField(L, def_index, "enable_spring", def.enableSpring);
         def.hertz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.hertz);
         def.dampingRatio = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.dampingRatio);
@@ -1069,10 +1130,9 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2RevoluteJointDef def = b2DefaultRevoluteJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB, &def.collideConnected);
-        def.referenceAngle = GetNumberField(L, def_index, "reference_angle", def.referenceAngle);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
         def.enableSpring = GetBoolField(L, def_index, "enable_spring", def.enableSpring);
         def.hertz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.hertz);
         def.dampingRatio = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.dampingRatio);
@@ -1097,10 +1157,9 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2WeldJointDef def = b2DefaultWeldJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB, &def.collideConnected);
-        def.referenceAngle = GetNumberField(L, def_index, "reference_angle", def.referenceAngle);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
         float hertz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.linearHertz);
         float damping = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.linearDampingRatio);
         def.linearHertz = GetNumberField(L, def_index, "linear_hertz", hertz);
@@ -1122,10 +1181,9 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2WheelJointDef def = b2DefaultWheelJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        ReadCommonAnchoredDef(L, def_index, &def.localAnchorA, &def.localAnchorB, &def.collideConnected);
-        def.localAxisA = GetVec2Field(L, def_index, "local_axis_a", def.localAxisA, 1.0f);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
         def.enableSpring = GetBoolField(L, def_index, "enable_spring", def.enableSpring);
         def.hertz = GetNumberField(L, def_index, HasField(L, def_index, "frequency") ? "frequency" : "hertz", def.hertz);
         def.dampingRatio = GetNumberField(L, def_index, HasField(L, def_index, "damping") ? "damping" : "damping_ratio", def.dampingRatio);
@@ -1150,14 +1208,19 @@ namespace dmGameSystem
         int def_index = CheckDefinitionTable(L, 3);
 
         b2MotorJointDef def = b2DefaultMotorJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
-        def.linearOffset = GetVec2Field(L, def_index, "linear_offset", def.linearOffset, GetPhysicsScale());
-        def.angularOffset = GetNumberField(L, def_index, "angular_offset", def.angularOffset);
-        def.maxForce = GetNumberField(L, def_index, "max_force", def.maxForce) * GetPhysicsScale();
-        def.maxTorque = GetNumberField(L, def_index, "max_torque", def.maxTorque) * GetPhysicsScale();
-        def.correctionFactor = GetNumberField(L, def_index, "correction_factor", def.correctionFactor);
-        def.collideConnected = GetBoolField(L, def_index, "collide_connected", def.collideConnected);
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
+        ReadCommonJointDef(L, def_index, &def.base);
+        def.linearVelocity = GetVec2Field(L, def_index, "linear_velocity", def.linearVelocity, GetPhysicsScale());
+        def.angularVelocity = GetNumberField(L, def_index, "angular_velocity", def.angularVelocity);
+        def.maxVelocityForce = GetNumberField(L, def_index, "max_velocity_force", def.maxVelocityForce) * GetPhysicsScale();
+        def.maxVelocityTorque = GetNumberField(L, def_index, "max_velocity_torque", def.maxVelocityTorque) * GetPhysicsScale();
+        def.linearHertz = GetNumberField(L, def_index, "linear_hertz", def.linearHertz);
+        def.linearDampingRatio = GetNumberField(L, def_index, "linear_damping_ratio", def.linearDampingRatio);
+        def.angularHertz = GetNumberField(L, def_index, "angular_hertz", def.angularHertz);
+        def.angularDampingRatio = GetNumberField(L, def_index, "angular_damping_ratio", def.angularDampingRatio);
+        def.maxSpringForce = GetNumberField(L, def_index, "max_spring_force", def.maxSpringForce) * GetPhysicsScale();
+        def.maxSpringTorque = GetNumberField(L, def_index, "max_spring_torque", def.maxSpringTorque) * GetPhysicsScale();
 
         PushCreatedJoint(L, b2CreateMotorJoint(world, &def));
         return 1;
@@ -1172,8 +1235,8 @@ namespace dmGameSystem
         CheckJointDefBodies(L, 1, 2, &body_a, &body_b, &world);
 
         b2FilterJointDef def = b2DefaultFilterJointDef();
-        def.bodyIdA = *body_a;
-        def.bodyIdB = *body_b;
+        def.base.bodyIdA = *body_a;
+        def.base.bodyIdB = *body_b;
 
         PushCreatedJoint(L, b2CreateFilterJoint(world, &def));
         return 1;
@@ -1214,15 +1277,17 @@ namespace dmGameSystem
         {"get_type", Joint_GetType},
         {"get_body_a", Joint_GetBodyA},
         {"get_body_b", Joint_GetBodyB},
-        {"get_local_anchor_a", Joint_GetLocalAnchorA},
-        {"get_local_anchor_b", Joint_GetLocalAnchorB},
+        {"get_local_frame_a", Joint_GetLocalFrameA},
+        {"get_local_frame_b", Joint_GetLocalFrameB},
+        {"set_local_frame_a", Joint_SetLocalFrameA},
+        {"set_local_frame_b", Joint_SetLocalFrameB},
         {"get_anchor_a", Joint_GetAnchorA},
         {"get_anchor_b", Joint_GetAnchorB},
         {"get_collide_connected", Joint_GetCollideConnected},
         {"set_collide_connected", Joint_SetCollideConnected},
         {"wake_bodies", Joint_WakeBodies},
-        {"set_mouse_target", Joint_SetMouseTarget},
-        {"get_mouse_target", Joint_GetMouseTarget},
+        {"set_constraint_tuning", Joint_SetConstraintTuning},
+        {"get_constraint_tuning", Joint_GetConstraintTuning},
         {"set_length", Joint_SetLength},
         {"get_length", Joint_GetLength},
         {"enable_spring", Joint_EnableSpring},
@@ -1258,21 +1323,21 @@ namespace dmGameSystem
         {"set_max_motor_torque", Joint_SetMaxMotorTorque},
         {"get_max_motor_torque", Joint_GetMaxMotorTorque},
         {"get_motor_torque", Joint_GetMotorTorque},
-        {"set_max_force", Joint_SetMaxForce},
-        {"get_max_force", Joint_GetMaxForce},
-        {"set_max_torque", Joint_SetMaxTorque},
-        {"get_max_torque", Joint_GetMaxTorque},
-        {"set_linear_offset", Joint_SetLinearOffset},
-        {"get_linear_offset", Joint_GetLinearOffset},
-        {"set_angular_offset", Joint_SetAngularOffset},
-        {"get_angular_offset", Joint_GetAngularOffset},
-        {"set_correction_factor", Joint_SetCorrectionFactor},
-        {"get_correction_factor", Joint_GetCorrectionFactor},
+        {"set_max_velocity_torque", Joint_SetMaxVelocityTorque},
+        {"get_max_velocity_torque", Joint_GetMaxVelocityTorque},
+        {"set_max_velocity_force", Joint_SetMaxVelocityForce},
+        {"get_max_velocity_force", Joint_GetMaxVelocityForce},
+        {"set_max_spring_force", Joint_SetMaxSpringForce},
+        {"get_max_spring_force", Joint_GetMaxSpringForce},
+        {"set_max_spring_torque", Joint_SetMaxSpringTorque},
+        {"get_max_spring_torque", Joint_GetMaxSpringTorque},
+        {"set_linear_velocity", Joint_SetLinearVelocity},
+        {"get_linear_velocity", Joint_GetLinearVelocity},
+        {"set_angular_velocity", Joint_SetAngularVelocity},
+        {"get_angular_velocity", Joint_GetAngularVelocity},
         {"get_joint_translation", Joint_GetJointTranslation},
         {"get_joint_speed", Joint_GetJointSpeed},
         {"get_joint_angle", Joint_GetJointAngle},
-        {"set_reference_angle", Joint_SetReferenceAngle},
-        {"get_reference_angle", Joint_GetReferenceAngle},
         {"set_linear_hertz", Joint_SetLinearHertz},
         {"get_linear_hertz", Joint_GetLinearHertz},
         {"set_linear_damping_ratio", Joint_SetLinearDampingRatio},
@@ -1284,7 +1349,6 @@ namespace dmGameSystem
         {"get_reaction_force", Joint_GetReactionForce},
         {"get_reaction_torque", Joint_GetReactionTorque},
         {"create_distance", Joint_CreateDistance},
-        {"create_mouse", Joint_CreateMouse},
         {"create_prismatic", Joint_CreatePrismatic},
         {"create_revolute", Joint_CreateRevolute},
         {"create_weld", Joint_CreateWeld},
@@ -1308,7 +1372,6 @@ namespace dmGameSystem
         SET_CONSTANT(b2_distanceJoint, "JOINT_TYPE_DISTANCE");
         SET_CONSTANT(b2_filterJoint, "JOINT_TYPE_FILTER");
         SET_CONSTANT(b2_motorJoint, "JOINT_TYPE_MOTOR");
-        SET_CONSTANT(b2_mouseJoint, "JOINT_TYPE_MOUSE");
         SET_CONSTANT(b2_prismaticJoint, "JOINT_TYPE_PRISMATIC");
         SET_CONSTANT(b2_revoluteJoint, "JOINT_TYPE_REVOLUTE");
         SET_CONSTANT(b2_weldJoint, "JOINT_TYPE_WELD");
@@ -1398,16 +1461,16 @@ namespace dmGameSystem
  * @return body [type: b2Body] body B
  */
 
-/*# Get the local anchor on body A.
- * @name b2d.joint.get_local_anchor_a
+/*# Get the local frame on body A.
+ * @name b2d.joint.get_local_frame_a
  * @param joint [type: b2Joint] joint
- * @return anchor [type: vector3] local anchor
+ * @return frame [type:b2d.transform] Local frame with position (vector3) and angle (radians).
  */
 
-/*# Get the local anchor on body B.
- * @name b2d.joint.get_local_anchor_b
+/*# Get the local frame on body B.
+ * @name b2d.joint.get_local_frame_b
  * @param joint [type: b2Joint] joint
- * @return anchor [type: vector3] local anchor
+ * @return frame [type:b2d.transform] Local frame with position (vector3) and angle (radians).
  */
 
 /*# Get the world anchor on body A.
@@ -1439,18 +1502,6 @@ namespace dmGameSystem
  * @param joint [type: b2Joint] joint
  */
 
-/*# Set the target for a mouse joint.
- * @name b2d.joint.set_mouse_target
- * @param joint [type: b2Joint] mouse joint
- * @param target [type: vector3] world target
- */
-
-/*# Get the target for a mouse joint.
- * @name b2d.joint.get_mouse_target
- * @param joint [type: b2Joint] mouse joint
- * @return target [type: vector3] world target
- */
-
 /*# Set the distance joint length.
  * @name b2d.joint.set_length
  * @param joint [type: b2Joint] distance joint
@@ -1477,61 +1528,61 @@ namespace dmGameSystem
 
 /*# Set spring frequency.
  * @name b2d.joint.set_spring_hertz
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @param hertz [type: number] frequency in hertz
  */
 
 /*# Get spring frequency.
  * @name b2d.joint.get_spring_hertz
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @return hertz [type: number] frequency in hertz
  */
 
 /*# Alias for `b2d.joint.set_spring_hertz`.
  * @name b2d.joint.set_hertz
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @param hertz [type: number] frequency in hertz
  */
 
 /*# Alias for `b2d.joint.get_spring_hertz`.
  * @name b2d.joint.get_hertz
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @return hertz [type: number] frequency in hertz
  */
 
 /*# Alias for `b2d.joint.set_spring_hertz`.
  * @name b2d.joint.set_frequency
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @param frequency [type: number] frequency in hertz
  */
 
 /*# Alias for `b2d.joint.get_spring_hertz`.
  * @name b2d.joint.get_frequency
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @return frequency [type: number] frequency in hertz
  */
 
 /*# Set spring damping ratio.
  * @name b2d.joint.set_spring_damping_ratio
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @param ratio [type: number] damping ratio
  */
 
 /*# Get spring damping ratio.
  * @name b2d.joint.get_spring_damping_ratio
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @return ratio [type: number] damping ratio
  */
 
 /*# Alias for `b2d.joint.set_spring_damping_ratio`.
  * @name b2d.joint.set_damping_ratio
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @param ratio [type: number] damping ratio
  */
 
 /*# Alias for `b2d.joint.get_spring_damping_ratio`.
  * @name b2d.joint.get_damping_ratio
- * @param joint [type: b2Joint] distance, mouse, prismatic, revolute, or wheel joint
+ * @param joint [type: b2Joint] distance, prismatic, revolute, or wheel joint
  * @return ratio [type: number] damping ratio
  */
 
@@ -1663,64 +1714,16 @@ namespace dmGameSystem
  * @return torque [type: number] motor torque
  */
 
-/*# Set maximum force.
- * @name b2d.joint.set_max_force
- * @param joint [type: b2Joint] mouse or motor joint
- * @param force [type: number] maximum force
- */
-
-/*# Get maximum force.
- * @name b2d.joint.get_max_force
- * @param joint [type: b2Joint] mouse or motor joint
- * @return force [type: number] maximum force
- */
-
 /*# Set maximum torque.
- * @name b2d.joint.set_max_torque
+ * @name b2d.joint.set_max_velocity_torque
  * @param joint [type: b2Joint] motor joint
  * @param torque [type: number] maximum torque
  */
 
 /*# Get maximum torque.
- * @name b2d.joint.get_max_torque
+ * @name b2d.joint.get_max_velocity_torque
  * @param joint [type: b2Joint] motor joint
  * @return torque [type: number] maximum torque
- */
-
-/*# Set motor joint linear offset.
- * @name b2d.joint.set_linear_offset
- * @param joint [type: b2Joint] motor joint
- * @param offset [type: vector3] linear offset in project units
- */
-
-/*# Get motor joint linear offset.
- * @name b2d.joint.get_linear_offset
- * @param joint [type: b2Joint] motor joint
- * @return offset [type: vector3] linear offset in project units
- */
-
-/*# Set motor joint angular offset.
- * @name b2d.joint.set_angular_offset
- * @param joint [type: b2Joint] motor joint
- * @param offset [type: number] angular offset in radians
- */
-
-/*# Get motor joint angular offset.
- * @name b2d.joint.get_angular_offset
- * @param joint [type: b2Joint] motor joint
- * @return offset [type: number] angular offset in radians
- */
-
-/*# Set motor joint correction factor.
- * @name b2d.joint.set_correction_factor
- * @param joint [type: b2Joint] motor joint
- * @param factor [type: number] correction factor
- */
-
-/*# Get motor joint correction factor.
- * @name b2d.joint.get_correction_factor
- * @param joint [type: b2Joint] motor joint
- * @return factor [type: number] correction factor
  */
 
 /*# Get joint translation.
@@ -1741,63 +1744,51 @@ namespace dmGameSystem
  * @return angle [type: number] angle in radians
  */
 
-/*# Set weld joint reference angle.
- * @name b2d.joint.set_reference_angle
- * @param joint [type: b2Joint] weld joint
- * @param angle [type: number] reference angle in radians
- */
-
-/*# Get weld joint reference angle.
- * @name b2d.joint.get_reference_angle
- * @param joint [type: b2Joint] weld joint
- * @return angle [type: number] reference angle in radians
- */
-
-/*# Set weld joint linear frequency.
+/*# Set weld or motor joint linear frequency.
  * @name b2d.joint.set_linear_hertz
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @param hertz [type: number] frequency in hertz
  */
 
-/*# Get weld joint linear frequency.
+/*# Get weld or motor joint linear frequency.
  * @name b2d.joint.get_linear_hertz
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @return hertz [type: number] frequency in hertz
  */
 
-/*# Set weld joint linear damping ratio.
+/*# Set weld or motor joint linear damping ratio.
  * @name b2d.joint.set_linear_damping_ratio
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @param ratio [type: number] damping ratio
  */
 
-/*# Get weld joint linear damping ratio.
+/*# Get weld or motor joint linear damping ratio.
  * @name b2d.joint.get_linear_damping_ratio
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @return ratio [type: number] damping ratio
  */
 
-/*# Set weld joint angular frequency.
+/*# Set weld or motor joint angular frequency.
  * @name b2d.joint.set_angular_hertz
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @param hertz [type: number] frequency in hertz
  */
 
-/*# Get weld joint angular frequency.
+/*# Get weld or motor joint angular frequency.
  * @name b2d.joint.get_angular_hertz
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @return hertz [type: number] frequency in hertz
  */
 
-/*# Set weld joint angular damping ratio.
+/*# Set weld or motor joint angular damping ratio.
  * @name b2d.joint.set_angular_damping_ratio
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @param ratio [type: number] damping ratio
  */
 
-/*# Get weld joint angular damping ratio.
+/*# Get weld or motor joint angular damping ratio.
  * @name b2d.joint.get_angular_damping_ratio
- * @param joint [type: b2Joint] weld joint
+ * @param joint [type: b2Joint] weld or motor joint
  * @return ratio [type: number] damping ratio
  */
 
@@ -1818,14 +1809,6 @@ namespace dmGameSystem
  * @param body_a [type: b2Body] first body
  * @param body_b [type: b2Body] second body
  * @param [definition] [type:b2d.joint.distance_definition] optional joint definition
- * @return joint [type: b2Joint] created joint
- */
-
-/*# Create a mouse joint.
- * @name b2d.joint.create_mouse
- * @param body_a [type: b2Body] first body
- * @param body_b [type: b2Body] second body
- * @param [definition] [type:b2d.joint.mouse_definition] optional joint definition
  * @return joint [type: b2Joint] created joint
  */
 
@@ -1875,4 +1858,92 @@ namespace dmGameSystem
  * @param body_b [type: b2Body] second body
  * @param [definition] [type:b2d.joint.filter_definition] optional definition table
  * @return joint [type: b2Joint] created joint
+ */
+
+/*# Set motor joint max velocity force.
+ * @name b2d.joint.set_max_velocity_force
+ * @param joint [type:b2Joint] motor joint
+ * @param value [type:number] max velocity force
+ */
+
+/*# Get motor joint max velocity force.
+ * @name b2d.joint.get_max_velocity_force
+ * @param joint [type:b2Joint] motor joint
+ * @return value [type:number] max velocity force
+ */
+
+/*# Set motor joint max spring force.
+ * @name b2d.joint.set_max_spring_force
+ * @param joint [type:b2Joint] motor joint
+ * @param value [type:number] max spring force
+ */
+
+/*# Get motor joint max spring force.
+ * @name b2d.joint.get_max_spring_force
+ * @param joint [type:b2Joint] motor joint
+ * @return value [type:number] max spring force
+ */
+
+/*# Set motor joint max spring torque.
+ * @name b2d.joint.set_max_spring_torque
+ * @param joint [type:b2Joint] motor joint
+ * @param value [type:number] max spring torque
+ */
+
+/*# Get motor joint max spring torque.
+ * @name b2d.joint.get_max_spring_torque
+ * @param joint [type:b2Joint] motor joint
+ * @return value [type:number] max spring torque
+ */
+
+/*# Set motor joint linear velocity.
+ * @name b2d.joint.set_linear_velocity
+ * @param joint [type:b2Joint] motor joint
+ * @param value [type:vector3] linear velocity
+ */
+
+/*# Get motor joint linear velocity.
+ * @name b2d.joint.get_linear_velocity
+ * @param joint [type:b2Joint] motor joint
+ * @return value [type:vector3] linear velocity
+ */
+
+/*# Set motor joint angular velocity.
+ * @name b2d.joint.set_angular_velocity
+ * @param joint [type:b2Joint] motor joint
+ * @param value [type:number] angular velocity
+ */
+
+/*# Get motor joint angular velocity.
+ * @name b2d.joint.get_angular_velocity
+ * @param joint [type:b2Joint] motor joint
+ * @return value [type:number] angular velocity
+ */
+
+
+/*# Set the local frame on body A.
+ * @name b2d.joint.set_local_frame_a
+ * @param joint [type:b2Joint] joint
+ * @param frame [type:b2d.transform] Local frame with optional position (vector3) and angle (radians). Omitted fields are preserved.
+ */
+
+/*# Set the local frame on body B.
+ * @name b2d.joint.set_local_frame_b
+ * @param joint [type:b2Joint] joint
+ * @param frame [type:b2d.transform] Local frame with optional position (vector3) and angle (radians). Omitted fields are preserved.
+ */
+
+/*# Set the stiffness of an individual joint constraint (Box2D v3).
+ * Replaces world-wide joint tuning in Box2D 3.2.
+ * @name b2d.joint.set_constraint_tuning
+ * @param joint [type:b2Joint] joint
+ * @param hertz [type:number] constraint frequency in hertz
+ * @param damping_ratio [type:number] constraint damping ratio
+ */
+
+/*# Get the stiffness of an individual joint constraint (Box2D v3).
+ * @name b2d.joint.get_constraint_tuning
+ * @param joint [type:b2Joint] joint
+ * @return hertz [type:number] constraint frequency in hertz
+ * @return damping_ratio [type:number] constraint damping ratio
  */

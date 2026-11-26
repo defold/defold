@@ -165,6 +165,7 @@ void dmNativeOSUnacquireAuxContextOpenGL(void* context);
 void dmNativeOSSetViewType(int view_type);
 void dmNativeOSSetWindowBackgroundColor(unsigned int color);
 float dmNativeOSGetDisplayScaleFactor();
+float dmNativeOSGetDisplayDensity();
 
 // Input handling (window.c)
 void dmNativeClearInput( void );

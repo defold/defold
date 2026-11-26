@@ -101,7 +101,6 @@
 (namespaces/import-vars [support.test-support cached-endpoints])
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
-(.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
 
 ;; Disable defspec logs:
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
@@ -1797,6 +1796,9 @@
 
 (defmethod edit-resource-node "spot_light" [resource-node-id]
   (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "archivemanifest" [resource-node-id]
+  (g/update-property (first (g/node-value resource-node-id :package-nodes)) :id str "_edited"))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))

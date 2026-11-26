@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
@@ -40,12 +41,6 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-/* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
- * convenient for the user to only have to include <GL/glfw.h>. This also
- * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
- * special defines which normally requires the user to include <windows.h>
- * (which is not a nice solution for portable programs).
- */
 #if defined(__APPLE_CC__)
     #if defined(DM_PLATFORM_IOS)
         #include <platform/platform_window_ios.h>
@@ -62,9 +57,6 @@
     #include <GLES/gl.h>
 #else
     #include <GL/gl.h>
-    #ifndef GLFW_NO_GLU
-        #include <GL/glu.h>
-    #endif
 #endif
 
 #if defined (ANDROID)
@@ -1089,7 +1081,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
-        assert(dmAtomicGet32(&context->m_AuxContextJobPending));
+        assert(dmAtomicLoadAcquire32(&context->m_AuxContextJobPending));
 
         if (acquire_flag)
         {
@@ -1100,7 +1092,8 @@ static void LogFrameBufferError(GLenum status)
             dmPlatform::UnacquireAuxContext(context->m_BaseContext.m_Window, context->m_AuxContext);
         }
 
-        dmAtomicStore32(&context->m_AuxContextJobPending, 0);
+        // The caller may use or destroy the context after observing completion.
+        dmAtomicStoreRelease32(&context->m_AuxContextJobPending, 0);
         return 0;
     }
 
@@ -1128,7 +1121,7 @@ static void LogFrameBufferError(GLenum status)
         JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
-        while(dmAtomicGet32(&context->m_AuxContextJobPending))
+        while (dmAtomicLoadAcquire32(&context->m_AuxContextJobPending))
         {
             dmTime::Sleep(100);
         }
@@ -2085,6 +2078,10 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        if (context->m_IsGles3Version)
+        {
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
+        }
         if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -2373,9 +2370,13 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, ubo->m_Id);
         delete ubo;
     }
 
@@ -2670,6 +2671,8 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
             vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
@@ -4768,6 +4771,7 @@ static void LogFrameBufferError(GLenum status)
 
                 attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
                 attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
+                attachment_tex->m_AllocatedMipMapMask = 1;
                 glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
@@ -5097,6 +5101,8 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -5172,7 +5178,10 @@ static void LogFrameBufferError(GLenum status)
         DeleteRenderTargetAttachment(rt->m_DepthAttachment, rt->m_Base.m_TextureDepth);
         DeleteRenderTargetAttachment(rt->m_StencilAttachment, rt->m_Base.m_TextureStencil);
 
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         if (context->m_CurrentRenderTarget == render_target)
         {
@@ -5507,6 +5516,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         tex->m_Base.m_MipMapCount    = 0;
+        tex->m_AllocatedMipMapMask   = 0;
         tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&tex->m_Base.m_DataState, 0);
@@ -5730,6 +5740,14 @@ static void LogFrameBufferError(GLenum status)
         return HANDLE_RESULT_OK;
     }
 
+    static bool OpenGLIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return !params.m_SubUpdate || (tex->m_AllocatedMipMapMask & (1u << params.m_MipMap));
+    }
+
     static void OpenGLSetTexture(HContext _context, HTexture texture, const TextureParams& params)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -5784,6 +5802,12 @@ static void LogFrameBufferError(GLenum status)
         {
             if (params.m_MipMap == 0)
             {
+                // Old higher levels may no longer match the new base dimensions.
+                if (tex->m_Base.m_Width != params.m_Width || tex->m_Base.m_Height != params.m_Height)
+                {
+                    tex->m_AllocatedMipMapMask = 0;
+                }
+
                 tex->m_Base.m_Width  = params.m_Width;
                 tex->m_Base.m_Height = params.m_Height;
                 tex->m_Base.m_Depth  = params.m_Depth;
@@ -6016,6 +6040,11 @@ static void LogFrameBufferError(GLenum status)
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
+        }
+
+        if (!params.m_SubUpdate && params.m_MipMap < 16)
+        {
+            tex->m_AllocatedMipMapMask |= 1u << params.m_MipMap;
         }
     }
 

@@ -17,6 +17,7 @@
 #include <jni/jni_util.h>
 
 #include <jni.h>
+#include <stdlib.h>
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -46,6 +47,7 @@ dmJniTest::Arrays::~Arrays()
     {
         delete m_RectPtrs1[i];
     }
+    delete[] m_RectPtrs1;
 
     for (uint32_t i = 0; i < m_RectPtrs2.Size(); ++i)
     {
@@ -153,10 +155,14 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateMisc(JNIEnv* env, jclass cls
         out_misc.m_NullPtr = 0;
 
         out_misc.m_Forward1 = new dmJniTest::Forward();
-        memcpy(&out_misc.m_Forward1, &in_misc.m_Forward1, sizeof(out_misc.m_Forward1));
+        memcpy(out_misc.m_Forward1, in_misc.m_Forward1, sizeof(*out_misc.m_Forward1));
 
         jni_out_misc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &out_misc);
 
+        free((void*)in_misc.m_String);
+        free((void*)out_misc.m_String);
+        delete in_misc.m_NullPtr;
+        delete in_misc.m_Forward1;
         delete out_misc.m_Forward1;
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jni_out_misc;
@@ -342,8 +348,9 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateArrays(JNIEnv* env, jclass c
 
 JNIEXPORT void JNICALL Java_JniTest_TestException(JNIEnv* env, jclass cls, jstring j_message)
 {
-    DM_SCOPED_SIGNAL_CONTEXT(env, return;);
+    // Keep the string outside the longjmp scope so the error return still releases it.
     dmJNI::ScopedString s_message(env, j_message);
+    DM_SCOPED_SIGNAL_CONTEXT(env, return;);
     const char* message = s_message.m_String;
     printf("Received message: '%s'\n", message); // Good when testing
     dmJNI::TestSignalFromString(message);

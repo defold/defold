@@ -137,6 +137,11 @@ $spacing-largest: 40px;
   -fx-border-width: 1 0;
   -fx-border-color: -df-background-lighter;
 }
+.beta-warning {
+  -fx-padding: 12 $spacing-larger;
+  -fx-border-width: 0 0 1 0;
+  -fx-border-color: -df-background-lighter;
+}
 .dialog-content-padding {
   -fx-padding: $spacing-larger;
 }

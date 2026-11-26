@@ -14,10 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.*;
-
-import java.io.ByteArrayOutputStream;
-import org.junit.Test;
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
 import com.dynamo.bob.CompileExceptionError;
@@ -26,6 +22,15 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+import org.junit.Test;
+
+import java.io.ByteArrayOutputStream;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class Ktx2TextureBuilderTest extends AbstractProtoBuilderTest {
     @Test

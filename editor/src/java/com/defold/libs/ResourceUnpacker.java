@@ -178,6 +178,7 @@ public class ResourceUnpacker {
 
                 Map<String, Path> discoveredLibraries = discoverBundledNativeLibraries(unpackedLibDir, platform);
                 preloadedLibraryPaths = preloadNativeLibraries(discoveredLibraries, SYSTEM_NATIVE_LIBRARY_LOADER);
+                System.setProperty("dmengine.library", getPreloadedLibraryPath("dmengine_shared").toString());
                 logger.info("preloaded {} bundled native libraries from {}", preloadedLibraryPaths.size(), unpackedLibDir);
                 if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
                     startUnpackDirTouchScheduler(unpackPath);
