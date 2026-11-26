@@ -130,7 +130,7 @@ public class GltfMountPoint implements IMountPoint {
     @Override
     public void walk(String path, IWalker walker, Collection<String> results) {
         String normalizedWalkPath = normalizeWalkPath(path);
-        for (String containerPath : findContainerPaths(normalizedWalkPath, walker.isDirectoryListing())) {
+        for (String containerPath : findContainerPaths(normalizedWalkPath, walker.listsOnlyChildDirectories())) {
             if (containerPath.equals(normalizedWalkPath) && !walker.handleDirectory(containerPath, results)) {
                 continue;
             }
@@ -161,22 +161,27 @@ public class GltfMountPoint implements IMountPoint {
         return path;
     }
 
-    private synchronized Set<String> findContainerPaths(String walkPath, boolean directoryListing) {
+    private synchronized Set<String> findContainerPaths(String walkPath, boolean subdirectoriesOnly) {
         // Only a model itself contributes immediate virtual directories to a listing.
-        if (!mounted || discovering || isBuildPath(walkPath) || (directoryListing && !isGltfPath(walkPath))) {
+        if (!mounted || discovering || isBuildPath(walkPath) || (subdirectoriesOnly && !isGltfPath(walkPath))) {
             return Set.of();
         }
         // For a virtual child, start at the model file. Other mounts can also supply concrete files below it.
         String searchPath = containerSearchPath(walkPath);
-        Predicate<String> inScope = path -> path.equals(searchPath) || (!directoryListing && isWithin(path, walkPath));
+        Predicate<String> inScope = path -> path.equals(searchPath) || (!subdirectoriesOnly && isWithin(path, walkPath));
         Set<String> paths = new TreeSet<>();
         discovering = true;
         try {
-            fileSystem.walk(searchPath, new IFileSystem.IExactPathWalker() {
+            fileSystem.walk(searchPath, new FileSystemWalker() {
+                @Override
+                public boolean requiresMatchingPathCase() {
+                    return true;
+                }
+
                 @Override
                 public boolean handleDirectory(String path, Collection<String> results) {
                     String directory = normalizeWalkPath(path);
-                    return !directoryListing && !isBuildPath(directory) && intersects(directory, walkPath);
+                    return !subdirectoriesOnly && !isBuildPath(directory) && intersects(directory, walkPath);
                 }
 
                 @Override

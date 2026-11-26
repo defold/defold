@@ -122,7 +122,7 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
 
     @Override
     public void walk(String path, IWalker walker, Collection<String> results) {
-        if (!(walker instanceof IExactPathWalker) || path.isEmpty() || hasExactPath(path)) {
+        if (!walker.requiresMatchingPathCase() || path.isEmpty() || hasExactPath(path)) {
             walk(walker, path, results);
         }
         for (IMountPoint mountPoint : this.mountPoints) {

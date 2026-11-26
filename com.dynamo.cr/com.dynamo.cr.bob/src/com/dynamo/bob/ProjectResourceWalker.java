@@ -102,7 +102,7 @@ class ProjectResourceWalker {
         final String normalizedPath = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(path));
         walkResources(normalizedPath, new FileSystemWalker() {
             @Override
-            public boolean isDirectoryListing() {
+            public boolean listsOnlyChildDirectories() {
                 return true;
             }
 
@@ -126,8 +126,13 @@ class ProjectResourceWalker {
         Predicate<String> ignoredResourcePathPredicate = makeIgnoredResourcePathPredicate();
         fileSystem.walk(path, new FileSystemWalker() {
             @Override
-            public boolean isDirectoryListing() {
-                return walker.isDirectoryListing();
+            public boolean listsOnlyChildDirectories() {
+                return walker.listsOnlyChildDirectories();
+            }
+
+            @Override
+            public boolean requiresMatchingPathCase() {
+                return walker.requiresMatchingPathCase();
             }
 
             @Override

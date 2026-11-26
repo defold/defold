@@ -29,7 +29,12 @@ public interface IFileSystem {
      */
     public interface IWalker {
         /** True when only the immediate subdirectories of the starting path are requested. */
-        default boolean isDirectoryListing() {
+        default boolean listsOnlyChildDirectories() {
+            return false;
+        }
+
+        /** Whether the starting path must match the filename case stored on disk. */
+        default boolean requiresMatchingPathCase() {
             return false;
         }
 
@@ -47,9 +52,6 @@ public interface IFileSystem {
          */
         void handleFile(String path, Collection<String> results);
     }
-
-    /** A scoped walk that matches the starting path with the spelling reported by a walk from the root. */
-    interface IExactPathWalker extends IWalker {}
 
     /**
      * Get resource from path. The resource is created if it doesn't exists.
