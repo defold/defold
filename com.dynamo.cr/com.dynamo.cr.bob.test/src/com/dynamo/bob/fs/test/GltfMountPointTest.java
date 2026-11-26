@@ -27,6 +27,7 @@ import com.dynamo.bob.fs.GltfMeshResource;
 import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.GltfResource;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.Ktx2TextureGeneratorTest;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.Modelimporter;
@@ -992,6 +993,49 @@ public class GltfMountPointTest {
         }
     }
 
+    // Listing one level must include files and directories without leaking descendants from disk or a mounted model.
+    @Test
+    public void testListVisitsImmediateEntries() throws Exception {
+        Path root = temporaryFolder.newFolder("project").toPath();
+        Path nested = Files.createDirectories(root.resolve("models/nested"));
+        Files.writeString(nested.resolve("hidden.txt"), "");
+        Files.writeString(root.resolve("models/readme.txt"), "");
+        Path archive = temporaryFolder.newFile("models.zip").toPath();
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("models/Box.glb"));
+            zip.write(glb("external.png"));
+            zip.putNextEntry(new ZipEntry("models/library/"));
+            zip.putNextEntry(new ZipEntry("models/library/deeper/"));
+            zip.putNextEntry(new ZipEntry("models/nested/hidden-in-library.txt"));
+            zip.putNextEntry(new ZipEntry("models-other/"));
+            zip.putNextEntry(new ZipEntry("models-other/unrelated.txt"));
+        }
+
+        DefaultFileSystem disk = new DefaultFileSystem();
+        try (Project project = new Project(disk, root.toString(), "build/default")) {
+            disk.addMountPoint(new ZipMountPoint(disk, archive.toString()));
+            disk.addMountPoint(new GltfMountPoint(disk));
+            FileSystemWalker entries = new FileSystemWalker() {
+                @Override
+                public boolean handleDirectory(String path, Collection<String> results) {
+                    results.add(path);
+                    return true;
+                }
+            };
+            List<String> paths = new ArrayList<>();
+            disk.list("models", entries, paths);
+            Collections.sort(paths);
+            assertEquals(List.of("models/Box.glb", "models/library", "models/nested", "models/readme.txt"), paths);
+            paths.clear();
+            disk.list("models/Box.glb", entries, paths);
+            Collections.sort(paths);
+            assertEquals(List.of("models/Box.glb/images", "models/Box.glb/materials", "models/Box.glb/meshes"), paths);
+            paths.clear();
+            disk.list("models/Box.glb/materials", entries, paths);
+            assertEquals(List.of("models/Box.glb/materials/Paint_0.material"), paths);
+        }
+    }
+
     // A scoped disk walk must match the case reported by a root walk, even on a case-insensitive filesystem.
     @Test
     public void testDiskWalkUsesStoredPathCase() throws Exception {
@@ -1333,9 +1377,9 @@ public class GltfMountPointTest {
         private final List<String> walkPaths = new ArrayList<>();
 
         @Override
-        public void walk(String path, IWalker walker, Collection<String> results) {
+        protected void walkLocal(String path, IWalker walker, Collection<String> results) {
             walkPaths.add(path);
-            super.walk(path, walker, results);
+            super.walkLocal(path, walker, results);
         }
 
         void setExternalImageReadable(boolean externalImageReadable) {

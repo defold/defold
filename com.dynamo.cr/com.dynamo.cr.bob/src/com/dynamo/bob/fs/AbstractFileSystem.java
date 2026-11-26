@@ -120,13 +120,24 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
         return true;
     }
 
-    @Override
-    public void walk(String path, IWalker walker, Collection<String> results) {
-        if (!walker.requiresMatchingPathCase() || path.isEmpty() || hasExactPath(path)) {
+    protected void walkLocal(String path, IWalker walker, Collection<String> results) {
+        if (!walker.isCaseSensitive() || path.isEmpty() || hasExactPath(path)) {
             walk(walker, path, results);
         }
+    }
+
+    @Override
+    public void walk(String path, IWalker walker, Collection<String> results) {
+        walkLocal(path, walker, results);
         for (IMountPoint mountPoint : this.mountPoints) {
             mountPoint.walk(path, walker, results);
+        }
+    }
+
+    protected void listLocalAndMounts(String path, IWalker walker, Collection<String> results) {
+        walkLocal(path, FileSystemWalker.childrenOf(path, walker), results);
+        for (IMountPoint mountPoint : mountPoints) {
+            mountPoint.list(path, walker, results);
         }
     }
 }

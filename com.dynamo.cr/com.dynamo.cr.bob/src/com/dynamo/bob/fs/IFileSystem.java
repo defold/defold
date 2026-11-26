@@ -28,13 +28,8 @@ public interface IFileSystem {
      * Used to traverse the file system and any attached mount points.
      */
     public interface IWalker {
-        /** True when only the immediate subdirectories of the starting path are requested. */
-        default boolean listsOnlyChildDirectories() {
-            return false;
-        }
-
-        /** Whether the starting path must match the filename case stored on disk. */
-        default boolean requiresMatchingPathCase() {
+        /** True to enforce case-sensitive lookup of the starting path. Otherwise the filesystem's case rules apply. */
+        default boolean isCaseSensitive() {
             return false;
         }
 
@@ -123,4 +118,9 @@ public interface IFileSystem {
      * @param results collection to write the results to
      */
     public void walk(String path, IWalker walker, Collection<String> results);
+
+    /** Visit the immediate files and directories under a path. */
+    default void list(String path, IWalker walker, Collection<String> results) {
+        walk(path, FileSystemWalker.childrenOf(path, walker), results);
+    }
 }

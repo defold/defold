@@ -28,6 +28,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,6 +42,11 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
     }
 
     private Map<String, CacheEntry> cache = new ConcurrentHashMap<String, CacheEntry>();
+
+    @Override
+    public void list(String path, IWalker walker, Collection<String> results) {
+        listLocalAndMounts(path, walker, results);
+    }
 
     @Override
     public IResource get(String path) {

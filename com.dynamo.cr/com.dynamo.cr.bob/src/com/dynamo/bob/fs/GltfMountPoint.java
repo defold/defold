@@ -129,8 +129,17 @@ public class GltfMountPoint implements IMountPoint {
 
     @Override
     public void walk(String path, IWalker walker, Collection<String> results) {
-        String normalizedWalkPath = normalizeWalkPath(path);
-        for (String containerPath : findContainerPaths(normalizedWalkPath, walker.listsOnlyChildDirectories())) {
+        walk(normalizeWalkPath(path), walker, results, true);
+    }
+
+    @Override
+    public void list(String path, IWalker walker, Collection<String> results) {
+        String directory = normalizeWalkPath(path);
+        walk(directory, FileSystemWalker.childrenOf(directory, walker), results, false);
+    }
+
+    private void walk(String normalizedWalkPath, IWalker walker, Collection<String> results, boolean recursive) {
+        for (String containerPath : findContainerPaths(normalizedWalkPath, recursive)) {
             if (containerPath.equals(normalizedWalkPath) && !walker.handleDirectory(containerPath, results)) {
                 continue;
             }
@@ -161,27 +170,30 @@ public class GltfMountPoint implements IMountPoint {
         return path;
     }
 
-    private synchronized Set<String> findContainerPaths(String walkPath, boolean subdirectoriesOnly) {
-        // Only a model itself contributes immediate virtual directories to a listing.
-        if (!mounted || discovering || isBuildPath(walkPath) || (subdirectoriesOnly && !isGltfPath(walkPath))) {
+    private synchronized Set<String> findContainerPaths(String walkPath, boolean recursive) {
+        if (!mounted || discovering || isBuildPath(walkPath)) {
             return Set.of();
         }
         // For a virtual child, start at the model file. Other mounts can also supply concrete files below it.
         String searchPath = containerSearchPath(walkPath);
-        Predicate<String> inScope = path -> path.equals(searchPath) || (!subdirectoriesOnly && isWithin(path, walkPath));
+        // Only paths at or inside a model can have immediate virtual children.
+        if (!recursive && !isGltfPath(searchPath)) {
+            return Set.of();
+        }
+        Predicate<String> inScope = path -> path.equals(searchPath) || (recursive && isWithin(path, walkPath));
         Set<String> paths = new TreeSet<>();
         discovering = true;
         try {
             fileSystem.walk(searchPath, new FileSystemWalker() {
                 @Override
-                public boolean requiresMatchingPathCase() {
+                public boolean isCaseSensitive() {
                     return true;
                 }
 
                 @Override
                 public boolean handleDirectory(String path, Collection<String> results) {
                     String directory = normalizeWalkPath(path);
-                    return !subdirectoriesOnly && !isBuildPath(directory) && intersects(directory, walkPath);
+                    return recursive && !isBuildPath(directory) && intersects(directory, walkPath);
                 }
 
                 @Override
