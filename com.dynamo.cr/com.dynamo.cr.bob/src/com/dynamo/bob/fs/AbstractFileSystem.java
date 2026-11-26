@@ -105,9 +105,26 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
         }
     }
 
+    private boolean hasExactPath(String path) {
+        File directory = new File(rootDirectory).getAbsoluteFile();
+        if (!new File(directory, path).exists()) {
+            return false;
+        }
+        for (String name : path.split("/")) {
+            String[] matches = directory.list((parent, entry) -> entry.equals(name));
+            if (matches == null || matches.length == 0) {
+                return false;
+            }
+            directory = new File(directory, name);
+        }
+        return true;
+    }
+
     @Override
     public void walk(String path, IWalker walker, Collection<String> results) {
-        walk(walker, path, results);
+        if (!(walker instanceof IExactPathWalker) || path.isEmpty() || hasExactPath(path)) {
+            walk(walker, path, results);
+        }
         for (IMountPoint mountPoint : this.mountPoints) {
             mountPoint.walk(path, walker, results);
         }

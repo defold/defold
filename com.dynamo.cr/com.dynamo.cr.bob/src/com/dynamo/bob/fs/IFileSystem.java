@@ -28,6 +28,11 @@ public interface IFileSystem {
      * Used to traverse the file system and any attached mount points.
      */
     public interface IWalker {
+        /** True when only the immediate subdirectories of the starting path are requested. */
+        default boolean isDirectoryListing() {
+            return false;
+        }
+
         /**
          * Inspect the directory described by the path.
          * @param path relative path of the directory
@@ -42,6 +47,9 @@ public interface IFileSystem {
          */
         void handleFile(String path, Collection<String> results);
     }
+
+    /** A scoped walk that matches the starting path with the spelling reported by a walk from the root. */
+    interface IExactPathWalker extends IWalker {}
 
     /**
      * Get resource from path. The resource is created if it doesn't exists.
