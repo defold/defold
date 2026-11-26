@@ -20,6 +20,7 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
@@ -94,8 +95,8 @@
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event EventHandler]
-           [javafx.geometry HPos Point2D Rectangle2D VPos]
-           [javafx.scene Node Parent Scene]
+           [javafx.geometry Bounds HPos Point2D Rectangle2D VPos]
+           [javafx.scene Group Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox Tab TextField TreeItem TreeView]
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
@@ -1091,7 +1092,9 @@
                             (keep (partial data/rect-intersection view-rect))
                             (map (partial make-cursor-rectangle cursor-color cursor-opacity)))]
     (assert (identical? canvas (first children)))
-    (.remove children 1 (count children))
+    ;; Keep the signature-help overlay when replacing the cursor rectangles.
+    (.removeAll children
+                ^Collection (filterv #(instance? Rectangle %) children))
     (.addAll children ^Collection cursor-rectangles)
     nil))
 
@@ -2828,6 +2831,18 @@
               (contains? (get-property view-node :signature-help-trigger-characters) typed))
       (request-signature-help! view-node))))
 
+(defn- move-or-page-signature-help! [view-node direction]
+  (let [{:keys [active signatures] :as signature-help}
+        (get-property view-node :signature-help)]
+    (if (and (g/user-data view-node :signature-help-overlay-node)
+             (< 1 (count signatures))
+             (not (suggestions-visible? view-node)))
+      (let [step (if (= direction :up) -1 1)
+            next-index (mod (+ (long active) step) (count signatures))]
+        (set-properties! view-node nil
+                         {:signature-help (assoc signature-help :active next-index)}))
+      (move! view-node :navigation direction))))
+
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
@@ -2840,8 +2855,8 @@
                   KeyCode/END   (move! view-node :navigation :end)
                   KeyCode/LEFT  (move! view-node :navigation :left)
                   KeyCode/RIGHT (move! view-node :navigation :right)
-                  KeyCode/UP    (move! view-node :navigation :up)
-                  KeyCode/DOWN  (move! view-node :navigation :down)
+                  KeyCode/UP    (move-or-page-signature-help! view-node :up)
+                  KeyCode/DOWN  (move-or-page-signature-help! view-node :down)
                   KeyCode/ENTER (when editable
                                   (insert-text! view-node prefs "\r"))
                   ::unhandled))
@@ -4127,93 +4142,138 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- signature-help-popup-view [{:keys [canvas-repaint-info signature-help docs hint project font-name font-size view-node]}]
-  (let [{:keys [^Canvas canvas]} canvas-repaint-info
-        {:keys [active signatures]} signature-help
+(defn- signature-help-overlay-placement
+  [^Canvas canvas ^Rect caret font-size signature-count docs]
+  (let [width (.getWidth canvas)
+        height (.getHeight canvas)
+        caret-top (.y caret)
+        caret-bottom (+ caret-top (.h caret))]
+    (when (<= 0.0 caret-top caret-bottom height)
+      (let [preferred-height
+            (+ (* 1.5 (double font-size) (+ 3.0 (double signature-count)))
+               (if docs 400.0 0.0))
+
+            space-below (- height caret-bottom)
+
+            above
+            (and (< space-below preferred-height) (< space-below caret-top))
+
+            x
+            (-> (.x caret)
+                (min (- width (min 240.0 width)))
+                (max 0.0))]
+        {:x x
+         :anchor-y (if above caret-top caret-bottom)
+         :above above
+         :max-width (Math/floor (min 600.0 (- width x)))
+         :max-height (Math/floor (if above caret-top space-below))}))))
+
+(def ^:private prop-signature-help-anchor-y
+  (fx/make-binding-prop
+    (fn bind-signature-help-anchor-y [^Group overlay [anchor-y above]]
+      (let [layout-y (.layoutYProperty overlay)]
+        (if above
+          (b/bind! layout-y
+                   (b/map (fn signature-help-overlay-y [^Bounds bounds]
+                            (- (double anchor-y) (.getHeight bounds)))
+                          (.layoutBoundsProperty overlay)))
+          (.set layout-y (double anchor-y)))
+        (fn unbind-signature-help-anchor-y [] (b/unbind! layout-y))))
+    fx.lifecycle/scalar))
+
+(defn- signature-help-overlay-view
+  [{:keys [^Pane pane signature-help docs hint project font-name font-size
+           view-node x anchor-y above max-width max-height]}]
+  (let [{:keys [active signatures]} signature-help
         {:keys [doc parameter-doc]} (signatures active)
-        n (count signatures)
-        markdown (fn [{:keys [type value]}]
-                   (case type
-                     :plaintext (plaintext->markdown value)
-                     :markdown value))
-        doc-content (when docs
-                      (some->> [parameter-doc doc]
-                               (keep #(some-> % markdown))
-                               (remove string/blank?)
-                               not-empty
-                               (coll/join-to-string "\n\n<hr>\n\n")))
-        text (fn [s fill bold]
-               {:fx/type fx.text/lifecycle
-                :text s
-                :fill fill
-                :font {:family font-name :size font-size :weight (if bold :bold :normal)}})]
-    {:fx/type fxui/with-popup-window
-     :desc {:fx/type ui/ext-value :value canvas}
-     :popup
-     {:fx/type fx/ext-on-instance-lifecycle
-      :showing true
-      :on-created #(g/user-data! view-node :signature-help-window %)
-      :on-deleted (fn [_]
-                    (g/user-data! view-node :signature-help-window nil)
-                    (g/user-data! view-node :signature-help-anchor nil))
-      :desc
-      {:fx/type fx.popup/lifecycle
-       :anchor-location :window-bottom-left
-       :auto-hide true
-       :auto-fix true
-       :hide-on-escape false
-       :consume-auto-hiding-events false
-       :on-hidden (fn [_] (hide-signature-help! view-node))
-       :event-filter (fn [e]
-                       (when (instance? KeyEvent e)
-                         (let [^KeyEvent e e
-                               code (.getCode e)]
-                           (when (and (= KeyEvent/KEY_PRESSED (.getEventType e))
-                                      (< 1 n)
-                                      (or (= KeyCode/UP code) (= KeyCode/DOWN code))
-                                      (not (or (.isShiftDown e) (.isAltDown e) (.isShortcutDown e) (.isMetaDown e)))
-                                      (not (suggestions-visible? view-node)))
-                             (.consume e)
-                             (set-properties! view-node nil
-                                              {:signature-help (update (get-property view-node :signature-help) :active #(mod (+ % (if (= KeyCode/UP code) -1 1)) n))})))))
-       :content
-       [{:fx/type fx.stack-pane/lifecycle
-         :stylesheets [(str (io/resource "editor.css"))]
-         :children
-         [{:fx/type fx.region/lifecycle
-           :style-class "hover-background"}
-          {:fx/type fx.v-box/lifecycle
-           :children
-           (cond-> []
-             doc-content
-             (conj {:fx/type markdown-view/view
-                    :content doc-content
-                    :project project
-                    :max-width 600.0
-                    :max-height 400.0})
-             :always
-             (conj {:fx/type fx.text-flow/lifecycle
-                    :padding 6
-                    :max-width 600
-                    :children (into []
-                                    (comp
-                                      (map-indexed
-                                        (fn [i {:keys [label start end]}]
-                                          (cond->> (if (and start (= i active))
-                                                     [(text (subs label 0 start) "#a2b0be" false)
-                                                      (text (subs label start end) "#4cb1ff" true)
-                                                      (text (subs label end) "#a2b0be" false)]
-                                                     [(text label (if (= i active) "#a2b0be" "#6c7a88") false)])
-                                            (pos? i)
-                                            (cons (text "\n" "#6c7a88" false)))))
-                                      cat)
-                                    signatures)})
-             hint
-             (conj {:fx/type fx.text-flow/lifecycle
-                    :padding {:left 6 :right 6 :bottom 4}
-                    :children [{:fx/type fx.text/lifecycle
-                                :text (str hint ": Toggle docs")
-                                :fill "#6c7a88"}]}))}]}]}}}))
+
+        markdown
+        (fn [{:keys [type value]}]
+          (case type
+            :plaintext (plaintext->markdown value)
+            :markdown value))
+
+        doc-content
+        (when docs
+          (some->> [parameter-doc doc]
+                   (keep #(some-> % markdown))
+                   (remove string/blank?)
+                   coll/not-empty
+                   (coll/join-to-string "\n\n<hr>\n\n")))
+
+        signature-text
+        (fn signature-text [text fill bold]
+          {:fx/type fx.text/lifecycle
+           :text text
+           :fill fill
+           :font {:family font-name :size font-size :weight (if bold :bold :normal)}})
+
+        signature-labels
+        (coll/into-> signatures []
+          (map-indexed
+            (fn [index {:keys [label start end]}]
+              (let [selected (= index active)
+
+                    runs
+                    (if (and selected start)
+                      [(signature-text (subs label 0 start) "#a2b0be" false)
+                       (signature-text (subs label start end) "#4cb1ff" true)
+                       (signature-text (subs label end) "#a2b0be" false)]
+                      [(signature-text label (if selected "#a2b0be" "#6c7a88") false)])]
+                (cond->> runs
+                  (pos? (long index))
+                  (cons (signature-text "\n" "#6c7a88" false))))))
+          cat)]
+    {:fx/type fx/ext-on-instance-lifecycle
+     :on-created (fn mount-signature-help-overlay [^Group overlay]
+                   (g/user-data! view-node :signature-help-overlay-node overlay)
+                   (ui/add-child! pane overlay))
+     :on-deleted (fn unmount-signature-help-overlay [^Group overlay]
+                   (.remove (.getChildren pane) overlay)
+                   (b/unbind! (.layoutYProperty overlay))
+                   (g/user-data! view-node :signature-help-overlay-node nil))
+     :desc
+     {:fx/type fx.group/lifecycle
+      :id "signature-help-overlay"
+      :managed false
+      :layout-x x
+      :view-order -1.0
+      :event-filter (fn return-focus-to-canvas [^Event event]
+                      (when (= MouseEvent/MOUSE_RELEASED (.getEventType event))
+                        (.requestFocus ^Node (first (.getChildren pane)))))
+      prop-signature-help-anchor-y [anchor-y above]
+      :children
+      [{:fx/type fx.stack-pane/lifecycle
+        :max-width max-width
+        :max-height max-height
+        :children
+        [{:fx/type fx.region/lifecycle
+          :style-class "hover-background"}
+         {:fx/type fx.v-box/lifecycle
+          :children
+          (let [children
+                (cond-> [{:fx/type fx.text-flow/lifecycle
+                          :padding 6
+                          :max-width max-width
+                          :children signature-labels}]
+                  doc-content
+                  (conj {:fx/type markdown-view/view
+                         :content doc-content
+                         :project project
+                         :focus-traversable false
+                         :max-width max-width
+                         :min-height 0.0
+                         :max-height 400.0})
+
+                  hint
+                  (conj {:fx/type fx.text-flow/lifecycle
+                         :padding (if above
+                                    {:left 6 :right 6 :top 4}
+                                    {:left 6 :right 6 :bottom 4})
+                         :children [{:fx/type fx.text/lifecycle
+                                     :text (str hint ": Toggle docs")
+                                     :fill "#6c7a88"}]}))]
+            (if above (vec (rseq children)) children))}]}]}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
@@ -4279,30 +4339,51 @@
 
     (when editable
       (let [signature-help (get-property view-node :signature-help)
-            cursor (data/cursor-range-start (first (get-property view-node :cursor-ranges)))]
-        (when (and signature-help
-                   (not= [(get-property view-node :lines) cursor] (g/user-data view-node :signature-help-request)))
-          (request-signature-help! view-node))
+            {:keys [^Canvas canvas layout lines]} canvas-repaint-info
+            pane (.getParent canvas)
+
+            focus-owner
+            (when signature-help
+              (some-> canvas .getScene ui/focus-owner))
+
+            focused
+            (or (identical? canvas focus-owner)
+                (when-let [overlay (g/user-data view-node :signature-help-overlay-node)]
+                  (ui/closest-node-where #(identical? overlay %) focus-owner)))
+
+            cursor
+            (data/cursor-range-start (first (get-property view-node :cursor-ranges)))
+
+            font-size (get-property view-node :font-size)
+            docs (get-property view-node :signature-help-docs)
+
+            placement
+            (when (and focused signature-help)
+              (let [caret
+                    (data/cursor-rect layout lines (data/adjust-cursor lines cursor))]
+                (signature-help-overlay-placement
+                  canvas caret font-size (count (:signatures signature-help))
+                  (and docs (some (some-fn :doc :parameter-doc) (:signatures signature-help))))))]
+        (when signature-help
+          (cond
+            (not focused)
+            (hide-signature-help! view-node)
+
+            (not= [lines cursor] (g/user-data view-node :signature-help-request))
+            (request-signature-help! view-node)))
         (ui/advance-graph-user-data-component!
           view-node :signature-help-popup
-          (when signature-help
-            {:fx/type signature-help-popup-view
-             :canvas-repaint-info canvas-repaint-info
-             :signature-help signature-help
-             :docs (get-property view-node :signature-help-docs)
-             :hint (keymap/display-text (g/node-value view-node :keymap) :code.show-signature-help nil)
-             :project (g/node-value view-node :project)
-             :font-name (get-property view-node :font-name)
-             :font-size (get-property view-node :font-size)
-             :view-node view-node}))
-        (when-let [^PopupWindow window (and signature-help (g/user-data view-node :signature-help-window))]
-          (let [{:keys [^Canvas canvas layout lines]} canvas-repaint-info
-                ^Rect r (data/cursor-rect layout lines (data/adjust-cursor lines cursor))
-                anchor (.localToScreen canvas (.x r) (.y r))]
-            (when-not (= anchor (g/user-data view-node :signature-help-anchor))
-              (g/user-data! view-node :signature-help-anchor anchor)
-              (.setAnchorX window (.getX anchor))
-              (.setAnchorY window (.getY anchor)))))))
+          (when (and placement (pos? (double (:max-height placement))))
+            (assoc placement
+              :fx/type signature-help-overlay-view
+              :pane pane
+              :signature-help signature-help
+              :docs docs
+              :hint (keymap/display-text (g/node-value view-node :keymap) :code.show-signature-help nil)
+              :project (g/node-value view-node :project)
+              :font-name (get-property view-node :font-name)
+              :font-size font-size
+              :view-node view-node)))))
 
     ;; Repaint hovered regions
     (ui/advance-graph-user-data-component!
@@ -4864,6 +4945,7 @@
                              (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
                              (dispose-repainter!)
+                             (ui/advance-graph-user-data-component! view-node :signature-help-popup nil)
                              (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
