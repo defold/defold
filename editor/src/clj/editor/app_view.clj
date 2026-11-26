@@ -167,16 +167,8 @@
 
 (defn- tab-title
   ^String [resource dirty]
-  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
-  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
-  ;; control is internal. We also cannot replace them with double underscores to
-  ;; escape them, as they will show up in the Tab labels and there appears to be
-  ;; no way to enable mnemonic parsing for them. Attempts were made to call
-  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
-  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
-  ;; underscores with the a unicode character that looks somewhat similar.
   (let [resource-name (or (some-> resource resource/resource-name) "")
-        escaped-resource-name (string/replace resource-name "_" "\u02CD")]
+        escaped-resource-name (ui/escape-tab-title resource-name)]
     (if dirty
       (str "*" escaped-resource-name)
       escaped-resource-name)))
@@ -232,14 +224,13 @@
         hidden-regions (prefs/get prefs prefs-hidden-panes)
         hidden (prefs/get prefs [:window :layout :hidden-panes])
 
-        visible
-        (fn visible [{:keys [id location]}]
-          (and (not (contains? hidden id))
-               (not (contains? hidden-regions (get-in panes/locations [location :region])))))
+        pane-enabled?
+        (fn pane-enabled? [{:keys [id]}]
+          (not (contains? hidden id)))
 
         contexts
         (coll/into-> scripts {}
-          (filter visible)
+          (filter pane-enabled?)
           (map #(get-in panes/locations [(:location %) :scope]))
           (distinct)
           (coll/pair-map-by identity
@@ -256,7 +247,7 @@
         materialize
         (fn materialize [{:keys [location content] :as definition}]
           (assoc definition :content-desc
-                 (when (visible definition)
+                 (when (pane-enabled? definition)
                    (content (assoc env :contexts (get contexts (get-in panes/locations [location :scope])))))))]
     {:fx/type panes/layout
      :prefs prefs

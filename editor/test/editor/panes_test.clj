@@ -310,7 +310,7 @@
         (app-view/set-built-in-panes! app-view [assets console curve properties])
         (app-view/initialize-panes! app-view scene prefs test-util/localization)
         (try
-          (is (zero? @console-descriptions))
+          (is (= 1 @console-descriptions))
           (is (zero? @console-disposals))
           (is (= [:assets :console :curve-editor :properties]
                  (mapv :user-data (test-util/handler-options :window.toggle-pane contexts nil))))
@@ -331,7 +331,7 @@
           (test-util/handler-run :window.toggle-pane contexts :assets)
           (is (nil? (.lookup scene "#left-pane")))
           (is (= #{:bottom} (prefs/get prefs [:window :hidden-panes])))
-          (is (zero? @console-descriptions))
+          (is (pos? @console-descriptions))
           (app-view/show-pane! scene :console)
           (is (= #{} (prefs/get prefs [:window :hidden-panes])))
           (is (= #{:assets} (prefs/get prefs [:window :layout :hidden-panes])))
@@ -339,13 +339,17 @@
           (app-view/show-pane! scene :curve-editor)
           (let [descriptions-before @console-descriptions
 
+                ^TabPane host
+                (.lookup scene "#bottom-pane .tab-pane")
+
                 ^Tab curve-tab
-                (ui/selected-tab (.lookup scene "#bottom-pane .tab-pane"))]
+                (ui/selected-tab host)]
             (test-util/handler-run :window.toggle-bottom-pane contexts nil)
             (is (nil? (.lookup scene "#bottom-pane")))
-            (is (nil? (.getTabPane curve-tab)))
-            (is (= descriptions-before @console-descriptions))
-            (is (= 1 @console-disposals)))
+            (is (identical? host (.getTabPane curve-tab)))
+            (is (nil? (.getScene host)))
+            (is (= (inc descriptions-before) @console-descriptions))
+            (is (zero? @console-disposals)))
           (test-util/handler-run :window.toggle-bottom-pane contexts nil)
           (is (= #{} (prefs/get prefs [:window :hidden-panes])))
           (is (identical? curve-input (.getContent ^Tab (ui/selected-tab (.lookup scene "#bottom-pane .tab-pane")))))
@@ -362,10 +366,9 @@
               (is (= #{} (prefs/get prefs [:window :hidden-panes])))))
           (finally
             (ui/advance-ui-user-data-component! scene :editor.app-view/ui nil)))
-        (is (= 3 @console-disposals))))))
+        (is (= 1 @console-disposals))))))
 
-;; Hidden content is not evaluated or mounted until shown, and unmounts again
-;; when its region is hidden.
+;; Whole-region hiding retains mounted content; individual hiding unmounts it.
 ;; Legacy Changed Files visibility moves to the nested per-pane preference.
 (deftest initially-hidden-pane-content-test
   (test-util/with-loaded-project
@@ -401,20 +404,29 @@
           (is (= #{:bottom} (prefs/get prefs [:window :hidden-panes])))
           (is (= #{:changed-files} (prefs/get prefs [:window :layout :hidden-panes])))
           (is (nil? (.lookup scene "#bottom-pane")))
-          (is (zero? @described-count))
+          (is (= 1 @described-count))
           (is (zero? @disposed-count))
           (app-view/show-pane! scene :console)
-          (is (= 1 @described-count))
+          (is (= 2 @described-count))
           (is (.lookup scene "#bottom-pane"))
           (test-util/handler-run :window.toggle-bottom-pane
                                  [(handler/->context :global {:main-stage stage
                                                               :app-view app-view
                                                               :prefs prefs})]
                                  nil)
+          (is (zero? @disposed-count))
+          (test-util/handler-run :window.toggle-pane
+                                 [(handler/->context :global {:main-stage stage
+                                                              :app-view app-view
+                                                              :prefs prefs})]
+                                 :console)
           (is (= 1 @disposed-count))
+          (app-view/show-pane! scene :console)
+          (is (.lookup scene "#bottom-pane"))
+          (is (= 4 @described-count))
           (finally
             (ui/advance-ui-user-data-component! scene :editor.app-view/ui nil)))
-        (is (= 1 @disposed-count))))))
+        (is (= 2 @disposed-count))))))
 
 ;; Ratios restore after mounting and layout, save on divider release, and
 ;; survive hiding groups without saving temporary positions on window close.

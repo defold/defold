@@ -1458,6 +1458,18 @@
   (run [^Stage main-stage]
     (move-selected-tab! (focused-tab-pane main-stage) 1)))
 
+(defn escape-tab-title
+  ^String [title]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there appears to be
+  ;; no way to enable mnemonic parsing for them. Attempts were made to call
+  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
+  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
+  ;; underscores with the a unicode character that looks somewhat similar.
+  (string/replace title "_" "\u02CD"))
+
 (defn init-tab-pane! [^TabPane tab-pane]
   (let [original-event-dispatcher (.getEventDispatcher tab-pane)]
     (.setEventDispatcher

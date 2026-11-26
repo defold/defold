@@ -563,8 +563,8 @@ end")))
             (finally
               (fx/delete-component @component))))))))
 
-;; Hiding a script pane unmounts its component, so use_state initializes again
-;; on show instead of retaining a hidden component and its localization watch.
+;; Region hiding preserves script component state and localization watches;
+;; individual pane hiding unmounts the component and releases its watch.
 (deftest editor-script-pane-unmount-test
   (test-util/with-temp-project-content
     {"/panes.editor_script"
@@ -609,9 +609,16 @@ end")))
         (is (= "1" (text)))
         (let [mounted-watches
               (count (.getWatches ^IRef test-util/localization))]
-          (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
-          (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
-          (is (< (count (.getWatches ^IRef test-util/localization)) mounted-watches)))
+          (testing "A region toggle preserves use_state and its subscription"
+            (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
+            (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
+            (is (= mounted-watches (count (.getWatches ^IRef test-util/localization))))
+            (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
+            (is (= "1" (text))))
+          (testing "An individual pane toggle unmounts its component"
+            (ui/run-now (test-util/handler-run :window.toggle-pane contexts :test.counter))
+            (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
+            (is (< (count (.getWatches ^IRef test-util/localization)) mounted-watches))))
         (ui/run-now (app-view/show-pane! scene :test.counter))
         (is (= "2" (text)))
         (finally

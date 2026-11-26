@@ -48,7 +48,7 @@
   (when-let [content (:content instances)]
     {:fx/type fx.tab/lifecycle
      :style-class ["tab" (str (name id) "-tab")]
-     :text (localization-state title)
+     :text (ui/escape-tab-title (localization-state title))
      :closable false
      :on-selection-changed (fn pane-selection-changed [^Event event]
                              (when (.isSelected ^Tab (.getSource event))
@@ -128,7 +128,7 @@
      :desc {:fx/type fxui/tab-pane
             :style-class ["tab-pane" "pane-tabs"]
             :min-width 170
-            :min-height 100
+            :min-height 40
             :tab-closing-policy :unavailable
             :tabs (mapv (fn [id] {:fx/type ui/ext-value :value (get instances id)}) ids)}
      :props {prop-tab-selection {:ids ids :selected-id selected-id}}}))
