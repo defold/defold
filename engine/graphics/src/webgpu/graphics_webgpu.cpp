@@ -180,11 +180,11 @@ static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilte
     switch (minfilter)
     {
         case TEXTURE_FILTER_NEAREST:
-            desc.magFilter   = WGPUFilterMode_Nearest;
+            desc.minFilter   = WGPUFilterMode_Nearest;
             desc.lodMaxClamp = 0.25f;
             break;
         case TEXTURE_FILTER_LINEAR:
-            desc.magFilter   = WGPUFilterMode_Linear;
+            desc.minFilter   = WGPUFilterMode_Linear;
             desc.lodMaxClamp = 0.25f;
             break;
         case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
