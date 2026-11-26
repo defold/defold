@@ -840,7 +840,11 @@ public class Project implements AutoCloseable {
             }
             else
             {
-                resources.add(fileSystem.get(path.getFileName().toString()));
+                // Track the selected file as an input without adding its directory to the project.
+                DefaultFileSystem disk = new DefaultFileSystem();
+                disk.setRootDirectory(path.getParent().toString());
+                IResource settings = disk.get(path.getFileName().toString());
+                resources.add(new FileSystemMountPoint.MountedFileSystemResource(fileSystem, settings));
             }
         }
         return resources;
@@ -918,25 +922,6 @@ public class Project implements AutoCloseable {
         this.resourceWalker.clearCaches();
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
-
-        // This code is a quick way to allow for settings files from outside of a project
-        // Those settings files are required to be using absolute paths.
-        // Caveat is that we're mounting the folder, which may contain other files
-        // TODO: Add way to insert specific (or virtual) files into the file system
-        Set<String> mounts = new HashSet<>();
-        for (String propertyFile : propertyFiles) {
-            Path path = Paths.get(propertyFile);
-            if (path.isAbsolute()) {
-                String normalizedRoot = path.getParent().normalize().toString();
-                // do not add the same mount twice if multiple settings are passed on commandline in same directory
-                if (!mounts.contains(normalizedRoot)) {
-                    DefaultFileSystem fs = new DefaultFileSystem();
-                    fs.setRootDirectory(normalizedRoot);
-                    this.fileSystem.addMountPoint(new FileSystemMountPoint(this.fileSystem, fs));
-                    mounts.add(normalizedRoot);
-                }
-            }
-        }
 
         Path libPath = Paths.get(getLibPath());
         if (!libUrls.isEmpty() && !Files.isDirectory(libPath)) {

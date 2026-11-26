@@ -32,6 +32,7 @@ import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.Modelimporter;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.Library;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
@@ -62,7 +63,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -1003,6 +1007,43 @@ public class GltfMountPointTest {
             project.findResourceDirs("models/box.glb", paths);
             assertTrue(paths.isEmpty());
 
+            project.findResourceDirs("models/Box.glb", paths);
+            assertTrue(paths.contains("materials"));
+        }
+    }
+
+    // A staged model next to an absolute settings file must not shadow a library model or supply its materials.
+    @Test
+    public void testStagedSettingsDoNotShadowLibraryModel() throws Exception {
+        Path root = temporaryFolder.newFolder("project").toPath();
+        Path settings = Files.createDirectories(root.resolve("build/default/staging"));
+        Path models = Files.createDirectory(settings.resolve("models"));
+        Path settingsFile = Files.writeString(settings.resolve("game.settings"), "[project]\n");
+        Files.write(models.resolve("Box.glb"), glb("external.png"));
+
+        Path zip = temporaryFolder.newFile("library.zip").toPath();
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(zip))) {
+            output.putNextEntry(new ZipEntry("models/Box.glb"));
+            output.write(glbFromGltf(gltf("external.png").replace("\"Paint\"", "\"Chrome\"")));
+        }
+        Library.Archive archive = new Library.Archive(zip, "", Set.of("models"), null);
+        DefaultFileSystem disk = new DefaultFileSystem();
+        try (Project project = new Project(disk, root.toString(), "build/default")) {
+            project.addPropertyFile(settingsFile.toString());
+            project.mount(new ClassLoaderResourceScanner(), List.of(new Library.Result(zip.toUri(), archive, null)));
+
+            assertArrayEquals(Files.readAllBytes(settingsFile), project.getPropertyFilesAsResources().get(0).getContent());
+            String resourcePath = "models/Box.glb/materials/Chrome_0.material";
+            assertTrue(project.getResource(resourcePath) instanceof GltfMaterialResource);
+            List<String> paths = new ArrayList<>();
+            project.findResourcePaths("", paths);
+            assertFalse(paths.contains("models/Box.glb/materials/Paint_0.material"));
+            assertFalse(paths.contains("game.settings"));
+            assertTrue(paths.contains(resourcePath));
+            paths.clear();
+            disk.walk("models/Box.glb/materials", new FileSystemWalker(), paths);
+            assertEquals(List.of(resourcePath), paths);
+            paths.clear();
             project.findResourceDirs("models/Box.glb", paths);
             assertTrue(paths.contains("materials"));
         }
