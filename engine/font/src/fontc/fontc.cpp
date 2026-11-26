@@ -52,7 +52,7 @@ using dmVMath::Vector4;
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
 static_assert(sizeof(FontcParams) == 76, "Unexpected FontcParams ABI layout");
 static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph ABI layout");
-static_assert(sizeof(FontcLayout) == 32, "Unexpected FontcLayout ABI layout");
+static_assert(sizeof(FontcLayout) == 36, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 52, "Unexpected FontcGlyphMetrics ABI layout");
@@ -1354,6 +1354,7 @@ FontRendererResult FontcMeasure(HFontRenderer   renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);
@@ -1391,6 +1392,7 @@ FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);
@@ -1424,6 +1426,7 @@ FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);

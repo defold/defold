@@ -182,6 +182,35 @@
                    (:texture-request-datas (:effect-texture plain))))
             (is (= [0] (:texture-units @texture/white-pixel)))))))))
 
+;; Eligibility follows filtered text and selected styles, and invalidates when a
+;; style changes between animated and static.
+(deftest native-layout-animation-eligibility
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          style-node (:node-id (test-util/outline font-node [0 1]))
+
+          has-animated-effects?
+          (fn has-animated-effects? [text style]
+            (let [font-map
+                  (assoc (g/valid-node-value font-node :font-map) :style style)]
+              (:has-animated-effects
+                (font/layout-text font-map text false 100.0 0.0 1.0 nil))))]
+      (is (false? (has-animated-effects? "A" "default")))
+      (is (true? (has-animated-effects? "<wave hz=1>A</wave>" "default")))
+      (is (false? (has-animated-effects? "<wave hz=1>A</color>" "default")))
+      (test-util/prop! style-node :markup "<wave hz=1>")
+      (is (false? (has-animated-effects? "A" "default")))
+      (is (true? (has-animated-effects? "A" "link")))
+      (is (false? (has-animated-effects? "" "link")))
+      (test-util/prop! style-node :markup "<color=#ff0000>")
+      (is (false? (has-animated-effects? "A" "link")))
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (is (true? (has-animated-effects? "<wave hz=1>A</wave>" "default")))
+      (is (false? (has-animated-effects? "<wave hz=1>B</wave>" "default"))))))
+
 (defn- render-data-hash [render-data]
   (buffers/data-hash (vtx/buf (:vertex-buffer render-data))))
 

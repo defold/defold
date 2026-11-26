@@ -1979,6 +1979,42 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
     }
 }
 
+bool TextLayoutHasAnimatedEffects(HTextLayout layout)
+{
+    for (uint32_t i = 0; i < layout->m_ResolvedSpans.Size(); ++i)
+    {
+        const TextResolvedSpan& span = layout->m_ResolvedSpans[i];
+        if (span.m_TextLength == 0)
+        {
+            continue;
+        }
+
+        const TextEffect* gradient_effect = 0;
+        for (uint32_t j = 0; j < span.m_EffectCount; ++j)
+        {
+            const TextEffect& effect = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + j]];
+            if ((effect.m_Type == TEXT_EFFECT_WAVE && effect.m_Wave.m_Hz != 0.0f && effect.m_Wave.m_Amplitude != 0.0f) ||
+                (effect.m_Type == TEXT_EFFECT_SHAKE && effect.m_Shake.m_Hz != 0.0f && effect.m_Shake.m_Amplitude > 0.0f))
+            {
+                return true;
+            }
+
+            if (effect.m_Type == TEXT_EFFECT_GRADIENT && effect.m_TextLength != 0)
+            {
+                gradient_effect = &effect;
+            }
+        }
+
+        // Match rendering precedence: only the last gradient affects a span.
+        if (gradient_effect && gradient_effect->m_Gradient.m_Hz != 0.0f)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool TextLayoutHasMarkupOutline(HTextLayout layout)
 {
     if (!layout)

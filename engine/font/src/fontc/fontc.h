@@ -112,6 +112,7 @@ typedef struct FontcLayout
     uint32_t m_ErrorByteOffset;
     uint32_t m_ErrorType;
     float    m_LayoutWidth;     // Effective wrapping/alignment width after applying arc properties.
+    uint32_t m_HasAnimatedEffects; // Resolved spans contain time-dependent effects.
 } FontcLayout;
 
 typedef struct FontcGlyph

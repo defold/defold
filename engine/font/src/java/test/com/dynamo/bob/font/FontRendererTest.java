@@ -16,6 +16,7 @@ package com.dynamo.bob.font;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -771,6 +772,52 @@ public class FontRendererTest {
             renderer.setText("Ag");
             TestVertices repacked = getVertices(renderer, IDENTITY);
             assertEquals(vertices.vertices, repacked.vertices);
+        }
+    }
+
+    // Playback eligibility must reflect resolved effects, including named styles and overrides,
+    // rather than enabling animation for plain text or static rich-text formatting.
+    @Test
+    public void testLayoutReportsAnimatedEffects() throws Exception {
+        String[] staticMarkup = {
+            "A", "<color=#ff0000>A</color>",
+            "<wave hz=0 amplitude=8>A</wave>", "<wave hz=1 amplitude=0>A</wave>",
+            "<shake hz=0 amplitude=8>A</shake>", "<shake hz=1 amplitude=0>A</shake>"
+        };
+        String[] animatedMarkup = {
+            "<wave hz=1 amplitude=8>A</wave>", "<wave direction=reverse hz=1 amplitude=8>A</wave>",
+            "<shake hz=1 amplitude=8>A</shake>"
+        };
+        String gradient = "<gradient type=linear hz=1 color0=#ff0000 color1=#0000ff>";
+        String staticGradient = "<gradient type=linear hz=0 color0=#ff0000 color1=#0000ff>";
+        for (boolean shaping : new boolean[] {false, true}) {
+            try (FontRenderer renderer = createRenderer(32, 512, 512, shaping)) {
+                for (String markup : staticMarkup)
+                    assertEquals(markup, false, renderer.measureMarkup(markup, false, 100, 1, 0).hasAnimatedEffects);
+                for (String markup : animatedMarkup)
+                    assertEquals(markup, true, renderer.measureMarkup(markup, false, 100, 1, 0).hasAnimatedEffects);
+                assertTrue(renderer.measureMarkup(gradient + "A</gradient>", false, 100, 1, 0).hasAnimatedEffects);
+                assertTrue(renderer.measureMarkup(gradient + staticGradient + "A</gradient>B</gradient>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup(staticGradient + "A</gradient>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup(gradient + staticGradient + "A</gradient></gradient>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup(gradient + "<color=#ffffff>A</color></gradient>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup("<wave hz=1></wave>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup("<wave hz=1>A</color>", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measure("A", false, 100, 1, 0).hasAnimatedEffects);
+
+                renderer.setStyle(1, FontRenderer.compileStyle("<wave hz=1 amplitude=8>"));
+                assertFalse(renderer.measureMarkup("A", false, 100, 1, 0).hasAnimatedEffects);
+                FontRenderer.Properties properties = properties(100, 1, 0);
+                properties.baseStyle = 1;
+                properties.useBaseStyle = true;
+                renderer.setProperties(properties);
+                assertTrue(renderer.measure("A", false, 100, 1, 0).hasAnimatedEffects);
+                assertTrue(renderer.measureMarkup("A", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup("", false, 100, 1, 0).hasAnimatedEffects);
+                renderer.setStyle(1, FontRenderer.compileStyle("<color=#ff0000>"));
+                assertFalse(renderer.measure("A", false, 100, 1, 0).hasAnimatedEffects);
+                assertFalse(renderer.measureMarkup("A", false, 100, 1, 0).hasAnimatedEffects);
+            }
         }
     }
 

@@ -37,6 +37,7 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     uint32_t m_ErrorByteOffset;
  *     uint32_t m_ErrorType;
  *     float m_LayoutWidth;
+ *     uint32_t m_HasAnimatedEffects;
  * }
  * }
  */
@@ -54,7 +55,8 @@ public class FontcLayout {
         FontRendererFFM.C_FLOAT.withName("m_MaxDescent"),
         FontRendererFFM.C_INT.withName("m_ErrorByteOffset"),
         FontRendererFFM.C_INT.withName("m_ErrorType"),
-        FontRendererFFM.C_FLOAT.withName("m_LayoutWidth")
+        FontRendererFFM.C_FLOAT.withName("m_LayoutWidth"),
+        FontRendererFFM.C_INT.withName("m_HasAnimatedEffects")
     ).withName("FontcLayout");
 
     /**
@@ -414,6 +416,50 @@ public class FontcLayout {
      */
     public static void m_LayoutWidth(MemorySegment struct, float fieldValue) {
         struct.set(m_LayoutWidth$LAYOUT, m_LayoutWidth$OFFSET, fieldValue);
+    }
+
+    private static final OfInt m_HasAnimatedEffects$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_HasAnimatedEffects"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * uint32_t m_HasAnimatedEffects
+     * }
+     */
+    public static final OfInt m_HasAnimatedEffects$layout() {
+        return m_HasAnimatedEffects$LAYOUT;
+    }
+
+    private static final long m_HasAnimatedEffects$OFFSET = $LAYOUT.byteOffset(groupElement("m_HasAnimatedEffects"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * uint32_t m_HasAnimatedEffects
+     * }
+     */
+    public static final long m_HasAnimatedEffects$offset() {
+        return m_HasAnimatedEffects$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * uint32_t m_HasAnimatedEffects
+     * }
+     */
+    public static int m_HasAnimatedEffects(MemorySegment struct) {
+        return struct.get(m_HasAnimatedEffects$LAYOUT, m_HasAnimatedEffects$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * uint32_t m_HasAnimatedEffects
+     * }
+     */
+    public static void m_HasAnimatedEffects(MemorySegment struct, int fieldValue) {
+        struct.set(m_HasAnimatedEffects$LAYOUT, m_HasAnimatedEffects$OFFSET, fieldValue);
     }
 
     /**

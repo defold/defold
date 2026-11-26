@@ -336,6 +336,7 @@
      :native-text native-text
      :native-markup native-markup
      :use-rich-text use-rich-text
+     :has-animated-effects (.-hasAnimatedEffects layout)
      :line-break line-break?
      :layout-width (if (zero? (double (:arc-angle font-map 0.0))) max-width (double (.-layoutWidth layout)))
      :text-tracking text-tracking
@@ -689,6 +690,7 @@
        :max-ascent (* (double (or (:max-ascent font-map) 0)) font-scale)
        :max-descent (* (double (or (:max-descent font-map) 0)) font-scale)
        :line-count 0
+       :has-animated-effects false
        :font-size font-size
        :style (:style font-map "default")
        :text (or text "")
@@ -752,7 +754,7 @@
     result))
 
 (defn make-text-animation-updatable [node-id name text-layout]
-  (when (:use-rich-text text-layout)
+  (when (:has-animated-effects text-layout)
     {:node-id node-id
      :name name
      :initial-state {:t 0.0}

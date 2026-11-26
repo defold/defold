@@ -385,6 +385,9 @@ void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, co
 // GPU renderers resolve gradients separately; static tint and position effects remain CPU-side.
 void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients);
 
+// Reports whether resolved text spans contain time-dependent effects.
+bool TextLayoutHasAnimatedEffects(HTextLayout layout);
+
 // Reports whether the layout needs an outline vertex layer.
 bool TextLayoutHasMarkupOutline(HTextLayout layout);
 

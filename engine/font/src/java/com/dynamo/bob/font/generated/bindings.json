@@ -7,7 +7,7 @@
     "FontcGlyphBankGlyph.java": "0cd275ee2bc68b8c340a8f6818767a0754b4862b3819f7f602d6f76b40d41375",
     "FontcGlyphMetrics.java": "611f48d4174eacaecd1a8385f487dfefd7c7f89efc3d5b8a787738fd5fbb50e4",
     "FontcImage.java": "66fc47ec22720c8fb19e523e4034564409f812a1aeccbf0b44758ca143fbf442",
-    "FontcLayout.java": "6897ad84a36b43652003566b7e3127f08ccdb345ac8870564a4fcd0d8b1d94ff",
+    "FontcLayout.java": "467f91b22583a222822ed6ad8bac2fea363df5ddb914891de5c72e028a10a625",
     "FontcMarkupAttribute.java": "b3971d116bf349a48523f60d9fe357e96541412cea732dae9eb32409cf639873",
     "FontcMarkupData.java": "c11412db5cc190dceebf75a58b93e4f8258706a48bb2bd1a1b678c38e113b332",
     "FontcMarkupError.java": "9ce7d0cdb0b9e070bc9fb488b3291ec7f571933f8c0bf622ef8f5a696c18035d",
@@ -15,11 +15,11 @@
     "FontcMarkupSpan.java": "89ed6c9c5b994a9fc94a39143426b4debf361ae041f24628b884b704f5871884",
     "FontcMarkupString.java": "47efd198bffaed80df24da818299e00a4b4af7a8a5e40de43e51d2939b1ad7c3",
     "FontcParams.java": "0cd2044c2da0fd2858e36f2e8c1cdaecd9bffe2608934953e858f43abeda36f6",
-    "FontcProperties.java": "0506e34947ee6fe2c9b402aaaac48d7a1c5bf31a66973f3c04f0563c17fb31de",
+    "FontcProperties.java": "b24c89dd88cbbdc13d36cc7341a4eea8bd19517b6e02a489d8b47ae3096163c7",
     "FontcStyle.java": "39c849107f31656b91b7579c50b82671ced5f470d369801f77d6f08b4c6f68dc",
     "FontcStyleData.java": "67742c96126eedb03583284f7d929f9d5508661256be591be6b4293b9ccc180b",
-    "FontcStyleEffect.java": "9e8a7db78c14314dc29cf8d5f5ddfe36c507bef0f0b848045f668679c990ad4a",
+    "FontcStyleEffect.java": "f81c59bbd0261b19f249efe630ad54a0eb7df4b6f269462a5cd002f629e7ec64",
     "FontcTexture.java": "ae6894c024c57c681967b741211f4fd9074e9154fc9c63ab3d9eb4d40d4cbb0a"
   },
-  "header_sha256": "ef4dbbf066d1d7e929738ea8ee09f19abf61f6ab12bf83088ce01edc5ec183c8"
+  "header_sha256": "307ae1bebabc3fe8b2e23fbbe553bf31bb2c3681aa0f0a431544bb32108e3e5a"
 }

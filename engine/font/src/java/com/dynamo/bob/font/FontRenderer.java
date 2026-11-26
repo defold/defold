@@ -362,6 +362,7 @@ public final class FontRenderer implements AutoCloseable {
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
+        public final boolean hasAnimatedEffects;
         public final MarkupError markupError;
         public final MarkupDocument markupDocument;
 
@@ -380,6 +381,7 @@ public final class FontRenderer implements AutoCloseable {
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
+            hasAnimatedEffects = FontcLayout.m_HasAnimatedEffects(values) != 0;
             this.markupError = markupError;
             this.markupDocument = markupDocument;
         }
