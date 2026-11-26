@@ -1,0 +1,118 @@
+--- a/src/decode/decode.c
++++ b/src/decode/decode.c
+@@ -759,6 +759,16 @@
+ }
+
+ /*-----------------------------------------------------------------------*/
++
++/* Adjacent bins on a flat section have the same gain.  Keeping the
++ * multiplication contiguous lets the compiler vectorize the run. */
++static inline void apply_floor1_gain(float *output, int begin, int end, int y)
++{
++    const float gain = floor1_inverse_db_table[y];
++    for (int x = begin; x < end; x++) {
++        output[x] *= gain;
++    }
++}
+
+ /**
+  * render_line:  Render a line for a type 1 floor curve and perform the
+@@ -784,22 +794,49 @@
+     ASSERT(y0 >= 0);
+     ASSERT(x1 > x0);
+
++    const int stop = x1 < n ? x1 : n;
++    if (x0 >= stop) {
++        return;
++    }
+     const int dy = y1 - y0;
++    if (dy == 0) {
++        apply_floor1_gain(output, x0, stop, y0);
++        return;
++    }
+     const int adx = x1 - x0;
++    const int levels = abs(dy);
++    /* For runs of at least eight bins per gain, advance one gain at a
++     * time. The first bin of run k is x0 + ceil(k * adx / levels).
++     * Starting with levels-1 gives those exact rounded-up boundaries. */
++    if (adx >= 8 * levels) {
++        const int length = adx / levels;
++        const int remainder = adx % levels;
++        const int direction = dy < 0 ? -1 : 1;
++        int error = levels - 1;
++        for (int x = x0, y = y0; x < stop; y += direction) {
++            int end = x + length;
++            error += remainder;
++            if (error >= levels) {
++                error -= levels;
++                end++;
++            }
++            if (end > stop) {
++                end = stop;
++            }
++            apply_floor1_gain(output, x, end, y);
++            x = end;
++        }
++        return;
++    }
++
+     const int base = dy / adx;
+-    const int ady = abs(dy) - (abs(base) * adx);
++    const int ady = levels - (abs(base) * adx);
+     const int sy = (dy < 0 ? base-1 : base+1);
+     int x = x0, y = y0;
+     int err = 0;
+
+-    if (x1 >= n) {
+-        if (x0 >= n) {
+-            return;
+-        }
+-        x1 = n;
+-    }
+     output[x] *= floor1_inverse_db_table[y];
+-    for (x++; x < x1; x++) {
++    for (x++; x < stop; x++) {
+         err += ady;
+         if (err >= adx) {
+             err -= adx;
+@@ -1123,9 +1160,7 @@
+     }
+     if (lx < n/2) {
+         /* Optimization of: render_line(lx, ly, n/2, ly, output, n/2); */
+-        for (int i = lx; i < n/2; i++) {
+-            output[i] *= floor1_inverse_db_table[ly];
+-        }
++        apply_floor1_gain(output, lx, n/2, ly);
+     }
+ }
+
+@@ -2698,6 +2733,21 @@
+     for (int i = map->coupling_steps-1; i >= 0; i--) {
+         float *magnitude = channel_buffers[map->coupling[i].magnitude];
+         float *angle = channel_buffers[map->coupling[i].angle];
++#if defined(ENABLE_ASM_ARM_NEON)
++        /* The coefficient count is a power of two and at least 32.  One
++         * reconstructed channel keeps M, the other gets M +/- A. */
++        const uint32x4_t sign = vdupq_n_u32(UINT32_C(0x80000000));
++        for (int j = 0; j < n/2; j += 4) {
++            const float32x4_t m = vld1q_f32(magnitude + j);
++            const float32x4_t a = vld1q_f32(angle + j);
++            const uint32x4_t mp = vcgtq_f32(m, vdupq_n_f32(0));
++            const uint32x4_t ap = vcgtq_f32(a, vdupq_n_f32(0));
++            const uint32x4_t flip = vbicq_u32(sign, veorq_u32(mp, ap));
++            const float32x4_t other = vaddq_f32(m, veorq_f32(flip, a));
++            vst1q_f32(magnitude + j, vbslq_f32(ap, m, other));
++            vst1q_f32(angle + j, vbslq_f32(ap, other, m));
++        }
++#else
+         for (int j = 0; j < n/2; j++) {
+             const float M = magnitude[j];
+             const float A = angle[j];
+@@ -2722,6 +2772,7 @@
+             magnitude[j] = new_M;
+             angle[j] = new_A;
+         }
++#endif
+     }
+
+     /**** Floor curve synthesis and residue product (4.3.6).  The spec ****

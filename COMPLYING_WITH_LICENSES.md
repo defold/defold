@@ -51,6 +51,7 @@ The following software has licenses which require inclusion of their respective 
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
     * [OpenH264](/licenses/NOTICE-openh264) - Used to encode H.264 video recordings. Included only in graphical Linux debug builds.
   * BSD 3-Clause license
+    * The optional libnogg Vorbis decoder uses [libnogg](/licenses/NOTICE-libnogg) and [libogg](/licenses/NOTICE-libogg).
     * [Tremolo](/licenses/NOTICE-tremolo) - Used by the standard Android, iOS, macOS and Linux engines to decode Ogg Vorbis. Can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
     * [Sony Vector Math library](/licenses/NOTICE-vecmath) - Used internally by the engine. Included in all builds.
   * LGPL 2.0

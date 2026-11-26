@@ -13,6 +13,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   basis_transcoder
   crashext
   crashext_null
+  decoder_nogg
   decoder_ogg
   decoder_opus
   decoder_wav

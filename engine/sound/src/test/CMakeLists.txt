@@ -123,7 +123,10 @@ set(SOUND_TEST_LIBS
   decoder_opus)
 
 set(SOUND_TEST_EXPORTS DefaultSoundDevice AudioDecoderWav AudioDecoderStbVorbis AudioDecoderOpus)
-if(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
+if(SOUND_WITH_NOGG)
+  list(APPEND SOUND_TEST_EXPORTS AudioDecoderNogg)
+  list(APPEND SOUND_TEST_LIBS decoder_nogg)
+elseif(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
    NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND SOUND_TEST_EXPORTS AudioDecoderTremolo)
   list(APPEND SOUND_TEST_LIBS tremolo)
@@ -163,10 +166,17 @@ function(sound_configure_test target run_test)
     RUN_GROUP sound RUN_PRIORITY ${_run_priority})
 endfunction()
 
-if(SOUND_TEST_HAS_TREMOLO)
+if(SOUND_TEST_HAS_TREMOLO OR SOUND_WITH_NOGG)
   set(_sound_perf_export_file "${SOUND_TEST_GEN_DIR}/test_sound_perf_exported_symbols.cpp")
-  defold_create_exported_symbols_file("${_sound_perf_export_file}" "${SOUND_TEST_EXPORTS}")
-  defold_add_executable(test_sound_perf "${SOUND_TEST_ROOT}/test_sound_perf.cpp" "${_sound_perf_export_file}")
+  defold_create_exported_symbols_file("${_sound_perf_export_file}" "${SOUND_TEST_EXPORTS};NullSoundDevice")
+  defold_add_executable(test_sound_perf "${SOUND_TEST_ROOT}/test_sound_perf.cpp"
+    "${SOUND_SRC_DIR}/devices/device_null.cpp" "${_sound_perf_export_file}")
+  if(SOUND_WITH_NOGG)
+    target_compile_definitions(test_sound_perf PRIVATE DM_TEST_VORBIS_NOGG)
+  endif()
+  if(TARGET_PLATFORM MATCHES "web$")
+    _defold_configure_wasm_test(test_sound_perf)
+  endif()
   sound_configure_test(test_sound_perf OFF)
 endif()
 
@@ -178,6 +188,9 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$
   list(APPEND _sound_test_sources "${SOUND_TEST_ROOT}/test_sound_avaudio.mm")
 endif()
 defold_add_executable(test_sound ${_sound_test_sources} "${_sound_export_file}")
+if(SOUND_WITH_NOGG)
+  target_compile_definitions(test_sound PRIVATE DM_TEST_VORBIS_NOGG)
+endif()
 sound_apply_simd_flags(test_sound OFF)
 sound_configure_test(test_sound ${SOUND_RUN_TESTS})
 

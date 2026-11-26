@@ -154,9 +154,9 @@ public:
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
-        params.m_OutputDevice = "default";
-        params.m_FrameCount = 2048;//512;//GetParam().m_BufferFrameCount;
-        params.m_UseThread = true; // all our desktop platforms support this
+        params.m_OutputDevice = "null";
+        params.m_FrameCount = 2048;
+        params.m_UseThread = false;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         assert(r == dmSound::RESULT_OK);
@@ -204,6 +204,19 @@ TEST_F(dmSoundTest, MeasureStdbSkip)
     RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
 
+#if defined(DM_TEST_VORBIS_NOGG)
+// Measures decoding with libnogg on the same corpus as the shipping decoders.
+TEST_F(dmSoundTest, MeasureNogg)
+{
+    RunSuite("VorbisDecoderNogg", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
+}
+
+// Measures the cost of advancing an inaudible Vorbis voice with libnogg.
+TEST_F(dmSoundTest, MeasureNoggSkip)
+{
+    RunSuite("VorbisDecoderNogg", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
+}
+#else
 TEST_F(dmSoundTest, MeasureTremolo)
 {
     RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
@@ -213,6 +226,7 @@ TEST_F(dmSoundTest, MeasureTremoloSkip)
 {
     RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
+#endif
 
 TEST_F(dmSoundTest, MeasureOpus)
 {
