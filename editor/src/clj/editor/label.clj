@@ -90,13 +90,21 @@
 (defn- gen-render-data [^GL3 gl renderables render-args material-shader]
   (let [user-data (get-in renderables [0 :user-data])
         font-data (get-in user-data [:text-data :font-data])
-        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                         alpha (get-in text-data [:color 3])]
-                                     (-> text-data
-                                         (assoc :world-transform (:world-transform r))
-                                         (update-in [:outline 3] * alpha)
-                                         (update-in [:shadow 3] * alpha))))
-                           renderables)
+
+        text-entries
+        (mapv (fn [renderable]
+                (let [text-data (get-in renderable [:user-data :text-data])
+                      alpha (get-in text-data [:color 3])
+
+                      animation-time
+                      (get-in renderable [:updatable :state :t] 0.0)]
+                  (-> text-data
+                      (assoc :world-transform (:world-transform renderable)
+                             :animation-time animation-time)
+                      (update-in [:outline 3] * alpha)
+                      (update-in [:shadow 3] * alpha))))
+              renderables)
+
         node-ids (into #{} (map :node-id) renderables)]
     (when font-data
       (font/request-render-data gl node-ids font-data text-entries render-args material-shader))))
@@ -181,8 +189,12 @@
 
 (g/defnk produce-scene
   [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data arc-data arc-active]
-  (let [scene {:node-id _node-id
-               :aabb aabb}
+  (let [scene
+        {:node-id _node-id
+         :aabb aabb
+         :updatable (font/make-text-animation-updatable
+                      _node-id "Label" (:text-layout text-data))}
+
         font-map (get-in text-data [:font-data :font-map])
         material-shader (cond-> material-shader
                           (get-in text-data [:font-data :vector?]) font/with-vector-samplers)

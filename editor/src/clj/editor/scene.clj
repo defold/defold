@@ -1203,7 +1203,10 @@
            :mouse-transparent (nil? close-button)}
           {:visible false})))))
 
-(g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]
+(g/defnk produce-selection
+  [scene-render-data renderables-aabb+picking-node-id updatable-states
+   ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args
+   ^Rect picking-rect]
   (when (some? picking-rect)
     (cond
       (box-selection? picking-rect)
@@ -1228,7 +1231,10 @@
           (reset! last-picking-rect picking-rect)
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                  pass-renderables (vec (render-sort (get renderables pass)))]
+
+                  pass-renderables
+                  (-> (render-sort (get renderables pass))
+                      (assoc-updatable-states updatable-states))]
               (setup-pass gl pass)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
@@ -2130,11 +2136,13 @@
         (g/set-property view-id :overlay-anchor-pane overlay-anchor-pane)))
     view-id))
 
-(g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
+(g/defnk produce-frame
+  [all-renderables updatable-states ^Region viewport pass->render-args
+   ^GLAutoDrawable drawable]
   (when drawable
     (gl/with-drawable-as-current drawable
       (scene-cache/process-pending-deletions! gl)
-      (render! gl-context :normal all-renderables nil viewport pass->render-args [0.0 0.0 0.0 1.0])
+      (render! gl-context :normal all-renderables updatable-states viewport pass->render-args [0.0 0.0 0.0 1.0])
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image cached-buf-img-ref w h)]
         (scene-cache/prune-context! gl)
@@ -2158,6 +2166,7 @@
   (property image-view ImageView)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
+  (property updatable-states g/Any (default {}))
 
   (input input-handlers Runnable :array)
   (input update-tick-handlers Runnable :array)

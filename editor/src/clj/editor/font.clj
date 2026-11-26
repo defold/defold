@@ -751,6 +751,14 @@
     (.mul result translation)
     result))
 
+(defn make-text-animation-updatable [node-id name text-layout]
+  (when (:use-rich-text text-layout)
+    {:node-id node-id
+     :name name
+     :initial-state {:t 0.0}
+     :update-fn (fn step-text-animation [{:keys [^double t] :as state} {:keys [dt]}]
+                  (assoc state :t (+ t (double dt))))}))
+
 (defn- make-native-entry-state
   [font-map entry use-gpu-effects]
   (let [text-layout (:text-layout entry)
@@ -779,6 +787,7 @@
         text (or (:native-text text-layout)
                  (filter-native-preview-plain-text renderer-spec (:text text-layout)))
         markup (:native-markup text-layout)
+        animation-time (double (:animation-time entry 0.0))
         transform (float-array (geom/as-array (entry-transform entry)))
         properties (FontRenderer$Properties.)]
     (set! (.-lineBreak properties) ^boolean line-break)
@@ -806,15 +815,17 @@
     {:properties properties
      :text text
      :markup markup
+     :animation-time animation-time
      :use-rich-text use-rich-text
      :transform transform
      :atlas-key [(:style text-layout) font-size use-rich-text line-break width tracking text markup]
      :state-key [use-gpu-effects (:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color shadow-alpha sdf-scale text markup
-                 (:arc-radius entry 0.0) (:arc-angle entry 0.0)]}))
+                 (:arc-radius entry 0.0) (:arc-angle entry 0.0) animation-time]}))
 
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
+  (.setAnimationTime native-renderer (double (:animation-time native-entry-state)))
   (.setProperties native-renderer ^FontRenderer$Properties (:properties native-entry-state))
   (if-let [markup (:markup native-entry-state)]
     (.setMarkup native-renderer ^String markup)

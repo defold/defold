@@ -938,6 +938,21 @@
       (is (some? (g/node-value text-node :aabb)))
       (is (some? (g/node-value text-node :text-data))))))
 
+;; The text scene exposes a preview clock that pauses when dt is zero.
+(deftest gui-text-scene-exposes-animation-preview
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/fonts/vector_preview.gui")
+          node (gui-node scene "text")
+          updatable (:updatable (g/valid-node-value node :scene))
+          step (:update-fn updatable)
+          initial-state (:initial-state updatable)
+          advanced-state (step initial-state {:dt 0.125})]
+      (is (= node (:node-id updatable)))
+      (is (= 0.0 (:t initial-state)))
+      (is (= 0.125 (:t advanced-state)))
+      (is (= advanced-state (step advanced-state {:dt 0.0})))
+      (is (= 0.25 (:t (step advanced-state {:dt 0.125})))))))
+
 (defn- render-order [view]
   (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)

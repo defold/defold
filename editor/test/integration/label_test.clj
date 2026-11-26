@@ -118,6 +118,20 @@
         [:renderable :user-data :material-shader]
         [:renderable :user-data :gpu-texture]))))
 
+;; The text scene exposes a preview clock that pauses when dt is zero.
+(deftest label-scene-exposes-animation-preview
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")
+          updatable (:updatable (g/valid-node-value node :scene))
+          step (:update-fn updatable)
+          initial-state (:initial-state updatable)
+          advanced-state (step initial-state {:dt 0.125})]
+      (is (= node (:node-id updatable)))
+      (is (= 0.0 (:t initial-state)))
+      (is (= 0.125 (:t advanced-state)))
+      (is (= advanced-state (step advanced-state {:dt 0.0})))
+      (is (= 0.25 (:t (step advanced-state {:dt 0.125})))))))
+
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")

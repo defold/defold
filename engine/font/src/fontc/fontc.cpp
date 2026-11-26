@@ -217,6 +217,7 @@ struct FontcContext
     , m_Hash(0)
     , m_TextLayout(0)
     , m_TextLayoutHash(0)
+    , m_AnimationTime(0.0)
     , m_Properties()
     , m_HasProperties(false)
     , m_HasText(false)
@@ -246,6 +247,7 @@ struct FontcContext
     uint64_t                  m_Hash;
     HTextLayout               m_TextLayout;
     uint64_t                  m_TextLayoutHash;
+    double                    m_AnimationTime;
 
     FontcProperties           m_Properties;
     bool                      m_HasProperties;
@@ -1813,6 +1815,17 @@ FontRendererResult FontcSetMarkup(HFontRenderer renderer, const char* markup, ui
     return FONT_RENDERER_RESULT_OK;
 }
 
+FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+{
+    if (!renderer || !isfinite(seconds) || seconds < 0.0)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    renderer->m_AnimationTime = seconds;
+    return FONT_RENDERER_RESULT_OK;
+}
+
 uint64_t FontcHash(HFontRenderer renderer)
 {
     return renderer ? renderer->m_Hash : 0;
@@ -2516,6 +2529,9 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     transform.setCol3(Vector4(world_transform[12], world_transform[13], world_transform[14], world_transform[15]));
 
     FontLayoutVertexConfig config;
+    // Each entry supplies an absolute clock, including zero for stopped text.
+    // Keep time out of the retained-layout hash so playback does not reshape.
+    layout->m_ElapsedTime = renderer->m_AnimationTime;
     GetLayoutVertexConfig(renderer, layout, transform, &config);
     FontLayoutVertexMetrics metrics;
 

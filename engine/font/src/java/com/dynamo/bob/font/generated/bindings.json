@@ -1,6 +1,6 @@
 {
   "files": {
-    "FontRendererFFM.java": "6bbedc6a1733832cca5b6babf0a4d97edd292821a111285021d0b5a64a7182eb",
+    "FontRendererFFM.java": "2f7593b26225f6a0a509c25a36c96177b155a495858c38e80226ac1b0248955a",
     "FontRendererSymbols.java": "d49f8a052bcf192d16539c1c44a7dc11977779d5ed84983eb5954c8405afdae7",
     "FontcArc.java": "9768ad72953c3759197843f9b23afd130863b722b20099960fd5d05454753582",
     "FontcGlyph.java": "d40ef95a48c0a74614d2ee6c458c6969ba8bcb83add9b7b84cfcd3c41c30aa53",
@@ -15,11 +15,11 @@
     "FontcMarkupSpan.java": "89ed6c9c5b994a9fc94a39143426b4debf361ae041f24628b884b704f5871884",
     "FontcMarkupString.java": "47efd198bffaed80df24da818299e00a4b4af7a8a5e40de43e51d2939b1ad7c3",
     "FontcParams.java": "0cd2044c2da0fd2858e36f2e8c1cdaecd9bffe2608934953e858f43abeda36f6",
-    "FontcProperties.java": "bc8ed0ab94a32d0caea6b15f9bca9db26397065751ede8f64221e261cb452864",
+    "FontcProperties.java": "0506e34947ee6fe2c9b402aaaac48d7a1c5bf31a66973f3c04f0563c17fb31de",
     "FontcStyle.java": "39c849107f31656b91b7579c50b82671ced5f470d369801f77d6f08b4c6f68dc",
     "FontcStyleData.java": "67742c96126eedb03583284f7d929f9d5508661256be591be6b4293b9ccc180b",
-    "FontcStyleEffect.java": "7834328b417cfe3e6171613a95bcdeed7dc65b040722713e83d725451713e9fc",
+    "FontcStyleEffect.java": "9e8a7db78c14314dc29cf8d5f5ddfe36c507bef0f0b848045f668679c990ad4a",
     "FontcTexture.java": "ae6894c024c57c681967b741211f4fd9074e9154fc9c63ab3d9eb4d40d4cbb0a"
   },
-  "header_sha256": "1b0366486ee6e044841dc56409684d4efeedeb7f8a4295a7d6b505ba19b7fe43"
+  "header_sha256": "ef4dbbf066d1d7e929738ea8ee09f19abf61f6ab12bf83088ce01edc5ec183c8"
 }

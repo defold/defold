@@ -170,14 +170,22 @@
 (defn- gen-font-render-data
   [^GL3 gl user-data renderables render-args material-shader]
   (let [font-data (get-in user-data [:text-data :font-data])
-        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                         alpha (get-in (:user-data r) [:color 3])]
-                                     (-> text-data
-                                         (assoc :world-transform (:world-transform r))
-                                         (update-in [:color 3] * alpha)
-                                         (update-in [:outline 3] * alpha)
-                                         (update-in [:shadow 3] * alpha))))
-                           renderables)
+
+        text-entries
+        (mapv (fn [renderable]
+                (let [text-data (get-in renderable [:user-data :text-data])
+                      alpha (get-in renderable [:user-data :color 3])
+
+                      animation-time
+                      (get-in renderable [:updatable :state :t] 0.0)]
+                  (-> text-data
+                      (assoc :world-transform (:world-transform renderable)
+                             :animation-time animation-time)
+                      (update-in [:color 3] * alpha)
+                      (update-in [:outline 3] * alpha)
+                      (update-in [:shadow 3] * alpha))))
+              renderables)
+
         node-ids (into #{} (map :node-id) renderables)]
     (font/request-render-data gl node-ids font-data text-entries render-args material-shader)))
 
@@ -2265,6 +2273,9 @@
 
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-text-node-msg)
+  (output scene-updatable g/Any :cached
+          (g/fnk [_node-id text-layout]
+            (font/make-text-animation-updatable _node-id "Text" text-layout)))
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha arc-data arc-active]

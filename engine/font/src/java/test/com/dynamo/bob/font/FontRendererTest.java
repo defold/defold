@@ -774,6 +774,77 @@ public class FontRendererTest {
         }
     }
 
+    // Absolute clocks must animate every preview backend without reshaping or changing the atlas,
+    // and seeking back to zero must restore the original vertices on a shared renderer.
+    @Test
+    public void testAbsoluteAnimationTime() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            fontBytes = input.readAllBytes();
+        }
+        String[] effects = {
+            "<wave hz=1 amplitude=8 wavelength=6>",
+            "<shake hz=20 amplitude=8>",
+            "<gradient type=linear hz=1 color0=#ff0000 color1=#0000ff>"
+        };
+        String[] closingTags = {"</wave>", "</shake>", "</gradient>"};
+        for (int mode = 0; mode < 4; ++mode) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = 32;
+            params.cacheWidth = params.cacheHeight = 512;
+            params.outputBitmap = mode == 1;
+            params.vector = mode == 2;
+            try (FontRenderer renderer = mode == 3 ? createGlyphBankRenderer() :
+                    new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                for (boolean gpu : new boolean[] {false, true}) {
+                    for (boolean named : new boolean[] {false, true}) {
+                        for (int effect = 0; effect < effects.length; ++effect) {
+                            FontRenderer.Properties properties = properties(100, 1, 0);
+                            properties.useGpuEffects = gpu;
+                            properties.useBaseStyle = named;
+                            properties.baseStyle = named ? 1 : 0;
+                            if (named) {
+                                renderer.setStyle(1, FontRenderer.compileStyle(effects[effect]));
+                                renderer.setText("AA");
+                            } else {
+                                renderer.setMarkup(effects[effect] + "AA" + closingTags[effect]);
+                            }
+                            renderer.setProperties(properties);
+                            renderer.setAnimationTime(0);
+                            renderer.beginBatch();
+                            long atlasVersion = renderer.generateTexture(0).atlasVersion;
+                            long hash = renderer.hash();
+                            TestVertices initial = getVertices(renderer, IDENTITY);
+                            assertTrue(initial.vertexCount > 0);
+
+                            renderer.setAnimationTime(0.125);
+                            renderer.beginBatch();
+                            TestVertices animated = getVertices(renderer, IDENTITY);
+                            assertEquals(initial.vertexCount, animated.vertexCount);
+                            assertTrue("mode=" + mode + ", gpu=" + gpu + ", named=" + named + ", effect=" + effect,
+                                    !initial.vertices.equals(animated.vertices));
+                            assertEquals(animated.vertices, getVertices(renderer, IDENTITY).vertices);
+                            assertEquals(hash, renderer.hash());
+                            assertNull(renderer.generateTexture(atlasVersion).pixels);
+
+                            renderer.setAnimationTime(0);
+                            renderer.beginBatch();
+                            assertEquals(initial.vertices, getVertices(renderer, IDENTITY).vertices);
+                        }
+                    }
+                }
+                for (double invalid : new double[] {-1, Double.NaN, Double.POSITIVE_INFINITY}) {
+                    try {
+                        renderer.setAnimationTime(invalid);
+                        fail("Expected invalid animation time to be rejected");
+                    } catch (IllegalArgumentException expected) {
+                        assertTrue(expected.getMessage().contains("animation time"));
+                    }
+                }
+            }
+        }
+    }
+
     // Vector preview conversion must retain gradient rows, UVs, and animation phase for the shader.
     @Test
     public void testVectorGradientMetadata() throws Exception {
