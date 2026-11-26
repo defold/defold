@@ -173,7 +173,7 @@
                      :doc "keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
                     {:name "active?"
                      :types ["fun(opts:editor.command.context):boolean"]
-                     :doc "function that additionally checks if a command is active in the current context; should be fast to execute since the editor might invoke it in response to UI interactions"}
+                     :doc "function that additionally checks if a command is active in the current context. Keep it fast since the editor checks availability during UI interactions. For a <code>resource</code> selection query, a graph read that would load a resource raises a Lua error. Check metadata such as <code>path</code> here and defer reads that need the resource contents to <code>run</code>."}
                     {:name "run?"
                      :types ["fun(opts:editor.command.context):any"]
                      :doc "function that is invoked when the user decides to execute the command"}]}

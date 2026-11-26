@@ -54,6 +54,8 @@
 ;;   4 = Also log promise producer / consumer and thread details.
 (defonce ^:const materialization-log-level 0)
 
+(def ^:dynamic *materialization-error-fn* nil)
+
 (defmacro log-node-materialization! [log-level node message & log-kv-args]
   (when (<= (long log-level) materialization-log-level)
     (list* `log/debug
@@ -2431,6 +2433,9 @@
                (assert basis "Evaluation context is closed.")
                (ig/node-by-id-at basis node-id))]
     (when (in/shell-node? node)
+      (when-let [materialization-error-fn *materialization-error-fn*]
+        (throw (materialization-error-fn node)))
+
       (when-let [active-materialization (:active-materialization evaluation-context)]
         (when-not (= :materializing-prerequisites (:phase active-materialization))
           (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."

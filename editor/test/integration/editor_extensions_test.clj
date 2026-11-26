@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.plorer :as plorer]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -66,6 +67,9 @@
            [java.nio.file.attribute PosixFilePermission]
            [java.util.regex Pattern]
            [java.util.zip ZipEntry]
+           [javafx.scene Scene]
+           [javafx.scene.control MenuBar]
+           [javafx.scene.layout Pane]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -522,6 +526,153 @@
                 nil
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+
+;; Resource-selection availability checks must report attempted loads to Lua
+;; while allowing the same reads in run or after the resource has been loaded.
+(deftest resource-selection-command-materialization-test
+  (test-util/with-temp-project-content
+    {"/selected.collection" {:name "selected"}
+     "/other.collection" {:name "other"}
+     "/commands.editor_script"
+     "local function command(id, selection_type, active, run)
+          return {id = id, label = id, locations = {'Edit'},
+                  query = {selection = {type = selection_type, cardinality = 'one'}},
+                  active = active, run = run}
+      end
+      local function selected_name(opts)
+          return editor.get(opts.selection, 'name')
+      end
+      local function other_children()
+          return editor.get('/other.collection', 'children')
+      end
+      return {get_commands = function()
+          return {
+              command('test.match-selection', 'resource'),
+              command('test.read-name', 'resource', function(opts)
+                  return selected_name(opts) == 'selected'
+              end),
+              command('test.recover', 'resource', function(opts)
+                  local ok, message = pcall(other_children)
+                  return not ok and string.find(message, \"would load '/other.collection'\", 1, true)
+                         and editor.can_get(opts.selection, 'name')
+                         and editor.get(opts.selection, 'path') == '/selected.collection'
+              end, function(opts) print(selected_name(opts)) end),
+              command('test.read-outline', 'outline', function() return #other_children() == 0 end)
+          }
+      end}"}
+    (let [output (atom [])
+
+          selected-node-id
+          (test-util/resource-node project "/selected.collection")
+
+          other-node-id (test-util/resource-node project "/other.collection")
+          contexts (eval-handler-contexts :global [selected-node-id])
+          shell? (comp g/shell-node? g/node-by-id)]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (is (shell? selected-node-id))
+      (is (shell? other-node-id))
+
+      (testing "An uncaught error identifies the command, Lua call site, and resource"
+        (is (nil? (handler/active :test.read-name contexts)))
+        (is (= [:err] (mapv first @output)))
+        (let [message (str (second (first @output)))]
+          (is (re-find #"^test\.read-name's \"active\" in /commands\.editor_script failed: /commands\.editor_script:\d+ " message))
+          (is (string/ends-with? message (str "The active check would load '/selected.collection' into memory. "
+                                              "Move that part of the active check to the run handler instead."))))
+        (is (shell? selected-node-id)))
+
+      (let [command (handler/active :test.recover contexts)]
+        (testing "Lua can catch a blocked read of an unrelated resource and use metadata"
+          (is (some? command))
+          (is (shell? selected-node-id))
+          (is (shell? other-node-id))
+          (is (= 1 (count @output))))
+
+        (when command
+          (testing "run can load the selection, and active can subsequently read it"
+            @(handler/run command)
+            (is (= [:out "selected"] (peek @output)))
+            (is (not (shell? selected-node-id)))
+            (is (some? (handler/active :test.read-name contexts))))))
+
+      (testing "Blocked selection adaptation identifies the query with or without an active handler"
+        (let [collection-by-name
+              (fn collection-by-name [{selected-name :name}]
+                (when (= selected-name (g/node-value other-node-id :name))
+                  other-node-id))
+
+              context
+              (handler/->context :global {:selection [{:name "other"}]} nil nil {Long collection-by-name})]
+          (is (some? (handler/active :test.match-selection contexts)))
+          (doseq [command [:test.match-selection :test.read-name]]
+            (is (nil? (handler/active command [context])))
+            (is (= [:err (str (name command) "'s selection query in /commands.editor_script failed: "
+                              "Resolving the resource selection would load '/other.collection' into memory.")]
+                   (peek @output))))
+          (is (shell? other-node-id))))
+
+      (testing "An outline query at the same menu location can load a resource"
+        (is (shell? other-node-id))
+        (is (some? (handler/active :test.read-outline contexts)))
+        (is (not (shell? other-node-id)))))))
+
+;; A menu command omitted after a Lua-caught read must reappear when its
+;; dependency loads, even if the selection stays the same.
+(deftest resource-selection-command-menubar-refresh-test
+  (test-util/with-temp-project-content
+    {"/selected.collection" {:name "selected"}
+     "/dependency.collection" {:name "dependency"}
+     "/menu.editor_script"
+     "return {get_commands = function()
+          return {{
+              id = 'test.inspect-dependency', label = 'Inspect dependency', locations = {'Edit'},
+              query = {selection = {type = 'resource', cardinality = 'one'}},
+              active = function()
+                  print('checking')
+                  local ok, name = pcall(editor.get, '/dependency.collection', 'name')
+                  return ok and name == 'dependency'
+              end
+          }}
+      end}"}
+    (let [output (atom [])
+
+          selected-node-id
+          (test-util/resource-node project "/selected.collection")
+
+          dependency-node-id
+          (test-util/resource-node project "/dependency.collection")]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (handler/register-menu! ::resource-selection-menubar
+        [{:label "Edit" :children [{:command :test.inspect-dependency}]}])
+      (try
+        (ui/run-now
+          (let [root (Pane.)
+                scene (Scene. root)
+                menu-bar (MenuBar.)
+
+                command-labels
+                (fn command-labels []
+                  (coll/into-> (:menus (plorer/props menu-bar :only [:menus])) []
+                    (mapcat #(:items (plorer/props % :only [:items])))
+                    (map #(:text (plorer/props % :only [:text])))))]
+            (ui/children! root [menu-bar])
+            (ui/user-data! scene :localization test-util/localization)
+            (ui/context! root :global {:selection [selected-node-id]} nil)
+            (ui/register-menubar scene menu-bar ::resource-selection-menubar)
+            (ui/refresh scene)
+            (is (= [] (command-labels)))
+            (is (= [[:out "checking"]] @output))
+
+            (g/materialize-node! selected-node-id)
+            (ui/refresh scene)
+            (is (= [[:out "checking"]] @output))
+            (is (g/shell-node? (g/node-by-id dependency-node-id)))
+
+            (g/materialize-node! dependency-node-id)
+            (ui/refresh scene)
+            (is (= ["Inspect dependency"] (command-labels)))))
+        (finally
+          (handler/unregister! ::resource-selection-menubar))))))
 
 (deftest editor-script-commands-preserve-declaration-order-test
   (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"

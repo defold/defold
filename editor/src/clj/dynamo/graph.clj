@@ -1502,6 +1502,15 @@
            (update-system-from-evaluation-context! ~evaluation-context))
          result#))))
 
+(defmacro with-materialization-blocked
+  "Evaluates body without materializing shell nodes.
+
+  An attempt to materialize a shell throws (error-fn shell-node) before the
+  caller starts or waits for the load."
+  [error-fn & body]
+  `(binding [it/*materialization-error-fn* ~error-fn]
+     ~@body))
+
 (defn materialize-node!
   "Materializes a shell before inspecting its structure in evaluation-context.
 

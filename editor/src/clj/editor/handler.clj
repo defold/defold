@@ -291,6 +291,10 @@
 
 (defonce ^:dynamic *adapters* nil)
 
+(def ^:dynamic *blocked-materialization-node-ids-atom*
+  "Bind to an atom to collect shell node ids that block command availability."
+  nil)
+
 (defn add-listener!
   "Register a listener that fires after a handler runs for [command context].
   listener-id should be unique per listener."

@@ -1513,6 +1513,9 @@
           (is (.await ready 10 TimeUnit/SECONDS))
           (deliver start true)
           (is (= true (deref entered 10000 ::timeout)))
+          (testing "A guarded reader returns while another thread is loading the shell"
+            (g/with-materialization-blocked #(ex-info "Materialization blocked" {:node-id (g/node-id %)})
+              (is (thrown-with-msg? ExceptionInfo #"Materialization blocked" (g/node-value shell :child)))))
           (deliver release true)
           (let [children (mapv #(deref % 10000 ::timeout) results)
                 child (first children)]

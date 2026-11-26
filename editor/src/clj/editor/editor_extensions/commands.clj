@@ -27,7 +27,8 @@
             [editor.resource :as resource]
             [editor.scene :as scene]
             [util.coll :as coll]
-            [util.fn :as fn]))
+            [util.fn :as fn])
+  (:import [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -191,9 +192,43 @@
           (with-meta {:type :command})
           (rt/wrap-userdata "editor.command(...)")))))
 
+(defn- resource-selection-materialization-error [source shell-node]
+  (let [node-id (g/node-id shell-node)
+
+        node-description
+        (or (some-> (:resource shell-node) resource/proj-path)
+            (str "node " node-id))]
+    (when-let [node-ids-atom handler/*blocked-materialization-node-ids-atom*]
+      (swap! node-ids-atom conj node-id))
+    (LuaError.
+      (case source
+        :query (str "Resolving the resource selection would load '" node-description "' into memory.")
+        :active (str "The active check would load '" node-description "' into memory. "
+                     "Move that part of the active check to the run handler instead.")))))
+
+(defn- invoke-resource-selection-active [rt opts active lua-command-context]
+  (g/with-materialization-blocked #(resource-selection-materialization-error :active %)
+    (rt/invoke-immediate-1 rt opts active lua-command-context)))
+
+(defn- wrap-resource-selection-active [active-handler rt query-error-label]
+  (fn check-resource-selection [env]
+    (try
+      (g/with-materialization-blocked #(resource-selection-materialization-error :query %)
+        (active-handler env))
+      (catch LuaError error
+        ;; Adapting the selection can also request a load before Lua is invoked.
+        (error-handling/display-script-error! rt query-error-label error)
+        false))))
+
 (defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
   (let [{:keys [rt]} state
         lua-fn->env-fn (compile-query query project)
+        active-error-label (str label "'s \"active\" in " path)
+        is-resource-selection (= :resource (get-in query [:selection :type]))
+
+        invoke-active-1
+        (if is-resource-selection invoke-resource-selection-active rt/invoke-immediate-1)
+
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
@@ -228,15 +263,26 @@
       active
       (assoc :active?
         (lua-fn->env-fn
-          (fn [env opts]
+          (fn invoke-active [{:keys [evaluation-context]} opts]
             (error-handling/try-with-extension-exceptions
               :rt rt
-              :label (str label "'s \"active\" in " path)
+              :label active-error-label
               :catch false
-              (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
+              (let [lua-result
+                    (invoke-active-1
+                      rt
+                      {:evaluation-context evaluation-context}
+                      active
+                      (rt/->lua opts))]
+                (rt/->clj rt coerce/to-boolean lua-result))))))
 
       (and (not active) query)
       (assoc :active? (lua-fn->env-fn fn/constantly-true))
+
+      is-resource-selection
+      (update :active? wrap-resource-selection-active
+              rt
+              (str label "'s selection query in " path))
 
       run
       (assoc :run

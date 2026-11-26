@@ -2546,21 +2546,36 @@
   (contexts scene true evaluation-context))
 
 (defn- refresh-menus!
-  [^Scene scene keymap localization evaluation-context]
+  [^Scene scene keymap localization {:keys [basis-ref] :as evaluation-context}]
   (let [visible-command-contexts (visible-command-contexts scene evaluation-context)
         current-command-contexts (current-command-contexts scene evaluation-context)
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
-            menu (cond-> (handler/realize-menu (:menu-id md))
-                   (os/is-mac-os?)
-                   (menu-data-without-icons))]
-        (cond
-          (refresh-menubar? menu-bar menu visible-command-contexts keymap)
-          (refresh-menubar! menu-bar menu visible-command-contexts keymap localization evaluation-context)
 
-          (refresh-menubar-items?)
-          (refresh-menubar-items! menu-bar menu visible-command-contexts keymap localization evaluation-context))
+            menu
+            (cond-> (handler/realize-menu (:menu-id md))
+              (os/is-mac-os?)
+              (menu-data-without-icons))
+
+            blocked-node-ids
+            (user-data menu-bar ::blocked-materialization-node-ids)
+
+            basis @basis-ref
+
+            rebuild-menubar
+            (or (refresh-menubar? menu-bar menu visible-command-contexts keymap)
+                (coll/any? #(not (g/shell-node? (g/node-by-id basis %))) blocked-node-ids))]
+        (when (or rebuild-menubar (refresh-menubar-items?))
+          ;; A blocked command can be absent from the menu, so refreshing the
+          ;; existing items cannot make it appear when the shell loads.
+          (let [node-ids-atom (atom (if rebuild-menubar #{} blocked-node-ids))
+
+                refresh!
+                (if rebuild-menubar refresh-menubar! refresh-menubar-items!)]
+            (binding [handler/*blocked-materialization-node-ids-atom* node-ids-atom]
+              (refresh! menu-bar menu visible-command-contexts keymap localization evaluation-context))
+            (user-data! menu-bar ::blocked-materialization-node-ids @node-ids-atom)))
 
         (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
