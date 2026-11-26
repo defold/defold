@@ -4,7 +4,9 @@ find_package(Git REQUIRED)
 FetchContent_Declare(defold_libnogg
   URL https://achurch.org/libnogg/tarballs/libnogg-1.18.tar.gz
   URL_HASH SHA256=9600b7d2c03e447bb0ccbb3541bbe07714f5cd4fe00225ae754463b1b592a370
-  PATCH_COMMAND "${GIT_EXECUTABLE}" apply --no-index "${CMAKE_CURRENT_LIST_DIR}/simd.patch")
+  PATCH_COMMAND "${CMAKE_COMMAND}" "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
+                "-DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/defold-simd.patch"
+                -P "${CMAKE_CURRENT_LIST_DIR}/apply_patch.cmake")
 FetchContent_MakeAvailable(defold_libnogg)
 
 set(_ogg "${DEFOLD_HOME}/external/ogg/package/libogg-1.3.5")
@@ -23,7 +25,7 @@ set(_nogg_sources decode/crc32.c decode/decode.c decode/io.c decode/packet.c
   decode/setup.c decode/stb_vorbis.c util/memory.c)
 list(TRANSFORM _nogg_sources PREPEND "${defold_libnogg_SOURCE_DIR}/src/")
 defold_add_library(decoder_nogg STATIC
-  "${SOUND_SRC_DIR}/decoders/decoder_nogg.cpp" "${_ogg}/src/framing.c" ${_nogg_sources})
+  "${SOUND_SRC_DIR}/decoders/decoder_ogg.cpp" "${_ogg}/src/framing.c" ${_nogg_sources})
 target_include_directories(decoder_nogg PRIVATE "${SOUND_SRC_DIR}" "${defold_libnogg_SOURCE_DIR}"
   "${_ogg}/include" "${CMAKE_CURRENT_BINARY_DIR}/nogg")
 defold_target_link_libraries(decoder_nogg "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
