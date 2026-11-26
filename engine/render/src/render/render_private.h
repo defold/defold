@@ -341,6 +341,9 @@ namespace dmRender
         // Owns neither the callbacks nor their user data.
         RenderListDispatch m_Dispatch;
 
+        // Optional refresh of live item state before each draw is filtered and sorted.
+        RenderListPrepareFn m_PrepareFn;
+
         // Current enabled slots, densely packed and unsorted. Enable appends; disable
         // swaps out the slot using PersistentRenderItem::m_EnabledIndex for constant-time removal.
         dmArray<uint32_t> m_EnabledItems;

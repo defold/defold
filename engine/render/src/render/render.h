@@ -330,6 +330,13 @@ namespace dmRender
     void RenderListBegin(HRenderContext render_context);
     void RenderListEnd(HRenderContext render_context);
 
+    // Optional preparation for submitted persistent dispatches, called before each
+    // draw's predicate filtering, culling and sorting. May update existing items,
+    // but must not register/unregister dispatches or submit another render list.
+    // Uses the registration's user data; 0 removes the callback.
+    typedef void (*RenderListPrepareFn)(void* user_data);
+    void SetRenderListPrepareFn(HRenderContext context, HRenderItemDispatch dispatch, RenderListPrepareFn prepare_fn);
+
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);

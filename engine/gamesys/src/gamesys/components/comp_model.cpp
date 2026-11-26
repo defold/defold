@@ -788,6 +788,33 @@ namespace dmGameSystem
         component->m_ReHash = 0;
     }
 
+    static void PrepareRenderList(void* user_data)
+    {
+        ModelWorld* world = (ModelWorld*)user_data;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
+        for (uint32_t i = 0; i < components.Size(); ++i)
+        {
+            ModelComponent& component = *components[i];
+            if (!component.m_DoRender)
+            {
+                continue;
+            }
+
+            for (uint32_t j = 0; j < component.m_RenderItems.Size() && !component.m_ReHash; ++j)
+            {
+                MeshRenderItem& render_item = component.m_RenderItems[j];
+                MaterialResource* material = GetMaterialResource(&component, component.m_Resource, render_item.m_MaterialIndex);
+                component.m_ReHash = render_item.m_MaterialResourceVersion != material->m_Version ||
+                                     render_item.m_MaterialVersion != dmRender::GetMaterialVersion(material->m_Material);
+            }
+
+            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
+            {
+                ReHash(world, &component);
+            }
+        }
+    }
+
     static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
     {
         if ((!component->m_Resource->m_Model->m_CreateGoBones) || (!component->m_Resource->m_RigScene->m_SkeletonRes))
@@ -1454,6 +1481,7 @@ namespace dmGameSystem
                 DestroyComponent(world, index);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
+            dmRender::SetRenderListPrepareFn(world->m_RenderContext, world->m_RenderDispatch, PrepareRenderList);
         }
         SetupRenderItems(world, component, resource);
 
@@ -2798,19 +2826,6 @@ namespace dmGameSystem
             }
             if (!do_render)
                 continue;
-
-            for (uint32_t j = 0; j < component.m_RenderItems.Size() && !component.m_ReHash; ++j)
-            {
-                MeshRenderItem& render_item = component.m_RenderItems[j];
-                MaterialResource* material = GetMaterialResource(&component, component.m_Resource, render_item.m_MaterialIndex);
-                component.m_ReHash = render_item.m_MaterialResourceVersion != material->m_Version ||
-                    render_item.m_MaterialVersion != dmRender::GetMaterialVersion(material->m_Material);
-            }
-
-            if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
-            {
-                ReHash(world, &component);
-            }
 
             if (component.m_RequiresBindPoseCaching)
             {

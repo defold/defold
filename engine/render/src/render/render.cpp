@@ -1784,6 +1784,17 @@ namespace dmRender
             }
         }
 
+        // Render scripts can change material state after component update or
+        // between passes. Refresh keys and tags before selecting and sorting items.
+        for (uint32_t i = 0; i < context->m_SubmittedRenderItemDispatches.Size(); ++i)
+        {
+            RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[context->m_SubmittedRenderItemDispatches[i]];
+            if (dispatch.m_PrepareFn)
+            {
+                dispatch.m_PrepareFn(dispatch.m_Dispatch.m_UserData);
+            }
+        }
+
         bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
         PrepareRenderListDraw(context, predicate, frustum_matrix, frustum_num_planes, sort_order, dispatch_used);
 

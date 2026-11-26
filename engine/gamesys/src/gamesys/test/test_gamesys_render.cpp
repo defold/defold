@@ -4194,7 +4194,23 @@ public:
         ModelTest::TearDown();
     }
 
+    void UpdateAndSubmit()
+    {
+        dmRender::ClearRenderObjects(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+    }
+
     void DrawAndAssertBatches(uint32_t expected_batches)
+    {
+        UpdateAndSubmit();
+        DrawSubmittedAndAssertBatches(expected_batches);
+    }
+
+    void DrawSubmittedAndAssertBatches(uint32_t expected_batches)
     {
         uint64_t hashes[2];
         uint32_t versions[2];
@@ -4203,13 +4219,7 @@ public:
             hashes[i] = dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material);
             versions[i] = dmRender::GetMaterialVersion(m_Materials[i]->m_Material);
         }
-        dmRender::ClearRenderObjects(m_RenderContext);
         dmGraphics::ResetDrawCount();
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-        dmRender::RenderListBegin(m_RenderContext);
-        ASSERT_TRUE(dmGameObject::Render(m_Collection));
-        dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         ASSERT_EQ(expected_batches, dmGraphics::GetDrawCount());
 
@@ -4390,6 +4400,65 @@ TEST_F(ModelInstancingCompatibilityTest, SamplerChangesSplitAndRejoinBatches)
         }
         DrawAndAssertBatches(frame % 2 == 0 ? 1 : 2);
     }
+}
+
+// Render-script sampler edits after submission and between passes must split and
+// rejoin compatible materials without another component update or submission.
+TEST_F(ModelInstancingCompatibilityTest, SamplerChangesBetweenDraws)
+{
+    DrawAndAssertBatches(1);
+    UpdateAndSubmit();
+    const char* paths[] = { "/model/morph_instanced_attr.materialc", "/model/morph_instanced_attr_alt.materialc" };
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        char script[256];
+        dmSnPrintf(script, sizeof(script), "material.set_samplers('%s', {tex0 = {max_anisotropy = %u}})",
+                   paths[pass % 2], pass < 2 ? 4u : 1u);
+        ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, script));
+        DrawSubmittedAndAssertBatches(pass % 2 == 0 ? 2 : 1);
+    }
+}
+
+// Late attribute layout edits must split the batch before allocating its instance
+// data and refresh vertex buffers; restoring compatibility must rejoin the draw.
+TEST_F(ModelInstancingCompatibilityTest, AttributeChangesBetweenDraws)
+{
+    typedef dmGraphics::VertexAttribute Attribute;
+    Vector4 values[] = { Vector4(1, 2, 3, 4), Vector4(1, 2, 3, 4) };
+    Attribute::VectorType types[] = { Attribute::VECTOR_TYPE_VEC4, Attribute::VECTOR_TYPE_VEC4 };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        SetVertexAttribute(i, values[i], types[i]);
+    }
+
+    DrawAndAssertBatches(1);
+    UpdateAndSubmit();
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        uint32_t index = pass % 2;
+        types[index] = pass < 2 ? Attribute::VECTOR_TYPE_VEC3 : Attribute::VECTOR_TYPE_VEC4;
+        SetVertexAttribute(index, values[index], types[index]);
+        DrawSubmittedAndAssertBatches(pass % 2 == 0 ? 2 : 1);
+        AssertVertexAttributeValues(values, types);
+    }
+}
+
+// A predicate with no old matches must see material tags changed between passes,
+// so preparation must run before the renderer checks its cached tag ranges.
+TEST_F(ModelInstancingCompatibilityTest, MaterialTagsChangedBeforeDraw)
+{
+    DrawAndAssertBatches(1);
+    dmhash_t tag = dmHashString64("changed_model_tag");
+    dmRender::HPredicate predicate = dmRender::NewPredicate();
+    dmRender::AddPredicateTag(predicate, tag);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(0u, dmRender::TestGetRenderObjectCount(m_RenderContext));
+    dmRender::SetMaterialTags(m_Materials[0]->m_Material, 1, &tag);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1u, dmRender::TestGetRenderObjectCount(m_RenderContext));
+    ASSERT_EQ(1u, dmRender::TestGetRenderObject(m_RenderContext, 0)->m_InstanceCount);
+    ASSERT_EQ(m_Materials[0]->m_Material, dmRender::TestGetRenderObject(m_RenderContext, 0)->m_Material);
+    dmRender::DeletePredicate(predicate);
 }
 
 // Effective texture changes after the first draw must split compatible materials;

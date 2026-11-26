@@ -77,11 +77,18 @@ namespace dmRender
         registration->m_Dispatch.m_DispatchFn = dispatch_fn;
         registration->m_Dispatch.m_VisibilityFn = visibility_fn;
         registration->m_Dispatch.m_UserData = user_data;
+        registration->m_PrepareFn = 0;
         registration->m_NumChanges = 0;
         registration->m_FrameDispatch = RENDERLIST_INVALID_DISPATCH;
         registration->m_RebuildCache = true;
         context->m_RenderItemDispatches[index] = registration;
         return index;
+    }
+
+    void SetRenderListPrepareFn(HRenderContext context, HRenderItemDispatch dispatch, RenderListPrepareFn prepare_fn)
+    {
+        assert(dispatch < context->m_RenderItemDispatches.Size() && context->m_RenderItemDispatches[dispatch]);
+        context->m_RenderItemDispatches[dispatch]->m_PrepareFn = prepare_fn;
     }
 
     void UnregisterRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch)

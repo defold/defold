@@ -3212,6 +3212,83 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchKeys)
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
 
+struct PreparedRenderItems
+{
+    dmRender::HRenderContext m_Context;
+    dmRender::HRenderItem    m_Items[3];
+    uint32_t                m_Keys[3];
+    uint32_t                m_PrepareCount;
+    uint32_t                m_BatchCount;
+};
+
+static void PreparePersistentItemKeys(void* user_data)
+{
+    PreparedRenderItems* state = (PreparedRenderItems*)user_data;
+    ++state->m_PrepareCount;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state->m_Items); ++i)
+    {
+        dmRender::SetBatchKey(state->m_Context, state->m_Items[i], state->m_Keys[i]);
+    }
+}
+
+static void PreparedItemDispatch(const dmRender::RenderListDispatchParams& params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        ++((PreparedRenderItems*)params.m_UserData)->m_BatchCount;
+    }
+}
+
+// Preparation must precede sorting on every draw, only for submitted registrations;
+// removing the callback must leave the existing dispatch operations unchanged.
+TEST_F(dmRenderTest, PersistentRenderItemPreparation)
+{
+    PreparedRenderItems state = {};
+    PreparedRenderItems idle_state = {};
+    state.m_Context = m_Context;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, PreparedItemDispatch, 0, &state);
+    dmRender::HRenderItemDispatch idle = dmRender::RegisterRenderListDispatch(m_Context, PreparedItemDispatch, 0, &idle_state);
+    dmRender::SetRenderListPrepareFn(m_Context, dispatch, PreparePersistentItemKeys);
+    dmRender::SetRenderListPrepareFn(m_Context, idle, PreparePersistentItemKeys);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Items); ++i)
+    {
+        state.m_Items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        state.m_Keys[i] = i == 1 ? 2 : 1;
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, state.m_Items[i], 0));
+        ASSERT_TRUE(dmRender::SetOrder(m_Context, state.m_Items[i], dmRender::RENDER_ORDER_BEFORE_WORLD, 0));
+        ASSERT_TRUE(dmRender::Enable(m_Context, state.m_Items[i], true));
+    }
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(1u, state.m_PrepareCount);
+    ASSERT_EQ(2u, state.m_BatchCount);
+    ASSERT_EQ(0u, idle_state.m_PrepareCount);
+
+    state.m_Keys[1] = 1;
+    state.m_BatchCount = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(2u, state.m_PrepareCount);
+    ASSERT_EQ(1u, state.m_BatchCount);
+
+    dmRender::SetRenderListPrepareFn(m_Context, dispatch, 0);
+    state.m_Keys[1] = 2;
+    state.m_BatchCount = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(2u, state.m_PrepareCount);
+    ASSERT_EQ(1u, state.m_BatchCount);
+    ASSERT_EQ(0u, idle_state.m_PrepareCount);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Items); ++i)
+    {
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, state.m_Items[i]));
+    }
+
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    dmRender::UnregisterRenderListDispatch(m_Context, idle);
+}
+
 // Materials supply predicate tags without choosing a geometry path or sort order.
 // Explicit order survives material changes and render-script overrides.
 TEST_F(dmRenderTest, PersistentRenderItemMaterialTagsPreserveOrder)
