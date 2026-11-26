@@ -4,8 +4,10 @@
 fails. An accessible XWayland display therefore takes the X11 path even when
 `WAYLAND_DISPLAY` is set. Each handle records the chosen connection and a table
 of window operations. `PollEvents` dispatches pending events for windows on the
-calling thread. If a callback deletes the window being polled, the backend defers
-freeing it until dispatch returns. [Backend selection and polling](window_linux.cpp) ·
+calling thread. On Wayland, `ShowWindow` also dispatches events while waiting
+for the compositor to configure a hidden window. If a callback deletes that
+window, the backend keeps its display connected until the outermost poll or
+show call returns. [Backend selection and polling](window_linux.cpp) ·
 [Window operations](window_linux.h)
 
 ## Window systems

@@ -31,6 +31,7 @@
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <math.h>
 #include <unistd.h>
@@ -1129,6 +1130,87 @@ TEST(LinuxWindow, WaylandHiddenFullscreenSize)
     }
 
     dmPlatform::DeleteWindow(w);
+}
+
+static void DeleteWaylandWindowOnResize(void* data, uint32_t, uint32_t)
+{
+    HWindow* window = (HWindow*)data;
+    const int fd = g_WaylandClient.wl_display_get_fd_((*window)->m_WlDisplay);
+    WindowDelete(*window);
+    *window = 0;
+    EXPECT_NE(-1, fcntl(fd, F_GETFD));
+}
+
+static void ResizeOnWaylandSync(void* data, wl_callback* callback, uint32_t)
+{
+    wl_callback_destroy(callback);
+    HWindow window = *(HWindow*)data;
+    if (window)
+    {
+        WindowSetSize(window, WindowGetWidth(window) + 1, WindowGetHeight(window));
+    }
+}
+
+static void ShowOnWaylandSync(void* data, wl_callback* callback, uint32_t)
+{
+    wl_callback_destroy(callback);
+    HWindow window = *(HWindow*)data;
+    const int fd = g_WaylandClient.wl_display_get_fd_(window->m_WlDisplay);
+    WindowShow(window);
+    // The outer poll is still dispatching on the same display after ShowWindow returns.
+    EXPECT_NE(-1, fcntl(fd, F_GETFD));
+}
+
+// Deleting a window during the initial show keeps its display alive until the outermost native dispatch returns.
+TEST(LinuxWindow, WaylandDeleteDuringShow)
+{
+    for (int nested = 0; nested <= 1; ++nested)
+    {
+        HWindow window = WindowNew();
+        ASSERT_NE((HWindow)0, window);
+        if (!window->m_Wayland)
+        {
+            WindowDelete(window);
+            SKIP();
+        }
+
+        WindowCreateParams p = Params();
+        p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        p.m_Hidden = true;
+        p.m_ResizeCallback = DeleteWaylandWindowOnResize;
+        p.m_ResizeCallbackUserData = &window;
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &p));
+        wl_display* display = window->m_WlDisplay;
+        const int fd = g_WaylandClient.wl_display_get_fd_(display);
+        // The compositor replies in request order, so the resize is dispatched inside the map.
+        if (nested)
+        {
+            static const wl_callback_listener show = { ShowOnWaylandSync };
+            wl_callback_add_listener(wl_display_sync(display), &show, &window);
+        }
+
+        static const wl_callback_listener resize = { ResizeOnWaylandSync };
+        wl_callback_add_listener(wl_display_sync(display), &resize, &window);
+        if (nested)
+        {
+            const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+            while (window && dmTime::GetMonotonicTime() < deadline)
+            {
+                WindowPollEvents(window);
+            }
+        }
+        else
+        {
+            WindowShow(window);
+        }
+
+        EXPECT_EQ((HWindow)0, window);
+        EXPECT_EQ(-1, fcntl(fd, F_GETFD));
+        if (window)
+        {
+            WindowDelete(window);
+        }
+    }
 }
 
 // A hidden Vulkan window can query the output density before polling and stays unmapped until shown.

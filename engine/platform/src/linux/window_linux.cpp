@@ -57,7 +57,7 @@ namespace dmPlatform
         }
 
         SetGamepadEventCallback(w, 0, 0);
-        if (w->m_Polling)
+        if (w->m_DispatchDepth)
         {
             // Native dispatch still owns the display and may deliver more events before it returns.
             w->m_DeletePending = true;
@@ -86,6 +86,14 @@ namespace dmPlatform
         if (!g_Windows)
         {
             LinuxCloseJoysticks();
+        }
+    }
+
+    static void EndWindowDispatch(HWindow w)
+    {
+        if (--w->m_DispatchDepth == 0 && w->m_DeletePending)
+        {
+            DeleteWindow(w);
         }
     }
 
@@ -240,13 +248,13 @@ namespace dmPlatform
         HWindow current = g_Windows;
         while (current)
         {
-            if (!pthread_equal(current->m_EventThread, thread) || current->m_Polling)
+            if (!pthread_equal(current->m_EventThread, thread) || current->m_DispatchDepth)
             {
                 current = current->m_Next;
                 continue;
             }
 
-            current->m_Polling = true;
+            ++current->m_DispatchDepth;
             current->m_Ops->m_Poll(current);
             if (current->m_PendingRestoreResize && !current->m_DeletePending)
             {
@@ -263,13 +271,9 @@ namespace dmPlatform
                 UpdateWindowPlacement(current, false);
             }
 
-            current->m_Polling = false;
             HWindow polled = current;
             current = current->m_Next;
-            if (polled->m_DeletePending)
-            {
-                DeleteWindow(polled);
-            }
+            EndWindowDispatch(polled);
         }
 
         if (LinuxActiveWindow())
@@ -280,14 +284,21 @@ namespace dmPlatform
 
     void ShowWindow(HWindow w)
     {
-        if (!w || !w->m_Open)
+        if (!w || !w->m_Open || w->m_DeletePending)
         {
             return;
         }
 
+        // Mapping a hidden Wayland surface dispatches events, including when called from a poll callback.
+        ++w->m_DispatchDepth;
         w->m_Shown = true;
         w->m_Ops->m_Show(w, true);
-        WindowPlacementShown(w);
+        if (!w->m_DeletePending)
+        {
+            WindowPlacementShown(w);
+        }
+
+        EndWindowDispatch(w);
     }
 
     void HideWindow(HWindow w)

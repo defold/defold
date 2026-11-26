@@ -645,6 +645,11 @@ namespace dmPlatform
         const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         while (!wl->m_Configured && Dispatch(w))
         {
+            if (w->m_DeletePending)
+            {
+                return false;
+            }
+
             // libdecor creates the toplevel asynchronously. Fullscreen and session requests
             // need the toplevel before the first surface commit.
             xdg_toplevel* toplevel = map_frame ? g_Decor.libdecor_frame_get_xdg_toplevel_(wl->m_Frame) : 0;

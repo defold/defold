@@ -44,12 +44,12 @@ struct dmWindow
     FWindowAddKeyboardCharCallback m_Char;
     void*                          m_CharData;
     int                            m_Width, m_Height, m_PixelWidth, m_PixelHeight, m_RefreshRate;
-    uint32_t                       m_ResizeCallbackCount;
+    uint32_t                       m_ResizeCallbackCount, m_DispatchDepth;
     float                          m_Scale, m_Density;
     double                         m_MouseX, m_MouseY, m_Wheel;
     unsigned char                  m_Keys[349], m_Buttons[8];
     bool                           m_Open, m_Shown, m_Focused, m_Iconified, m_Maximized, m_Locked, m_LinkCursor;
-    bool                           m_PendingRestoreResize, m_Polling, m_DeletePending;
+    bool                           m_PendingRestoreResize, m_DeletePending;
 };
 
 struct LinuxWindowOps
