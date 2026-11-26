@@ -312,9 +312,12 @@
   (property zort g/Int
             (value (g/fnk [zort] zort))))
 
+(g/defnode ResultVisibilityNode
+  (property show-result g/Bool))
+
 (g/defnode OriginalPropertyGetterNode
+  (input show-result g/Bool)
   (property original-value g/Str)
-  (property show-result g/Bool)
   (property result g/Str
             (value (g/fnk [original-value] original-value))
             (dynamic visible (g/fnk [show-result] show-result)))
@@ -326,16 +329,18 @@
   (property result g/Str
             (value (g/fnk [replacement-value] replacement-value))))
 
-;; Cached consumers track the replacement getter. Changing an inherited
-;; visibility condition refreshes the property map while the value stays cached.
+;; Changing the input to the inherited visibility dynamic must refresh the
+;; property map while the result from the replacement getter stays cached.
 (deftest replacing-inherited-property-getter-test
   (with-clean-system
-    (let [node-id
-          (g/make-node! ReplacedPropertyGetterNode
-            :replacement-value "first"
-            :show-result false)
+    (let [source-id (g/make-node! ResultVisibilityNode :show-result false)
 
-          cached-result-endpoint (g/endpoint node-id :cached-result)]
+          node-id
+          (g/make-node! ReplacedPropertyGetterNode :replacement-value "first")
+
+          cached-result-endpoint (g/endpoint node-id :cached-result)
+          property-map-endpoint (g/endpoint node-id :_declared-properties)]
+      (g/connect! source-id :show-result node-id :show-result)
       (is (= [(g/endpoint node-id :replacement-value)]
              (g/immediate-predecessor-endpoints (g/now) node-id :result)))
       (is (= "first" (g/node-value node-id :cached-result)))
@@ -345,7 +350,10 @@
 
       (is (false? (get-in (g/node-value node-id :_declared-properties)
                           [:properties :result :visible])))
-      (g/set-property! node-id :show-result true)
+      (is (contains? (cached-endpoints) property-map-endpoint))
+
+      (g/set-property! source-id :show-result true)
+      (is (not (contains? (cached-endpoints) property-map-endpoint)))
       (is (contains? (cached-endpoints) cached-result-endpoint))
       (is (true? (get-in (g/node-value node-id :_declared-properties)
                          [:properties :result :visible])))

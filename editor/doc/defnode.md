@@ -410,28 +410,17 @@ do `g/node-value` for these properties.
        :options {},
        :fn (dynamo.graph/fnk [_this _basis] (internal.graph.types/overridden-properties _this _basis))}}}
 ```
-After this step, nothing really exciting happens until we extract the
-used argument names and lift the property dependencies.
 
-#### Arguments extracted, property dependencies lifted
+#### Arguments extracted from production functions
 
-The relevant difference is that arguments to the `fnk`s have now been
-pulled out to `:argument` and `:dependencies` sets next to the
-`:fn`. We also have `:key`, `:name`, `:supertypes`, `:input` and
-`:display-order-decl` entries. The `:supertypes`, `:input` and
-`:display-order-decl` comes from the implementation of
-inheritance. **Slightly sloppy in merge-supertypes, no real problem
-though**
+Each production function now has an `:arguments` set and an initial
+`:dependencies` set next to its `:fn`. We also have `:key`, `:name`,
+`:supertypes`, `:input` and `:display-order-decl` entries. The last three
+come from the implementation of inheritance. **Slightly sloppy in
+merge-supertypes, no real problem though**
 ```clj
     {:property-display-order (internal.node/merge-display-order nil []),
      :key :internal.defnode-test/EmptyNodeType,
-     :property
-     {:_node-id
-      {...
-       :dependencies #{}},
-      :_output-jammers
-      {...
-       :dependencies #{}}},
      ...
      :name "internal.defnode-test/EmptyNodeType",
      :output
@@ -799,7 +788,7 @@ Here we demonstrate
     (g/defnode CustomProperty
       (property simple-property g/Str)
       (property custom-property g/Str
-                (default (fn [] "fruit"))
+                (default "fruit")
                 (value (g/fnk [simple-property custom-property]
                          (str simple-property custom-property)))
                 (dynamic matches-input (g/fnk [custom-property simple-input]
@@ -878,7 +867,7 @@ here in the `:property` map. This version will be used for
      {:value-type {:k :dynamo.graph/Str},
       :flags #{},
       :options {},
-      :default {:fn (fn* ([] "fruit")), :arguments #{}, :dependencies #{}},
+      :default {:fn (dynamo.graph/fnk [] "fruit"), :arguments #{}, :dependencies #{}},
       :value
       {:fn (g/fnk [simple-property custom-property] (str simple-property custom-property)),
        :arguments #{:simple-property :custom-property},
@@ -887,8 +876,7 @@ here in the `:property` map. This version will be used for
       {:matches-input
        {:fn (g/fnk [custom-property simple-input] (= custom-property simple-input)),
         :arguments #{:simple-input :custom-property},
-        :dependencies #{:simple-input :custom-property}}},
-      :dependencies #{:simple-property :simple-input}}}
+        :dependencies #{:simple-input :custom-property}}}}}
 ```
 All these `fn`'s will be emitted as `def`'s by `defnode` and the node
 type map updated with the corresponding vars.
@@ -898,9 +886,22 @@ provide values if none were supplied.
 
 #### How the properties end up in `_properties`, and property dynamics
 
-The intrinsic version of `_properties` just passes through
-`_declared-properties`. Looking at the `_declared-properties` behavior
-for this node type:
+The intrinsic `_properties` output reads the cached `_declared-properties`
+map. Both `:custom-property` and `:_declared-properties` list the two property
+labels as arguments. Building the map also evaluates the `matches-input` dynamic,
+which reads `:simple-input`.
+
+```clj
+    (-> (g/declared-outputs CustomProperty)
+        (select-keys [:custom-property :_declared-properties])
+        (update-vals :dependencies))
+    ;; => {:custom-property #{:simple-property :custom-property}
+    ;;     :_declared-properties #{:simple-property :custom-property :simple-input}}
+```
+
+Changing `:simple-input` refreshes the property map while cached consumers
+of `:custom-property` keep their values.
+
 ```clj
     (fn [node label evaluation-context]
       (let [node-id (internal.graph.types/node-id node)
@@ -970,8 +971,7 @@ remains, but the definition in `:property` remains.
       {:value-type {:k :dynamo.graph/Str},
        :flags #{},
        :options {},
-       :value {:fn (g/fnk [] 1), :arguments #{}, :dependencies #{}},
-       :dependencies #{}}}
+       :value {:fn (g/fnk [] 1), :arguments #{}, :dependencies #{}}}}
     }
 ```
 If you look into the code generated for the data output behavior, you
