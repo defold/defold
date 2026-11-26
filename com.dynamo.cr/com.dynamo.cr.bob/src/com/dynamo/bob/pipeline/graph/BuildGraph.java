@@ -109,13 +109,19 @@ public final class BuildGraph {
         for (String path : paths) {
             BundleHelper.throwIfCanceled(project::isBuildCanceled);
             IResource resource = project.getResource(path).disableMinifyPath().output();
-            byte[] content = resource.getContent();
-            if (content == null) {
+            ResourceGraph.Fingerprint fingerprint = graph.getFingerprint(resource);
+            if (fingerprint == null) {
+                byte[] content = resource.getContent();
+                if (content == null) {
+                    throw new IOException("Missing compiled resource: " + path);
+                }
+                fingerprint = ResourceGraph.Fingerprint.of(content);
+            } else if (!resource.exists()) {
                 throw new IOException("Missing compiled resource: " + path);
             }
             ObjectNode output = outputs.putObject(path);
-            output.put("hash", DigestUtils.sha256Hex(content));
-            output.put("size", content.length);
+            output.put("hash", fingerprint.hash());
+            output.put("size", fingerprint.size());
             Set<Task.OutputFlags> flags = project.getOutputFlags(resource.getAbsPath());
             output.put("flags", JSON.valueToTree(flags == null ? Set.of() : flags));
         }

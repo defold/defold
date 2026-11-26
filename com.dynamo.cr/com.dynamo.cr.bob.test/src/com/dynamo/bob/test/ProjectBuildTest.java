@@ -2405,6 +2405,24 @@ public class ProjectBuildTest {
         }
     }
 
+    // Resolving a shared prototype once must preserve both collection edges and the hashes of compiled outputs.
+    @Test
+    public void testBuildGraphKeepsSharedDependenciesAndOutputHashes() throws Exception {
+        createLegacyPackageProject();
+        try (Project project = packageReportProject(false)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            BuildGraph saved = BuildGraph.load(project);
+            ResourceGraph graph = saved.graph(project);
+            var shared = graph.getResourceNodeFromPath("/logic/shared.goc");
+            for (String parent : List.of("/logic/included.collectionc", "/logic/level.collectionc")) {
+                assertTrue(parent, graph.getResourceNodeFromPath(parent).getChildren().contains(shared));
+            }
+            saved.validate(project);
+        }
+    }
+
     // A failed compilation cannot publish a graph, and bundle detects changes to recorded compiled bytes.
     @Test
     public void testFailedBuildDoesNotPublishGraph() throws Exception {
