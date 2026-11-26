@@ -15,6 +15,7 @@
 (ns editor.outline-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-view :as fx.ext.tree-view]
+            [cljfx.fx.region :as fx.region]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -253,26 +254,43 @@
              {:fx/type fx/ext-recreate-on-key-changed
               :key (:active-resource-node props)}]}
   [{:keys [tree-view app-view active-resource-node active-outline state swap-state decorated-outline]}]
-  (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
-        {:keys [outline]} decorated-outline
-        selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
-        node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)
-        root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)]
-    {:fx/type fx.ext.tree-view/with-selection-props
-     :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
-     :desc
-     {:fx/type ext-with-tree-view-props
-      :props {:root root
-              :selected-node-id-paths (coll/pair
-                                        (coll/into-> selected-node-id->node-id-paths #{}
-                                          (mapcat val))
-                                        ;; we use tree as a key, so that changes to the
-                                        ;; tree without changes to selection (like
-                                        ;; re-ordering) will also cause the selection to
-                                        ;; sync
-                                        root)}
-      :desc
-      {:fx/type ui/ext-value :value (when active-outline tree-view)}}}))
+  (cond
+    active-outline
+    (let [{:keys [active-node-id->selected-node-id->node-id-paths
+                  active-node-id->node-id-path->expanded]}
+          state
+
+          {:keys [outline]} decorated-outline
+
+          selected-node-id->node-id-paths
+          (get active-node-id->selected-node-id->node-id-paths active-resource-node)
+
+          node-id-path->expanded
+          (get active-node-id->node-id-path->expanded active-resource-node)
+
+          root
+          (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)]
+      {:fx/type fx.ext.tree-view/with-selection-props
+       :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
+       :desc
+       {:fx/type ext-with-tree-view-props
+        :props {:root root
+                :selected-node-id-paths (coll/pair
+                                          (coll/into-> selected-node-id->node-id-paths #{}
+                                            (mapcat val))
+                                          ;; we use tree as a key, so that
+                                          ;; changes to the tree without
+                                          ;; changes to selection (like
+                                          ;; re-ordering) will also cause the
+                                          ;; selection to sync
+                                          root)}
+        :desc
+        {:fx/type ui/ext-value :value tree-view}}})
+
+    ;; Keep the empty Outline visible to hold the right pane open and avoid
+    ;; changing the editor layout when the last resource closes.
+    (nil? active-resource-node)
+    {:fx/type fx.region/lifecycle}))
 
 (def ^:private outline-message (localization/message "pane.outline"))
 

@@ -406,6 +406,7 @@
                          :updater             updater
                          :build-errors-view   build-errors-view
                          :console-view        console-view
+                         :curve-view          curve-view
                          :scene-visibility    scene-visibility
                          :search-results-view search-results-view
                          :changes-view        changes-view

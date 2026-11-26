@@ -34,6 +34,7 @@
             [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.ui :as ui]
+            [util.coll :as coll]
             [util.defonce :as defonce]
             [util.id-vec :as iv])
   (:import [com.defold.control DefoldStringConverter]
@@ -46,6 +47,7 @@
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image ImageView]
            [javafx.scene.layout AnchorPane]
+           [javafx.stage Stage]
            [javafx.util Callback]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
@@ -653,6 +655,9 @@
                                     :y y-size
                                     :z 1}}))))
 
+(defn- has-curves? [curve-view evaluation-context]
+  (not (coll/empty? (g/maybe-node-value curve-view :curves evaluation-context))))
+
 (defn make-view! [app-view localization opts]
   (let [list
         (doto (ListView.)
@@ -777,7 +782,9 @@
      {:id :curve-editor
       :title (localization/message "pane.curve-editor")
       :location :bottom
-      :content (constantly {:fx/type ui/ext-value :value parent})}
+      :content (fn describe-curve-editor [{:keys [evaluation-context]}]
+                 (when (has-curves? node-id evaluation-context)
+                   {:fx/type ui/ext-value :value parent}))}
      dispose-gl-pane!]))
 
 (defn- delete-cps [sub-selection]
@@ -792,3 +799,9 @@
 
 (handler/defhandler :scene.frame-selection :curve-view
   (run [view-id selection] (frame-selection view-id selection true)))
+
+(handler/defhandler :window.show-curve-editor :global
+  (enabled? [curve-view evaluation-context]
+    (has-curves? curve-view evaluation-context))
+  (run [^Stage main-stage]
+    (app-view/show-pane! (.getScene main-stage) :curve-editor)))

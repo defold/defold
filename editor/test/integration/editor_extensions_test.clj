@@ -545,7 +545,8 @@ end")))
                                        "Expected pane render failure with enough words to wrap inside a narrow pane."))
                 (is (.isWrapText error-label))
                 (expect-script-output
-                  (str "Rendering pane :test.context in /context.editor_script failed: " (.getText error-label) "\n")
+                  (format "Rendering pane :test.context in /context.editor_script failed: %s%n"
+                          (.getText error-label))
                   output)))
             (reset! fail false)
             (vswap! component fx/advance-component (describe "/game.project"))

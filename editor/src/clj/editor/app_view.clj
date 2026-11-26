@@ -3258,10 +3258,8 @@
                            in the override inspector output
     localization           the Localization instance"
   [app-view search-results-view node-id properties localization]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [scene (g/node-value app-view :scene evaluation-context)]
-      (show-pane! scene :search-results)
-      (search-results-view/show-override-inspector! search-results-view node-id properties localization))))
+  (search-results-view/show-override-inspector! search-results-view node-id properties localization)
+  (show-pane! (g/node-value app-view :scene) :search-results))
 
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
   ;; TODO: This will return the outline-selected resource-node when used from an
@@ -3375,13 +3373,12 @@
 (handler/defhandler :window.show-console :global
   (run [^Stage main-stage] (show-pane! (.getScene main-stage) :console)))
 
-(handler/defhandler :window.show-curve-editor :global
-  (run [^Stage main-stage] (show-pane! (.getScene main-stage) :curve-editor)))
-
 (handler/defhandler :window.show-build-errors :global
   (run [^Stage main-stage] (show-pane! (.getScene main-stage) :build-errors)))
 
 (handler/defhandler :window.show-search-results :global
+  (enabled? [search-results-view evaluation-context]
+    (some? (g/node-value search-results-view :search-results-container evaluation-context)))
   (run [^Stage main-stage] (show-pane! (.getScene main-stage) :search-results)))
 
 (defn- put-on-clipboard!
