@@ -3633,22 +3633,20 @@ bail:
         render_script_instance->m_RenderResources.Clear();
     }
 
-    void RefreshRenderScriptInstanceRenderResource(HRenderScriptInstance instance, dmhash_t name_hash, uint64_t resource,
-                                                   const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count)
+    static void RefreshRenderResourceBindings(HRenderContext context, RenderResourceType type, uint64_t previous_resource, uint64_t resource,
+                                              const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count)
     {
-        RenderContext* context = instance->m_RenderContext;
         assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
         assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_RENDER));
-        RenderResource* binding = instance->m_RenderResources.Get(name_hash);
-        if (binding->m_Type == RENDER_RESOURCE_TYPE_MATERIAL && (uint64_t)context->m_Material == binding->m_Resource)
+        if (type == RENDER_RESOURCE_TYPE_MATERIAL && (uint64_t)context->m_Material == previous_resource)
         {
             context->m_Material = (HMaterial)resource;
         }
-        else if (binding->m_Type == RENDER_RESOURCE_TYPE_COMPUTE && (uint64_t)context->m_ComputeProgram == binding->m_Resource)
+        else if (type == RENDER_RESOURCE_TYPE_COMPUTE && (uint64_t)context->m_ComputeProgram == previous_resource)
         {
             context->m_ComputeProgram = (HComputeProgram)resource;
         }
-        binding->m_Resource = resource;
+
         for (uint32_t i = 0; i < context->m_TextureBindTable.Size(); ++i)
         {
             TextureBinding& texture_binding = context->m_TextureBindTable[i];
@@ -3656,8 +3654,8 @@ bail:
             {
                 if (previous_textures[j] && texture_binding.m_Texture == previous_textures[j])
                 {
-                    texture_binding.m_Texture = textures[j];
-                    if (!textures[j])
+                    texture_binding.m_Texture = textures ? textures[j] : 0;
+                    if (!texture_binding.m_Texture)
                     {
                         texture_binding.m_Samplerhash = 0;
                     }
@@ -3665,6 +3663,20 @@ bail:
                 }
             }
         }
+    }
+
+    void RefreshRenderScriptInstanceRenderResource(HRenderScriptInstance instance, dmhash_t name_hash, uint64_t resource,
+                                                   const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count)
+    {
+        RenderResource* binding = instance->m_RenderResources.Get(name_hash);
+        RefreshRenderResourceBindings(instance->m_RenderContext, binding->m_Type, binding->m_Resource, resource, previous_textures, textures, texture_count);
+        binding->m_Resource = resource;
+    }
+
+    void ClearRenderResourceBindings(HRenderContext context, RenderResourceType type, uint64_t resource,
+                                     const dmGraphics::HTexture* textures, uint32_t texture_count)
+    {
+        RefreshRenderResourceBindings(context, type, resource, 0, textures, 0, texture_count);
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

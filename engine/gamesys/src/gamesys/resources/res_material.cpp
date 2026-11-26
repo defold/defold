@@ -23,6 +23,7 @@
 #include <dlib/log.h>
 
 #include <render/render.h>
+#include <render/render_frame.h>
 #include <render/material_ddf.h>
 
 #include <dmsdk/dlib/hashtable.h>
@@ -284,6 +285,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         MaterialResource* resource = (MaterialResource*) dmResource::GetResource(params->m_Resource);
 
+        dmRender::ClearRenderResourceBindings(render_context, dmRender::RENDER_RESOURCE_TYPE_MATERIAL, (uint64_t)resource->m_Material, 0, 0);
         ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
 
         delete resource;

@@ -23,6 +23,7 @@
 #include <dlib/dstrings.h>
 
 #include <render/render.h>
+#include <render/render_frame.h>
 #include <render/render_target_ddf.h>
 
 namespace dmGameSystem
@@ -300,6 +301,14 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         RenderTargetResource* rt_resource = (RenderTargetResource*) dmResource::GetResource(params->m_Resource);
+        dmGraphics::HTexture textures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 1];
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            textures[i] = rt_resource->m_ColorAttachmentResources[i] ? rt_resource->m_ColorAttachmentResources[i]->m_Texture : 0;
+        }
+
+        textures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = rt_resource->m_DepthAttachmentResource ? rt_resource->m_DepthAttachmentResource->m_Texture : 0;
+        dmRender::ClearRenderResourceBindings(render_context, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET, (uint64_t)rt_resource->m_RenderTarget, textures, DM_ARRAY_SIZE(textures));
         DestroyResources(graphics_context, params->m_Factory, rt_resource);
         return dmResource::RESULT_OK;
     }

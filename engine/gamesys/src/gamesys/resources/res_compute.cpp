@@ -16,6 +16,7 @@
 #include "res_texture.h"
 
 #include <render/render.h>
+#include <render/render_frame.h>
 #include <render/compute_ddf.h>
 
 namespace dmGameSystem
@@ -205,6 +206,7 @@ namespace dmGameSystem
         dmRender::HComputeProgram program       = resource->m_Program;
         dmGraphics::HProgram gfx_program        = dmRender::GetComputeProgram(program);
 
+        dmRender::ClearRenderResourceBindings(render_context, dmRender::RENDER_RESOURCE_TYPE_COMPUTE, (uint64_t)program, 0, 0);
         ReleaseTextures(params->m_Factory, resource->m_Textures);
 
         dmResource::Release(params->m_Factory, (void*) gfx_program);

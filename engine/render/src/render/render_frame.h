@@ -113,6 +113,15 @@ namespace dmRender
                                                    const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count);
 
     /**
+     * Clear matching inherited bindings immediately before destroying their resource.
+     * Releasing one of several resource owners must leave these bindings intact.
+     * Call only with readers drained and both game/render ownership held, as for refresh.
+     * The texture array lists target attachments and may be null when texture_count is zero.
+     */
+    void ClearRenderResourceBindings(HRenderContext context, RenderResourceType type, uint64_t resource,
+                                     const dmGraphics::HTexture* textures, uint32_t texture_count);
+
+    /**
      * Record game-owned Lua updates and copy their pass inputs into a building frame.
      * Script or storage failure invalidates the whole frame; no commands execute here.
      * @param instance Game-owned render-script instance

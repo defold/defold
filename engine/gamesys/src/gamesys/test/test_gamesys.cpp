@@ -721,6 +721,63 @@ TEST_F(RenderResourceTest, ReloadRefreshesNamedAndInheritedBindings)
     ASSERT_EQ((dmGraphics::HTexture)0, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
 }
 
+// Destroying an unrelated prototype must preserve bindings used by a surviving prototype.
+TEST_F(RenderResourceTest, DestroySharedPrototypePreservesBindings)
+{
+    dmGameSystem::RenderScriptPrototype* active = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/render/resources.renderc", (void**)&active));
+    dmGameSystem::MaterialResource* material = (dmGameSystem::MaterialResource*)active->m_RenderResources[0];
+    dmGameSystem::RenderTargetResource* target = (dmGameSystem::RenderTargetResource*)active->m_RenderResources[2];
+    dmRenderDDF::RenderPrototypeDesc desc = {};
+    desc.m_Script = "/render/render_script_valid.render_scriptc";
+    dmRenderDDF::RenderPrototypeDesc::RenderResourceDesc resources[2] = {};
+    resources[0].m_Name = "material";
+    resources[0].m_Path = "/render/material_valid.materialc";
+    resources[1].m_Name = "target";
+    resources[1].m_Path = "/render/render_target_valid.render_targetc";
+    desc.m_RenderResources.m_Data = resources;
+    desc.m_RenderResources.m_Count = 2;
+    dmArray<uint8_t> bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderPrototypeDesc::m_DDFDescriptor, bytes));
+    dmGameSystem::RenderScriptPrototype* unused = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/render/unused.renderc", bytes.Begin(), bytes.Size(), (void**)&unused));
+    dmRender::HMaterial expected_material = material->m_Material;
+    dmGraphics::HTexture expected_texture = target->m_ColorAttachmentResources[0]->m_Texture;
+    dmRender::TestSetMaterial(m_RenderContext, expected_material);
+    dmRender::TestSetTextureBindingByUnit(m_RenderContext, 0, expected_texture);
+    dmResource::Release(m_Factory, unused);
+    EXPECT_EQ(expected_material, dmRender::GetContextMaterial(m_RenderContext));
+    EXPECT_EQ(expected_texture, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
+    dmResource::Release(m_Factory, active);
+    ASSERT_EQ((dmRender::HMaterial)0, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ((dmGraphics::HTexture)0, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
+}
+
+// Bindings survive prototype destruction while dependencies have other owners, then clear on final release.
+TEST_F(RenderResourceTest, RetainedDependenciesClearBindingsOnFinalRelease)
+{
+    dmGameSystem::RenderScriptPrototype* prototype = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/render/resources.renderc", (void**)&prototype));
+    dmGameSystem::MaterialResource* material = (dmGameSystem::MaterialResource*)prototype->m_RenderResources[0];
+    dmGameSystem::RenderTargetResource* target = (dmGameSystem::RenderTargetResource*)prototype->m_RenderResources[2];
+    dmResource::IncRef(m_Factory, material);
+    dmResource::IncRef(m_Factory, target);
+    dmRender::HMaterial expected_material = material->m_Material;
+    dmGraphics::HTexture expected_texture = target->m_ColorAttachmentResources[0]->m_Texture;
+    dmRender::TestSetMaterial(m_RenderContext, expected_material);
+    dmRender::TestSetTextureBindingByUnit(m_RenderContext, 0, expected_texture);
+
+    dmResource::Release(m_Factory, prototype);
+    ASSERT_EQ(expected_material, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ(expected_texture, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
+
+    dmResource::Release(m_Factory, material);
+    ASSERT_EQ((dmRender::HMaterial)0, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ(expected_texture, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
+    dmResource::Release(m_Factory, target);
+    ASSERT_EQ((dmGraphics::HTexture)0, dmRender::TestGetTextureBindingByUnit(m_RenderContext, 0));
+}
+
 // Failed prototype acquisition keeps the old script and registry; successful replacement clears old inherited state.
 TEST_F(RenderResourceTest, FailedPrototypeReplacementPreservesBindings)
 {

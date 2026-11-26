@@ -224,7 +224,6 @@ namespace dmGameSystem
     dmResource::Result ResRenderPrototypeDestroy(const dmResource::ResourceDestroyParams* params)
     {
         RenderScriptPrototype* prototype = (RenderScriptPrototype*)dmResource::GetResource(params->m_Resource);
-        ClearInheritedRenderResources(prototype);
         ReleaseResources(params->m_Factory, prototype);
         if (prototype->m_Instance)
         {

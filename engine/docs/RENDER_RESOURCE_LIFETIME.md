@@ -42,6 +42,10 @@ resource list. New material allocation and prototype dependency loading happen
 before discarding the previous state. Failure at those stages leaves the previous
 resource usable.
 
+Releasing a prototype preserves inherited bindings to dependencies still owned by
+another prototype or caller. Their material, compute or attachment-texture bindings
+are cleared when the underlying resource is actually destroyed.
+
 Render-target reload first creates the replacement target and obtains all its
 attachment wrappers before changing any handles visible to callers. A **wrapper**
 is a resource object that refers to an attachment texture. Existing wrappers keep

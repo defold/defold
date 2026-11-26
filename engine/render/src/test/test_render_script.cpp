@@ -2214,6 +2214,32 @@ TEST_F(dmRenderScriptTest, RefreshTargetRemapsInheritedAttachmentTextures)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+// Resource destruction clears only matching compute and texture bindings, preserving unrelated state.
+TEST_F(dmRenderScriptTest, ClearDestroyedResourceBindings)
+{
+    dmRender::HComputeProgram unrelated = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
+    m_Context->m_ComputeProgram = m_Compute;
+    m_Context->m_Material = m_FontMaterial;
+    dmRender::SetTextureBindingByHash(m_Context, dmHashString64("removed"), 11);
+    dmRender::SetTextureBindingByUnit(m_Context, 1, 22);
+    const dmGraphics::HTexture textures[] = { 11, 0 };
+
+    dmRender::ClearRenderResourceBindings(m_Context, dmRender::RENDER_RESOURCE_TYPE_COMPUTE, (uint64_t)unrelated, 0, 0);
+    ASSERT_EQ(m_Compute, m_Context->m_ComputeProgram);
+    dmRender::ClearRenderResourceBindings(m_Context, dmRender::RENDER_RESOURCE_TYPE_COMPUTE, (uint64_t)m_Compute, 0, 0);
+    ASSERT_EQ((dmRender::HComputeProgram)0, m_Context->m_ComputeProgram);
+    ASSERT_EQ(m_FontMaterial, dmRender::GetContextMaterial(m_Context));
+
+    dmRender::ClearRenderResourceBindings(m_Context, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET, 0, textures, DM_ARRAY_SIZE(textures));
+    ASSERT_EQ((dmGraphics::HTexture)0, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ((dmhash_t)0, m_Context->m_TextureBindTable[0].m_Samplerhash);
+    ASSERT_EQ((dmGraphics::HTexture)22, m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(m_FontMaterial, dmRender::GetContextMaterial(m_Context));
+
+    m_Context->m_Material = 0;
+    dmRender::DeleteComputeProgram(m_Context, unrelated);
+}
+
 // Metadata and a full configured draw buffer must fit without allocating dynamic storage.
 TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullCommandCapacity)
 {
