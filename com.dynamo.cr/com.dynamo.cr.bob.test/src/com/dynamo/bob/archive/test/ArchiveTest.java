@@ -44,11 +44,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -164,6 +168,78 @@ public class ArchiveTest {
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
+    }
+
+    // Canceling after the first payload stops queued archive reads and reports cancellation to the caller.
+    @Test
+    public void testCancelBeforeNextArchiveRead() throws Exception {
+        AtomicBoolean canceled = new AtomicBoolean();
+        AtomicInteger reads = new AtomicInteger();
+        try (Project cancelable = new Project(new DefaultFileSystem()) {
+            @Override
+            public boolean isBuildCanceled() {
+                return canceled.get();
+            }
+        }) {
+            cancelable.setOption("max-cpu-threads", "1");
+            ArchiveBuilder archive = new ArchiveBuilder(contentRoot, manifestBuilder, 4, cancelable) {
+                @Override
+                public byte[] loadResourceData(String path) throws IOException {
+                    reads.incrementAndGet();
+                    return super.loadResourceData(path);
+                }
+            };
+            archive.setPreparedResourceConsumer((entry, payload) -> canceled.set(true));
+            archive.add(createDummyFile(contentRoot, "a", new byte[]{1}));
+            archive.add(createDummyFile(contentRoot, "b", new byte[]{2}));
+            try (var index = new RandomAccessFile(outputIndex, "rw");
+                 var data = new RandomAccessFile(outputData, "rw")) {
+                archive.write(index, data, Set.of());
+                fail("Expected archive cancellation");
+            } catch (CompileExceptionError e) {
+                assertEquals("Canceled", e.getMessage());
+            }
+            assertEquals(1, reads.get());
+        }
+    }
+
+    // A validation error interrupts an earlier busy worker and prevents the next queued read.
+    @Test(timeout = 10000)
+    public void testArchiveValidationStopsPendingReads() throws Exception {
+        project.setOption("max-cpu-threads", "2");
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch finishFirst = new CountDownLatch(1);
+        AtomicInteger validations = new AtomicInteger();
+        CompileExceptionError rejected = new CompileExceptionError("Changed compiled resource");
+        ArchiveBuilder archive = new ArchiveBuilder(contentRoot, manifestBuilder, 4, project, (path, content) -> {
+            validations.incrementAndGet();
+            try {
+                if (path.equals("/c")) {
+                    firstStarted.countDown();
+                    finishFirst.await();
+                } else {
+                    firstStarted.await();
+                    throw rejected;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CompileExceptionError("Interrupted", e);
+            }
+        });
+        // Archive entries are submitted in descending path order.
+        for (String name : List.of("c", "b", "a")) {
+            archive.add(createDummyFile(contentRoot, name, new byte[]{1}));
+        }
+        try (var index = new RandomAccessFile(outputIndex, "rw");
+             var data = new RandomAccessFile(outputData, "rw")) {
+            archive.write(index, data, Set.of());
+            fail("Expected archive validation to fail");
+        } catch (CompileExceptionError e) {
+            assertSame(rejected, e);
+        } finally {
+            finishFirst.countDown();
+        }
+        assertEquals(2, validations.get());
     }
 
     // New builds no longer need v5 archive compatibility. This minimal v5 index

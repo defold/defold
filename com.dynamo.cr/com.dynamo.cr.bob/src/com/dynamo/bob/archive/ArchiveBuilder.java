@@ -31,9 +31,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -86,6 +88,13 @@ public class ArchiveBuilder {
 
     private PreparedResourceConsumer preparedResourceConsumer;
 
+    @FunctionalInterface
+    public interface CompiledResourceValidator {
+        void validate(String path, byte[] content) throws CompileExceptionError;
+    }
+
+    private final CompiledResourceValidator compiledResourceValidator;
+
     public void setPreparedResourceConsumer(PreparedResourceConsumer consumer) {
         preparedResourceConsumer = consumer;
         // Package placement owns publication, including when export is disabled.
@@ -99,10 +108,16 @@ public class ArchiveBuilder {
     private byte[] archiveEntryPadding = new byte[11];
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
+        this(root, manifestBuilder, resourcePadding, project, null);
+    }
+
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project,
+            CompiledResourceValidator compiledResourceValidator) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.resourcePadding = resourcePadding;
         this.project = project;
+        this.compiledResourceValidator = compiledResourceValidator;
         this.publisher = project.getPublisher();
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
@@ -174,7 +189,13 @@ public class ArchiveBuilder {
 
     /** Prepares a package variant without changing the Base archive's compression level. */
     public byte[] prepareResource(ArchiveEntry entry, int level) throws IOException, CompileExceptionError {
+        if (project.isBuildCanceled()) {
+            throw new CompileExceptionError("Canceled");
+        }
         byte[] buffer = this.loadResourceData(entry.getFilename());
+        if (compiledResourceValidator != null) {
+            compiledResourceValidator.validate(entry.getRelativeFilename(), buffer);
+        }
 
         if (entry.isCompressed()) {
             // Compress data
@@ -369,7 +390,8 @@ public class ArchiveBuilder {
         ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd = new ConcurrentHashMap<>();
 
         // create archive entry write tasks
-        List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
+        AtomicBoolean failed = new AtomicBoolean();
+        var completed = new ExecutorCompletionService<Void>(executorService);
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
@@ -381,24 +403,39 @@ public class ArchiveBuilder {
             else {
                 includedEntries.add(entry);
             }
-            Future<ArchiveEntry> future = executorService.submit(() -> {
-                writeArchiveEntry(archiveData, entry, excludedResources, writtenIntoArcd);
-                return entry;
+            completed.submit(() -> {
+                if (!failed.get()) {
+                    try {
+                        writeArchiveEntry(archiveData, entry, excludedResources, writtenIntoArcd);
+                    } catch (Exception | Error e) {
+                        failed.set(true);
+                        throw e;
+                    }
+                }
+                return null;
             });
-            futures.add(future);
         }
 
         // wait for all tasks to finish
         try {
-            for (Future<ArchiveEntry> future : futures) {
-                ArchiveEntry entry = future.get();
+            for (int i = 0; i < entries.size(); ++i) {
+                completed.take().get();
             }
-        }
-        catch (Exception e) {
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof CompileExceptionError error) {
+                throw error;
+            }
+            if (project.isBuildCanceled()) {
+                throw new CompileExceptionError("Canceled", e.getCause());
+            }
             throw new CompileExceptionError("Error while writing archive", e);
-        }
-        finally {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CompileExceptionError("Canceled", e);
+        } finally {
             executorService.shutdownNow();
+            // Running workers must release the archive and package staging files before cleanup.
+            executorService.close();
             archiveData.close();
         }
 

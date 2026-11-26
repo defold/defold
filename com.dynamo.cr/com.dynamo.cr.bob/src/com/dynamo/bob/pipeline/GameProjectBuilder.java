@@ -237,7 +237,8 @@ public class GameProjectBuilder extends Builder {
     }
 
     private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex,
-            RandomAccessFile archiveData, Set<String> excludedResources, FileCompressionPreset compression) throws IOException, CompileExceptionError {
+            RandomAccessFile archiveData, Set<String> excludedResources, FileCompressionPreset compression,
+            BuildGraph buildGraph) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -250,7 +251,14 @@ public class GameProjectBuilder extends Builder {
             boolean compress = (flags == null || !flags.contains(Task.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Task.OutputFlags.ENCRYPTED));
 
-            archiveBuilder.add(path, compress, encrypt);
+            try {
+                archiveBuilder.add(path, compress, encrypt);
+            } catch (IOException e) {
+                if (!resource.exists()) {
+                    buildGraph.verifyOutput(PackageBuilder.outputPath(project, resource), null);
+                }
+                throw e;
+            }
         }
 
         TimeProfiler.addData("resources", resources.size());
@@ -418,7 +426,13 @@ public class GameProjectBuilder extends Builder {
         }
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ManifestBuilder manifest = createManifestBuilder(graph);
-        ArchiveBuilder archive = new ArchiveBuilder(root, manifest, getResourcePadding(), project);
+        Set<String> archivePaths = new HashSet<>();
+        for (IResource resource : resources) {
+            archivePaths.add(PackageBuilder.outputPath(project, resource));
+        }
+        buildGraph.validateOutputsExcept(project, archivePaths);
+        ArchiveBuilder archive = new ArchiveBuilder(root, manifest, getResourcePadding(), project,
+                (path, content) -> buildGraph.verifyOutput(PackageResolver.normalize(path), content));
         ManifestDesc settings = packages.bundleManifest(project);
         FileCompressionPreset baseCompression = PackageResolver.fileCompressionPreset(settings, settings.getBaseFileCompressionPreset());
         File indexFile = project.createTempFile("defold.index_", ".arci");
@@ -430,7 +444,7 @@ public class GameProjectBuilder extends Builder {
             archive.setPreparedResourceConsumer(writer);
             try (RandomAccessFile index = createRandomAccessFile(indexFile);
                  RandomAccessFile data = createRandomAccessFile(dataFile)) {
-                createArchive(archive, resources, index, data, excluded, baseCompression);
+                createArchive(archive, resources, index, data, excluded, baseCompression, buildGraph);
             }
             project.setArchiveBuilder(archive);
             List<IResource> reserved = new ArrayList<>(outputs);

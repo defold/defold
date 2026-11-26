@@ -2672,6 +2672,28 @@ public class ProjectBuildTest {
         }
     }
 
+    // Selective bundling still rejects changed outputs that are absent from the selected archive.
+    @Test
+    public void testSelectiveBundleVerifiesUnemittedOutputs() throws Exception {
+        createPackageProject();
+        try (Project project = packageReportProject(false)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        Files.writeString(Path.of(contentRoot, "build/game.projectc"), "changed");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("package", "episode");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                fail("Bundle must reject a changed output from the saved graph");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("Compiled resource is missing or changed: /game.projectc"));
+            }
+        }
+        assertFalse(Files.exists(Path.of(contentRoot, "packages/episode.zip")));
+    }
+
     private Project packageReportProject(boolean export) {
         return packageReportProject(export, false);
     }
