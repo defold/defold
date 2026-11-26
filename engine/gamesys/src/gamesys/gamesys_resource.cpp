@@ -288,6 +288,7 @@ namespace dmGameSystem
         image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
 
         ResTextureReCreateParams recreate_params;
+        recreate_params.m_Mode = RES_TEXTURE_RECREATE_UPLOAD;
         recreate_params.m_TextureImage = &texture_image;
 
         ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;

@@ -127,7 +127,7 @@ jobs:
               xvfb-run --auto-servernum cmake --build engine/build/x86_64-linux --parallel 2 --target
               run_test_render_execution run_test_render_frame_queue
               run_test_render_graphics_service run_test_render_graphics_resource
-              run_test_component_render run_test_component_render_state'
+              run_test_component_render run_test_component_render_state run_test_component_render_resource'
       },
       {
         name: 'MSAN',

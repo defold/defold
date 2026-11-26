@@ -15,6 +15,7 @@
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
 #include <render/render_frame.h>
+#include <render/render_graphics_service.h>
 
 #include "gamesys_context_private.h"
 
@@ -24,6 +25,22 @@ namespace dmGameSystem
     {
         // Loading may update on a worker; the renderer checks ownership before servicing.
         dmRender::UpdateGraphicsService((dmRender::HRenderContext)context);
+    }
+
+    static dmResource::Result BeginFactoryMutation(void* user_context)
+    {
+        HContext context = (HContext)user_context;
+        if (!dmRender::IsRenderExecutionOwner(dmRender::GetRenderExecution(context->m_Params.m_RenderContext), dmRender::EXECUTION_OWNER_GAME))
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        return BeginResourceMutation(context);
+    }
+
+    static void EndFactoryMutation(void* context)
+    {
+        EndResourceMutation((HContext)context);
     }
 
     HContext NewContext(const ContextParams& params)
@@ -44,8 +61,9 @@ namespace dmGameSystem
 
     HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation)
     {
-        Context* context = new Context;
+        Context* context = new Context();
         context->m_Params = params;
+        context->m_GraphicsService = params.m_RenderContext ? dmRender::GetGraphicsService(params.m_RenderContext) : 0;
         context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
@@ -53,11 +71,12 @@ namespace dmGameSystem
             return 0;
         }
 
-        // Graphics-free component tests have no renderer to service. Keep the hook's
-        // context independent of gamesys so loading can continue after Finalize.
+        // Graphics-free tests have no renderer to service. Both contexts outlive the
+        // factory, so progress and mutation checks also work after Finalize.
         if (params.m_RenderContext)
         {
             dmResource::SetFactoryService(params.m_Factory, ServiceResourceGraphics, params.m_RenderContext);
+            dmResource::SetFactoryMutationCallbacks(params.m_Factory, BeginFactoryMutation, EndFactoryMutation, context);
         }
 
         return context;
@@ -79,6 +98,81 @@ namespace dmGameSystem
     bool BeginFrame(HContext context)
     {
         return CheckRenderResult(BeginComponentRenderFrame(context->m_ComponentRenderContext), "begin");
+    }
+
+    dmRender::HGraphicsService GetGraphicsService(HContext context)
+    {
+        return context->m_GraphicsService;
+    }
+
+    bool PrepareFrame(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending)
+        {
+            dmRender::UpdateGraphicsService(context->m_Params.m_RenderContext);
+        }
+
+        // Completion callbacks may have queued another mutation. Defer rather than
+        // treating ordinary backpressure as a frame failure or waiting on this thread.
+        return !context->m_AsyncResourceMutationPending;
+    }
+
+    dmResource::Result BeginResourceMutation(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        // Preserve synchronous setters in legacy inline callbacks, including render
+        // scripts and PostUpdate. Captured components must opt into the barrier even
+        // before their render-list preparation moves to the consumer.
+        if (!context->m_ComponentRenderContext || !RequiresComponentRenderResourceBarrier(context->m_ComponentRenderContext))
+        {
+            return dmResource::RESULT_OK;
+        }
+
+        return BeginRenderResourceMutation(context);
+    }
+
+    void EndResourceMutation(HContext context)
+    {
+        if (context->m_ComponentRenderContext && RequiresComponentRenderResourceBarrier(context->m_ComponentRenderContext))
+        {
+            EndRenderResourceMutation(context);
+        }
+    }
+
+    dmResource::Result BeginRenderResourceMutation(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending || context->m_GraphicsFramePending)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        dmRender::RenderFrameResult result = BeginComponentRenderResourceMutation(context->m_ComponentRenderContext);
+        if (result != dmRender::RENDER_FRAME_OK)
+        {
+            dmLogError("Cannot begin resource mutation while frame capture or retirement is active (%d).", result);
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        return dmResource::RESULT_OK;
+    }
+
+    void EndRenderResourceMutation(HContext context)
+    {
+        EndComponentRenderResourceMutation(context->m_ComponentRenderContext);
+    }
+
+    bool IsResourceMutationPending(HContext context)
+    {
+        return context->m_AsyncResourceMutationPending;
+    }
+
+    void SetGraphicsFramePending(HContext context, bool pending)
+    {
+        context->m_GraphicsFramePending = pending;
     }
 
     void BeginRender(HContext context, float time, float dt)
@@ -169,6 +263,11 @@ namespace dmGameSystem
         // Collection deletion may have queued more work. Keep admission open for
         // resource and extension cleanup that follows gamesys finalization.
         dmRender::DrainGraphicsService(context->m_Params.m_RenderContext);
+        if (!context->m_ComponentRenderContext)
+        {
+            return true; // Resource callbacks may still use gamesys after finalization.
+        }
+
         dmRender::RenderFrameResult result = ShutdownComponentRenderContext(context->m_ComponentRenderContext);
         if (result != dmRender::RENDER_FRAME_OK)
         {

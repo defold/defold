@@ -134,6 +134,24 @@ namespace dmResource
      */
     typedef void (*FResourceService)(void* context);
 
+    /**
+     * Finish external reads before changing a resource. Called on the requesting
+     * thread, outside factory and loader locks. The callback must handle nested
+     * changes and reads that have been recorded but not yet submitted.
+     * @param context Factory mutation context
+     * @return RESULT_OK to allow the change, or an error to leave the resource unchanged.
+     *         Rejected input stays caller-owned and is not queued for retry.
+     */
+    typedef Result (*FResourceBeginMutation)(void* context);
+
+    /**
+     * Allow external reads again after a successful begin callback. Called once
+     * after recreation, reload callbacks and old-resource destruction, even if the
+     * change fails. Runs outside factory and loader locks.
+     * @param context Factory mutation context
+     */
+    typedef void (*FResourceEndMutation)(void* context);
+
     /** New factory parameters. */
     struct NewFactoryParams
     {
@@ -149,6 +167,10 @@ namespace dmResource
         dmHttpCache::HCache     m_HttpCache;
 
         HJobContext             m_JobThreadContext;
+        /// Optional mutation callbacks; supply both or neither.
+        FResourceBeginMutation  m_BeginMutation;
+        FResourceEndMutation    m_EndMutation;
+        void*                   m_MutationContext;
 
         NewFactoryParams()
         {
@@ -160,7 +182,7 @@ namespace dmResource
      * Create a new factory
      * @param params New factory parameters
      * @param uri Resource root uri, e.g. http://locahost:5000 or build/content
-     * @return Factory handle. NULL if out of memory or invalid uri.
+     * @return Factory handle. NULL if out of memory, invalid uri or an incomplete mutation callback pair.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
 
@@ -172,10 +194,31 @@ namespace dmResource
     void SetFactoryService(HFactory factory, FResourceService service, void* context);
 
     /**
+     * Set mutation callbacks when there are no active loads, changes or concurrent
+     * factory users. Supply both callbacks or neither. Their context must stay alive
+     * until the factory is deleted or the callbacks are replaced.
+     */
+    void SetFactoryMutationCallbacks(HFactory factory, FResourceBeginMutation begin, FResourceEndMutation end, void* context);
+
+    /**
      * Delete a factory
      * @param factory Factory handle
      */
     void DeleteFactory(HFactory factory);
+
+    /**
+     * Finish external reads before directly changing shared resource data. Call
+     * outside factory and loader locks, while holding a reference to the resource:
+     * the callback can release readers' references but does not retain the target.
+     * Every successful call needs EndResourceMutation, even if the change fails.
+     * End the scope before raising a Lua error. Rejected changes are not queued.
+     * @param factory Factory whose external readers must finish first
+     * @return RESULT_OK to proceed, or the begin callback's error
+     */
+    Result BeginResourceMutation(HFactory factory);
+
+    /** Finish a successful mutation scope and allow external reads again. */
+    void EndResourceMutation(HFactory factory);
 
     /**
      * Update resource factory. Required to be called periodically when http server support is enabled.

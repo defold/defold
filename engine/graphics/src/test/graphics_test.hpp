@@ -48,6 +48,8 @@ namespace dmGraphics
     // Null-adapter frame counters and borrowed main color0/depth storage.
     uint32_t                      TestGetBeginFrameCount(HContext context);
     uint32_t                      TestGetFlipCount(HContext context);
+    // Count live null-adapter handles to check cleanup after failed resource creation.
+    uint32_t                      TestGetAssetCount(HContext context);
     const void*                   TestGetMainFrameBufferData(HContext context, BufferType type);
     bool                          TestIsRenderTargetBound(HContext context, HRenderTarget target);
     void                          TestGetRenderTargetColorAttachmentOps(HContext context, HRenderTarget target, uint32_t index, AttachmentOp* load_op, AttachmentOp* store_op);

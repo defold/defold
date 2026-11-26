@@ -79,7 +79,7 @@ class RenderGraphicsResource : public jc_test_base_class
 
     virtual void SetUp()
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
         window_params.m_Width = 20;

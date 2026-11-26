@@ -44,7 +44,10 @@ namespace dmRender
         const uint64_t payload_bytes = component_limits.m_PayloadBytes + fixed_bytes;
         // Camera, predicate, frustum and constants per draw, plus metadata/command array.
         const uint64_t table_count = component_limits.m_MaxTables + 4 * command_count + 2;
-        if (payload_bytes > UINT32_MAX || table_count * sizeof(RenderFrameTable) > UINT32_MAX)
+        // A render script pins its declared resource owner once, independently
+        // of how many commands refer to those resources or inherit their bindings.
+        const uint64_t reference_count = (uint64_t)component_limits.m_MaxReferences + 1;
+        if (payload_bytes > UINT32_MAX || table_count * sizeof(RenderFrameTable) > UINT32_MAX || reference_count > UINT32_MAX)
         {
             dmLogError("Render frame storage exceeds the supported capacity. Reduce command capacity or component storage.");
             return RENDER_FRAME_CAPACITY_EXCEEDED;
@@ -53,6 +56,7 @@ namespace dmRender
         *limits = component_limits;
         limits->m_PayloadBytes = (uint32_t)payload_bytes;
         limits->m_MaxTables = (uint32_t)table_count;
+        limits->m_MaxReferences = (uint32_t)reference_count;
         return RENDER_FRAME_OK;
     }
 

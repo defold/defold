@@ -14,6 +14,7 @@
 
 #include "render_test.hpp"
 #include "../render/render_private.h"
+#include "../render/render_script.h"
 #include "../render/font/fontmap_private.h"
 #include <dlib/static_assert.h>
 #if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
@@ -106,6 +107,27 @@ namespace dmRender
     void TestSetComputeProgram(HRenderContext context, HComputeProgram program)
     {
         context->m_ComputeProgram = program;
+    }
+
+    void TestSetTextureBindingByUnit(HRenderContext context, uint32_t unit, dmGraphics::HTexture texture)
+    {
+        SetTextureBindingByUnit(context, unit, texture);
+    }
+
+    dmGraphics::HTexture TestGetTextureBindingByUnit(HRenderContext context, uint32_t unit)
+    {
+        return unit < context->m_TextureBindTable.Size() ? context->m_TextureBindTable[unit].m_Texture : 0;
+    }
+
+    HRenderScript TestGetRenderScriptInstanceScript(HRenderScriptInstance instance)
+    {
+        return instance->m_RenderScript;
+    }
+
+    uint64_t TestGetRenderScriptInstanceResource(HRenderScriptInstance instance, dmhash_t name_hash)
+    {
+        const RenderResource* resource = instance->m_RenderResources.Get(name_hash);
+        return resource ? resource->m_Resource : 0;
     }
 
     void TestSetMultiBufferingRequired(HRenderContext context, bool required)

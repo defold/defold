@@ -106,6 +106,10 @@ namespace dmRender
     bool                     TestWasMaterialAttributeAllocationPoisoned();
     void                     TestSetMaterial(HRenderContext context, HMaterial material);
     void                     TestSetComputeProgram(HRenderContext context, HComputeProgram program);
+    void                     TestSetTextureBindingByUnit(HRenderContext context, uint32_t unit, dmGraphics::HTexture texture);
+    dmGraphics::HTexture     TestGetTextureBindingByUnit(HRenderContext context, uint32_t unit);
+    HRenderScript            TestGetRenderScriptInstanceScript(HRenderScriptInstance instance);
+    uint64_t                 TestGetRenderScriptInstanceResource(HRenderScriptInstance instance, dmhash_t name_hash);
     void                     TestSetMultiBufferingRequired(HRenderContext context, bool required);
     bool                     TestGetMultiBufferingRequired(HRenderContext context);
     uint32_t                 TestGetPersistentRenderItemCount(HRenderContext context);

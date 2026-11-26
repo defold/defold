@@ -1,0 +1,15 @@
+name: "resource_mutation"
+embedded_instances {
+  id: "main"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/resource_mutation/main.script\"\n"
+  "}\n"
+}
+embedded_instances {
+  id: "receiver"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/resource_mutation/receiver.script\"\n"
+  "}\n"
+}

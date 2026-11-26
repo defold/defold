@@ -25,20 +25,29 @@ namespace dmGameSystem
     // closes renderer lifetimes earlier, while those services are still available.
     struct Context
     {
-        ContextParams            m_Params;
-        SpriteContext            m_SpriteContext;
-        ModelContext             m_ModelContext;
-        FactoryContext           m_FactoryContext;
-        CollectionFactoryContext m_CollectionFactoryContext;
-        LabelContext             m_LabelContext;
-        CollectionProxyContext   m_CollectionProxyContext;
-        HComponentRenderContext  m_ComponentRenderContext;
+        ContextParams              m_Params;
+        SpriteContext              m_SpriteContext;
+        ModelContext               m_ModelContext;
+        FactoryContext             m_FactoryContext;
+        CollectionFactoryContext   m_CollectionFactoryContext;
+        LabelContext               m_LabelContext;
+        CollectionProxyContext     m_CollectionProxyContext;
+        HComponentRenderContext    m_ComponentRenderContext;
+        dmRender::HGraphicsService m_GraphicsService;
+        // An asynchronous change stays exclusive until its completion publishes the result.
+        uint8_t                    m_AsyncResourceMutationPending : 1;
+        uint8_t                    m_GraphicsFramePending : 1;
     };
 
     // Create an internal context with an explicit execution context, frame budget
     // and preparation choice. The engine uses legacy preparation until its components
     // support captured inputs. Keep execution and render contexts alive through Finalize.
     HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation);
+
+    // Queued changes hold frame admission closed until completion. They cannot start
+    // while inline rendering has graphics commands waiting for Flip.
+    dmResource::Result BeginRenderResourceMutation(HContext context);
+    void               EndRenderResourceMutation(HContext context);
 }
 
 #endif // DM_GAMESYS_CONTEXT_PRIVATE_H

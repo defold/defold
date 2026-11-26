@@ -82,6 +82,16 @@ namespace dmGraphics
         return ((NullContext*)context)->m_FlipCount;
     }
 
+    uint32_t TestGetAssetCount(HContext context)
+    {
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < context->m_AssetHandleContainer.Capacity(); ++i)
+        {
+            count += context->m_AssetHandleContainer.GetByIndex(i) != 0;
+        }
+        return count;
+    }
+
     const void* TestGetMainFrameBufferData(HContext context, BufferType type)
     {
         FrameBuffer* buffer = &((NullContext*)context)->m_MainFrameBuffer;

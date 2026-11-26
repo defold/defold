@@ -414,7 +414,7 @@ namespace
 
     static bool RunCase(const Workload& workload, BenchmarkMode mode, uint32_t iterations, bool phases, ResultData* result)
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
         window_params.m_Width = 20;

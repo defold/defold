@@ -113,6 +113,9 @@ struct ResourceFactory
     dmResource::LoadContext*                     m_LoadContext;
     dmResource::FResourceService                 m_Service;
     void*                                        m_ServiceContext;
+    dmResource::FResourceBeginMutation            m_BeginMutation;
+    dmResource::FResourceEndMutation              m_EndMutation;
+    void*                                        m_MutationContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -143,6 +146,13 @@ void SetFactoryService(HFactory factory, FResourceService service, void* context
 {
     factory->m_Service = service;
     factory->m_ServiceContext = context;
+}
+
+void SetFactoryMutationCallbacks(HFactory factory, FResourceBeginMutation begin, FResourceEndMutation end, void* context)
+{
+    factory->m_BeginMutation = begin;
+    factory->m_EndMutation = end;
+    factory->m_MutationContext = context;
 }
 
 bool IsLoadProfilingEnabled(HFactory factory)
@@ -278,6 +288,12 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
+    if ((params->m_BeginMutation != 0) != (params->m_EndMutation != 0))
+    {
+        dmLogError("Cannot create resource factory because mutation callbacks must include both begin and end.");
+        return 0;
+    }
+
     dmMessage::HSocket socket = 0;
 
     dmMessage::Result mr = dmMessage::NewSocket(RESOURCE_SOCKET_NAME, &socket);
@@ -324,6 +340,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
     factory->m_JobThreadContext = params->m_JobThreadContext;
+    SetFactoryMutationCallbacks(factory, params->m_BeginMutation, params->m_EndMutation, params->m_MutationContext);
 
     int num_mounted = 0;
     bool mount_unsupported = false;
@@ -1024,7 +1041,7 @@ static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
 
 // Keep callbacks under scheduler ownership, with table locks only around lookup
 // and publication. Recreate may synchronously load a new dependency on any caller.
-static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+static Result RecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
 {
     RecreateContext* recreate = BeginResourceRecreate(GetLoadContext(factory), path_hash);
     if (!recreate)
@@ -1139,6 +1156,39 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
     // now has the reverse lookup, including when Recreate replaced the pointer.
     Release(factory, rd->m_Resource);
     EndResourceRecreate(recreate);
+    return result;
+}
+
+Result BeginResourceMutation(HFactory factory)
+{
+    return factory->m_BeginMutation ? factory->m_BeginMutation(factory->m_MutationContext) : RESULT_OK;
+}
+
+void EndResourceMutation(HFactory factory)
+{
+    if (factory->m_EndMutation)
+    {
+        factory->m_EndMutation(factory->m_MutationContext);
+    }
+}
+
+static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+{
+    Result result = BeginResourceMutation(factory);
+    if (result != RESULT_OK)
+    {
+        if (out_descriptor)
+        {
+            *out_descriptor = 0;
+        }
+
+        return result;
+    }
+
+    // Keep nested loads, reload callbacks and old-resource destruction inside the
+    // scope. Enter before taking scheduler ownership so external readers can finish.
+    result = RecreateResource(factory, path_hash, filename, data, data_size, message, out_descriptor);
+    EndResourceMutation(factory);
     return result;
 }
 

@@ -162,6 +162,32 @@ namespace dmGameSystem
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context);
 
     /**
+     * Whether synchronous resource changes need to protect captured readers. Only
+     * legacy inline rendering without registered capture callbacks can bypass the barrier.
+     * @param context Game-owned component bridge
+     * @return True for consumer preparation, threaded execution or captured components
+     */
+    bool RequiresComponentRenderResourceBarrier(HComponentRenderContext context);
+
+    /**
+     * Pause frame admission and retire accepted readers before changing resources.
+     * An empty reservation survives; a populated building frame is a conflict, not
+     * something this call can wait for or cancel. Native game owners wait for their
+     * executor, never the other way round. Nested accepted scopes share the barrier.
+     * @param context Game-owned component bridge with an active executor when threaded
+     * @return OK with admission paused, or an error without starting a mutation scope
+     */
+    dmRender::RenderFrameResult BeginComponentRenderResourceMutation(HComponentRenderContext context);
+
+    /**
+     * End an accepted resource mutation after its result is published on the game owner.
+     * For graphics requests, call from completion, not immediately after enqueue. Failed
+     * admission/execution must also end the scope. Does not wait for GPU completion.
+     * @param context Bridge kept alive through the matching mutation completion
+     */
+    void EndComponentRenderResourceMutation(HComponentRenderContext context);
+
+    /**
      * Read the first component renderer initialization, consumption or service-wake error
      * on the game owner. The error remains set until context deletion.
      * @param context Component rendering bridge

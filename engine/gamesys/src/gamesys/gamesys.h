@@ -42,6 +42,33 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
+    /** Borrow the renderer's graphics service. The renderer owns its lifetime. */
+    dmRender::HGraphicsService GetGraphicsService(HContext context);
+
+    /** Progress a pending graphics change. Return false to defer this simulation step. */
+    bool PrepareFrame(HContext context);
+
+    /**
+     * Begin a synchronous resource change. Captured rendering waits for accepted frames
+     * to finish, but rejects changes after capture has already started in this frame.
+     * Legacy inline setters still take effect immediately. No other changes are allowed
+     * while an asynchronous change is pending. Call EndResourceMutation after success.
+     */
+    dmResource::Result BeginResourceMutation(HContext context);
+
+    /** Finish a synchronous resource change and allow frame capture again. */
+    void EndResourceMutation(HContext context);
+
+    /** Whether a queued resource change is still waiting for its completion callback. */
+    bool IsResourceMutationPending(HContext context);
+
+    /**
+     * Mark the interval from PreRender through Flip on the game owner. Captured and
+     * queued changes cannot start while these graphics commands are still unsubmitted.
+     * Legacy synchronous setters keep their existing behavior during this interval.
+     */
+    void SetGraphicsFramePending(HContext context, bool pending);
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -233,12 +260,23 @@ namespace dmGameSystem
         bool m_Debug;
     };
 
+    // Cached names and handles let dependency reload replace inherited script bindings.
+    struct RenderScriptResourceBinding
+    {
+        dmGraphics::HTexture         m_AttachmentTextures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 1];
+        dmhash_t                     m_NameHash;
+        dmhash_t                     m_PathHash;
+        uint64_t                     m_Handle;
+        dmRender::RenderResourceType m_Type;
+    };
+
     struct RenderScriptPrototype
     {
-        dmArray<void*>                  m_RenderResources;
-        dmhash_t                        m_NameHash;
-        dmRender::HRenderScriptInstance m_Instance;
-        dmRender::HRenderScript         m_Script;
+        dmArray<RenderScriptResourceBinding> m_RenderResourceBindings;
+        dmArray<void*>                       m_RenderResources;
+        dmhash_t                             m_NameHash;
+        dmRender::HRenderScriptInstance      m_Instance;
+        dmRender::HRenderScript              m_Script;
     };
 
     struct SpriteContext

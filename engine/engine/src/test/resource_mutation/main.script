@@ -1,0 +1,19 @@
+local mutation = require("resource_mutation.mutation")
+
+go.property("data", resource.buffer("/buffer/dummy.buffer"))
+
+function init(self)
+    mutation.init(self.data)
+    mutation.check("init")
+    msg.post("@render:", "check_mutation")
+end
+
+function update(self, dt)
+    mutation.check("update")
+    go.delete()
+end
+
+function final(self)
+    mutation.check("final")
+    msg.post("/receiver#script", "after_final")
+end

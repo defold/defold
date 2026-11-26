@@ -258,7 +258,7 @@ endfunction()
 # of the large gamesys content build so lifecycle/concurrency checks stay focused.
 set(_COMPONENT_RENDER_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_component_render.cpp")
 defold_create_exported_symbols_file("${_COMPONENT_RENDER_EXPORTS}" "GraphicsAdapterNull;ResourceProviderFile")
-foreach(_component_render_test IN ITEMS test_component_render test_component_render_state)
+foreach(_component_render_test IN ITEMS test_component_render test_component_render_state test_component_render_resource)
   defold_add_executable(${_component_render_test}
     "${GS_TEST_ROOT}/${_component_render_test}.cpp" "${_COMPONENT_RENDER_EXPORTS}")
   target_include_directories(${_component_render_test} PRIVATE "${GS_SRC_ROOT}" "${GS_GENERATED_INCLUDE_DIR}")

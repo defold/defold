@@ -25,6 +25,8 @@ namespace dmGameSystem
     {
         TextureResource*          m_ColorAttachmentResources[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureResource*          m_DepthAttachmentResource;
+        // Retained for attachment names when hash-based SetResource has no filename.
+        char*                     m_Path;
         dmhash_t                  m_ColorAttachmentPaths[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
         dmhash_t                  m_DepthAttachmentPath;
         dmGraphics::HRenderTarget m_RenderTarget;

@@ -33,10 +33,24 @@ namespace dmGameSystem
         uint8_t                         : 1;
     };
 
+    // Async creation used to replace the placeholder texture directly on completion.
+    // The swap now goes through dmResource::SetResource so checks for frames still
+    // using the old texture and reload notifications also apply. Recreation therefore
+    // accepts either pixels to upload (UPLOAD), or an already-uploaded texture handle
+    // to take over without uploading it again (REPLACE).
+    enum ResTextureRecreateMode
+    {
+        RES_TEXTURE_RECREATE_UPLOAD,
+        RES_TEXTURE_RECREATE_REPLACE,
+    };
+
+    // REPLACE transfers the completed texture handle only when SetResource succeeds.
     struct ResTextureReCreateParams
     {
+        dmGraphics::HTexture    m_Texture;
         void*                  m_TextureImage;
         ResTextureUploadParams m_UploadParams;
+        ResTextureRecreateMode m_Mode;
     };
 
     dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type);

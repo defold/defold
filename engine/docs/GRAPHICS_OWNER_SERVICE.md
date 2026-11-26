@@ -98,8 +98,11 @@ The real-adapter regression test runs as
 `test_app_graphics <adapter> texture-upload-validation` (for example, `vulkan`).
 
 This service routes work to the correct owner; it does **not** keep resource
-handles alive or order mutations against outstanding frames. The resource-lifetime
-follow-up will add that protection before existing resource paths migrate.
+handles alive or order mutations against outstanding frames by itself. Gamesys's
+`EnqueueRenderResourceMutation` adds that ordering: it finishes earlier frame reads
+and pauses new capture until the game's completion callback installs the result.
+The caller still keeps handles and callback data alive through completion. See
+[Resource lifetime across render frames](RENDER_RESOURCE_LIFETIME.md).
 
 The same queue can later underpin native-extension graphics tasks. An extension
 API will also need shutdown rules that keep extension code and callback state

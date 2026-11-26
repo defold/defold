@@ -112,8 +112,11 @@ namespace dmRender
             uint64_t revision = GetProgressRevision(queue);
             RetireRenderFrames(queue);
             RenderFrameResult result = BeginRenderFrameCapture(queue, ticket);
-            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex)
+            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex || queue->m_MutationPending)
+            {
                 return result;
+            }
+
             WaitForRenderFrameProgress(queue, revision);
         }
     }
@@ -124,8 +127,11 @@ namespace dmRender
         {
             uint64_t revision = GetProgressRevision(queue);
             RenderFrameResult result = PublishRenderFrame(queue, ticket);
-            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex)
+            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex || queue->m_MutationPending)
+            {
                 return result;
+            }
+
             WaitForRenderFrameProgress(queue, revision);
         }
     }
@@ -137,6 +143,68 @@ namespace dmRender
         if (result == RENDER_FRAME_OK && !queue->m_Mutex)
             PumpRenderFrameQueue(queue, false);
         return result;
+    }
+
+    RenderFrameResult BeginRenderFrameMutation(HRenderFrameQueue queue)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        assert(!queue->m_InRetire);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+            if (queue->m_Stopping)
+            {
+                return RENDER_FRAME_STOPPED;
+            }
+
+            if (queue->m_Building != -1)
+            {
+                const RenderFrameUsage usage = GetRenderFrameUsage(queue->m_Slots[queue->m_Building].m_Frame);
+                if (usage.m_TableCount || usage.m_ReferenceCount || usage.m_PayloadBytes || usage.m_DynamicPayloadBytes)
+                {
+                    return RENDER_FRAME_INVALID_STATE;
+                }
+            }
+
+            if (!queue->m_MutationPending)
+            {
+                queue->m_MutationPending = true;
+                Changed(queue);
+            }
+        }
+
+        // Releases can enqueue graphics-owner cleanup. Keep admission closed while
+        // they run, and never invoke resource callbacks under the queue lock.
+        RetireRenderFrames(queue);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
+        {
+            RenderFrameState state = queue->m_Slots[i].m_State;
+            if (state == RENDER_FRAME_READY || state == RENDER_FRAME_READING || state == RENDER_FRAME_RETIRED)
+            {
+                return RENDER_FRAME_WOULD_BLOCK;
+            }
+        }
+
+        return RENDER_FRAME_OK;
+    }
+
+    RenderFrameResult EndRenderFrameMutation(HRenderFrameQueue queue)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+        if (queue->m_Stopping)
+        {
+            return RENDER_FRAME_STOPPED;
+        }
+
+        if (!queue->m_MutationPending)
+        {
+            return RENDER_FRAME_INVALID_STATE;
+        }
+
+        queue->m_MutationPending = false;
+        Changed(queue);
+        return RENDER_FRAME_OK;
     }
 
     static bool AllSlotsFree(HRenderFrameQueue queue)
@@ -160,8 +228,17 @@ namespace dmRender
             // Legacy callers may already have drained and joined their executor. Never
             // request new work or wait on that stopped executor.
             if (queue->m_Stopping)
+            {
                 return AllSlotsFree(queue) && queue->m_ServiceRequested == queue->m_ServiceAcknowledged ?
-                    RENDER_FRAME_OK : RENDER_FRAME_INVALID_STATE;
+                       RENDER_FRAME_OK : RENDER_FRAME_INVALID_STATE;
+            }
+
+            if (queue->m_MutationPending)
+            {
+                queue->m_MutationPending = false;
+                Changed(queue);
+            }
+
             if (queue->m_Building != -1)
             {
                 queue->m_Slots[queue->m_Building].m_State = RENDER_FRAME_RETIRED;
@@ -266,15 +343,25 @@ namespace dmRender
         assert(!queue->m_InRetire);
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
         if (queue->m_Stopping)
+        {
             return RENDER_FRAME_STOPPED;
+        }
+
+        if (queue->m_MutationPending)
+        {
+            return RENDER_FRAME_WOULD_BLOCK;
+        }
+
         if (queue->m_Building != -1 || queue->m_LeadReserved)
         {
             return RENDER_FRAME_WOULD_BLOCK;
         }
+
         if (!queue->m_NextFrameId)
         {
             return RENDER_FRAME_CAPACITY_EXCEEDED;
         }
+
         for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             RenderFrameSlot& slot = queue->m_Slots[i];
@@ -302,16 +389,33 @@ namespace dmRender
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
             if (queue->m_Stopping)
+            {
                 return RENDER_FRAME_STOPPED;
+            }
+
             int32_t index = FindBuildingSlot(queue, ticket);
             if (index == -1)
+            {
                 return RENDER_FRAME_INVALID_STATE;
+            }
+
+            if (queue->m_MutationPending)
+            {
+                return RENDER_FRAME_WOULD_BLOCK;
+            }
+
             // This acknowledgement gate, not the number of free slots alone, bounds lead.
             if (queue->m_Active != -1)
+            {
                 return RENDER_FRAME_WOULD_BLOCK;
+            }
+
             RenderFrameResult result = SealRenderFrame(ticket.m_Frame);
             if (result != RENDER_FRAME_OK)
+            {
                 return result;
+            }
+
             queue->m_Slots[index].m_State = RENDER_FRAME_READY;
             queue->m_Building = -1;
             queue->m_Active = index;
@@ -472,6 +576,7 @@ namespace dmRender
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
             queue->m_Stopping = true;
+            queue->m_MutationPending = false;
             if (queue->m_Building != -1)
             {
                 queue->m_Slots[queue->m_Building].m_State = RENDER_FRAME_RETIRED;
@@ -500,6 +605,7 @@ namespace dmRender
         status.m_Cancelled = queue->m_Cancelled;
         status.m_Retired = queue->m_Retired;
         status.m_Stopping = queue->m_Stopping;
+        status.m_MutationPending = queue->m_MutationPending;
         return status;
     }
 

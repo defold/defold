@@ -115,7 +115,11 @@ namespace dmGameSystem
 
     static void DestroyTexture(dmGraphics::HContext graphics_context, TextureResource* resource)
     {
-        dmGraphics::DeleteTexture(graphics_context, resource->m_Texture);
+        // Attachment wrappers and partially created resources may own no texture.
+        if (resource->m_Texture)
+        {
+            dmGraphics::DeleteTexture(graphics_context, resource->m_Texture);
+        }
         delete resource;
     }
 
@@ -556,6 +560,25 @@ namespace dmGameSystem
     dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams* params)
     {
         ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params->m_Message;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)params->m_Context;
+        TextureResource* texture_res = (TextureResource*)dmResource::GetResource(params->m_Resource);
+
+        if (recreate_params && recreate_params->m_Mode == RES_TEXTURE_RECREATE_REPLACE)
+        {
+            // The factory's mutation scope has finished captured readers. Publishing
+            // through recreation also refreshes render bindings via reload notifications.
+            dmGraphics::HTexture previous = texture_res->m_Texture;
+            texture_res->m_Texture = recreate_params->m_Texture;
+            texture_res->m_OriginalWidth = dmGraphics::GetOriginalTextureWidth(graphics_context, texture_res->m_Texture);
+            texture_res->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(graphics_context, texture_res->m_Texture);
+            dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(graphics_context, texture_res->m_Texture));
+            if (previous)
+            {
+                dmGraphics::DeleteTexture(graphics_context, previous);
+            }
+            return dmResource::RESULT_OK;
+        }
+
         dmGraphics::TextureImage* texture_image = 0x0;
 
         if (recreate_params)
@@ -579,8 +602,6 @@ namespace dmGameSystem
 
             texture_image->m_ImageDataAddress = (uint64_t) (message_bytes + header_size + sizeof(int32_t));
         }
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
-        TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
         dmGraphics::HTexture texture = texture_res->m_Texture;
 
         // Create the image from the DDF data.

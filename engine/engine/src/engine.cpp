@@ -2075,6 +2075,12 @@ bail:
                     }
                 }
 
+                if (!dmGameSystem::PrepareFrame(engine->m_GameSystem))
+                {
+                    ProfileFrameEnd(profile);
+                    return;
+                }
+
                 if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
                 {
                     Exit(engine, 1);
@@ -2170,10 +2176,19 @@ bail:
 
                 dmSound::Update();
 
+                // An update callback may have queued a graphics resource change.
+                // Skip rendering this step; PostUpdate or end-of-step processing
+                // will handle the queued change.
+                if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                {
+                    do_render = false;
+                }
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
                     frame_rendered = true;
+                    dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, true);
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
@@ -2252,6 +2267,8 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
+                dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, false);
 
                 if (engine->m_EngineService && frame_rendered)
                     dmEngineService::EndFrame(engine->m_EngineService);
