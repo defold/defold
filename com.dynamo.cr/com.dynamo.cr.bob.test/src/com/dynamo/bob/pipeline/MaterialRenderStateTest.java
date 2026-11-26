@@ -26,42 +26,96 @@ import static org.junit.Assert.*;
 
 public class MaterialRenderStateTest {
     private static ShaderDesc.ResourceType type(ShaderDesc.ShaderDataType type) {
-        return ShaderDesc.ResourceType.newBuilder().setShaderType(type).build();
+        ShaderDesc.ResourceType.Builder builder = ShaderDesc.ResourceType.newBuilder();
+        builder.setShaderType(type);
+        return builder.build();
     }
 
     private static ShaderDesc.ShaderReflection reflection() {
-        return ShaderDesc.ShaderReflection.newBuilder()
-            .addTypes(ShaderDesc.ResourceTypeInfo.newBuilder().setName("data").setNameHash(MurmurHash.hash64("data"))
-                .addMembers(ShaderDesc.ResourceMember.newBuilder().setName("tint").setNameHash(MurmurHash.hash64("tint"))
-                    .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4))))
-            .addUniformBuffers(ShaderDesc.ResourceBinding.newBuilder().setName("data").setNameHash(MurmurHash.hash64("data"))
-                .setType(ShaderDesc.ResourceType.newBuilder().setUseTypeIndex(true).setTypeIndex(0)))
-            .addInputs(ShaderDesc.ResourceBinding.newBuilder().setName("instance_data").setNameHash(MurmurHash.hash64("instance_data"))
-                .setStageFlags(1).setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4)))
-            .addTextures(ShaderDesc.ResourceBinding.newBuilder().setName("tex0").setNameHash(MurmurHash.hash64("tex0"))
-                .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D)))
-            .build();
+        ShaderDesc.ResourceMember.Builder tint = ShaderDesc.ResourceMember.newBuilder();
+        tint.setName("tint");
+        tint.setNameHash(MurmurHash.hash64("tint"));
+        tint.setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4));
+
+        ShaderDesc.ResourceTypeInfo.Builder data = ShaderDesc.ResourceTypeInfo.newBuilder();
+        data.setName("data");
+        data.setNameHash(MurmurHash.hash64("data"));
+        data.addMembers(tint);
+
+        ShaderDesc.ResourceType.Builder bufferType = ShaderDesc.ResourceType.newBuilder();
+        bufferType.setUseTypeIndex(true);
+        bufferType.setTypeIndex(0);
+
+        ShaderDesc.ResourceBinding.Builder uniformBuffer = ShaderDesc.ResourceBinding.newBuilder();
+        uniformBuffer.setName("data");
+        uniformBuffer.setNameHash(MurmurHash.hash64("data"));
+        uniformBuffer.setType(bufferType);
+
+        ShaderDesc.ResourceBinding.Builder instanceData = ShaderDesc.ResourceBinding.newBuilder();
+        instanceData.setName("instance_data");
+        instanceData.setNameHash(MurmurHash.hash64("instance_data"));
+        instanceData.setStageFlags(1);
+        instanceData.setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4));
+
+        ShaderDesc.ResourceBinding.Builder texture = ShaderDesc.ResourceBinding.newBuilder();
+        texture.setName("tex0");
+        texture.setNameHash(MurmurHash.hash64("tex0"));
+        texture.setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D));
+
+        ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
+        builder.addTypes(data);
+        builder.addUniformBuffers(uniformBuffer);
+        builder.addInputs(instanceData);
+        builder.addTextures(texture);
+        return builder.build();
     }
 
     private static MaterialDesc.Builder material() {
-        return MaterialDesc.newBuilder().setName("a").setVertexProgram("").setFragmentProgram("").setProgram("/a.spc")
-            .setVertexSpace(MaterialDesc.VertexSpace.VERTEX_SPACE_LOCAL)
-            .setPbrParameters(MaterialDesc.PbrParameters.newBuilder().setHasParameters(true).setHasIridescence(true))
-            .addFragmentConstants(MaterialDesc.Constant.newBuilder().setName("tint")
-                .setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER_COLOR)
-                .addValue(DdfMath.Vector4.newBuilder().setX(0.25f).setY(0.5f).setZ(1).setW(-2)))
-            .addSamplers(MaterialDesc.Sampler.newBuilder().setName("tex0")
-                .setWrapU(MaterialDesc.WrapMode.WRAP_MODE_REPEAT)
-                .setWrapV(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT)
-                .setWrapW(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
-                .setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR)
-                .setFilterMag(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST).setMaxAnisotropy(4))
-            .addAttributes(Graphics.VertexAttribute.newBuilder().setName("instance_data").setNameHash(MurmurHash.hash64("instance_data"))
-                .setSemanticType(Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE)
-                .setDataType(Graphics.VertexAttribute.DataType.TYPE_UNSIGNED_BYTE)
-                .setVectorType(Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC4)
-                .setStepFunction(Graphics.VertexStepFunction.VERTEX_STEP_FUNCTION_INSTANCE)
-                .setCoordinateSpace(Graphics.CoordinateSpace.COORDINATE_SPACE_LOCAL).setNormalize(true));
+        MaterialDesc.PbrParameters.Builder pbrParameters = MaterialDesc.PbrParameters.newBuilder();
+        pbrParameters.setHasParameters(true);
+        pbrParameters.setHasIridescence(true);
+
+        DdfMath.Vector4.Builder tintValue = DdfMath.Vector4.newBuilder();
+        tintValue.setX(0.25f);
+        tintValue.setY(0.5f);
+        tintValue.setZ(1);
+        tintValue.setW(-2);
+
+        MaterialDesc.Constant.Builder tint = MaterialDesc.Constant.newBuilder();
+        tint.setName("tint");
+        tint.setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER_COLOR);
+        tint.addValue(tintValue);
+
+        MaterialDesc.Sampler.Builder sampler = MaterialDesc.Sampler.newBuilder();
+        sampler.setName("tex0");
+        sampler.setWrapU(MaterialDesc.WrapMode.WRAP_MODE_REPEAT);
+        sampler.setWrapV(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT);
+        sampler.setWrapW(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+        sampler.setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR);
+        sampler.setFilterMag(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST);
+        sampler.setMaxAnisotropy(4);
+
+        Graphics.VertexAttribute.Builder attribute = Graphics.VertexAttribute.newBuilder();
+        attribute.setName("instance_data");
+        attribute.setNameHash(MurmurHash.hash64("instance_data"));
+        attribute.setSemanticType(Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE);
+        attribute.setDataType(Graphics.VertexAttribute.DataType.TYPE_UNSIGNED_BYTE);
+        attribute.setVectorType(Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC4);
+        attribute.setStepFunction(Graphics.VertexStepFunction.VERTEX_STEP_FUNCTION_INSTANCE);
+        attribute.setCoordinateSpace(Graphics.CoordinateSpace.COORDINATE_SPACE_LOCAL);
+        attribute.setNormalize(true);
+
+        MaterialDesc.Builder builder = MaterialDesc.newBuilder();
+        builder.setName("a");
+        builder.setVertexProgram("");
+        builder.setFragmentProgram("");
+        builder.setProgram("/a.spc");
+        builder.setVertexSpace(MaterialDesc.VertexSpace.VERTEX_SPACE_LOCAL);
+        builder.setPbrParameters(pbrParameters);
+        builder.addFragmentConstants(tint);
+        builder.addSamplers(sampler);
+        builder.addAttributes(attribute);
+        return builder;
     }
 
     // Matches the engine's fixed vector without requiring a graphics backend or a shader compiler executable.
@@ -82,7 +136,8 @@ public class MaterialRenderStateTest {
     @Test
     public void attributeStateUsesGraphicsLayout() {
         MaterialDesc.Builder input = material();
-        input.getAttributesBuilder(0).setBinaryValues(ByteString.copyFrom(new byte[]{1, 2, 3, 4}));
+        Graphics.VertexAttribute.Builder attribute = input.getAttributesBuilder(0);
+        attribute.setBinaryValues(ByteString.copyFrom(new byte[]{1, 2, 3, 4}));
         MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection());
         Graphics.VertexAttribute layout = compiled.getRenderState().getAttributes(0);
         assertEquals("", layout.getName());
@@ -100,11 +155,18 @@ public class MaterialRenderStateTest {
     @Test
     public void metadataAndInstanceValuesAreExcluded() {
         MaterialDesc original = MaterialBuilder.buildRenderState(material().build(), reflection());
-        MaterialDesc.Builder changed = material().setName("b").addTags("shadow").setProgram("/b.spc");
-        changed.getSamplersBuilder(0).setTexture("/another.texturec");
-        changed.getAttributesBuilder(0).setBinaryValues(ByteString.copyFrom(new byte[]{1, 2, 3, 4}));
+        MaterialDesc.Builder changed = material();
+        changed.setName("b");
+        changed.addTags("shadow");
+        changed.setProgram("/b.spc");
+        MaterialDesc.Sampler.Builder sampler = changed.getSamplersBuilder(0);
+        sampler.setTexture("/another.texturec");
+        Graphics.VertexAttribute.Builder attribute = changed.getAttributesBuilder(0);
+        attribute.setBinaryValues(ByteString.copyFrom(new byte[]{1, 2, 3, 4}));
         assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(changed.build(), reflection()).getRenderHash());
-        changed.getFragmentConstantsBuilder(0).getValueBuilder(0).setX(0.75f);
+        MaterialDesc.Constant.Builder constant = changed.getFragmentConstantsBuilder(0);
+        DdfMath.Vector4.Builder value = constant.getValueBuilder(0);
+        value.setX(0.75f);
         assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(changed.build(), reflection()).getRenderHash());
     }
 
@@ -113,20 +175,28 @@ public class MaterialRenderStateTest {
     public void unusedSamplersDoNotAffectRenderHash() {
         MaterialDesc original = MaterialBuilder.buildRenderState(material().build(), reflection());
         MaterialDesc.Builder input = material();
-        input.addSamplers(input.getSamplers(0).toBuilder().setName("unused")
-            .addNameIndirections(MurmurHash.hash64("unused_0")));
+        MaterialDesc.Sampler.Builder unusedSampler = input.getSamplers(0).toBuilder();
+        unusedSampler.setName("unused");
+        unusedSampler.addNameIndirections(MurmurHash.hash64("unused_0"));
+        input.addSamplers(unusedSampler);
         MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection());
         assertEquals(1, compiled.getRenderState().getSamplersCount());
         assertEquals(original.getRenderHash(), compiled.getRenderHash());
-        input.getSamplersBuilder(1).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE).setMaxAnisotropy(16);
+        unusedSampler = input.getSamplersBuilder(1);
+        unusedSampler.setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+        unusedSampler.setMaxAnisotropy(16);
         assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
-        input.getSamplersBuilder(0).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+        MaterialDesc.Sampler.Builder sampler = input.getSamplersBuilder(0);
+        sampler.setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
         assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
 
-        ShaderDesc.ShaderReflection noTextures = reflection().toBuilder().clearTextures().build();
+        ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
+        reflection.clearTextures();
+        ShaderDesc.ShaderReflection noTextures = reflection.build();
         compiled = MaterialBuilder.buildRenderState(input.build(), noTextures);
         assertEquals(0, compiled.getRenderState().getSamplersCount());
-        assertEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.clearSamplers().build(), noTextures).getRenderHash());
+        input.clearSamplers();
+        assertEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), noTextures).getRenderHash());
     }
 
     // Engine-owned skinning and morph samplers use fixed draw settings, not authored material sampler state.
@@ -136,21 +206,30 @@ public class MaterialRenderStateTest {
         MaterialDesc.Builder input = material();
         String[] internalSamplers = {"pose_matrix_cache", "morph_targets"};
         for (String name : internalSamplers) {
-            reflection.addTextures(ShaderDesc.ResourceBinding.newBuilder().setName(name).setNameHash(MurmurHash.hash64(name))
-                .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D)));
-            input.addSamplers(input.getSamplers(0).toBuilder().setName(name)
-                .addNameIndirections(MurmurHash.hash64(name + "_0")));
+            ShaderDesc.ResourceBinding.Builder texture = ShaderDesc.ResourceBinding.newBuilder();
+            texture.setName(name);
+            texture.setNameHash(MurmurHash.hash64(name));
+            texture.setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D));
+            reflection.addTextures(texture);
+
+            MaterialDesc.Sampler.Builder sampler = input.getSamplers(0).toBuilder();
+            sampler.setName(name);
+            sampler.addNameIndirections(MurmurHash.hash64(name + "_0"));
+            input.addSamplers(sampler);
         }
         MaterialDesc original = MaterialBuilder.buildRenderState(material().build(), reflection.build());
         MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
         assertEquals(1, compiled.getRenderState().getSamplersCount());
         assertEquals(original.getRenderHash(), compiled.getRenderHash());
         for (int i = 1; i < input.getSamplersCount(); ++i) {
-            input.getSamplersBuilder(i).setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
-                .setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST).setMaxAnisotropy(16);
+            MaterialDesc.Sampler.Builder sampler = input.getSamplersBuilder(i);
+            sampler.setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+            sampler.setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST);
+            sampler.setMaxAnisotropy(16);
             assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
         }
-        input.getSamplersBuilder(0).setMaxAnisotropy(16);
+        MaterialDesc.Sampler.Builder sampler = input.getSamplersBuilder(0);
+        sampler.setMaxAnisotropy(16);
         assertNotEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
     }
 
@@ -164,11 +243,13 @@ public class MaterialRenderStateTest {
         };
         for (ShaderDesc.ShaderDataType samplerType : samplerTypes) {
             ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
-            reflection.getTexturesBuilder(0).setType(type(samplerType));
+            ShaderDesc.ResourceBinding.Builder texture = reflection.getTexturesBuilder(0);
+            texture.setType(type(samplerType));
             MaterialDesc.Builder input = material();
             MaterialDesc original = MaterialBuilder.buildRenderState(input.build(), reflection.build());
-            input.getSamplersBuilder(0).addNameIndirections(MurmurHash.hash64("tex0_0"))
-                .addNameIndirections(MurmurHash.hash64("tex0_1"));
+            MaterialDesc.Sampler.Builder sampler = input.getSamplersBuilder(0);
+            sampler.addNameIndirections(MurmurHash.hash64("tex0_0"));
+            sampler.addNameIndirections(MurmurHash.hash64("tex0_1"));
             MaterialDesc compiled = MaterialBuilder.buildRenderState(input.build(), reflection.build());
             assertEquals(1, compiled.getRenderState().getSamplersCount());
             assertEquals(MurmurHash.hash64("tex0"), compiled.getRenderState().getSamplers(0).getNameHash());
@@ -176,7 +257,7 @@ public class MaterialRenderStateTest {
             assertEquals(original.getRenderHash(), compiled.getRenderHash());
             // The descriptor still retains the aliases needed to bind fallback shaders.
             assertEquals(input.getSamplers(0).getNameIndirectionsList(), compiled.getSamplers(0).getNameIndirectionsList());
-            input.getSamplersBuilder(0).setMaxAnisotropy(8);
+            sampler.setMaxAnisotropy(8);
             assertNotEquals(compiled.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection.build()).getRenderHash());
         }
     }
@@ -184,16 +265,30 @@ public class MaterialRenderStateTest {
     // Bob and the editor share alias generation: only active arrays with a fallback variant get aliases.
     @Test
     public void fallbackAliasesFollowShaderVariantsAndReflection() {
-        MaterialDesc.Builder input = material().setMaxPageCount(2);
-        input.addSamplers(input.getSamplers(0).toBuilder().setName("array"));
-        input.addSamplers(input.getSamplers(0).toBuilder().setName("unused"));
+        MaterialDesc.Builder input = material();
+        input.setMaxPageCount(2);
+        MaterialDesc.Sampler.Builder arraySampler = input.getSamplers(0).toBuilder();
+        arraySampler.setName("array");
+        input.addSamplers(arraySampler);
+        MaterialDesc.Sampler.Builder unusedSampler = input.getSamplers(0).toBuilder();
+        unusedSampler.setName("unused");
+        input.addSamplers(unusedSampler);
         ShaderDesc.ShaderReflection.Builder reflection = reflection().toBuilder();
-        reflection.addTextures(ShaderDesc.ResourceBinding.newBuilder().setName("array").setNameHash(MurmurHash.hash64("array"))
-            .setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)));
-        ShaderDesc.Builder shader = ShaderDesc.newBuilder().setReflection(reflection)
-            .addShaders(ShaderDesc.Shader.newBuilder().setSource(ByteString.EMPTY)
-                .setShaderType(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT)
-                .setLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100).setVariantTextureArray(true));
+        ShaderDesc.ResourceBinding.Builder texture = ShaderDesc.ResourceBinding.newBuilder();
+        texture.setName("array");
+        texture.setNameHash(MurmurHash.hash64("array"));
+        texture.setType(type(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY));
+        reflection.addTextures(texture);
+
+        ShaderDesc.Shader.Builder fragmentShader = ShaderDesc.Shader.newBuilder();
+        fragmentShader.setSource(ByteString.EMPTY);
+        fragmentShader.setShaderType(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        fragmentShader.setLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        fragmentShader.setVariantTextureArray(true);
+
+        ShaderDesc.Builder shader = ShaderDesc.newBuilder();
+        shader.setReflection(reflection);
+        shader.addShaders(fragmentShader);
 
         for (MaterialDesc.Sampler.Builder sampler : input.getSamplersBuilderList()) {
             sampler.addNameIndirections(MurmurHash.hash64("stale"));
@@ -208,7 +303,8 @@ public class MaterialRenderStateTest {
 
         MaterialBuilder.applyVariantTextureArray(input, shader.build());
         assertEquals(2, input.getSamplers(1).getNameIndirectionsCount());
-        shader.getShadersBuilder(0).setVariantTextureArray(false);
+        fragmentShader = shader.getShadersBuilder(0);
+        fragmentShader.setVariantTextureArray(false);
         MaterialBuilder.applyVariantTextureArray(input, shader.build());
         assertEquals(0, input.getSamplers(1).getNameIndirectionsCount());
         MaterialDesc nativeArray = MaterialBuilder.buildRenderState(input.build(), reflection.build());
@@ -219,14 +315,23 @@ public class MaterialRenderStateTest {
     // Omitted constants and explicitly authored zero defaults normalize to the same reflected value array.
     @Test
     public void defaultsAndStageMerging() {
-        MaterialDesc.Builder input = material().clearFragmentConstants();
+        MaterialDesc.Builder input = material();
+        input.clearFragmentConstants();
         MaterialDesc original = MaterialBuilder.buildRenderState(input.build(), reflection());
-        input.addFragmentConstants(MaterialDesc.Constant.newBuilder().setName("tint")
-            .setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER));
+        MaterialDesc.Constant.Builder fragmentConstant = MaterialDesc.Constant.newBuilder();
+        fragmentConstant.setName("tint");
+        fragmentConstant.setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER);
+        input.addFragmentConstants(fragmentConstant);
         assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
-        input.getFragmentConstantsBuilder(0).addValue(DdfMath.Vector4.newBuilder().setX(1));
-        input.addVertexConstants(MaterialDesc.Constant.newBuilder().setName("tint")
-            .setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER).addValue(DdfMath.Vector4.getDefaultInstance()));
+        DdfMath.Vector4.Builder value = DdfMath.Vector4.newBuilder();
+        value.setX(1);
+        fragmentConstant = input.getFragmentConstantsBuilder(0);
+        fragmentConstant.addValue(value);
+        MaterialDesc.Constant.Builder vertexConstant = MaterialDesc.Constant.newBuilder();
+        vertexConstant.setName("tint");
+        vertexConstant.setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER);
+        vertexConstant.addValue(DdfMath.Vector4.getDefaultInstance());
+        input.addVertexConstants(vertexConstant);
         assertEquals(original.getRenderHash(), MaterialBuilder.buildRenderState(input.build(), reflection()).getRenderHash());
     }
 }
