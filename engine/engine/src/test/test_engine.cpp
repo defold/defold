@@ -1126,7 +1126,7 @@ static bool InitGraphicsServiceTestEngine(dmEngine::HEngine engine)
         "--config=bootstrap.render=/render_script/default.renderc",
         "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
     };
-    return dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    return dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
 }
 
 static GraphicsServiceProbe* g_GameSystemStartupProbe = 0;
@@ -1339,7 +1339,7 @@ TEST_F(EngineTest, EarlyRenderContextStartupCleanup)
         "dmengine", "--config=resource.uri=unsupported://render-startup-test",
         "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
     };
-    ASSERT_FALSE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_FALSE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
     ASSERT_NE((dmRender::HRenderContext)0, engine->m_RenderContext);
     ASSERT_FALSE(dmRender::IsRendererInitialized(engine->m_RenderContext));
     ASSERT_EQ((dmResource::HFactory)0, engine->m_Factory);
