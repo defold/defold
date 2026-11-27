@@ -24,13 +24,13 @@ struct TestConfig
 
 static struct TestConfig g_Configs[] = {
     {
-        24, 8
-    },
-    {
         0, 8
     },
     {
         16, 0
+    },
+    {
+        24, 8
     },
     {
         0, 0
@@ -43,17 +43,31 @@ static EGLint g_ConfigCount;
 
 static EGLBoolean TestChooseConfig(EGLDisplay display, const EGLint* attributes, EGLConfig* configs, EGLint capacity, EGLint* count)
 {
-    *count = g_ConfigCount;
-    if (configs)
+    EGLint min_depth = 0;
+    EGLint min_stencil = 0;
+    for (const EGLint* attr = attributes; attr[0] != EGL_NONE; attr += 2)
     {
-        if (*count > capacity)
+        if (attr[0] == EGL_DEPTH_SIZE)
         {
-            *count = capacity;
+            min_depth = attr[1];
         }
-
-        for (EGLint i = 0; i < *count; ++i)
+        else if (attr[0] == EGL_STENCIL_SIZE)
         {
-            configs[i] = &g_Configs[i];
+            min_stencil = attr[1];
+        }
+    }
+
+    *count = 0;
+    for (EGLint i = 0; i < g_ConfigCount && (!configs || *count < capacity); ++i)
+    {
+        if (g_Configs[i].m_DepthBits >= min_depth && g_Configs[i].m_StencilBits >= min_stencil)
+        {
+            if (configs)
+            {
+                configs[*count] = &g_Configs[i];
+            }
+
+            ++*count;
         }
     }
 
@@ -108,7 +122,7 @@ TEST(AndroidEGLConfig, FallBackToFirstMatch)
     ASSERT_EQ(&g_Configs[0], config);
 }
 
-// A window requesting depth and stencil keeps the driver's preferred match.
+// A window requesting depth and stencil skips earlier configs that lack either attachment.
 TEST(AndroidEGLConfig, DepthStencilEnabled)
 {
     dmNativeWin.depthBits = 24;
@@ -116,7 +130,7 @@ TEST(AndroidEGLConfig, DepthStencilEnabled)
     g_ConfigCount = 5;
     EGLConfig config = NULL;
     ASSERT_EQ(1, choose_egl_config(EGL_NO_DISPLAY, false, &config));
-    ASSERT_EQ(&g_Configs[0], config);
+    ASSERT_EQ(&g_Configs[2], config);
 }
 
 int main(int argc, char** argv)
