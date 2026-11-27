@@ -53,6 +53,7 @@ FUNCTIONS = (
     "FontcSetProperties",
     "FontcSetText",
     "FontcSetMarkup",
+    "FontcSetAnimationTime",
     "FontcHash",
     "FontcBeginBatch",
     "FontcGenerateTexture",

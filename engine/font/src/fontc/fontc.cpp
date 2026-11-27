@@ -52,7 +52,7 @@ using dmVMath::Vector4;
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
 static_assert(sizeof(FontcParams) == 76, "Unexpected FontcParams ABI layout");
 static_assert(sizeof(FontcGlyphBankGlyph) == 32, "Unexpected FontcGlyphBankGlyph ABI layout");
-static_assert(sizeof(FontcLayout) == 32, "Unexpected FontcLayout ABI layout");
+static_assert(sizeof(FontcLayout) == 36, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
 static_assert(sizeof(FontcGlyphMetrics) == 52, "Unexpected FontcGlyphMetrics ABI layout");
@@ -217,6 +217,7 @@ struct FontcContext
     , m_Hash(0)
     , m_TextLayout(0)
     , m_TextLayoutHash(0)
+    , m_AnimationTime(0.0)
     , m_Properties()
     , m_HasProperties(false)
     , m_HasText(false)
@@ -246,6 +247,7 @@ struct FontcContext
     uint64_t                  m_Hash;
     HTextLayout               m_TextLayout;
     uint64_t                  m_TextLayoutHash;
+    double                    m_AnimationTime;
 
     FontcProperties           m_Properties;
     bool                      m_HasProperties;
@@ -1352,6 +1354,7 @@ FontRendererResult FontcMeasure(HFontRenderer   renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);
@@ -1389,6 +1392,7 @@ FontRendererResult FontcMeasureMarkup(HFontRenderer renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);
@@ -1422,6 +1426,7 @@ FontRendererResult FontcMeasureParsedMarkup(HFontRenderer renderer,
     output->m_LayoutWidth = GetLayoutWidth(renderer, line_break != 0, width);
     const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
     output->m_LineCount = TextLayoutGetLineCount(layout);
+    output->m_HasAnimatedEffects = TextLayoutHasAnimatedEffects(layout);
     output->m_MaxAscent = FontGetAscent(renderer->m_Font, scale);
     output->m_MaxDescent = -FontGetDescent(renderer->m_Font, scale);
     TextLayoutRelease(layout);
@@ -1813,6 +1818,17 @@ FontRendererResult FontcSetMarkup(HFontRenderer renderer, const char* markup, ui
     return FONT_RENDERER_RESULT_OK;
 }
 
+FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+{
+    if (!renderer || !isfinite(seconds) || seconds < 0.0)
+    {
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    renderer->m_AnimationTime = seconds;
+    return FONT_RENDERER_RESULT_OK;
+}
+
 uint64_t FontcHash(HFontRenderer renderer)
 {
     return renderer ? renderer->m_Hash : 0;
@@ -2095,6 +2111,10 @@ static bool ResolveVectorFaceGlyph(void* context, const TextGlyph& text_glyph, F
 
 static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, const Matrix4& transform, FontLayoutVertexConfig* config)
 {
+    // Each entry supplies an absolute clock, including zero for stopped text.
+    // Keep time out of the retained-layout hash so playback does not reshape.
+    layout->m_ElapsedTime = renderer->m_AnimationTime;
+
     const FontcProperties& properties = renderer->m_Properties;
     memset(config, 0, sizeof(*config));
     config->m_Layout = layout;
@@ -2409,6 +2429,7 @@ FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* output)
     {
         return FONT_RENDERER_RESULT_TEXT_ERROR;
     }
+
     FontLayoutVertexConfig config;
     GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
     FontTextArc arc;

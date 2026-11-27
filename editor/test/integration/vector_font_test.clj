@@ -23,6 +23,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.vertex2 :as vtx]
             [editor.scene :as scene]
+            [editor.scene-selection :as scene-selection]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
@@ -180,6 +181,86 @@
                 (finally
                   ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                   (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
+
+  ;; Label and clipped GUI previews must pick moving glyphs only where they
+  ;; appear at the supplied clock, remain still when paused, and reset to zero.
+  (deftest animated-text-preview-and-picking
+    (test-util/with-loaded-project
+      (let [font-node
+            (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+
+            label-node (project/get-resource-node project "/label/test.label")
+
+            gui-node
+            (project/get-resource-node project "/fonts/vector_preview.gui")
+
+            text-node
+            (:node-id (test-util/outline gui-node [0 0 0]))
+
+            pixels
+            (fn preview-pixels [view]
+              (set (image-points (g/valid-node-value view :frame) #(= 0xff00ff %))))]
+        (g/transact
+          {:undoable false}
+          [(g/set-property text-node :position [0.0 0.0 10.0])
+           (g/set-property text-node :font-size 48.0)
+           (g/set-property font-node :characters "A")
+           (g/set-property font-node :outline-alpha 0.0)
+           (g/set-property font-node :shadow-alpha 0.0)
+           (g/set-property label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+           (g/set-property label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+           (g/set-property label-node :font-size 48.0)
+           (g/set-property label-node :color [1.0 0.0 1.0 1.0])])
+        (doseq [[path node] [["/fonts/vector_preview.go" label-node]
+                             ["/fonts/vector_preview.gui" text-node]]]
+          (test-util/prop! node :text "<wave fit=span hz=1 amplitude=48>AA</wave>")
+          (let [[resource-node view]
+                (test-util/open-scene-view! project app-view path 512 256)
+
+                picking-node
+                (if (= node label-node)
+                  (:node-id (test-util/outline resource-node [0]))
+                  node)
+
+                initial (pixels view)
+
+                updatable
+                (coll/first-where identity (coll/vals (g/valid-node-value view :updatables)))
+
+                state
+                ((:update-fn updatable) (:initial-state updatable) {:dt 0.125})]
+            (try
+              (is (< 10 (count initial)))
+              (test-util/with-prop [view :updatable-states {(:node-id updatable) state}]
+                (let [animated (pixels view)
+
+                      ;; Leave a pixel for antialiasing.
+                      picking-clearance
+                      (inc (quot scene-selection/min-pick-size 2))
+
+                      picking-point
+                      (coll/first-where
+                        (fn [[x y]]
+                          (coll/not-any?
+                            (fn [[initial-x initial-y]]
+                              (and (<= (abs (- x initial-x)) picking-clearance)
+                                   (<= (abs (- y initial-y)) picking-clearance)))
+                            initial))
+                        animated)]
+                  (is (< 10 (count animated)))
+                  (is (not= initial animated))
+                  (is (= animated (pixels view)))
+                  (when (is (some? picking-point) path)
+                    (let [[x y] picking-point]
+                      (test-util/with-prop [view :updatable-states {}]
+                        (test-util/mouse-click! view x y)
+                        (is (not (test-util/selected? app-view picking-node)) path))
+                      (test-util/mouse-click! view x y)
+                      (is (test-util/selected? app-view picking-node) path)))))
+              (is (= initial (pixels view)))
+              (finally
+                ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
+                (test-util/close-tab! project app-view path))))))))
 
   ;; Vector gradients retain all four stops in preview pixels and picking.
   (deftest vector-gradient-preview-and-picking

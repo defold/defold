@@ -118,6 +118,39 @@
         [:renderable :user-data :material-shader]
         [:renderable :user-data :gpu-texture]))))
 
+;; Playback is available only for animated text and follows edits.
+(deftest label-scene-exposes-animation-preview
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")
+
+          font-node
+          (project/get-resource-node project "/builtins/fonts/default.font")
+
+          style-node (:node-id (test-util/outline font-node [0 1]))]
+      (doseq [text ["" "A" "<color=#ff0000>A</color>"
+                    "<wave hz=0>A</wave>" "<shake amplitude=0>A</shake>"
+                    "<gradient hz=0 left=#ff0000 right=#0000ff>A</gradient>"]]
+        (test-util/prop! node :text text)
+        (is (nil? (:updatable (g/valid-node-value node :scene))) text))
+      (test-util/prop! node :text "<wave hz=1>A</wave>")
+      (let [updatable (:updatable (g/valid-node-value node :scene))
+            step (:update-fn updatable)
+            initial-state (:initial-state updatable)
+            advanced-state (step initial-state {:dt 0.125})]
+        (is (= node (:node-id updatable)))
+        (is (= 0.0 (:t initial-state)))
+        (is (= 0.125 (:t advanced-state)))
+        (is (= advanced-state (step advanced-state {:dt 0.0})))
+        (is (= 0.25 (:t (step advanced-state {:dt 0.125})))))
+      (test-util/prop! node :text "A")
+      (is (nil? (:updatable (g/valid-node-value node :scene))))
+      (test-util/prop! style-node :markup "<wave hz=1>")
+      (is (nil? (:updatable (g/valid-node-value node :scene))))
+      (test-util/prop! node :style "link")
+      (is (= node (get-in (g/valid-node-value node :scene) [:updatable :node-id])))
+      (test-util/prop! style-node :markup "<color=#ff0000>")
+      (is (nil? (:updatable (g/valid-node-value node :scene)))))))
+
 (deftest native-label-text-box-alignment-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")

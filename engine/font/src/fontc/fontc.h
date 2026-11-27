@@ -112,6 +112,7 @@ typedef struct FontcLayout
     uint32_t m_ErrorByteOffset;
     uint32_t m_ErrorType;
     float    m_LayoutWidth;     // Effective wrapping/alignment width after applying arc properties.
+    uint32_t m_HasAnimatedEffects; // Resolved spans contain time-dependent effects.
 } FontcLayout;
 
 typedef struct FontcGlyph
@@ -664,10 +665,23 @@ DM_DLLEXPORT FontRendererResult FontcSetMarkup(HFontRenderer renderer,
                                                uint32_t      markup_byte_count);
 
 /*#
+     * Sets the absolute animation time for subsequent vertex generation.
+     * The clock is independent of the retained-layout hash and glyph atlas.
+     * Set it for every text entry when sharing a renderer across entries.
+     *
+     * @name FontcSetAnimationTime
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param seconds [type: double] Finite, non-negative elapsed time in seconds.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+DM_DLLEXPORT FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds);
+
+/*#
      * Returns a hash of the retained properties and text.
      * The hash changes when either value is replaced and can be used by a caller
      * to decide whether layout or vertex data needs to be regenerated. Atlas state
-     * is tracked separately by FontcTexture.m_AtlasVersion.
+     * is tracked separately by FontcTexture.m_AtlasVersion. Animation time is
+     * excluded; callers must also track it when caching vertices.
      *
      * @name FontcHash
      * @param renderer [type: HFontRenderer] Font renderer context.

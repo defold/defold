@@ -28,6 +28,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
             [editor.input :as input]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -180,6 +181,106 @@
             (is (= (:texture-request-datas @texture/white-pixel)
                    (:texture-request-datas (:effect-texture plain))))
             (is (= [0] (:texture-units @texture/white-pixel)))))))))
+
+;; Eligibility follows filtered text and selected styles, and invalidates when a
+;; style changes between animated and static.
+(deftest native-layout-animation-eligibility
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          style-node (:node-id (test-util/outline font-node [0 1]))
+
+          has-animated-effects?
+          (fn has-animated-effects? [text style]
+            (let [font-map
+                  (assoc (g/valid-node-value font-node :font-map) :style style)]
+              (:has-animated-effects
+                (font/layout-text font-map text false 100.0 0.0 1.0 nil))))]
+      (is (false? (has-animated-effects? "A" "default")))
+      (is (true? (has-animated-effects? "<wave hz=1>A</wave>" "default")))
+      (is (false? (has-animated-effects? "<wave hz=1>A</color>" "default")))
+      (test-util/prop! style-node :markup "<wave hz=1>")
+      (is (false? (has-animated-effects? "A" "default")))
+      (is (true? (has-animated-effects? "A" "link")))
+      (is (false? (has-animated-effects? "" "link")))
+      (test-util/prop! style-node :markup "<color=#ff0000>")
+      (is (false? (has-animated-effects? "A" "link")))
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (is (true? (has-animated-effects? "<wave hz=1>A</wave>" "default")))
+      (is (false? (has-animated-effects? "<wave hz=1>B</wave>" "default"))))))
+
+(defn- render-data-hash [render-data]
+  (buffers/data-hash (vtx/buf (:vertex-buffer render-data))))
+
+(when (gl/supported?)
+
+  ;; A shared font renderer must invalidate animated vertices, retain unchanged
+  ;; batches, and keep entries with different clocks independent of each other.
+  (deftest text-animation-render-cache
+    (gl-support/with-offscreen-gl
+      (let [params (FontRenderer$Params.)
+            _ (set! (.-size params) (float 32))
+            _ (set! (.-cacheWidth params) (int 512))
+            _ (set! (.-cacheHeight params) (int 512))
+
+            renderer-spec
+            (font/map->NativeRendererSpec
+              {:name "vera_mo_bd.ttf"
+               :font-bytes (with-open [input (io/input-stream "test/resources/test_project/fonts/vera_mo_bd.ttf")]
+                             (.readAllBytes input))
+               :render-params params})
+
+            font-data
+            {:type :distance-field
+             :texture (texture/empty-texture ::atlas :rgba 512 512 texture/default-image-texture-params 0)
+             :font-map {:native-renderer-spec renderer-spec}}
+
+            material-shader
+            (shader/classpath-shader
+              {:coordinate-space :coordinate-space-world
+               :uniforms {"font_effects" nil}}
+              "shaders/font-effects/position.vp"
+              "shaders/font-effects/font-effects.fp")
+
+            entry
+            {:color [1.0 1.0 1.0 1.0]
+             :outline [0.0 0.0 0.0 0.0]
+             :shadow [0.0 0.0 0.0 0.0]
+             :world-transform (doto (Matrix4d.) (.setIdentity))
+             :text-layout {:style ""
+                           :layout-width 100.0
+                           :line-break false
+                           :max-ascent 32.0
+                           :native-text "AA"
+                           :text-leading 1.0
+                           :text-tracking 0.0
+                           :use-rich-text true
+                           :native-markup "<wave hz=1 amplitude=8>AA</wave>"}}
+
+            render
+            (fn render [request-id times]
+              (font/request-render-data
+                gl request-id font-data
+                (mapv #(assoc entry :animation-time %) times)
+                nil material-shader))
+
+            initial (render ::single [0.0])
+            initial-hash (render-data-hash initial)]
+        (is (pos? (count (:vertex-buffer initial))))
+        (let [animated (render ::single [0.125])
+              animated-hash (render-data-hash animated)]
+          (is (not= initial-hash animated-hash))
+          (is (identical? animated (render ::single [0.125])))
+          (render ::other [0.0])
+          (is (identical? animated (render ::single [0.125])))
+          (is (= animated-hash (render-data-hash animated))))
+        (is (= initial-hash (render-data-hash (render ::single [0.0]))))
+        (let [forward (render-data-hash (render ::batch [0.0 0.125]))
+              backward (render-data-hash (render ::batch [0.125 0.0]))]
+          (is (not= forward backward))
+          (is (= forward (render-data-hash (render ::batch [0.0 0.125])))))))))
 
 (deftest rich-text-layer-capability-validation
   (let [bm-font-error (font/markup-error 0 :text

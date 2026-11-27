@@ -1653,6 +1653,67 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
+    private static class FontcSetAnimationTime {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_DOUBLE
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontcSetAnimationTime");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+     * }
+     */
+    public static FunctionDescriptor FontcSetAnimationTime$descriptor() {
+        return FontcSetAnimationTime.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+     * }
+     */
+    public static MethodHandle FontcSetAnimationTime$handle() {
+        return FontcSetAnimationTime.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+     * }
+     */
+    public static MemorySegment FontcSetAnimationTime$address() {
+        return FontcSetAnimationTime.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontcSetAnimationTime(HFontRenderer renderer, double seconds)
+     * }
+     */
+    public static int FontcSetAnimationTime(MemorySegment renderer, double seconds) {
+        var mh$ = FontcSetAnimationTime.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontcSetAnimationTime", renderer, seconds);
+            }
+            return (int)mh$.invokeExact(renderer, seconds);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
     private static class FontcHash {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             FontRendererFFM.C_LONG_LONG,

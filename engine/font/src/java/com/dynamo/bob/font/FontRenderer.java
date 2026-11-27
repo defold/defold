@@ -44,6 +44,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureParsedMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcParseMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetAnimationTime;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetProperties;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetText;
@@ -361,6 +362,7 @@ public final class FontRenderer implements AutoCloseable {
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
+        public final boolean hasAnimatedEffects;
         public final MarkupError markupError;
         public final MarkupDocument markupDocument;
 
@@ -379,6 +381,7 @@ public final class FontRenderer implements AutoCloseable {
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
+            hasAnimatedEffects = FontcLayout.m_HasAnimatedEffects(values) != 0;
             this.markupError = markupError;
             this.markupDocument = markupDocument;
         }
@@ -1060,6 +1063,17 @@ public final class FontRenderer implements AutoCloseable {
             checkResult(FontcSetMarkup(requireHandle(), arena.allocateFrom(JAVA_BYTE, bytes), bytes.length),
                     "Unable to set native rich text");
         }
+    }
+
+    /**
+     * Sets the absolute clock used by animated text effects during vertex generation.
+     * Set it for each text entry; zero restores the initial pose. The clock does
+     * not invalidate the retained layout or glyph atlas and is excluded from {@link #hash()}.
+     */
+    public synchronized void setAnimationTime(double seconds) {
+        if (!Double.isFinite(seconds) || seconds < 0.0)
+            throw new IllegalArgumentException("Invalid animation time; expected finite, non-negative seconds.");
+        checkResult(FontcSetAnimationTime(requireHandle(), seconds), "Unable to set native font animation time");
     }
 
     /**

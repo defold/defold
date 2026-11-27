@@ -938,6 +938,40 @@
       (is (some? (g/node-value text-node :aabb)))
       (is (some? (g/node-value text-node :text-data))))))
 
+;; Playback is available only for animated text and follows edits.
+(deftest gui-text-scene-exposes-animation-preview
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/fonts/vector_preview.gui")
+          node (gui-node scene "text")
+
+          font-node
+          (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")
+
+          style-node (:node-id (test-util/outline font-node [0 1]))]
+      (doseq [text ["" "V" "<color=#ff0000>V</color>"
+                    "<wave hz=0>V</wave>" "<shake amplitude=0>V</shake>"
+                    "<gradient hz=0 left=#ff0000 right=#0000ff>V</gradient>"]]
+        (test-util/prop! node :text text)
+        (is (nil? (:updatable (g/valid-node-value node :scene))) text))
+      (test-util/prop! node :text "<wave hz=1>V</wave>")
+      (let [updatable (:updatable (g/valid-node-value node :scene))
+            step (:update-fn updatable)
+            initial-state (:initial-state updatable)
+            advanced-state (step initial-state {:dt 0.125})]
+        (is (= node (:node-id updatable)))
+        (is (= 0.0 (:t initial-state)))
+        (is (= 0.125 (:t advanced-state)))
+        (is (= advanced-state (step advanced-state {:dt 0.0})))
+        (is (= 0.25 (:t (step advanced-state {:dt 0.125})))))
+      (test-util/prop! node :text "V")
+      (is (nil? (:updatable (g/valid-node-value node :scene))))
+      (test-util/prop! style-node :markup "<wave hz=1>")
+      (is (nil? (:updatable (g/valid-node-value node :scene))))
+      (test-util/prop! node :style "link")
+      (is (= node (get-in (g/valid-node-value node :scene) [:updatable :node-id])))
+      (test-util/prop! style-node :markup "<color=#ff0000>")
+      (is (nil? (:updatable (g/valid-node-value node :scene)))))))
+
 (defn- render-order [view]
   (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)

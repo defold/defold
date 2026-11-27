@@ -3259,23 +3259,6 @@ static bool UploadRenderData(Viewer* viewer)
     return FontViewerVectorFontUpload(viewer->m_VectorFont, viewer->m_Context);
 }
 
-static bool HasAnimatedEffects(HTextLayout layout)
-{
-    const TextLayout* internal = (const TextLayout*)layout;
-
-    for (uint32_t i = 0; i < internal->m_Effects.Size(); ++i)
-    {
-        if ((internal->m_Effects[i].m_Type == TEXT_EFFECT_SHAKE && internal->m_Effects[i].m_Shake.m_Hz != 0.0f) ||
-            (internal->m_Effects[i].m_Type == TEXT_EFFECT_WAVE && internal->m_Effects[i].m_Wave.m_Hz != 0.0f) ||
-            (internal->m_Effects[i].m_Type == TEXT_EFFECT_GRADIENT && internal->m_Effects[i].m_Gradient.m_Hz != 0.0f))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 static bool RefreshRenderData(Viewer* viewer)
 {
     // Preserve the main shaped layout, glyph cache, atlas, shaders, and texture.
@@ -4332,7 +4315,7 @@ int             main(int argc, char** argv)
                 continue;
             }
         }
-        if (!viewer.m_Layouts.Empty() && HasAnimatedEffects(viewer.m_Layouts[0]))
+        if (!viewer.m_Layouts.Empty() && TextLayoutHasAnimatedEffects(viewer.m_Layouts[0]))
         {
             TextLayoutUpdate(viewer.m_Layouts[0], delta_time);
 
