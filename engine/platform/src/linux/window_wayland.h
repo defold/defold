@@ -110,6 +110,7 @@ namespace dmPlatform
     extern const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener;
     extern const zwp_locked_pointer_v1_listener g_WaylandLockedPointerListener;
     extern const wl_pointer_listener g_WaylandPointerListener;
+    extern const wl_keyboard_listener g_WaylandKeyboardListener;
 
     void        WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);
     void        WaylandReleaseSeat(HWindow window);

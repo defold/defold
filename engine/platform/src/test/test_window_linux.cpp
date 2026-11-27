@@ -1602,6 +1602,44 @@ TEST(LinuxWindow, WaylandLockedCursorMotion)
     ASSERT_EQ(20.0, w.m_MouseY);
 }
 
+static void ReopenOnWaylandFocus(void* data, uint32_t focused)
+{
+    HWindow w = (HWindow)data;
+    ASSERT_TRUE(focused);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, dmPlatform::LinuxKeyCode(KEY_LEFTSHIFT)));
+    WindowCreateParams replacement = w->m_Params;
+    replacement.m_FocusCallback = 0;
+    dmPlatform::CloseWindow(w);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, replacement));
+}
+
+// A Wayland focus listener sees keys held on entry, and reopening from that listener clears them for the new surface.
+TEST(LinuxWindow, WaylandFocusRestoresHeldKeysBeforeCallback)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_FocusCallback = ReopenOnWaylandFocus;
+    p.m_FocusCallbackUserData = w;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+
+    uint32_t shift = KEY_LEFTSHIFT;
+    wl_array keys = { sizeof(shift), sizeof(shift), &shift };
+    dmPlatform::g_WaylandKeyboardListener.enter(w, 0, 1, w->m_Surface, &keys);
+    EXPECT_TRUE(w->m_Open);
+    EXPECT_FALSE(w->m_Focused);
+    EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::LinuxKeyCode(shift)));
+    dmPlatform::DeleteWindow(w);
+}
+
 static void CountRepeatedKey(void* data, int character)
 {
     EXPECT_EQ('a', character);

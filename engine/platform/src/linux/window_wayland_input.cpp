@@ -91,12 +91,13 @@ namespace dmPlatform
 
         // The focus callback can claim the clipboard before the first key or button press.
         w->m_Wayland->m_InputSerial = serial;
-        LinuxFocus(w, true);
         const uint32_t* key = (uint32_t*)keys->data;
         for (size_t i = 0; i < keys->size / sizeof(*key); ++i)
         {
             PhysicalKey(w, key[i], true);
         }
+
+        LinuxFocus(w, true);
     }
 
     static void KeyLeave(void* data, wl_keyboard*, uint32_t, wl_surface*)
@@ -220,7 +221,7 @@ namespace dmPlatform
         }
     }
 
-    static const wl_keyboard_listener g_Keyboard = { Keymap, KeyEnter, KeyLeave, Key, Modifiers, RepeatInfo };
+    const wl_keyboard_listener g_WaylandKeyboardListener = { Keymap, KeyEnter, KeyLeave, Key, Modifiers, RepeatInfo };
 
     static void Relative(void* data, zwp_relative_pointer_v1*, uint32_t, uint32_t, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t, wl_fixed_t)
     {
@@ -521,7 +522,7 @@ namespace dmPlatform
         if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !wl->m_Keyboard)
         {
             wl->m_Keyboard = wl_seat_get_keyboard(seat);
-            wl_keyboard_add_listener(wl->m_Keyboard, &g_Keyboard, w);
+            wl_keyboard_add_listener(wl->m_Keyboard, &g_WaylandKeyboardListener, w);
         }
         else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && wl->m_Keyboard)
         {
