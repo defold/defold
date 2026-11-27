@@ -877,7 +877,7 @@
        :position (editor-cursor->lsp-position cursor)})
     (bound-fn [result _]
       (when-let [signatures (not-empty (:signatures result))]
-        {:active (min (dec (count signatures)) (max 0 (or (:activeSignature result) 0)))
+        {:active (let [i (:activeSignature result)] (if (and i (< -1 i (count signatures))) i 0))
          :signatures (mapv (fn [{:keys [label parameters activeParameter documentation]}]
                              (let [parameter (get parameters (or activeParameter (:activeParameter result) 0))
                                    parameter-label (:label parameter)
