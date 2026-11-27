@@ -1172,15 +1172,19 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     Display* display = w->m_Display;
     KeyCode q = XKeysymToKeycode(display, XK_q), other = XKeysymToKeycode(display, XK_w);
+    KeyCode level5 = XKeysymToKeycode(display, XK_ISO_Level5_Shift);
     ASSERT_NE(0, q);
     ASSERT_NE(0, other);
+    ASSERT_NE(0, level5);
     XkbDescPtr keyboard = XkbGetMap(display, 0, XkbUseCoreKbd);
     ASSERT_TRUE(keyboard);
     ASSERT_EQ(Success, XkbGetNames(display, XkbKeyNamesMask, keyboard));
     XkbKeyNameRec* names = keyboard->names->keys;
-    XkbKeyNameRec original = names[q];
+    XkbKeyNameRec original = names[q], original_other = names[other], original_level5 = names[level5];
     names[q] = names[other];
-    names[other] = original;
+    // One key has only the level-five physical name. The other has only the level-five keysym.
+    memcpy(names[other].name, "LVL5", XkbKeyNameLength);
+    memcpy(names[level5].name, "TST5", XkbKeyNameLength);
     ASSERT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
     XSync(display, False);
     dmPlatform::PollEvents(w);
@@ -1196,8 +1200,24 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     EXPECT_EQ(1, dmPlatform::GetKey(w, 'W'));
     EXPECT_EQ(0, dmPlatform::GetKey(w, 'Q'));
 
-    names[other] = names[q];
+    const KeyCode alt_keys[] = { other, level5 };
+    const int right_alt = dmPlatform::LinuxKeyCode(KEY_RIGHTALT);
+    for (KeyCode code : alt_keys)
+    {
+        key.xkey.keycode = code;
+        key.type = KeyPress;
+        XPutBackEvent(display, &key);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(1, dmPlatform::GetKey(w, right_alt));
+        key.type = KeyRelease;
+        XPutBackEvent(display, &key);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(0, dmPlatform::GetKey(w, right_alt));
+    }
+
     names[q] = original;
+    names[other] = original_other;
+    names[level5] = original_level5;
     EXPECT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
     XSync(display, False);
     XkbFreeKeyboard(keyboard, XkbAllComponentsMask, True);
