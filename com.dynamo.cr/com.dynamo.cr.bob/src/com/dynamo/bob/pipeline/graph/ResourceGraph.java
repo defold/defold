@@ -28,6 +28,7 @@ import java.io.OutputStreamWriter;
 import java.io.OutputStream;
 import java.io.IOException;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 
 import org.codehaus.jackson.JsonFactory;
@@ -46,6 +47,23 @@ import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.google.protobuf.Message;
 
 public class ResourceGraph implements IResourceVisitor {
+
+    record Fingerprint(String hash, int size) {
+        static Fingerprint of(byte[] content) {
+            return new Fingerprint(DigestUtils.sha256Hex(content), content.length);
+        }
+    }
+
+    private final Map<IResource, Fingerprint> fingerprints = new HashMap<>();
+
+    @Override
+    public void visitCompiledContent(IResource output, byte[] content) {
+        fingerprints.put(output, Fingerprint.of(content));
+    }
+
+    Fingerprint getFingerprint(IResource output) {
+        return fingerprints.get(output);
+    }
 
     private Project project;
 

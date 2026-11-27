@@ -1083,7 +1083,7 @@ public class Project implements AutoCloseable {
                                 Map.of(FilenameUtils.getName(buildGraph.getPath()), buildGraph.getContent()));
                     }
                 }
-                graph.validate(this);
+                graph.validateConfiguration(this);
                 outputs.clear();
                 outputs.putAll(graph.outputFlags(this));
                 if (!GameProjectBuilder.bundle(this, graph)) {

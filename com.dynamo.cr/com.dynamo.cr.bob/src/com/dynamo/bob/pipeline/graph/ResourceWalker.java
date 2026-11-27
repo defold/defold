@@ -14,7 +14,14 @@
 
 package com.dynamo.bob.pipeline.graph;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
@@ -23,74 +30,116 @@ import com.dynamo.proto.DdfExtensions;
 import com.dynamo.bob.ProtoBuilder;
 
 import com.google.protobuf.GeneratedMessage;
-import com.google.protobuf.DescriptorProtos.FieldOptions;
+import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
 
 
 public class ResourceWalker {
 
+    private static final ClassValue<Map<Descriptor, List<FieldDescriptor>>> REFERENCE_FIELDS = new ClassValue<>() {
+        @Override
+        protected Map<Descriptor, List<FieldDescriptor>> computeValue(Class<?> messageClass) {
+            return new ConcurrentHashMap<>();
+        }
+    };
+
     public interface IResourceVisitor {
         public void visit(IResource resource, IResource parentResource) throws CompileExceptionError;
         public void visitMessage(Message message, IResource resource, IResource parentResource) throws CompileExceptionError;
         public void leave(IResource resource, IResource parentResource) throws CompileExceptionError;
         public boolean shouldVisit(IResource resource, IResource parentResource);
+
+        default void visitCompiledContent(IResource output, byte[] content) {
+        }
     }
 
-    private static void visitMessage(Project project, IResource currentResource, Message node, IResourceVisitor visitor) throws CompileExceptionError {
-        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
+    @FunctionalInterface
+    private interface ReferenceVisitor {
+        void visit(String path) throws CompileExceptionError;
+    }
+
+    private static List<FieldDescriptor> findReferenceFields(Descriptor descriptor) {
+        List<FieldDescriptor> fields = new ArrayList<>();
+        FieldDescriptor resource = DdfExtensions.resource.getDescriptor();
+        for (FieldDescriptor field : descriptor.getFields()) {
+            if (isResourceField(field, resource)
+                    || (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE
+                        && hasReferenceFields(field.getMessageType(), resource, new HashSet<>()))) {
+                fields.add(field);
+            }
+        }
+        return List.copyOf(fields);
+    }
+
+    private static boolean isResourceField(FieldDescriptor field, FieldDescriptor resource) {
+        return field.getJavaType() == FieldDescriptor.JavaType.STRING
+                && Boolean.TRUE.equals(field.getOptions().getField(resource));
+    }
+
+    private static boolean hasReferenceFields(Descriptor descriptor, FieldDescriptor resource, Set<Descriptor> visited) {
+        if (!visited.add(descriptor)) {
+            return false;
+        }
+        for (FieldDescriptor field : descriptor.getFields()) {
+            if (isResourceField(field, resource)
+                    || (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE
+                        && hasReferenceFields(field.getMessageType(), resource, visited))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void visitReferences(Message node, ReferenceVisitor visitor) throws CompileExceptionError {
+        List<FieldDescriptor> fields = REFERENCE_FIELDS.get(node.getClass())
+                .computeIfAbsent(node.getDescriptorForType(), ResourceWalker::findReferenceFields);
         for (FieldDescriptor fieldDescriptor : fields) {
-            FieldOptions options = fieldDescriptor.getOptions();
-            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
-            boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
-            if (value instanceof Message) {
-                visitMessage(project, currentResource, (Message) value, visitor);
-            } else if (value instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) value;
+            if (value instanceof Message message) {
+                visitReferences(message, visitor);
+            } else if (value instanceof List<?> list) {
                 for (Object v : list) {
-                    if (v instanceof Message) {
-                        visitMessage(project, currentResource, (Message) v, visitor);
-                    } else if (isResource && v instanceof String) {
-                        visitResource(project, currentResource, project.getResource((String) v), visitor);
+                    if (v instanceof Message message) {
+                        visitReferences(message, visitor);
+                    } else if (v instanceof String path && !path.isEmpty()) {
+                        visitor.visit(path);
                     }
                 }
-            } else if (isResource && value instanceof String) {
-                visitResource(project, currentResource, project.getResource((String) value), visitor);
+            } else if (value instanceof String path && !path.isEmpty()) {
+                visitor.visit(path);
             }
         }
     }
 
-    private static void visitResource(Project project, IResource parentResource, IResource resource, IResourceVisitor visitor) throws CompileExceptionError {
+    private static void visitResource(IResource parentResource, IResource resource, IResourceVisitor visitor,
+            Function<String, IResource> resolve) throws CompileExceptionError {
         if (resource.getPath().isEmpty() || !visitor.shouldVisit(resource, parentResource)) {
             return;
         }
 
         visitor.visit(resource, parentResource);
 
-        int i = resource.getPath().lastIndexOf(".");
-        if (i == -1) {
+        String path = resource.getPath();
+        int dot = path.lastIndexOf('.');
+        String ext = dot < 0 ? null : path.substring(dot);
+        if (ext == null || !ProtoBuilder.supportsType(ext)) {
             visitor.leave(resource, parentResource);
             return;
         }
 
-        String ext = resource.getPath().substring(i);
-        if (!ProtoBuilder.supportsType(ext)) {
-            visitor.leave(resource, parentResource);
-            return;
-        }
-
-        GeneratedMessage.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
-            final byte[] content = resource.output().getContent();
-            if(content == null) {
+            IResource output = resource.output();
+            GeneratedMessage.Builder builder = ProtoBuilder.newBuilder(ext);
+            byte[] content = output.getContent();
+            if (content == null) {
                 throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
+            visitor.visitCompiledContent(output, content);
             builder.mergeFrom(content);
             Message message = builder.build();
             visitor.visitMessage(message, resource, parentResource);
-            visitMessage(project, resource, message, visitor);
+            visitReferences(message, child -> visitResource(resource, resolve.apply(child), visitor, resolve));
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {
@@ -100,7 +149,9 @@ public class ResourceWalker {
     }
 
     public static void walk(Project project, IResource rootResource, IResourceVisitor visitor) throws CompileExceptionError {
-        visitResource(project, null, rootResource, visitor);
+        Map<String, IResource> resolved = new HashMap<>();
+        Function<String, IResource> getResource = project::getResource;
+        visitResource(null, rootResource, visitor, path -> resolved.computeIfAbsent(path, getResource));
     }
 
 }

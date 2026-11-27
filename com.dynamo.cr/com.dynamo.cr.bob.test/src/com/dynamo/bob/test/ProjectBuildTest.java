@@ -2405,6 +2405,24 @@ public class ProjectBuildTest {
         }
     }
 
+    // Resolving a shared prototype once must preserve both collection edges and the hashes of compiled outputs.
+    @Test
+    public void testBuildGraphKeepsSharedDependenciesAndOutputHashes() throws Exception {
+        createLegacyPackageProject();
+        try (Project project = packageReportProject(false)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            BuildGraph saved = BuildGraph.load(project);
+            ResourceGraph graph = saved.graph(project);
+            var shared = graph.getResourceNodeFromPath("/logic/shared.goc");
+            for (String parent : List.of("/logic/included.collectionc", "/logic/level.collectionc")) {
+                assertTrue(parent, graph.getResourceNodeFromPath(parent).getChildren().contains(shared));
+            }
+            saved.validate(project);
+        }
+    }
+
     // A failed compilation cannot publish a graph, and bundle detects changes to recorded compiled bytes.
     @Test
     public void testFailedBuildDoesNotPublishGraph() throws Exception {
@@ -2652,6 +2670,28 @@ public class ProjectBuildTest {
         try (ZipFile zip = new ZipFile(new File(contentRoot, "packages/" + name + ".zip"))) {
             return Manifest.ManifestData.parseFrom(Manifest.ManifestFile.parseFrom(zip.getInputStream(zip.getEntry("liveupdate.game.dmanifest"))).getData());
         }
+    }
+
+    // Selective bundling still rejects changed outputs that are absent from the selected archive.
+    @Test
+    public void testSelectiveBundleVerifiesUnemittedOutputs() throws Exception {
+        createPackageProject();
+        try (Project project = packageReportProject(false)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        Files.writeString(Path.of(contentRoot, "build/game.projectc"), "changed");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("package", "episode");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                fail("Bundle must reject a changed output from the saved graph");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("Compiled resource is missing or changed: /game.projectc"));
+            }
+        }
+        assertFalse(Files.exists(Path.of(contentRoot, "packages/episode.zip")));
     }
 
     private Project packageReportProject(boolean export) {

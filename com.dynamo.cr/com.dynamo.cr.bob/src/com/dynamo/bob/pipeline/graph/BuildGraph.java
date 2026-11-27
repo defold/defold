@@ -109,13 +109,19 @@ public final class BuildGraph {
         for (String path : paths) {
             BundleHelper.throwIfCanceled(project::isBuildCanceled);
             IResource resource = project.getResource(path).disableMinifyPath().output();
-            byte[] content = resource.getContent();
-            if (content == null) {
+            ResourceGraph.Fingerprint fingerprint = graph.getFingerprint(resource);
+            if (fingerprint == null) {
+                byte[] content = resource.getContent();
+                if (content == null) {
+                    throw new IOException("Missing compiled resource: " + path);
+                }
+                fingerprint = ResourceGraph.Fingerprint.of(content);
+            } else if (!resource.exists()) {
                 throw new IOException("Missing compiled resource: " + path);
             }
             ObjectNode output = outputs.putObject(path);
-            output.put("hash", DigestUtils.sha256Hex(content));
-            output.put("size", content.length);
+            output.put("hash", fingerprint.hash());
+            output.put("size", fingerprint.size());
             Set<Task.OutputFlags> flags = project.getOutputFlags(resource.getAbsPath());
             output.put("flags", JSON.valueToTree(flags == null ? Set.of() : flags));
         }
@@ -151,6 +157,11 @@ public final class BuildGraph {
 
     /** Rejects incompatible compilation settings and files changed since the successful build. */
     public void validate(Project project) throws IOException, CompileExceptionError {
+        validateConfiguration(project);
+        validateOutputsExcept(project, Set.of());
+    }
+
+    public void validateConfiguration(Project project) throws CompileExceptionError {
         if (!data.get("bob").asText().equals(EngineVersion.sha1)
                 || !data.get("configuration").equals(JSON.valueToTree(project.getCompilationOptions()))) {
             throw new CompileExceptionError("Build configuration differs from the saved graph; run build with these target and compiler settings");
@@ -158,15 +169,30 @@ public final class BuildGraph {
         if (ResourceUtil.isMinificationEnabled() && !data.has("minified_paths")) {
             throw new CompileExceptionError("Build graph has no minified path mappings; run build again");
         }
+    }
+
+    /** Archive workers validate the other outputs when they read their bytes. */
+    public void validateOutputsExcept(Project project, Set<String> archivePaths) throws IOException, CompileExceptionError {
         var outputs = data.get("outputs").getFields();
         while (outputs.hasNext()) {
-            BundleHelper.throwIfCanceled(project::isBuildCanceled);
             var output = outputs.next();
-            IResource resource = project.getResource(output.getKey()).disableMinifyPath().output();
-            byte[] content = resource.exists() ? resource.getContent() : null;
-            if (content == null || !DigestUtils.sha256Hex(content).equals(output.getValue().get("hash").asText())) {
-                throw new CompileExceptionError("Compiled resource is missing or changed: " + output.getKey() + "; run build again");
+            String path = output.getKey();
+            if (!archivePaths.contains(path)) {
+                BundleHelper.throwIfCanceled(project::isBuildCanceled);
+                IResource resource = project.getResource(path).disableMinifyPath().output();
+                verifyOutput(path, output.getValue(), resource.exists() ? resource.getContent() : null);
             }
+        }
+    }
+
+    /** Checks the same compiled bytes that the archive worker is about to package. */
+    public void verifyOutput(String path, byte[] content) throws CompileExceptionError {
+        verifyOutput(path, data.get("outputs").get(path), content);
+    }
+
+    private static void verifyOutput(String path, JsonNode expected, byte[] content) throws CompileExceptionError {
+        if (content == null || expected == null || !DigestUtils.sha256Hex(content).equals(expected.get("hash").asText())) {
+            throw new CompileExceptionError("Compiled resource is missing or changed: " + path + "; run build again");
         }
     }
 
