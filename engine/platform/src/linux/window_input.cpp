@@ -308,7 +308,9 @@ namespace dmPlatform
 
     void LinuxText(HWindow w, const char* text, size_t length)
     {
-        while (w->m_Char && length)
+        // One input-method commit belongs to the window that received it, even if a listener reopens the handle.
+        const uint32_t generation = w->m_OpenGeneration;
+        while (length && w->m_Open && w->m_OpenGeneration == generation && w->m_Char)
         {
             uint32_t c;
             uint32_t size = dmUtf8::DecodeSequence(text, length, &c);

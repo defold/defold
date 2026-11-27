@@ -1663,6 +1663,7 @@ TEST(LinuxWindow, WaylandRepeatAcrossSlowFrames)
     wl.m_NextRepeat = 100000;
     dmWindow w = {};
     w.m_Wayland = &wl;
+    w.m_Open = true;
     unsigned count = 0;
     dmPlatform::SetKeyboardCharCallback(&w, CountRepeatedKey, &count);
     dmPlatform::WaylandRepeat(&w, 265000);
@@ -2044,6 +2045,7 @@ TEST(LinuxWindow, SharedOpenGLContext)
 TEST(LinuxWindow, TextUsesLookupLength)
 {
     dmWindow window = {};
+    window.m_Open = true;
     int character = 0;
     dmPlatform::SetKeyboardCharCallback(&window, Character, &character);
 
@@ -2059,6 +2061,55 @@ TEST(LinuxWindow, TextUsesLookupLength)
     const char controls[] = { '\0', '\n', 'a' };
     dmPlatform::LinuxText(&window, controls, sizeof(controls));
     ASSERT_EQ('a', character);
+}
+
+struct TextCloseAction
+{
+    HWindow  m_Window;
+    unsigned m_Count;
+    bool     m_Reopen;
+};
+
+static void CloseOnFirstCharacter(void* data, int character)
+{
+    TextCloseAction* action = (TextCloseAction*)data;
+    if (++action->m_Count == 1)
+    {
+        EXPECT_EQ('a', character);
+        WindowCreateParams params = action->m_Window->m_Params;
+        dmPlatform::CloseWindow(action->m_Window);
+        if (action->m_Reopen)
+        {
+            ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action->m_Window, params));
+        }
+    }
+    else
+    {
+        EXPECT_EQ('c', character);
+    }
+}
+
+// Closing or reopening during a multi-character commit stops delivery. A replacement can receive the next commit.
+TEST(LinuxWindow, TextCommitStopsWhenWindowCloses)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        TextCloseAction action = { w, 0, reopen != 0 };
+        dmPlatform::SetKeyboardCharCallback(w, CloseOnFirstCharacter, &action);
+        dmPlatform::LinuxText(w, "ab", 2);
+        EXPECT_EQ(1u, action.m_Count);
+        dmPlatform::LinuxText(w, "c", 1);
+        EXPECT_EQ(reopen ? 2u : 1u, action.m_Count);
+        dmPlatform::SetKeyboardCharCallback(w, 0, 0);
+    }
+
+    dmPlatform::DeleteWindow(w);
 }
 
 static void CopyOnWaylandFocus(void* data, uint32_t focused)

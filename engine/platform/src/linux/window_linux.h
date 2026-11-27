@@ -44,7 +44,7 @@ struct dmWindow
     FWindowAddKeyboardCharCallback m_Char;
     void*                          m_CharData;
     int                            m_Width, m_Height, m_PixelWidth, m_PixelHeight, m_RefreshRate;
-    uint32_t                       m_ResizeCallbackCount, m_DispatchDepth;
+    uint32_t                       m_ResizeCallbackCount, m_DispatchDepth, m_OpenGeneration;
     float                          m_Scale, m_Density;
     double                         m_MouseX, m_MouseY, m_Wheel;
     unsigned char                  m_Keys[349], m_Buttons[8];

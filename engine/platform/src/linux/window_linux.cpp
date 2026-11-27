@@ -213,6 +213,7 @@ namespace dmPlatform
         }
 
         w->m_ResizeCallbackCount = 0;
+        ++w->m_OpenGeneration;
         w->m_Open = true;
         SetSwapInterval(w, 1);
         return WINDOW_RESULT_OK;
