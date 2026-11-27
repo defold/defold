@@ -2071,6 +2071,10 @@
 (defn- hide-hover! [view-node]
   (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
 
+(defn- hide-signature-help! [view-node]
+  (g/user-data! view-node :signature-help-request nil)
+  (set-properties! view-node nil {:signature-help nil}))
+
 (defn- request-signature-help! [view-node]
   (let [resource
         (g/node-value (get-property view-node :resource-node) :resource)
@@ -2087,21 +2091,20 @@
           (when (and (identical? request (g/user-data view-node :signature-help-request))
                      (= request [(get-property view-node :lines)
                                  (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]))
-            (let [shown (get-property view-node :signature-help)
+            (let [^Canvas canvas (get-property view-node :canvas)]
+              (if-not (identical? canvas (some-> canvas .getScene ui/focus-owner))
+                (hide-signature-help! view-node)
+                (let [shown (get-property view-node :signature-help)
 
-                  keep-selection
-                  (and result
-                       (:selected shown)
-                       (= (mapv :label (:signatures shown))
-                          (mapv :label (:signatures result))))]
-              (set-properties! view-node nil
-                               {:signature-help (if keep-selection
-                                                  (assoc result :selected (:selected shown))
-                                                  result)}))))))))
-
-(defn- hide-signature-help! [view-node]
-  (g/user-data! view-node :signature-help-request nil)
-  (set-properties! view-node nil {:signature-help nil}))
+                      keep-selection
+                      (and result
+                           (:selected shown)
+                           (= (mapv :label (:signatures shown))
+                              (mapv :label (:signatures result))))]
+                  (set-properties! view-node nil
+                                   {:signature-help (if keep-selection
+                                                      (assoc result :selected (:selected shown))
+                                                      result)}))))))))))
 
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
