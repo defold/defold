@@ -2542,6 +2542,35 @@ TEST(LinuxWindow, GLXMultisampleFallback)
     dmPlatform::DeleteWindow(w);
 }
 
+// Both the main and shared desktop contexts must enforce the requested forward-compatible core profile.
+TEST(LinuxWindow, ForwardCompatibleOpenGLContexts)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    p.m_GraphicsApiVersionHint = 33;
+    p.m_OpenGLUseCoreProfileHint = true;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    __typeof__(&::glGetIntegerv) get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
+    ASSERT_TRUE(get_integer);
+    GLint flags = 0;
+    get_integer(GL_CONTEXT_FLAGS, &flags);
+    EXPECT_NE(0, flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT);
+    if (dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT))
+    {
+        void* aux = dmPlatform::AcquireAuxContext(w);
+        ASSERT_TRUE(aux);
+        flags = 0;
+        get_integer(GL_CONTEXT_FLAGS, &flags);
+        EXPECT_NE(0, flags & GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT);
+        dmPlatform::UnacquireAuxContext(w, aux);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 static void CheckDrawableSize(HWindow w, uint32_t client_width, uint32_t client_height)
 {
     // X11 client dimensions are already pixels. Wayland scales logical dimensions, including fractional scales.

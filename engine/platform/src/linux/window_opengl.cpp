@@ -383,7 +383,8 @@ namespace dmPlatform
 
         PFNGLXCREATECONTEXTATTRIBSARBPROC create = (PFNGLXCREATECONTEXTATTRIBSARBPROC)g->m_glXGetProcAddressARB((const GLubyte*)"glXCreateContextAttribsARB");
         int attrs[] = { GLX_CONTEXT_MAJOR_VERSION_ARB, major, GLX_CONTEXT_MINOR_VERSION_ARB, minor,
-                        GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB, None };
+                        GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+                        GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB, None };
         if (!w->m_Params.m_OpenGLUseCoreProfileHint)
         {
             attrs[4] = None;
@@ -533,7 +534,8 @@ namespace dmPlatform
         }
 
         int attrs[] = { EGL_CONTEXT_MAJOR_VERSION_KHR, (int)major, EGL_CONTEXT_MINOR_VERSION_KHR, (int)minor,
-                        EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR, EGL_NONE };
+                        EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
+                        EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR, EGL_NONE };
         if (g->m_Api == EGL_OPENGL_ES_API)
         {
             major = 2;
