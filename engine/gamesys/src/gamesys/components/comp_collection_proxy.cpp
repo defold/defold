@@ -837,7 +837,7 @@ namespace dmGameSystem
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmCollectionProxyDDF::SetTimeStep::m_DDFDescriptor)
         {
-            dmCollectionProxyDDF::SetTimeStep* ddf = (dmCollectionProxyDDF::SetTimeStep*)params.m_Message->m_Data;
+            dmCollectionProxyDDF::SetTimeStep* ddf = (dmCollectionProxyDDF::SetTimeStep*)dmMessage::GetData(params.m_Message);
             dmGameObject::Result r = CompCollectionProxySetTimeStep(0, proxy, ddf->m_Factor, (int)ddf->m_Mode);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }

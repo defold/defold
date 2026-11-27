@@ -15,6 +15,7 @@
 #ifndef DMSDK_MESSAGE_H
 #define DMSDK_MESSAGE_H
 
+#include <new>
 #include <stdint.h>
 #include <string.h>
 #include <dmsdk/dlib/hash.h>
@@ -200,7 +201,7 @@ namespace dmMessage
     /*#
      * A callback for messages that needs cleanup after being dispatched. E.g. for freeing resources/memory.
      * @typedef
-     * @name dmMMessage::MessageDestroyCallback
+     * @name dmMessage::MessageDestroyCallback
      * @see #dmMessage::Post
      */
     typedef void(*MessageDestroyCallback)(dmMessage::Message* message);
@@ -208,6 +209,8 @@ namespace dmMessage
     /*#
      * Message data desc used at dispatch callback. When a message is posted,
      * the actual object is copied into the sockets internal buffer.
+     * Use dmMessage::GetData() and dmMessage::GetDataSize() to access the payload.
+     * The payload is aligned to 16 bytes and is valid for the lifetime of the message.
      * @struct
      * @name Message
      * @member m_Sender [type: dmMessage::URL] Sender uri
@@ -219,9 +222,8 @@ namespace dmMessage
      * @member m_DataSize [type: uint32_t] Size of message data in bytes
      * @member m_Next [type: dmMessage::Message*] Ptr to next message (or 0 if last)
      * @member m_DestroyCallback [type: dmMessage::MessageDestroyCallback] If set, will be called after each dispatch
-     * @member m_Data [type: uint8_t*] Payload
      */
-    struct Message
+    struct DM_ALIGNED(16) Message
     {
         URL                    m_Sender;            //! Sender uri
         URL                    m_Receiver;          //! Receiver uri
@@ -232,11 +234,264 @@ namespace dmMessage
         uint32_t               m_DataSize;          //! Size of message data in bytes
         struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
         MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
-        uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
     };
 
+    /*# Pointer to the sender URL in the message.
+     * @name GetSender
+     * @param message [type: const dmMessage::Message*] message
+     * @return sender [type: const dmMessage::URL*] sender URL
+     */
+    inline const URL* GetSender(const Message* message)
+    {
+        return &message->m_Sender;
+    }
+
+    /*# Copy the sender URL into the message.
+     * @name SetSender
+     * @param message [type: dmMessage::Message*] message
+     * @param sender [type: const dmMessage::URL*] sender URL
+     */
+    inline void SetSender(Message* message, const URL* sender)
+    {
+        message->m_Sender = *sender;
+    }
+
+    /*# Pointer to the receiver URL in the message.
+     * @name GetReceiver
+     * @param message [type: const dmMessage::Message*] message
+     * @return receiver [type: const dmMessage::URL*] receiver URL
+     */
+    inline const URL* GetReceiver(const Message* message)
+    {
+        return &message->m_Receiver;
+    }
+
+    /*# Copy the receiver URL into the message.
+     * @name SetReceiver
+     * @param message [type: dmMessage::Message*] message
+     * @param receiver [type: const dmMessage::URL*] receiver URL
+     */
+    inline void SetReceiver(Message* message, const URL* receiver)
+    {
+        message->m_Receiver = *receiver;
+    }
+
+    /*# Get the message identifier.
+     * @name GetId
+     * @param message [type: const dmMessage::Message*] message
+     * @return id [type: dmhash_t] message identifier
+     */
+    inline dmhash_t GetId(const Message* message)
+    {
+        return message->m_Id;
+    }
+
+    /*# Set the message identifier.
+     * @name SetId
+     * @param message [type: dmMessage::Message*] message
+     * @param id [type: dmhash_t] message identifier
+     */
+    inline void SetId(Message* message, dmhash_t id)
+    {
+        message->m_Id = id;
+    }
+
+    /*# Get the first user data value.
+     * @name GetUserData1
+     * @param message [type: const dmMessage::Message*] message
+     * @return user_data [type: uintptr_t] first user data value
+     */
+    inline uintptr_t GetUserData1(const Message* message)
+    {
+        return message->m_UserData1;
+    }
+
+    /*# Set the first user data value.
+     * @name SetUserData1
+     * @param message [type: dmMessage::Message*] message
+     * @param user_data [type: uintptr_t] first user data value
+     */
+    inline void SetUserData1(Message* message, uintptr_t user_data)
+    {
+        message->m_UserData1 = user_data;
+    }
+
+    /*# Get the second user data value.
+     * @name GetUserData2
+     * @param message [type: const dmMessage::Message*] message
+     * @return user_data [type: uintptr_t] second user data value
+     */
+    inline uintptr_t GetUserData2(const Message* message)
+    {
+        return message->m_UserData2;
+    }
+
+    /*# Set the second user data value.
+     * @name SetUserData2
+     * @param message [type: dmMessage::Message*] message
+     * @param user_data [type: uintptr_t] second user data value
+     */
+    inline void SetUserData2(Message* message, uintptr_t user_data)
+    {
+        message->m_UserData2 = user_data;
+    }
+
+    /*# Get the message descriptor.
+     * @name GetDescriptor
+     * @param message [type: const dmMessage::Message*] message
+     * @return descriptor [type: uintptr_t] user-supplied message descriptor
+     */
+    inline uintptr_t GetDescriptor(const Message* message)
+    {
+        return message->m_Descriptor;
+    }
+
+    /*# Set the message descriptor.
+     * @name SetDescriptor
+     * @param message [type: dmMessage::Message*] message
+     * @param descriptor [type: uintptr_t] user-supplied message descriptor
+     */
+    inline void SetDescriptor(Message* message, uintptr_t descriptor)
+    {
+        message->m_Descriptor = descriptor;
+    }
+
+    /*# Get the payload size in bytes.
+     * @name GetDataSize
+     * @param message [type: const dmMessage::Message*] message
+     * @return size [type: uint32_t] payload size in bytes
+     */
+    inline uint32_t GetDataSize(const Message* message)
+    {
+        return message->m_DataSize;
+    }
+
+    /*# Set the number of payload bytes used. The size must fit in the existing storage.
+     * @name SetDataSize
+     * @param message [type: dmMessage::Message*] message
+     * @param size [type: uint32_t] payload size in bytes
+     */
+    inline void SetDataSize(Message* message, uint32_t size)
+    {
+        message->m_DataSize = size;
+    }
+
+    /*# Get the next linked message.
+     * @name GetNext
+     * @param message [type: const dmMessage::Message*] message
+     * @return next [type: dmMessage::Message*] next message, or 0 at the end of the list
+     */
+    inline Message* GetNext(const Message* message)
+    {
+        return message->m_Next;
+    }
+
+    /*# Link a caller-owned message to its successor. Socket queues manage this link for posted messages.
+     * @name SetNext
+     * @param message [type: dmMessage::Message*] message
+     * @param next [type: dmMessage::Message*] next message, or 0 at the end of the list
+     */
+    inline void SetNext(Message* message, Message* next)
+    {
+        message->m_Next = next;
+    }
+
+    /*# Get the message cleanup callback.
+     * @name GetDestroyCallback
+     * @param message [type: const dmMessage::Message*] message
+     * @return callback [type: dmMessage::MessageDestroyCallback] cleanup callback, or 0
+     */
+    inline MessageDestroyCallback GetDestroyCallback(const Message* message)
+    {
+        return message->m_DestroyCallback;
+    }
+
+    /*# Set the callback invoked when a posted message is dispatched or discarded.
+     * @name SetDestroyCallback
+     * @param message [type: dmMessage::Message*] message
+     * @param callback [type: dmMessage::MessageDestroyCallback] cleanup callback, or 0
+     */
+    inline void SetDestroyCallback(Message* message, MessageDestroyCallback callback)
+    {
+        message->m_DestroyCallback = callback;
+    }
+
+    /*#
+     * Get the message payload.
+     * @name GetData
+     * @param message [type: dmMessage::Message*] message
+     * @return data [type: uint8_t*] message payload
+     */
+    inline uint8_t* GetData(Message* message)
+    {
+        return (uint8_t*)(message + 1);
+    }
+
+    /*#
+     * Get read-only access to the message payload.
+     * @name GetData
+     * @param message [type: const dmMessage::Message*] message
+     * @return data [type: const uint8_t*] message payload
+     */
+    inline const uint8_t* GetData(const Message* message)
+    {
+        return (const uint8_t*)(message + 1);
+    }
+
+    // Return the aggregate by value so placement construction initializes each URL only once.
+    inline Message MakeMessageHeaderInternal(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
+                                             uintptr_t descriptor, uint32_t data_size, MessageDestroyCallback destroy_callback)
+    {
+        Message header = {
+            sender ? *sender : URL(), receiver ? *receiver : URL(), message_id, user_data1, user_data2,
+            descriptor, data_size, 0, destroy_callback
+        };
+        return header;
+    }
+
+    /*# initialize a message for writing its payload in place
+     * Constructs a message in caller-owned storage and clears its URLs, user data, queue link and cleanup callback.
+     * Write the payload through GetData() before dispatch.
+     * @name InitMessage
+     * @param buffer [type: void*] 16-byte-aligned storage for sizeof(dmMessage::Message) + data_size bytes
+     * @param message_id [type: dmhash_t] message identifier
+     * @param descriptor [type: uintptr_t] user-supplied message descriptor
+     * @param data_size [type: uint32_t] payload size in bytes
+     * @return message [type: dmMessage::Message*] message in the supplied buffer
+     */
+    inline Message* InitMessage(void* buffer, dmhash_t message_id, uintptr_t descriptor, uint32_t data_size)
+    {
+        return new (buffer) Message(MakeMessageHeaderInternal(0, 0, message_id, 0, 0, descriptor, data_size, 0));
+    }
+
+    /*# initialize a message and copy its payload
+     * Constructs a message in caller-owned storage and copies data_size bytes into its payload.
+     * @name InitMessage
+     * @param buffer [type: void*] 16-byte-aligned storage for sizeof(dmMessage::Message) + data_size bytes
+     * @param sender [type: const dmMessage::URL*] sender URL, or 0
+     * @param receiver [type: const dmMessage::URL*] receiver URL, or 0
+     * @param message_id [type: dmhash_t] message identifier
+     * @param user_data1 [type: uintptr_t] first user data value
+     * @param user_data2 [type: uintptr_t] second user data value
+     * @param descriptor [type: uintptr_t] user-supplied message descriptor
+     * @param data [type: const void*] source bytes outside the destination buffer, or 0 when data_size is zero
+     * @param data_size [type: uint32_t] payload size in bytes
+     * @param destroy_callback [type: dmMessage::MessageDestroyCallback] cleanup callback, or 0
+     * @return message [type: dmMessage::Message*] message in the supplied buffer
+     */
+    inline Message* InitMessage(void* buffer, const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
+                                uintptr_t descriptor, const void* data, uint32_t data_size, MessageDestroyCallback destroy_callback)
+    {
+        Message* message = new (buffer) Message(MakeMessageHeaderInternal(sender, receiver, message_id, user_data1, user_data2, descriptor, data_size, destroy_callback));
+        if (data_size)
+        {
+            memcpy(GetData(message), data, data_size);
+        }
+        return message;
+    }
+
     /**
-     * Post an message to a socket
+     * Post a message to a socket
      * @note Message data is copied by value
      * @name Post
      * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
@@ -248,7 +503,7 @@ namespace dmMessage
      * @param message_data [type: void*] Message data reference
      * @param message_data_size [type: uint32_t] Message data size in bytes
      * @param destroy_callback [type: dmMessage::MessageDestroyCallback] if set, will be called after each message dispatch
-     * @return RESULT_OK if the message was posted
+     * @return RESULT_OK on success, RESULT_SOCKET_NOT_FOUND for an unknown receiver, or RESULT_SOCKET_OUT_OF_RESOURCES if a queue page could not be allocated.
      */
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                 uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback);
@@ -264,7 +519,7 @@ namespace dmMessage
      * @param user_data1 [type: uintptr_t] User data that can be used when both the sender and receiver are known
      * @param user_data2 [type: uintptr_t] User data that can be used when both the sender and receiver are known.
      * @param destroy_callback [type: dmMessage::MessageDestroyCallback] if set, will be called after each message dispatch
-     * @return RESULT_OK if the message was posted
+     * @return The result of dmMessage::Post().
      * @examples
      *
      * ```cpp
@@ -276,7 +531,7 @@ namespace dmMessage
      * msg.m_Offset = params.m_CursorStart;
      * msg.m_PlaybackRate = params.m_PlaybackRate;
      *
-     * dmMessage::Result result = dmMessage::Post(&msg, &sender, &receiver, request_id, 0, 0);
+     * dmMessage::Result result = dmMessage::PostDDF(&msg, &sender, &receiver, request_id, 0, 0);
      * ```
      */
     template <typename T>

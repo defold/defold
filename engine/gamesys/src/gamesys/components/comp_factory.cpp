@@ -235,7 +235,7 @@ namespace dmGameSystem
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
             dmMessage::Message* message = params.m_Message;
 
-            dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
+            dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) dmMessage::GetData(params.m_Message);
             uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
             uint32_t property_buffer_size = message->m_DataSize - msg_size;
             dmGameObject::HPropertyContainer properties = 0;

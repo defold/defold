@@ -578,7 +578,7 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
     if (descriptor == TestScript::SubMsg::m_DDFDescriptor)
     {
-        TestScript::SubMsg* msg = (TestScript::SubMsg*)message->m_Data;
+        TestScript::SubMsg* msg = (TestScript::SubMsg*)dmMessage::GetData(message);
         *((uint32_t*)user_ptr) = msg->m_UintValue;
     }
     else if (descriptor == TestScript::EmptyMsg::m_DDFDescriptor)
@@ -600,7 +600,7 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
 {
     assert(message->m_Id == dmHashString64("table"));
     TableUserData* user_data = (TableUserData*)user_ptr;
-    dmScript::PushTable(user_data->L, (const char*)message->m_Data, message->m_DataSize);
+    dmScript::PushTable(user_data->L, (const char*)dmMessage::GetData(message), message->m_DataSize);
     lua_getfield(user_data->L, -1, "uint_value");
     user_data->m_TestValue = (uint32_t) lua_tonumber(user_data->L, -1);
     lua_pop(user_data->L, 2);

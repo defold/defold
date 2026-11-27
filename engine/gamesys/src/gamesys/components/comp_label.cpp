@@ -727,7 +727,7 @@ namespace dmGameSystem
         if (params.m_Message->m_Descriptor != 0)
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)params.m_Message->m_Descriptor;
-            dmDDF::ResolvePointers(descriptor, params.m_Message->m_Data);
+            dmDDF::ResolvePointers(descriptor, dmMessage::GetData(params.m_Message));
         }
 
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
@@ -740,7 +740,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash)
         {
-            dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*)dmMessage::GetData(params.m_Message);
             SetLabelText(component, textmsg->m_Text);
         }
 

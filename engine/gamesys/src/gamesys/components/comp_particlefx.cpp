@@ -780,8 +780,9 @@ namespace dmGameSystem
             if(params.m_Message->m_DataSize == sizeof(dmParticle::EmitterStateChanged) + sizeof(EmitterStateChangedScriptData))
             {
                 emitter_state_changed_data.m_UserData = malloc(sizeof(EmitterStateChangedScriptData));
-                memcpy(&(emitter_state_changed_data.m_StateChangedCallback), (params.m_Message->m_Data), sizeof(dmParticle::EmitterStateChanged));
-                memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
+                const uint8_t* data = dmMessage::GetData(params.m_Message);
+                memcpy(&(emitter_state_changed_data.m_StateChangedCallback), data, sizeof(dmParticle::EmitterStateChanged));
+                memcpy(emitter_state_changed_data.m_UserData, data + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
             dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
@@ -800,7 +801,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)params.m_Message->m_Data;
+            dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)dmMessage::GetData(params.m_Message);
             uint32_t count = world->m_Components.Size();
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -814,7 +815,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmGameSystemDDF::SetConstantParticleFX* ddf = (dmGameSystemDDF::SetConstantParticleFX*)params.m_Message->m_Data;
+            dmGameSystemDDF::SetConstantParticleFX* ddf = (dmGameSystemDDF::SetConstantParticleFX*)dmMessage::GetData(params.m_Message);
             uint32_t count = world->m_Components.Size();
             uint32_t found_count = 0;
             for (uint32_t i = 0; i < count; ++i)
@@ -840,7 +841,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmGameSystemDDF::ResetConstantParticleFX* ddf = (dmGameSystemDDF::ResetConstantParticleFX*)params.m_Message->m_Data;
+            dmGameSystemDDF::ResetConstantParticleFX* ddf = (dmGameSystemDDF::ResetConstantParticleFX*)dmMessage::GetData(params.m_Message);
             uint32_t count = world->m_Components.Size();
             uint32_t found_count = 0;
             for (uint32_t i = 0; i < count; ++i)

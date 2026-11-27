@@ -911,7 +911,7 @@ namespace dmGameSystem
 
         if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
-            dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)params.m_Message->m_Data;
+            dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)dmMessage::GetData(params.m_Message);
             if (component->m_RenderConstants) {
                 ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash);
             }

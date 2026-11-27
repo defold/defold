@@ -1750,7 +1750,7 @@ static void CollectWindowResize(dmMessage::Message* message, void* user_data)
         return;
 
     WindowResizeMessages* messages = (WindowResizeMessages*) user_data;
-    dmRenderDDF::WindowResized* resized = (dmRenderDDF::WindowResized*) message->m_Data;
+    dmRenderDDF::WindowResized* resized = (dmRenderDDF::WindowResized*) dmMessage::GetData(message);
     ++messages->m_Count;
     messages->m_Width = resized->m_Width;
     messages->m_Height = resized->m_Height;

@@ -280,7 +280,7 @@ namespace dmGameSystem
             dmRender::RenderCameraData camera_data = {};
             dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
 
-            dmGamesysDDF::SetCamera* ddf         = (dmGamesysDDF::SetCamera*)params.m_Message->m_Data;
+            dmGamesysDDF::SetCamera* ddf         = (dmGamesysDDF::SetCamera*)dmMessage::GetData(params.m_Message);
             camera_data.m_AspectRatio            = ddf->m_AspectRatio;
             camera_data.m_Fov                    = ddf->m_Fov;
             camera_data.m_NearZ                  = ddf->m_NearZ;

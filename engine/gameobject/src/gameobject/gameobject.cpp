@@ -2940,7 +2940,7 @@ namespace dmGameObject
             }
             else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
             {
-                dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)message->m_Data;
+                dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)dmMessage::GetData(message);
                 dmGameObject::Instance* parent = 0;
                 if (sp->m_ParentId != 0)
                 {

@@ -329,7 +329,7 @@ namespace dmGameSystem
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
         {
-            dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
+            dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)dmMessage::GetData(message);
 
             dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
 
@@ -588,7 +588,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
         {
-            dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
+            dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) dmMessage::GetData(params.m_Message);
             dmPhysics::ApplyForce3D(physics_context->m_Context, component->m_Object3D, af->m_Force, af->m_Position);
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_NameHash)

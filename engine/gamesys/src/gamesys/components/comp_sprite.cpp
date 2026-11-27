@@ -2353,7 +2353,7 @@ namespace dmGameSystem
         {
             if (message_id == dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
+                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)dmMessage::GetData(params.m_Message);
                 if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
                     // Remove the currently assigned callback by sending an unref message
@@ -2369,19 +2369,19 @@ namespace dmGameSystem
             }
             else if (message_id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)params.m_Message->m_Data;
+                dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)dmMessage::GetData(params.m_Message);
                 component->m_FlipHorizontal = ddf->m_Flip != 0 ? 1 : 0;
                 component->m_BoundsDirty = 1;
             }
             else if (message_id == dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)params.m_Message->m_Data;
+                dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)dmMessage::GetData(params.m_Message);
                 component->m_FlipVertical = ddf->m_Flip != 0 ? 1 : 0;
                 component->m_BoundsDirty = 1;
             }
             else if (message_id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
+                dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)dmMessage::GetData(params.m_Message);
                 if (component->m_RenderConstants && dmGameSystem::ClearRenderConstant(component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
@@ -2389,7 +2389,7 @@ namespace dmGameSystem
             }
             else if (message_id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
             {
-                dmGameSystemDDF::SetScale* ddf = (dmGameSystemDDF::SetScale*)params.m_Message->m_Data;
+                dmGameSystemDDF::SetScale* ddf = (dmGameSystemDDF::SetScale*)dmMessage::GetData(params.m_Message);
                 component->m_Scale = ddf->m_Scale;
             }
         }

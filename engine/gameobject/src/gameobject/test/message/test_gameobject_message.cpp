@@ -214,7 +214,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     }
     else if (message->m_Id == POST_DDF_ID)
     {
-        TestGameObjectDDF::TestMessage* ddf = (TestGameObjectDDF::TestMessage*)message->m_Data;
+        TestGameObjectDDF::TestMessage* ddf = (TestGameObjectDDF::TestMessage*)dmMessage::GetData(message);
         test->m_MessageMap[POST_DDF_ID] = ddf->m_TestUint32;
     }
 }
@@ -508,7 +508,7 @@ uint32_t g_PostDistpatchCalled = 0;
 
 void CustomMessageDestroyCallback(dmMessage::Message* message)
 {
-    TestGameObjectDDF::TestDataMessage* test = (TestGameObjectDDF::TestDataMessage*)message->m_Data;
+    TestGameObjectDDF::TestDataMessage* test = (TestGameObjectDDF::TestDataMessage*)dmMessage::GetData(message);
     g_PostDistpatchCalled = test->m_Value;
 }
 

@@ -82,7 +82,7 @@ namespace dmGameSystem
 
     static void MessageDestroyCallback(dmMessage::Message* message)
     {
-        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
+        dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)dmMessage::GetData(message);
         free((void*)response->m_Headers);
         free((void*)response->m_Response);
         free((void*)response->m_Path);

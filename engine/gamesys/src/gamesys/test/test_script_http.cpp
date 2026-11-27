@@ -268,7 +268,7 @@ static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     dmScript::UnrefInInstance(L, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
 
-    dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
+    dmScript::PushDDF(L, descriptor, (const char*)dmMessage::GetData(message));
     int ret = dmScript::PCall(L, 1, 0);
     test->m_NumberOfFails += ret == 0 ? 0 : 1;
 

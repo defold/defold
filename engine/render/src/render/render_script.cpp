@@ -3672,7 +3672,7 @@ bail:
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
                     message_name = descriptor->m_Name;
-                    dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
+                    dmScript::PushDDF(L, descriptor, (const char*)dmMessage::GetData(message), true);
                 }
                 else
                 {
@@ -3683,7 +3683,7 @@ bail:
                     }
                     if (message->m_DataSize > 0)
                     {
-                        dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+                        dmScript::PushTable(L, (const char*)dmMessage::GetData(message), message->m_DataSize);
                     }
                     else
                     {
@@ -3756,7 +3756,7 @@ bail:
                 DrawTextParams params;
                 if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
                 {
-                    dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
+                    dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)dmMessage::GetData(message);
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
                     params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
@@ -3764,7 +3764,7 @@ bail:
                 }
                 else
                 {
-                    dmRenderDDF::DrawDebugText* dt = (dmRenderDDF::DrawDebugText*)message->m_Data;
+                    dmRenderDDF::DrawDebugText* dt = (dmRenderDDF::DrawDebugText*)dmMessage::GetData(message);
                     const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
                     params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
@@ -3775,13 +3775,13 @@ bail:
             }
             else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
             {
-                dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
+                dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)dmMessage::GetData(message);
                 Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
                 return;
             }
             else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
             {
-                dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;
+                dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)dmMessage::GetData(message);
                 dmGraphics::ResizeWindow(instance->m_RenderContext->m_GraphicsContext, resize_msg->m_Width, resize_msg->m_Height);
                 return;
             }
