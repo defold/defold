@@ -40,7 +40,8 @@
            [java.nio.channels Channels Pipe]
            [java.util Map]
            [java.util.concurrent TimeUnit]
-           [java.util.function BiFunction]))
+           [java.util.function BiFunction]
+           [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
 
@@ -895,10 +896,12 @@
                          (fn [[ranges from] {parameter-label :label}]
                            (if-not (string? parameter-label)
                              [(conj ranges parameter-label) (second parameter-label)]
-                             (if-let [start (string/index-of label parameter-label from)]
-                               (let [end (+ (long start) (count parameter-label))]
-                                 [(conj ranges [start end]) end])
-                               [(conj ranges nil) from])))
+                             (let [matcher (re-matcher
+                                             (re-pattern (str "(?<!\\w)" (Pattern/quote parameter-label) "(?!\\w)"))
+                                             label)]
+                               (if (.find matcher (int from))
+                                 [(conj ranges [(.start matcher) (.end matcher)]) (.end matcher)]
+                                 [(conj ranges nil) from]))))
                          [[] (inc (or (string/index-of label "(") -1))]
                          parameters))
 
