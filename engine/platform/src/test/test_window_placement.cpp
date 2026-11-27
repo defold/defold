@@ -432,6 +432,44 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
 }
 
 #if defined(__linux__)
+// An X11 placement save must capture pending resizes without calling application code during close.
+TEST_F(WindowPlacementTest, X11SavePendingResizeWithoutCallback)
+{
+    if (!m_Window->m_X11)
+    {
+        SKIP();
+    }
+
+    m_ResizeEvents.m_Count = 0;
+    m_Params.m_ResizeCallback = OnResize;
+    m_Params.m_ResizeCallbackUserData = &m_ResizeEvents;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    XSetWindowAttributes attributes = {};
+    attributes.override_redirect = True;
+    XChangeWindowAttributes(m_Window->m_Display, m_Window->m_Xid, CWOverrideRedirect, &attributes);
+    dmPlatform::ShowWindow(m_Window);
+    XSync(m_Window->m_Display, False);
+    dmPlatform::PollEvents(m_Window);
+    m_ResizeEvents.m_Count = 0;
+
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    EXPECT_EQ(0u, m_ResizeEvents.m_Count);
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    EXPECT_EQ(501, saved.m_Rect.m_Width);
+    EXPECT_EQ(351, saved.m_Rect.m_Height);
+    dmPlatform::PollEvents(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+
+    dmPlatform::SetWindowSize(m_Window, 517, 363);
+    dmPlatform::CloseWindow(m_Window);
+    EXPECT_EQ(1u, m_ResizeEvents.m_Count);
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    EXPECT_EQ(517, saved.m_Rect.m_Width);
+    EXPECT_EQ(363, saved.m_Rect.m_Height);
+}
+
 static bool SaveResizedPlacement(const char* path, const WindowCreateParams& params)
 {
     dmWindowState::State saved = {};

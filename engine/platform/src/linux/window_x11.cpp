@@ -393,9 +393,24 @@ namespace dmPlatform
         }
     }
 
+    static bool ReadDrawableSize(HWindow w)
+    {
+        XWindowAttributes attrs;
+        if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
+        {
+            // Keep the last dispatched size until ConfigureNotify acknowledges each request.
+            w->m_PixelWidth = attrs.width;
+            w->m_PixelHeight = attrs.height;
+            return true;
+        }
+
+        return false;
+    }
+
     void X11FlushPlacement(HWindow w)
     {
         LinuxX11* state = w->m_X11;
+        ReadDrawableSize(w);
         if (!state->m_ConfigureSerial)
         {
             return;
@@ -406,9 +421,8 @@ namespace dmPlatform
         int x, y;
         if (state->m_RequestIsSize)
         {
-            X11ReadSize(w);
-            x = w->m_Width;
-            y = w->m_Height;
+            x = w->m_PixelWidth;
+            y = w->m_PixelHeight;
         }
         else
         {
@@ -434,9 +448,10 @@ namespace dmPlatform
                 pollfd fd = { ConnectionNumber(w->m_Display), POLLIN, 0 };
                 poll(&fd, 1, (int)((end - now) / 1000) + 1);
             }
+
+            ReadDrawableSize(w);
         }
 
-        X11ReadSize(w);
         CompleteGeometryRequest(w);
         if (state->m_ConfigureSerial)
         {
@@ -489,15 +504,6 @@ namespace dmPlatform
             }
 
             NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
-        }
-    }
-
-    void X11ReadSize(HWindow w)
-    {
-        XWindowAttributes attrs;
-        if (w->m_Xid && XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
-        {
-            ReportSize(w, attrs.width, attrs.height, LastKnownRequestProcessed(w->m_Display), false);
         }
     }
 
@@ -1388,20 +1394,6 @@ namespace dmPlatform
         return true;
     }
 
-    static bool ReadDrawableSize(HWindow w)
-    {
-        XWindowAttributes attrs;
-        if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
-        {
-            // Keep the last dispatched size until ConfigureNotify acknowledges each request.
-            w->m_PixelWidth = attrs.width;
-            w->m_PixelHeight = attrs.height;
-            return true;
-        }
-
-        return false;
-    }
-
     static void Size(HWindow w, int width, int height)
     {
         if (!w->m_Shown)
@@ -1416,7 +1408,11 @@ namespace dmPlatform
             XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
             // The synchronous read includes all earlier ConfigureNotify events, including placement restoration.
             w->m_X11->m_SizeReadSerial = NextRequest(w->m_Display);
-            X11ReadSize(w);
+            if (ReadDrawableSize(w))
+            {
+                ReportSize(w, w->m_PixelWidth, w->m_PixelHeight, LastKnownRequestProcessed(w->m_Display), false);
+            }
+
             return;
         }
 

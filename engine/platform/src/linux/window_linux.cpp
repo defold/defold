@@ -224,9 +224,9 @@ namespace dmPlatform
             return;
         }
 
+        w->m_Open = false;
         UpdateWindowPlacement(w, true);
         DeleteWindowPlacement(w);
-        w->m_Open = false;
         w->m_PendingRestoreResize = false;
         LinuxCloseGL(w);
         w->m_Ops->m_Close(w);
