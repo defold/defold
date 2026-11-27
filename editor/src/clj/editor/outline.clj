@@ -122,6 +122,11 @@
     (:node-id selection)
     selection))
 
+(defn extend-node-outline-key-path [parent-path {:keys [node-id node-outline-key]}]
+  (if (coll/empty? parent-path)
+    [node-id]
+    (cond-> parent-path node-outline-key (conj node-outline-key))))
+
 (defonce/record OutlineItemIterator [item parent-iterator]
   ItemIterator
   (value [_this] item)
@@ -145,11 +150,17 @@
                    item-path
                    (conj (:item-id-path (some-> parent-iterator value) []) id)
 
+                   node-outline-key-path
+                   (extend-node-outline-key-path
+                     (some-> parent-iterator value :node-outline-key-path)
+                     item)
+
                    iterator
                    (->OutlineItemIterator
                      (assoc item
                        :selection-id id
                        :item-id-path item-path
+                       :node-outline-key-path node-outline-key-path
                        :node-id-path (mapv selection-node-id item-path))
                      parent-iterator)
 

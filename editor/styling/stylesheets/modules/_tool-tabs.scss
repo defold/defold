@@ -2,40 +2,39 @@
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 0 0;
 
-    .list-view {
-        -fx-background-insets: 0;
-        -fx-border-width: 0;
-    }
-
-    .tab-content-area {
-        -fx-background-color: -df-background-light;
-        -fx-padding: 0;
-
-        .content {
-            -fx-background-color: -df-background-light;
-            -fx-background-insets: 0;
-            -fx-padding: 0;
-            -fx-border-radius: 0;
-            -fx-border-width: 0;
-            -fx-border-insets: 0;
-        }
-
-        .text-area, .scroll-pane, .viewport {
-            -fx-background-color: -df-background-light;
-            -fx-background-insets: 0;
-            -fx-padding: 0;
-        }
-        .text-area {
-            -fx-padding: 15px 0 0 0;
-        }
-    }
-
     &:top > .tab-header-area > .headers-region > .console-tab-base {
         -fx-background-position: 14 center;
         -fx-background-repeat: no-repeat;
         -fx-background-size: 17 17;
         -fx-padding: 0 14 2 36;
         -fx-spacing: 0;
+    }
+}
+
+#console-grid-pane, #curve-editor-container, #build-errors-tree,
+#search-results-container, #breakpoints-container {
+    .list-view {
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+    }
+
+    .content {
+        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
+        -fx-padding: 0;
+        -fx-border-radius: 0;
+        -fx-border-width: 0;
+        -fx-border-insets: 0;
+    }
+
+    .text-area, .scroll-pane, .viewport {
+        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
+        -fx-padding: 0;
+    }
+
+    .text-area {
+        -fx-padding: 15px 0 0 0;
     }
 }
 

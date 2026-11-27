@@ -688,9 +688,9 @@
           props
           (partition-by #(nil? (first %)) entries)))
 
-(defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
+(defn- consume-console-entries! [view-node workspace on-region-click!]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
-    (when (or clear (seq entries))
+    (when (or clear (coll/not-empty entries))
       (g/let-ec [basis (:basis evaluation-context)
                  resource-map (g/raw-property-value basis workspace :resource-map)
                  ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
@@ -711,8 +711,7 @@
                                clear (assoc :cursor-ranges [data/document-start-cursor-range])
                                clear (assoc :invalidated-row 0)
                                clear (data/frame-cursor prev-layout)))]
-          (g/transact {:undoable false} tx-data)))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
+          (g/transact {:undoable false} tx-data))))))
 
 (def ^:private console-grammar
   {:name "Console"
@@ -799,11 +798,23 @@
                                  1 (open-resource! (first resource-candidates))
                                  (ui/show-simple-context-menu-at-mouse! resource->menu-item open-resource! resource-candidates event)))))
 
+        disposed (volatile! false)
+
+        consume-timer
+        (ui/->timer
+          "consume-console-entries"
+          (fn consume-console [_timer _elapsed-time _dt]
+            (when-not (or @disposed (ui/ui-disabled?))
+              (consume-console-entries! view-node workspace on-region-click!))))
+
         dispose-repainter
-        (ui/node-timer! console-grid-pane nil "repaint-console-view"
-                        (fn repaint-console [elapsed-time]
-                          (when-not (ui/ui-disabled?)
-                            (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
+        (ui/node-timer!
+          console-grid-pane
+          nil
+          "repaint-console-view"
+          (fn repaint-console [elapsed-time]
+            (when-not (ui/ui-disabled?)
+              (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))))
 
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")
@@ -847,6 +858,7 @@
       (let [focus-owner-property (.focusOwnerProperty scene)
             focus-change-listener (view/make-focus-change-listener view-node console-grid-pane canvas)]
         (.addListener focus-owner-property focus-change-listener)
+        (ui/timer-start! consume-timer)
 
         [view-node
          {:id :console
@@ -854,6 +866,8 @@
           :location :bottom
           :content (constantly {:fx/type ui/ext-value :value console-grid-pane})}
          (fn dispose-console! []
+           (vreset! disposed true)
+           (ui/timer-stop! consume-timer)
            (dispose-repainter)
            (dispose-tool-bar! tool-bar)
            (.removeListener find-term-property find-term-setter)

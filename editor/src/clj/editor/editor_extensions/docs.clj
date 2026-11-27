@@ -168,7 +168,7 @@
                      :doc "selection type"}
                     {:name "cardinality"
                      :types ["\"one\"" "\"many\""]
-                     :doc "either the first selected item or all selected items"}]}
+                     :doc "\"one\" requires exactly one selected item; \"many\" returns all selected items"}]}
          {:name "editor.command.query.active_view"
           :type :struct
           :description "Active editor view requested by an editor command"

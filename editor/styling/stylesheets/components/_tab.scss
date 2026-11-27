@@ -186,10 +186,4 @@
         -fx-border-radius: 0;
         -fx-padding: 0;
     }
-    .tree-view, .tree-cell {
-        -fx-background-color: -df-background-light;
-    }
-    .tree-cell:selected {
-        -fx-background-color: -df-background-lighter;
-    }
 }

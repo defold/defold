@@ -1972,6 +1972,7 @@
                {:label (localization/message "command.window.toggle-right-pane")
                 :command :window.toggle-right-pane}
                {:label (localization/message "menu.view.panes")
+                :id ::panes
                 :command :window.toggle-pane}
                menu-items/separator
                {:label (localization/message "command.window.show-console")
@@ -3604,6 +3605,7 @@
                        (throw (LuaError. "Bob invocation failed")))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
+  (ui/invalidate-menubar-item! ::panes)
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]

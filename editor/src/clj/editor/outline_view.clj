@@ -71,15 +71,14 @@
        persistent!))
 
 (defn decorate-outline [outline hidden-node-outline-key-paths outline-name-paths localization-state selection]
-  (letfn [(decorate [{:keys [node-id children] :as outline} node-id-path node-outline-key-path parent-reference? selection-path]
+  (letfn [(decorate [{:keys [children] :as outline} node-id-path node-outline-key-path parent-reference? selection-path]
             (let [selection-path (outline/selection-path selection-path outline)
                   selection-id (outline/selection-id selection-path)
                   node-id-path (conj node-id-path selection-id)
-                  node-outline-key-path (if (empty? node-outline-key-path)
-                                          [node-id]
-                                          (if-some [node-outline-key (:node-outline-key outline)]
-                                            (conj node-outline-key-path node-outline-key)
-                                            node-outline-key-path))
+
+                  node-outline-key-path
+                  (outline/extend-node-outline-key-path node-outline-key-path outline)
+
                   data (->> children
                             (localization/sort-if-annotated localization-state)
                             (mapv #(decorate %
@@ -337,6 +336,10 @@
   (output selected-root-iterators g/Any :cached
           (g/fnk [selected-iterators]
             (outline/selection-roots selected-iterators)))
+
+  (output selected-items g/Any
+          (g/fnk [selected-iterators]
+            (mapv outline/value selected-iterators)))
 
   (output pane-content-desc g/Any :cached produce-pane-content-desc))
 
@@ -784,7 +787,7 @@
 (defonce/record SelectionProvider [outline-view tree-view]
   handler/SelectionProvider
   (selection [_this evaluation-context]
-    (mapv outline/value (g/node-value outline-view :selected-iterators evaluation-context)))
+    (g/node-value outline-view :selected-items evaluation-context))
   (succeeding-selection [_this _evaluation-context]
     (ui/succeeding-selection tree-view (ui/selection-root-items tree-view :selection-id)))
   (alt-selection [this evaluation-context]

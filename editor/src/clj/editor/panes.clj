@@ -25,7 +25,6 @@
             [util.eduction :as e])
   (:import [java.util List]
            [javafx.event Event]
-           [javafx.geometry Orientation]
            [javafx.scene.control SplitPane Tab TabPane]))
 
 (set! *warn-on-reflection* true)
@@ -46,14 +45,16 @@
               :inputs {:content (:content-desc props)}}]}
   [{:keys [id title location instances localization-state prefs]}]
   (when-let [content (:content instances)]
-    {:fx/type fx.tab/lifecycle
-     :style-class ["tab" (str (name id) "-tab")]
-     :text (ui/escape-tab-title (localization-state title))
-     :closable false
-     :on-selection-changed (fn pane-selection-changed [^Event event]
-                             (when (.isSelected ^Tab (.getSource event))
-                               (select-pane! prefs location id)))
-     :content {:fx/type ui/ext-value :value content}}))
+    {:fx/type fx/ext-recreate-on-key-changed
+     :key [id location]
+     :desc {:fx/type fx.tab/lifecycle
+            :style-class ["tab" (str (name id) "-tab")]
+            :text (ui/escape-tab-title (localization-state title))
+            :closable false
+            :on-selection-changed (fn pane-selection-changed [^Event event]
+                                    (when (.isSelected ^Tab (.getSource event))
+                                      (select-pane! prefs location id)))
+            :content {:fx/type ui/ext-value :value content}}}))
 
 (def ^:private ext-with-split-pane-props
   (fx/make-ext-with-props fx.split-pane/props))
@@ -67,45 +68,35 @@
           (.clearSelection (.getSelectionModel host)))))
     fx.lifecycle/scalar))
 
+(defn- set-region-visibility! [^SplitPane split {:keys [index content visible]}]
+  (when content
+    (let [items (.getItems split)
+          present (.contains items content)]
+      (cond
+        (and visible (not present))
+        (do
+          (.add items (int index) content)
+          (.layout split))
+
+        (and present (not visible))
+        (let [divider-index (max 0 (dec index))
+              position (get (.getDividerPositions split) divider-index)
+              focus-owner (some-> split .getScene .getFocusOwner)
+
+              focus-in-region
+              (and focus-owner (ui/closest-node-where (partial identical? content) focus-owner))]
+          (.remove items content)
+          ;; SplitPane caches the ratio while the divider is absent.
+          (when position
+            (.setDividerPosition split divider-index position))
+          (.layout split)
+          ;; Keep a UI context for menu updates after removing focus.
+          (when focus-in-region
+            (.requestFocus split)))))))
+
 (def ^:private prop-region-visible
   (fx/make-prop
-    (fx.mutator/setter
-      (fn apply-region-visibility! [^SplitPane split {:keys [index content visible]}]
-        (let [items (.getItems split)
-              present (.contains items content)]
-          (when (not= present (boolean visible))
-            (let [divider-index (max 0 (dec index))
-
-                  length
-                  (condp = (.getOrientation split)
-                    Orientation/HORIZONTAL (.getWidth split)
-                    Orientation/VERTICAL (.getHeight split))
-
-                  focus-owner (some-> split .getScene .getFocusOwner)
-
-                  removing-focus-owner
-                  (and present focus-owner (ui/closest-node-where (partial identical? content) focus-owner))]
-              (if visible
-                (let [fraction (/ (ui/user-data split ::hidden-size) length)
-
-                      position
-                      (max 0.0 (min 1.0 (if (zero? index) fraction (- 1.0 fraction))))]
-                  (.add items (int index) content)
-                  (.setDividerPosition split divider-index position))
-                (let [position (get (.getDividerPositions split) divider-index)
-
-                      size
-                      (if (zero? index)
-                        (Math/floor (* position length))
-                        (Math/ceil (* (- 1.0 position) length)))]
-                  (ui/user-data! split ::hidden-size size)
-                  (.remove items content)))
-              (.layout split)
-              ;; If this action causes the focus owner to be removed from the
-              ;; scene, move focus to the SplitPane. This ensures we have a
-              ;; valid UI context when refreshing the menus.
-              (when removing-focus-owner
-                (.requestFocus split)))))))
+    (fx.mutator/setter set-region-visibility!)
     fx.lifecycle/scalar))
 
 (defn visible-by-location [panes instances hidden]

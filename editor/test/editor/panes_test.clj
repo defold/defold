@@ -112,8 +112,11 @@
           (volatile! (fx/create-component (describe descriptions #{})))
 
           ^TabPane left-top (first (.getItems left))
+          ^TabPane left-bottom (second (.getItems left))
           ^TabPane right-bottom (second (.getItems right))
           ^Tab first-tab (first (.getTabs left-top))
+          ^Tab original-pinned-tab (second (.getTabs left-top))
+          pinned-content (.getContent original-pinned-tab)
           ^Tab variable-tab (second (.getTabs right-bottom))]
       (try
         (is (= (inc watches-before) (count (.getWatches ^IRef test-util/localization))))
@@ -135,6 +138,18 @@
         (is (= 1 @disposed-count))
         (vswap! component fx/advance-component
                 (describe (mapv #(if (= :pinned (:id %)) (assoc % :location :left-bottom) %) descriptions) #{}))
+        (testing "Moving a pane changes its tab owner while preserving the content"
+          (let [^Tab moved-tab
+                (coll/first-where #(= "Pinned" (.getText ^Tab %)) (.getTabs left-bottom))]
+            (is (identical? left-bottom (.getTabPane moved-tab)))
+            (is (identical? pinned-content (.getContent moved-tab)))
+            (is (nil? (.getTabPane original-pinned-tab)))
+            (vswap! component fx/advance-component (describe descriptions #{}))
+            (let [^Tab returned-tab
+                  (coll/first-where #(= "Pinned" (.getText ^Tab %)) (.getTabs left-top))]
+              (is (identical? left-top (.getTabPane returned-tab)))
+              (is (identical? pinned-content (.getContent returned-tab)))
+              (is (nil? (.getTabPane moved-tab))))))
         (is (not (identical? first-tab (first (.getTabs left-top)))))
         (is (identical? input (.getContent ^Tab (first (.getTabs left-top)))))
         (is (= "Unsaved input" (.getText input)))
@@ -461,9 +476,9 @@
           (.resize root 1200.0 900.0)
           (.applyCss root)
           (.layout root)
-          (prefs/set! prefs [:window :hidden-panes] #{})
+          (prefs/set! prefs [:window :hidden-panes] #{:bottom})
           (prefs/set! prefs [:window :split-positions]
-                      {:assets-split [0.575] :right-split [0.4]})
+                      {:assets-split [0.575] :right-split [0.4] :center-split [0.72]})
           (g/transact (g/set-property app-view :scene scene))
           (ui/context! root :global {:app-view app-view :prefs prefs} nil)
           (app-view/set-built-in-panes! app-view definitions)
@@ -474,6 +489,14 @@
             (let [split ^SplitPane (.lookup root (str "#" id))
                   actual (aget (.getDividerPositions split) 0)]
               (is (< (Math/abs (- (double expected) actual)) 0.01))))
+          (testing "Revealing a region that started hidden restores its saved ratio"
+            (is (nil? (.lookup root "#bottom-pane")))
+            (.resize root 1200.0 720.0)
+            (.layout root)
+            (test-util/handler-run :window.toggle-bottom-pane contexts nil)
+            (.layout root)
+            (let [^SplitPane center-split (.lookup root "#center-split")]
+              (is (< (Math/abs (- 0.72 (aget (.getDividerPositions center-split) 0))) 0.01))))
           (testing "Divider changes save only their split on release"
             (doseq [id [:assets-split :right-split :main-split :workbench-split :center-split]]
               (let [^SplitPane split
@@ -513,6 +536,15 @@
               (is (< (Math/abs (- (double (first (:assets-split positions)))
                                   (aget (.getDividerPositions left) 0)))
                      0.01))))
+          (testing "A region retains its divider ratio when resized while hidden"
+            (let [^SplitPane split (.lookup root "#center-split")
+                  ratio-before (aget (.getDividerPositions split) 0)]
+              (test-util/handler-run :window.toggle-bottom-pane contexts nil)
+              (.resize root 1200.0 900.0)
+              (.layout root)
+              (test-util/handler-run :window.toggle-bottom-pane contexts nil)
+              (.layout root)
+              (is (< (Math/abs (- ratio-before (aget (.getDividerPositions split) 0))) 0.01))))
           (finally
             (ui/advance-ui-user-data-component! scene :editor.app-view/ui nil)
             (.close stage)))))))

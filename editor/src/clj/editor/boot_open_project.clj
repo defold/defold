@@ -428,7 +428,7 @@
           (g/connect app-view :active-resource asset-browser :active-resource)
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
-          (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+          (g/connect outline-view :selected-items scene-visibility :outline-selection)
           (g/connect properties-view :_node-id app-view :properties-view)
           (g/connect scene-visibility :_node-id app-view :scene-visibility)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)

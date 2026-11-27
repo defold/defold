@@ -1113,8 +1113,8 @@
       (is (not= source (:node-id (outline target [0 0]))))
       (is (not= child (:node-id (outline target [0 0 0 0])))))))
 
-;; Clipboard commands use current graph selection after Outline is unmounted,
-;; preserving selected parents and the chosen occurrence of repeated entries.
+;; Clipboard commands and visibility paths use the current graph selection even
+;; without an Outline pane and preserve the chosen occurrence of repeated items.
 (deftest clipboard-commands-with-unmounted-outline
   (doseq [mounted [true false]]
     (testing (str "Outline mounted: " mounted)
@@ -1178,6 +1178,8 @@
                 (vreset! component nil))
               (testing "A stale child selection cannot make the root cuttable"
                 (select! [root])
+                (is (= [[root]] (mapv :node-outline-key-path
+                                      (g/node-value outline-view :selected-items))))
                 (g/with-auto-evaluation-context evaluation-context
                   (is (= [root] (mapv :node-id (handler/selection selection-provider evaluation-context)))))
                 (is (not (test-util/handler-enabled? :edit.cut (contexts) {}))))
@@ -1198,6 +1200,8 @@
                       path [root group second-parent parent-group child]]
                   (select! [child])
                   (g/set-property! outline-view :tree-selection [{:selection-id child :item-id-path path}])
+                  (is (= [[root "group" "Second" "group" "Child"]]
+                         (mapv :node-outline-key-path (g/node-value outline-view :selected-items))))
                   (run! :edit.copy)
                   (run! :edit.paste)
                   (is (= 1 (child-count first-parent [0]))))

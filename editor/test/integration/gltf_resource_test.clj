@@ -639,11 +639,17 @@
             command-contexts [(handler/->context :workbench {:scene-visibility scene-visibility})]]
         (g/transact
           [(g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
-           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+           (g/connect app-view :outline-selection outline-view :selection)
+           (g/connect outline-view :selected-items scene-visibility :outline-selection)
            (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)])
         (doseq [path ["/models/albedo.ktx2" "/models/robot.gltf/images/Albedo_0.ktx2"]]
           (let [[node view] (test-util/open-scene-view! project app-view path 320 160)
-                _ (g/transact (g/connect node :scene scene-visibility :active-scene))
+
+                _
+                (g/transact
+                  [(g/connect node :scene scene-visibility :active-scene)
+                   (g/connect node :node-outline outline-view :active-outline)])
+
                 mip-0 (outline/->OutlineEntrySelection node ["mip-0"])
                 mip-1 (outline/->OutlineEntrySelection node ["mip-1"])
                 outline-name-paths (g/node-value scene-visibility :outline-name-paths)
@@ -652,10 +658,9 @@
                                               #{} outline-name-paths @test-util/localization []))]
             (is (= #{["mip-0"] ["mip-1"]} outline-name-paths))
             (is (= [true true] (mapv :hideable (:children decorated-outline))))
-            (g/set-property! outline-view :tree-selection [])
+            (app-view/select! app-view [node])
             (is (= outline-name-paths (g/node-value scene-visibility :unselected-hideable-outline-name-paths)))
             (app-view/select! app-view [mip-1])
-            (g/set-property! outline-view :tree-selection [(second (:children decorated-outline))])
             (is (= #{["mip-1"]} (g/node-value scene-visibility :selected-outline-name-paths)))
             (is (= #{["mip-0"]} (g/node-value scene-visibility :unselected-hideable-outline-name-paths)))
             (test-util/handler-run :scene.visibility.hide-unselected command-contexts {})
