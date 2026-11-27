@@ -471,6 +471,7 @@ var LibraryDefoldPlatform = {
 
     joys: {},
     gamepadFrame: -1,
+    gamepadRevision: 0,
 
     forgetJoystick: function(slot) {
       var pad = DefoldPlatform.joys[slot];
@@ -482,7 +483,10 @@ var LibraryDefoldPlatform = {
     refreshJoysticks: function(force) {
       var platform = DefoldPlatform;
       var frame = MainLoop.currentFrameNumber;
-      if (!platform.callbacks.gamepad || (!force && frame && frame === platform.gamepadFrame)) return;
+      if (!force && frame && frame === platform.gamepadFrame) return;
+      // A callback can close the window or start a new refresh before this one finishes.
+      var revision = ++platform.gamepadRevision;
+      if (!platform.callbacks.gamepad) return;
       var getPads = navigator.getGamepads || navigator.webkitGetGamepads;
       if (!getPads) return;
       var pads = getPads.call(navigator);
@@ -490,16 +494,20 @@ var LibraryDefoldPlatform = {
       platform.gamepadFrame = frame;
 
       // Browsers may shorten the array or replace a device in place while backgrounded.
-      Object.keys(platform.joys).forEach(function(slot) {
-        var pad = pads[slot];
+      var slots = Object.keys(platform.joys);
+      var slot, pad;
+      for (var i = 0; i < slots.length; ++i) {
+        slot = Number(slots[i]);
+        pad = pads[slot];
         var old = platform.joys[slot];
         if (!pad || old.rawId !== (pad.id || '') || old.mapping !== pad.mapping) {
           platform.forgetJoystick(slot);
-          {{{ makeDynCall('vii', 'DefoldPlatform.callbacks.gamepad') }}}(Number(slot), 0);
+          {{{ makeDynCall('vii', 'DefoldPlatform.callbacks.gamepad') }}}(slot, 0);
+          if (revision !== platform.gamepadRevision) return;
         }
-      });
-      for (var slot = 0; slot < pads.length; ++slot) {
-        var pad = pads[slot];
+      }
+      for (slot = 0; slot < pads.length; ++slot) {
+        pad = pads[slot];
         if (!pad) continue;
         var known = platform.joys[slot];
         if (known) {
@@ -519,6 +527,7 @@ var LibraryDefoldPlatform = {
         platform.joys[slot] = { rawId: raw, mapping: pad.mapping, sample: pad,
           id: stringToNewUTF8(name), guid: stringToNewUTF8(guid) };
         {{{ makeDynCall('vii', 'DefoldPlatform.callbacks.gamepad') }}}(slot, 1);
+        if (revision !== platform.gamepadRevision) return;
       }
     },
 
@@ -565,6 +574,7 @@ var LibraryDefoldPlatform = {
     platform.listeners.length = 0;
     platform.watchingDisplay = false;
     Object.keys(platform.joys).forEach(platform.forgetJoystick);
+    ++platform.gamepadRevision;
     platform.gamepadFrame = -1;
     platform.callbacks = {};
     platform.initialized = false;
@@ -599,6 +609,7 @@ var LibraryDefoldPlatform = {
 
   dmNativeCloseWindow: function() {
     // Graphics startup can close the window between adapter attempts.
+    ++DefoldPlatform.gamepadRevision;
     DefoldPlatform.params[1] = 0;
     delete Module.ctx;
   },

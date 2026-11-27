@@ -216,6 +216,36 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual([values[0], values[4]], [0, 0]);
 }
 
+// Removing or replacing the window in a gamepad callback ends the old batch of device notifications.
+function testGamepadCallbackTeardown() {
+    const controllers = ["first", "second"].map(id => ({ id, mapping: "", axes: [], buttons: [] }));
+    for (const stopOnConnect of [false, true]) {
+        const context = loadEnvironment();
+        const api = context.LibraryDefoldPlatform;
+        let pads = stopOnConnect ? [] : controllers;
+        context.navigator.getGamepads = () => pads;
+        const events = [];
+        const replacementEvents = [];
+        api.dmNativeSetGamepadCallback((slot, connected) => {
+            events.push([slot, connected]);
+            if (!!connected === stopOnConnect) {
+                api.dmNativeTerminate();
+                if (stopOnConnect) {
+                    pads = [controllers[0]];
+                    api.dmNativeInitJS();
+                    api.dmNativeSetGamepadCallback((id, state) => replacementEvents.push([id, state]));
+                }
+            }
+        });
+
+        pads = stopOnConnect ? controllers : [];
+        context.window.dispatchEvent({ type: stopOnConnect ? "gamepadconnected" : "gamepaddisconnected" });
+        assert.deepStrictEqual(events, stopOnConnect ? [[0, 1]] : [[0, 1], [1, 1], [0, 0]]);
+        assert.deepStrictEqual(replacementEvents, stopOnConnect ? [[0, 1]] : []);
+        assert.strictEqual(api.dmNativeGetJoystickParam(1, joystickParams[0]), 0);
+    }
+}
+
 // Verify modifier presses, repeats and releases keep both sides independent, including overlapping holds (#13745).
 function testModifierKeyEvents() {
     // Both sides share a DOM keyCode and must produce distinct native key values.
@@ -3168,7 +3198,7 @@ async function runTests() {
     for (const test of [testKeyboardTranslation, testKeyboardComposition, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
                        testWebGLFallbackAndRetry, testWindowCloseAndReopen, testGraphicsFallbackCanvasListeners,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testRemappedModifierKeys,
-                       testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput,
+                       testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput, testGamepadCallbackTeardown,
                        testLoaderFullscreenToggle, testUnrelatedDisplayOwner,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
