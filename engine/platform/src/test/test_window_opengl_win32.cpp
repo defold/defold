@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <jc_test/jc_test.h>
-#include "../platform_window_win32.h"
+#include "../win32/window_win32.h"
 #include <GL/gl.h>
 
 struct WorkerUpload
@@ -42,6 +42,69 @@ static DWORD WINAPI Upload(void* data)
     dmPlatform::UnacquireAuxContext(upload->m_Window, context);
     upload->m_ProcAfterRelease = dmPlatform::GetProcAddress(upload->m_Window, "glGetString");
     return wglGetCurrentContext() != 0;
+}
+
+// Two displayable formats from a driver that only supports multisampling with 16-bit depth.
+static int PixelFormatAttribute(int index, int attribute)
+{
+    using namespace dmPlatform;
+    const int values[][3] = {
+        { WGL_DRAW_TO_WINDOW_ARB, TRUE, TRUE }, { WGL_SUPPORT_OPENGL_ARB, TRUE, TRUE }, { WGL_DOUBLE_BUFFER_ARB, TRUE, TRUE },
+        { WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB, WGL_TYPE_RGBA_ARB }, { WGL_COLOR_BITS_ARB, 24, 24 }, { WGL_ALPHA_BITS_ARB, 8, 8 },
+        { WGL_DEPTH_BITS_ARB, 24, 16 }, { WGL_STENCIL_BITS_ARB, 8, 8 }, { WGL_SAMPLE_BUFFERS_ARB, 0, 1 }, { WGL_SAMPLES_ARB, 0, 4 }
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        if (values[i][0] == attribute)
+        {
+            return values[i][index];
+        }
+    }
+
+    return -1;
+}
+
+static BOOL WINAPI ChooseFormats(HDC, const int* required, const FLOAT*, UINT capacity, int* formats, UINT* count)
+{
+    *count = 0;
+    for (int index = 1; index <= 2 && *count < capacity; ++index)
+    {
+        const int* attribute = required;
+        while (*attribute && PixelFormatAttribute(index, attribute[0]) >= attribute[1])
+        {
+            attribute += 2;
+        }
+
+        if (!*attribute)
+        {
+            formats[(*count)++] = index;
+        }
+    }
+
+    return TRUE;
+}
+
+static BOOL WINAPI GetFormat(HDC, int index, int, UINT count, const int* attributes, int* values)
+{
+    for (UINT i = 0; i < count; ++i)
+    {
+        values[i] = PixelFormatAttribute(index, attributes[i]);
+        if (values[i] < 0)
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+// A 4x request can use a 16-bit depth buffer when the preferred 24-bit format is single-sampled.
+TEST(Win32OpenGL, ReducedPrecisionMultisampling)
+{
+    dmPlatform::WglFunctions wgl = { ChooseFormats, GetFormat, 0 };
+    uint32_t samples = 0;
+    EXPECT_EQ(2, dmPlatform::Win32ChoosePixelFormat(0, wgl, 2, 4, &samples));
+    EXPECT_EQ(4u, samples);
 }
 
 // WGL reports the original FSAA request even when the driver selects a different framebuffer sample count.

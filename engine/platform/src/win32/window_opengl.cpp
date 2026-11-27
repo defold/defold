@@ -21,30 +21,12 @@ namespace dmPlatform
     // WGL extensions are queried from a current context after its pixel format is set.
     enum
     {
-        WGL_DRAW_TO_WINDOW_ARB                    = 0x2001,
-        WGL_SUPPORT_OPENGL_ARB                    = 0x2010,
-        WGL_DOUBLE_BUFFER_ARB                     = 0x2011,
-        WGL_PIXEL_TYPE_ARB                        = 0x2013,
-        WGL_COLOR_BITS_ARB                        = 0x2014,
-        WGL_ALPHA_BITS_ARB                        = 0x201B,
-        WGL_DEPTH_BITS_ARB                        = 0x2022,
-        WGL_STENCIL_BITS_ARB                      = 0x2023,
-        WGL_TYPE_RGBA_ARB                         = 0x202B,
-        WGL_SAMPLE_BUFFERS_ARB                    = 0x2041,
-        WGL_SAMPLES_ARB                           = 0x2042,
         WGL_CONTEXT_MAJOR_VERSION_ARB             = 0x2091,
         WGL_CONTEXT_MINOR_VERSION_ARB             = 0x2092,
         WGL_CONTEXT_FLAGS_ARB                     = 0x2094,
         WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB    = 0x0002,
         WGL_CONTEXT_PROFILE_MASK_ARB              = 0x9126,
         WGL_CONTEXT_CORE_PROFILE_BIT_ARB          = 0x0001
-    };
-
-    struct WglFunctions
-    {
-        BOOL(WINAPI * m_ChooseFormat)(HDC, const int*, const FLOAT*, UINT, int*, UINT*);
-        BOOL(WINAPI * m_GetFormat)(HDC, int, int, UINT, const int*, int*);
-        HGLRC(WINAPI * m_CreateContext)(HDC, HGLRC, const int*);
     };
 
     static PROC GetWglProc(const char* name)
@@ -121,47 +103,63 @@ namespace dmPlatform
         return bound;
     }
 
-    static int ChooseWindowFormat(HDC dc, const WglFunctions& wgl, uint32_t requested, uint32_t* samples)
+    int Win32ChoosePixelFormat(HDC dc, const WglFunctions& wgl, int format_count, uint32_t requested, uint32_t* samples)
     {
         *samples = 1;
-        if (requested && wgl.m_ChooseFormat && wgl.m_GetFormat)
+        if (!requested || !wgl.m_ChooseFormat || !wgl.m_GetFormat || format_count <= 0)
         {
-            const int attributes[] = { WGL_DRAW_TO_WINDOW_ARB, TRUE, WGL_SUPPORT_OPENGL_ARB, TRUE, WGL_DOUBLE_BUFFER_ARB, TRUE,
-                                       WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB, WGL_COLOR_BITS_ARB, 24, WGL_ALPHA_BITS_ARB, 8, WGL_DEPTH_BITS_ARB, 24,
-                                       WGL_STENCIL_BITS_ARB, 8, WGL_SAMPLE_BUFFERS_ARB, 1, 0 };
-            int format_count = DescribePixelFormat(dc, 1, 0, 0);
-            dmArray<int> formats;
-            formats.SetCapacity(format_count);
-            UINT count = 0;
-            int best = 0;
-            uint32_t best_error = UINT32_MAX;
-            if (format_count && wgl.m_ChooseFormat(dc, attributes, 0, format_count, formats.Begin(), &count))
+            return 0;
+        }
+
+        const int required[] = { WGL_DRAW_TO_WINDOW_ARB, TRUE, WGL_SUPPORT_OPENGL_ARB, TRUE, WGL_DOUBLE_BUFFER_ARB, TRUE,
+                                 WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB, 0 };
+        dmArray<int> formats;
+        formats.SetCapacity(format_count);
+        UINT count = 0;
+        if (!wgl.m_ChooseFormat(dc, required, 0, format_count, formats.Begin(), &count))
+        {
+            return 0;
+        }
+
+        const int attributes[] = { WGL_COLOR_BITS_ARB, WGL_ALPHA_BITS_ARB, WGL_DEPTH_BITS_ARB, WGL_STENCIL_BITS_ARB,
+                                   WGL_SAMPLE_BUFFERS_ARB, WGL_SAMPLES_ARB };
+        const int preferred_bits[] = { 24, 8, 24, 8 };
+        const uint32_t channel_count = DM_ARRAY_SIZE(preferred_bits);
+        int best = 0;
+        uint32_t best_missing = UINT32_MAX;
+        OpenGLFormatScore best_score = { UINT32_MAX, UINT32_MAX, false };
+        for (UINT i = 0; i < count; ++i)
+        {
+            int values[DM_ARRAY_SIZE(attributes)];
+            int index = formats.Begin()[i];
+            if (!wgl.m_GetFormat(dc, index, 0, DM_ARRAY_SIZE(attributes), attributes, values))
             {
-                const int attribute = WGL_SAMPLES_ARB;
-                for (UINT i = 0; i < count; ++i)
+                continue;
+            }
+
+            // A shallower depth buffer still supplies depth. Count absent buffers before comparing precision.
+            const uint32_t available = values[channel_count] ? values[channel_count + 1] : 0;
+            uint32_t missing = available == 0;
+            OpenGLFormatScore score = { 0, OpenGLSampleCountError(requested, available), false };
+            for (uint32_t j = 0; j < channel_count; ++j)
+            {
+                missing += values[j] == 0;
+                if (values[j] < preferred_bits[j])
                 {
-                    int value;
-                    int index = formats.Begin()[i];
-                    if (wgl.m_GetFormat(dc, index, 0, 1, &attribute, &value) && value > 0)
-                    {
-                        uint32_t error = OpenGLSampleCountError(requested, value);
-                        if (error < best_error)
-                        {
-                            best_error = error;
-                            *samples = value;
-                            best = index;
-                        }
-                    }
+                    score.m_MissingBits += preferred_bits[j] - values[j];
                 }
             }
 
-            if (best)
+            if (missing < best_missing || (missing == best_missing && BetterOpenGLFormat(score, best_score)))
             {
-                return best;
+                best = index;
+                *samples = available > 1 ? available : 1;
+                best_missing = missing;
+                best_score = score;
             }
         }
 
-        return ChooseBasicFormat(dc);
+        return best;
     }
 
     static HGLRC CreateContext(HDC dc, HGLRC share, const WglFunctions& wgl, uint32_t major, uint32_t minor, bool core)
@@ -211,7 +209,13 @@ namespace dmPlatform
             return false;
         }
 
-        int format = ChooseWindowFormat(window->m_DC, wgl, window->m_Params.m_Samples, &window->m_Samples);
+        int format_count = DescribePixelFormat(window->m_DC, 1, 0, 0);
+        int format = Win32ChoosePixelFormat(window->m_DC, wgl, format_count, window->m_Params.m_Samples, &window->m_Samples);
+        if (!format)
+        {
+            format = ChooseBasicFormat(window->m_DC);
+        }
+
         if (!SetFormat(window->m_DC, format))
         {
             return false;

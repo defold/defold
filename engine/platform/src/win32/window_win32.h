@@ -80,6 +80,30 @@ namespace dmPlatform
     void      Win32ShutdownJoysticks();
     void      Win32NotifyGamepad(int index, WindowGamepadEvent event);
     bool      Win32JoystickPresent(int index);
+
+    enum
+    {
+        WGL_DRAW_TO_WINDOW_ARB                    = 0x2001,
+        WGL_SUPPORT_OPENGL_ARB                    = 0x2010,
+        WGL_DOUBLE_BUFFER_ARB                     = 0x2011,
+        WGL_PIXEL_TYPE_ARB                        = 0x2013,
+        WGL_COLOR_BITS_ARB                        = 0x2014,
+        WGL_ALPHA_BITS_ARB                        = 0x201B,
+        WGL_DEPTH_BITS_ARB                        = 0x2022,
+        WGL_STENCIL_BITS_ARB                      = 0x2023,
+        WGL_TYPE_RGBA_ARB                         = 0x202B,
+        WGL_SAMPLE_BUFFERS_ARB                    = 0x2041,
+        WGL_SAMPLES_ARB                           = 0x2042
+    };
+
+    struct WglFunctions
+    {
+        BOOL(WINAPI * m_ChooseFormat)(HDC, const int*, const FLOAT*, UINT, int*, UINT*);
+        BOOL(WINAPI * m_GetFormat)(HDC, int, int, UINT, const int*, int*);
+        HGLRC(WINAPI * m_CreateContext)(HDC, HGLRC, const int*);
+    };
+
+    int       Win32ChoosePixelFormat(HDC dc, const WglFunctions& wgl, int format_count, uint32_t requested, uint32_t* samples);
     bool      Win32OpenGLCreate(HWindow window);
     void      Win32OpenGLDestroy(HWindow window);
 }
