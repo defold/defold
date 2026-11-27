@@ -17,6 +17,7 @@
 
 #import <AppKit/AppKit.h>
 #include "../window_placement.h"
+#include "../window_egl.h"
 
 struct WindowPlacement;
 @class DMWindowDelegate;
@@ -38,6 +39,7 @@ struct dmWindow
     DMWindowDelegate*              m_Delegate;
     NSOpenGLContext*               m_Context;
     NSOpenGLContext*               m_AuxContext;
+    WindowEGL*                     m_EGL;
     WindowPlacement*               m_Placement;
     WindowCreateParams             m_Params;
     WindowInputCallbacks           m_InputCallbacks;
@@ -50,6 +52,7 @@ struct dmWindow
     NSSize                         m_DrawableSize;
     CGFloat                        m_Scale;
     uint32_t                       m_ResizeCallbackCount;
+    uint32_t                       m_Samples;
     dmPlatform::WindowPressedInput m_Input;
     bool                           m_CursorLocked;
     bool                           m_CursorDisabled;

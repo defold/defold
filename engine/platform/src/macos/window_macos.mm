@@ -346,13 +346,15 @@ namespace dmPlatform
                 return WINDOW_RESULT_WINDOW_OPEN_ERROR;
             }
 
-            if (params.m_GraphicsApi != WINDOW_GRAPHICS_API_OPENGL && params.m_GraphicsApi != WINDOW_GRAPHICS_API_METAL &&
-                params.m_GraphicsApi != WINDOW_GRAPHICS_API_VULKAN && params.m_GraphicsApi != WINDOW_GRAPHICS_API_WEBGPU)
+            const bool opengl = params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL || params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES;
+            if (!opengl && params.m_GraphicsApi != WINDOW_GRAPHICS_API_METAL && params.m_GraphicsApi != WINDOW_GRAPHICS_API_VULKAN &&
+                params.m_GraphicsApi != WINDOW_GRAPHICS_API_WEBGPU)
             {
                 return WINDOW_RESULT_WINDOW_OPEN_ERROR;
             }
 
             window->m_Params = params;
+            window->m_Samples = params.m_Samples;
             InitWindowPlacement(window, params);
             NSScreen* screen = [NSScreen screens].firstObject;
             NSRect rect = NSMakeRect(0, 0, params.m_Width, params.m_Height);
@@ -396,7 +398,7 @@ namespace dmPlatform
             window->m_Delegate = [[DMWindowDelegate alloc] init];
             window->m_Delegate->handle = window;
             native.delegate = window->m_Delegate;
-            if (!window->m_View || (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL && !OpenGLCreateContexts(window)))
+            if (!window->m_View || (opengl && !OpenGLCreateContexts(window)))
             {
                 CloseWindow(window);
                 return WINDOW_RESULT_WINDOW_OPEN_ERROR;
@@ -636,11 +638,11 @@ namespace dmPlatform
             }
             case WINDOW_STATE_SAMPLE_COUNT:
             {
-                return window->m_Params.m_Samples;
+                return window->m_Samples;
             }
             case WINDOW_STATE_AUX_CONTEXT:
             {
-                return window->m_AuxContext != nil;
+                return window->m_AuxContext != nil || EGLHasAuxContext(window->m_EGL);
             }
             case WINDOW_STATE_REFRESH_RATE:
             {
@@ -652,7 +654,7 @@ namespace dmPlatform
             }
         }
 
-        return 0;
+        return window->m_EGL ? EGLGetConfigParam(window->m_EGL, state) : 0;
     }
 
     NativeWindowId GetNativeWindowId(HWindow window)

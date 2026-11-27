@@ -12,11 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_win32.h"
-#include "../platform_window_opengl.h"
+#include "window_egl.h"
+#include "platform_window_opengl.h"
+#include <dlib/array.h>
 #include <dlib/log.h>
 
-// EGL is loaded at runtime so Windows builds without ANGLE can still use WGL, DX12 and Vulkan.
+// Load ANGLE only for windows that request OpenGL ES.
+#if defined(_WIN32)
+#include <windows.h>
+typedef HMODULE EGLLibrary;
+#define EGL_CALL WINAPI
+#define EGL_OPEN(name) LoadLibraryA(name ".dll")
+#define EGL_SYMBOL(library, name) ::GetProcAddress(library, name)
+#define EGL_CLOSE(library) FreeLibrary(library)
+#else
+#include <dlfcn.h>
+typedef void* EGLLibrary;
+#define EGL_CALL
+// ANGLE registers Objective-C classes that AppKit can use after the last EGL window closes.
+#define EGL_OPEN(name) dlopen(name ".dylib", RTLD_LAZY | RTLD_LOCAL | RTLD_NODELETE)
+#define EGL_SYMBOL(library, name) dlsym(library, name)
+#define EGL_CLOSE(library) dlclose(library)
+#endif
 typedef void*        EGLDisplay;
 typedef void*        EGLConfig;
 typedef void*        EGLContext;
@@ -47,26 +64,26 @@ enum
 
 struct EGLFunctions
 {
-    HMODULE m_Library, m_GLES;
-    EGLDisplay(WINAPI * m_GetDisplay)(void*);
-    int(WINAPI * m_Initialize)(EGLDisplay, EGLint*, EGLint*);
-    int(WINAPI * m_BindAPI)(EGLenum);
-    int(WINAPI * m_ChooseConfig)(EGLDisplay, const EGLint*, EGLConfig*, EGLint, EGLint*);
-    int(WINAPI * m_GetConfigAttrib)(EGLDisplay, EGLConfig, EGLint, EGLint*);
-    EGLContext(WINAPI * m_CreateContext)(EGLDisplay, EGLConfig, EGLContext, const EGLint*);
-    EGLSurface(WINAPI * m_CreateWindowSurface)(EGLDisplay, EGLConfig, void*, const EGLint*);
-    EGLSurface(WINAPI * m_CreatePbufferSurface)(EGLDisplay, EGLConfig, const EGLint*);
-    int(WINAPI * m_MakeCurrent)(EGLDisplay, EGLSurface, EGLSurface, EGLContext);
-    EGLContext(WINAPI * m_GetCurrentContext)();
-    int(WINAPI * m_DestroySurface)(EGLDisplay, EGLSurface);
-    int(WINAPI * m_DestroyContext)(EGLDisplay, EGLContext);
-    int(WINAPI * m_Terminate)(EGLDisplay);
-    void*(WINAPI* m_GetProcAddress)(const char*);
-    int(WINAPI * m_SwapBuffers)(EGLDisplay, EGLSurface);
-    int(WINAPI * m_SwapInterval)(EGLDisplay, EGLint);
+    EGLLibrary m_Library, m_GLES;
+    EGLDisplay(EGL_CALL * m_GetDisplay)(void*);
+    int(EGL_CALL * m_Initialize)(EGLDisplay, EGLint*, EGLint*);
+    int(EGL_CALL * m_BindAPI)(EGLenum);
+    int(EGL_CALL * m_ChooseConfig)(EGLDisplay, const EGLint*, EGLConfig*, EGLint, EGLint*);
+    int(EGL_CALL * m_GetConfigAttrib)(EGLDisplay, EGLConfig, EGLint, EGLint*);
+    EGLContext(EGL_CALL * m_CreateContext)(EGLDisplay, EGLConfig, EGLContext, const EGLint*);
+    EGLSurface(EGL_CALL * m_CreateWindowSurface)(EGLDisplay, EGLConfig, void*, const EGLint*);
+    EGLSurface(EGL_CALL * m_CreatePbufferSurface)(EGLDisplay, EGLConfig, const EGLint*);
+    int(EGL_CALL * m_MakeCurrent)(EGLDisplay, EGLSurface, EGLSurface, EGLContext);
+    EGLContext(EGL_CALL * m_GetCurrentContext)();
+    int(EGL_CALL * m_DestroySurface)(EGLDisplay, EGLSurface);
+    int(EGL_CALL * m_DestroyContext)(EGLDisplay, EGLContext);
+    int(EGL_CALL * m_Terminate)(EGLDisplay);
+    void*(EGL_CALL* m_GetProcAddress)(const char*);
+    int(EGL_CALL * m_SwapBuffers)(EGLDisplay, EGLSurface);
+    int(EGL_CALL * m_SwapInterval)(EGLDisplay, EGLint);
 };
 
-struct Win32EGL
+struct WindowEGL
 {
     EGLConfig  m_Config;
     EGLContext m_Context, m_AuxContext;
@@ -85,15 +102,15 @@ static bool LoadEGL()
         return true;
     }
 
-    g_EGL.m_Library = LoadLibraryW(L"libEGL.dll");
-    g_EGL.m_GLES = LoadLibraryW(L"libGLESv2.dll");
+    g_EGL.m_Library = EGL_OPEN("libEGL");
+    g_EGL.m_GLES = EGL_OPEN("libGLESv2");
     if (!g_EGL.m_Library || !g_EGL.m_GLES)
     {
         goto fail;
     }
 
 #define LOAD(name) \
-    g_EGL.m_##name = (decltype(g_EGL.m_##name))GetProcAddress(g_EGL.m_Library, "egl" #name); \
+    g_EGL.m_##name = (decltype(g_EGL.m_##name))EGL_SYMBOL(g_EGL.m_Library, "egl" #name); \
     if (!g_EGL.m_##name) goto fail;
     LOAD(GetDisplay)
     LOAD(Initialize)
@@ -128,12 +145,12 @@ static bool LoadEGL()
 fail:
     if (g_EGL.m_GLES)
     {
-        FreeLibrary(g_EGL.m_GLES);
+        EGL_CLOSE(g_EGL.m_GLES);
     }
 
     if (g_EGL.m_Library)
     {
-        FreeLibrary(g_EGL.m_Library);
+        EGL_CLOSE(g_EGL.m_Library);
     }
 
     g_EGL = {};
@@ -146,8 +163,8 @@ static void ReleaseEGL()
     if (--g_Users == 0)
     {
         g_EGL.m_Terminate(g_Display);
-        FreeLibrary(g_EGL.m_GLES);
-        FreeLibrary(g_EGL.m_Library);
+        EGL_CLOSE(g_EGL.m_GLES);
+        EGL_CLOSE(g_EGL.m_Library);
         g_EGL = {};
         g_Display = 0;
     }
@@ -202,35 +219,36 @@ namespace dmPlatform
         return best;
     }
 
-    bool Win32EGLCreate(HWindow window)
+    WindowEGL* EGLCreateWindow(void* native_window, const WindowCreateParams& params, uint32_t* sample_count)
     {
         if (!LoadEGL())
         {
             dmLogError("Failed to load or initialize ANGLE EGL.");
-            return false;
+            return 0;
         }
 
-        Win32EGL* egl = new Win32EGL();
-        *egl = {};
-        window->m_EGL = egl;
+        WindowEGL* egl = new WindowEGL();
         if (!g_EGL.m_BindAPI(EGL_OPENGL_ES_API))
         {
-            return false;
+            EGLDestroyWindow(egl);
+            return 0;
         }
 
-        egl->m_Config = ChooseWindowConfig(window->m_Params, &window->m_Samples);
+        egl->m_Config = ChooseWindowConfig(params, sample_count);
         if (!egl->m_Config)
         {
-            return false;
+            EGLDestroyWindow(egl);
+            return 0;
         }
 
         const EGLint version[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
         egl->m_Context = g_EGL.m_CreateContext(g_Display, egl->m_Config, 0, version);
-        egl->m_Surface = g_EGL.m_CreateWindowSurface(g_Display, egl->m_Config, window->m_Window, 0);
+        egl->m_Surface = g_EGL.m_CreateWindowSurface(g_Display, egl->m_Config, native_window, 0);
         if (!egl->m_Context || !egl->m_Surface ||
             !g_EGL.m_MakeCurrent(g_Display, egl->m_Surface, egl->m_Surface, egl->m_Context))
         {
-            return false;
+            EGLDestroyWindow(egl);
+            return 0;
         }
 
         const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
@@ -245,19 +263,18 @@ namespace dmPlatform
             }
         }
 
-        return true;
+        return egl;
     }
 
-    void Win32EGLDestroy(HWindow window)
+    void EGLDestroyWindow(WindowEGL* egl)
     {
-        Win32EGL* egl = window->m_EGL;
         if (!egl)
         {
             return;
         }
 
         EGLContext current = g_EGL.m_GetCurrentContext();
-        if (current == egl->m_Context || current == egl->m_AuxContext)
+        if (current && (current == egl->m_Context || current == egl->m_AuxContext))
         {
             g_EGL.m_MakeCurrent(g_Display, 0, 0, 0);
         }
@@ -283,55 +300,50 @@ namespace dmPlatform
         }
 
         delete egl;
-        window->m_EGL = 0;
         ReleaseEGL();
     }
 
-    uintptr_t Win32EGLGetProcAddress(HWindow window, const char* name)
+    uintptr_t EGLGetProcAddress(WindowEGL* egl, const char* name)
     {
-        if (!window->m_EGL || !g_EGL.m_GetCurrentContext())
+        if (!egl || !g_EGL.m_GetCurrentContext())
         {
             return 0;
         }
 
         void* proc = g_EGL.m_GetProcAddress(name);
-        return (uintptr_t)(proc ? proc : ::GetProcAddress(g_EGL.m_GLES, name));
+        return (uintptr_t)(proc ? proc : (void*)EGL_SYMBOL(g_EGL.m_GLES, name));
     }
 
-    void Win32EGLSetSwapInterval(HWindow window, uint32_t interval)
+    void EGLSetSwapInterval(uint32_t interval)
     {
-        if (window->m_EGL)
-        {
-            g_EGL.m_SwapInterval(g_Display, interval);
-        }
+        g_EGL.m_SwapInterval(g_Display, interval);
     }
 
-    void Win32EGLSwapBuffers(HWindow window)
+    void EGLSwapBuffers(WindowEGL* egl)
     {
-        g_EGL.m_SwapBuffers(g_Display, window->m_EGL->m_Surface);
+        g_EGL.m_SwapBuffers(g_Display, egl->m_Surface);
     }
 
-    void* Win32EGLAcquireAuxContext(HWindow window)
+    void* EGLAcquireAuxContext(WindowEGL* egl)
     {
-        Win32EGL* egl = window->m_EGL;
         return egl->m_AuxContext && g_EGL.m_MakeCurrent(g_Display, egl->m_AuxSurface, egl->m_AuxSurface, egl->m_AuxContext)
                    ? egl->m_AuxContext : 0;
     }
 
-    void Win32EGLUnacquireAuxContext(HWindow window, void* context)
+    void EGLUnacquireAuxContext(WindowEGL* egl, void* context)
     {
-        if (context && context == window->m_EGL->m_AuxContext && context == g_EGL.m_GetCurrentContext())
+        if (context && context == egl->m_AuxContext && context == g_EGL.m_GetCurrentContext())
         {
             g_EGL.m_MakeCurrent(g_Display, 0, 0, 0);
         }
     }
 
-    bool Win32EGLHasAuxContext(HWindow window)
+    bool EGLHasAuxContext(WindowEGL* egl)
     {
-        return window->m_EGL && window->m_EGL->m_AuxContext;
+        return egl && egl->m_AuxContext;
     }
 
-    int Win32EGLGetConfigParam(HWindow window, WindowState state)
+    int EGLGetConfigParam(WindowEGL* egl, WindowState state)
     {
         EGLint attribute = 0;
         switch (state)
@@ -373,7 +385,7 @@ namespace dmPlatform
         }
 
         EGLint value = 0;
-        g_EGL.m_GetConfigAttrib(g_Display, window->m_EGL->m_Config, attribute, &value);
+        g_EGL.m_GetConfigAttrib(g_Display, egl->m_Config, attribute, &value);
         return value;
     }
 

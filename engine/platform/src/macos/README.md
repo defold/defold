@@ -19,7 +19,9 @@ or delete the window safely. [Window metrics](window_macos.mm) ·
 [Desktop placement in AppKit coordinates](window_placement.mm)
 
 OpenGL uses an `NSOpenGLContext` attached to the content view and can provide a
-second shared context for worker uploads. Metal and WebGPU can obtain the native
+second shared context for worker uploads. OpenGL ES uses the content view's
+backing layer with ANGLE when the application supplies `libEGL.dylib` and
+`libGLESv2.dylib`. Metal and WebGPU can obtain the native
 view from the platform interface. The Vulkan variant creates a surface using
 `VK_EXT_metal_surface` when available and supports `VK_MVK_macos_surface` as a
 fallback. [OpenGL context](window_opengl.mm) · [Native handles](../platform_window_osx.h) ·

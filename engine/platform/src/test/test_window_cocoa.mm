@@ -16,6 +16,7 @@
 #import <Carbon/Carbon.h>
 #import <OpenGL/gl3.h>
 #import <objc/runtime.h>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <jc_test/jc_test.h>
 #include "test_window_focus.h"
@@ -382,6 +383,56 @@ TEST_F(CocoaWindowTest, OpenGLProcAddressRequiresContext)
         [NSOpenGLContext clearCurrentContext];
         EXPECT_EQ((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
     }
+}
+
+// An SDK caller can render with a supplied ANGLE runtime and reuse the window handle after closing or failing to open it.
+TEST_F(CocoaWindowTest, OpenGLESWithOptionalANGLE)
+{
+    const bool available = dlopen_preflight("libEGL.dylib") && dlopen_preflight("libGLESv2.dylib");
+
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    WindowResult result = WindowOpen(window, &params);
+    if (available)
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, result);
+        EXPECT_TRUE(dmPlatform::GetOSXNSOpenGLContext(window) == nil);
+        typedef const GLubyte* (*GetString)(GLenum);
+        typedef void           (*ClearColor)(GLfloat, GLfloat, GLfloat, GLfloat);
+        typedef void           (*Clear)(GLbitfield);
+        typedef void           (*ReadPixels)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*);
+        GetString get_string = (GetString)WindowGetProcAddress(window, "glGetString");
+        ClearColor clear_color = (ClearColor)WindowGetProcAddress(window, "glClearColor");
+        Clear clear = (Clear)WindowGetProcAddress(window, "glClear");
+        ReadPixels read_pixels = (ReadPixels)WindowGetProcAddress(window, "glReadPixels");
+        ASSERT_TRUE(get_string && clear_color && clear && read_pixels);
+        const char* version = (const char*)get_string(GL_VERSION);
+        ASSERT_TRUE(version && strstr(version, "OpenGL ES"));
+        clear_color(1, 0, 0, 1);
+        clear(GL_COLOR_BUFFER_BIT);
+        GLubyte pixel[4] = {};
+        read_pixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+        EXPECT_EQ(255u, pixel[0]);
+        EXPECT_EQ(0u, pixel[1]);
+        EXPECT_EQ(0u, pixel[2]);
+        WindowSwapBuffers(window);
+        if (WindowGetStateParam(window, WINDOW_STATE_AUX_CONTEXT))
+        {
+            void* aux = WindowAcquireAuxContext(window);
+            ASSERT_NE((void*)0, aux);
+            WindowUnacquireAuxContext(window, aux);
+            EXPECT_EQ((uintptr_t)0, WindowGetProcAddress(window, "glGetString"));
+        }
+
+        WindowClose(window);
+    }
+    else
+    {
+        ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, result);
+    }
+
+    EXPECT_EQ(0u, WindowGetStateParam(window, WINDOW_STATE_OPENED));
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
+    EXPECT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
 }
 
 // A move notification alone must update the OpenGL drawable when the window stays on the same display.

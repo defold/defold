@@ -18,7 +18,7 @@ placement. [Window metrics](window_win32.cpp) · [Display queries](window_displa
 | Requested API | What the window backend creates |
 | --- | --- |
 | Desktop OpenGL | WGL context on the window's device context. A helper window is used to load WGL extensions. An optional shared context supports worker uploads. [WGL implementation](window_opengl.cpp) |
-| OpenGL ES | An EGL window surface and current ES context through ANGLE. The Windows loader must be able to find `libEGL.dll` and `libGLESv2.dll`. The optional shared context uses a pbuffer. [EGL implementation](window_egl.cpp) |
+| OpenGL ES | An EGL window surface and current ES context through ANGLE. The Windows loader must be able to find `libEGL.dll` and `libGLESv2.dll`. The optional shared context uses a pbuffer. [EGL implementation](../window_egl.cpp) |
 | Vulkan | An HWND and, through the Vulkan variant, a `VkSurfaceKHR` for that HWND. [Vulkan surface](window_vulkan.cpp) |
 | DirectX or WebGPU | An HWND that the graphics adapter uses to set up presentation. [Native handles](../platform_window_win32.h) |
 

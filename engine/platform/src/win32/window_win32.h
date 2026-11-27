@@ -17,12 +17,11 @@
 
 #include "../platform_window_win32.h"
 #include "window_geometry.h"
+#include "../window_egl.h"
 
 #ifndef WM_DPICHANGED
 #define WM_DPICHANGED 0x02E0
 #endif
-
-struct Win32EGL;
 
 struct Win32InputCallbacks
 {
@@ -40,7 +39,7 @@ struct dmWindow
     HWND      m_AuxWindow;
     HDC       m_DC, m_AuxDC;
     HGLRC     m_Context, m_AuxContext;
-    Win32EGL* m_EGL;
+    WindowEGL* m_EGL;
     HCURSOR   m_HiddenCursor;
     BOOL(WINAPI * m_SwapInterval)(int);
     WindowPlacement*               m_Placement;
@@ -83,14 +82,5 @@ namespace dmPlatform
     bool      Win32JoystickPresent(int index);
     bool      Win32OpenGLCreate(HWindow window);
     void      Win32OpenGLDestroy(HWindow window);
-    bool      Win32EGLCreate(HWindow window);
-    void      Win32EGLDestroy(HWindow window);
-    uintptr_t Win32EGLGetProcAddress(HWindow window, const char* name);
-    void      Win32EGLSetSwapInterval(HWindow window, uint32_t interval);
-    void      Win32EGLSwapBuffers(HWindow window);
-    void*     Win32EGLAcquireAuxContext(HWindow window);
-    void      Win32EGLUnacquireAuxContext(HWindow window, void* context);
-    bool      Win32EGLHasAuxContext(HWindow window);
-    int       Win32EGLGetConfigParam(HWindow window, WindowState state);
 }
 #endif

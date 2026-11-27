@@ -91,7 +91,8 @@ elseif(TARGET_PLATFORM_OS STREQUAL "macos")
         "${PLAT_SRC_DIR}/macos/window_placement.mm"
         "${PLAT_SRC_DIR}/macos/window_input.mm"
         "${PLAT_SRC_DIR}/macos/window_joystick.mm"
-        "${PLAT_SRC_DIR}/macos/window_opengl.mm")
+        "${PLAT_SRC_DIR}/macos/window_opengl.mm"
+        "${PLAT_SRC_DIR}/window_egl.cpp")
 elseif(TARGET_PLATFORM_OS STREQUAL "win32")
     set(PLATFORM_USE_WIN32 ON)
     set(_platform_sources
@@ -107,7 +108,7 @@ elseif(TARGET_PLATFORM_OS STREQUAL "win32")
         "${PLAT_SRC_DIR}/win32/joystick_driver.cpp"
         "${PLAT_SRC_DIR}/win32/joystick_packet.cpp"
         "${PLAT_SRC_DIR}/win32/window_opengl.cpp"
-        "${PLAT_SRC_DIR}/win32/window_egl.cpp")
+        "${PLAT_SRC_DIR}/window_egl.cpp")
 elseif(TARGET_PLATFORM_OS STREQUAL "linux")
     set(PLATFORM_USE_LINUX ON)
     include("${PLAT_SRC_DIR}/linux/wayland_protocols.cmake")

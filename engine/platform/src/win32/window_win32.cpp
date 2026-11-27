@@ -403,10 +403,14 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES && !Win32EGLCreate(window))
+        if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES)
         {
-            CloseWindow(window);
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            window->m_EGL = EGLCreateWindow(hwnd, params, &window->m_Samples);
+            if (!window->m_EGL)
+            {
+                CloseWindow(window);
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
         }
 
         SetSwapInterval(window, 1);
@@ -437,7 +441,7 @@ namespace dmPlatform
         Win32UpdateCursor(window, false);
         DeleteWindowPlacement(window);
         Win32OpenGLDestroy(window);
-        Win32EGLDestroy(window);
+        EGLDestroyWindow(window->m_EGL);
         SetWindowLongPtrW(window->m_Window, GWLP_USERDATA, 0);
         DestroyWindow(window->m_Window);
         if (window->m_HiddenCursor)
@@ -714,7 +718,7 @@ namespace dmPlatform
             }
             case WINDOW_STATE_AUX_CONTEXT:
             {
-                return window->m_AuxContext != 0 || Win32EGLHasAuxContext(window);
+                return window->m_AuxContext != 0 || EGLHasAuxContext(window->m_EGL);
             }
             default:
             {
@@ -724,7 +728,7 @@ namespace dmPlatform
 
         if (window->m_EGL)
         {
-            return Win32EGLGetConfigParam(window, state);
+            return EGLGetConfigParam(window->m_EGL, state);
         }
 
         PIXELFORMATDESCRIPTOR format = {};

@@ -14,6 +14,7 @@
 
 #include "window_macos.h"
 #include "../platform_window_opengl.h"
+#import <QuartzCore/CALayer.h>
 #include <dlib/log.h>
 #include <math.h>
 
@@ -21,8 +22,22 @@ namespace dmPlatform
 {
     bool OpenGLCreateContexts(HWindow window)
     {
-        uint32_t major = 3, minor = 3;
         const WindowCreateParams& params = window->m_Params;
+        if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES)
+        {
+            window->m_View.wantsLayer = YES;
+            window->m_View.layer.contentsScale = window->m_Window.backingScaleFactor;
+            window->m_Window.colorSpace = [NSColorSpace sRGBColorSpace];
+            window->m_EGL = EGLCreateWindow(window->m_View.layer, params, &window->m_Samples);
+            if (window->m_EGL)
+            {
+                EGLSetSwapInterval(1);
+            }
+
+            return window->m_EGL != 0;
+        }
+
+        uint32_t major = 3, minor = 3;
         if (!OpenGLGetVersion(params.m_GraphicsApiVersionHint, &major, &minor) && params.m_GraphicsApiVersionHint)
         {
             dmLogWarning("Unsupported OpenGL version hint %d. Using OpenGL 3.3.", params.m_GraphicsApiVersionHint);
@@ -69,6 +84,12 @@ namespace dmPlatform
 
     void OpenGLDestroyContexts(HWindow window)
     {
+        if (window->m_EGL)
+        {
+            EGLDestroyWindow(window->m_EGL);
+            return;
+        }
+
         NSOpenGLContext* current = [NSOpenGLContext currentContext];
         if (current && (current == window->m_Context || current == window->m_AuxContext))
         {
@@ -87,6 +108,11 @@ namespace dmPlatform
 
     uintptr_t GetProcAddress(HWindow window, const char* name)
     {
+        if (window->m_EGL)
+        {
+            return EGLGetProcAddress(window->m_EGL, name);
+        }
+
         if (!window->m_Context || ![NSOpenGLContext currentContext])
         {
             return 0;
@@ -106,12 +132,24 @@ namespace dmPlatform
 
     void SetSwapInterval(HWindow window, uint32_t interval)
     {
+        if (window->m_EGL)
+        {
+            EGLSetSwapInterval(interval);
+            return;
+        }
+
         GLint value = (GLint)interval;
         [window->m_Context setValues:&value forParameter:NSOpenGLContextParameterSwapInterval];
     }
 
     void SwapBuffers(HWindow window)
     {
+        if (window->m_EGL)
+        {
+            EGLSwapBuffers(window->m_EGL);
+            return;
+        }
+
         @autoreleasepool
         {
             // NSOpenGL ignores the swap interval when the window is fully occluded.
@@ -134,12 +172,23 @@ namespace dmPlatform
 
     void* AcquireAuxContext(HWindow window)
     {
+        if (window->m_EGL)
+        {
+            return EGLAcquireAuxContext(window->m_EGL);
+        }
+
         [window->m_AuxContext makeCurrentContext];
         return window->m_AuxContext;
     }
 
-    void UnacquireAuxContext(HWindow, void*)
+    void UnacquireAuxContext(HWindow window, void* context)
     {
+        if (window->m_EGL)
+        {
+            EGLUnacquireAuxContext(window->m_EGL, context);
+            return;
+        }
+
         [NSOpenGLContext clearCurrentContext];
     }
 

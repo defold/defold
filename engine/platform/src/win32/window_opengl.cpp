@@ -289,7 +289,7 @@ namespace dmPlatform
     {
         if (window->m_EGL)
         {
-            return Win32EGLGetProcAddress(window, name);
+            return EGLGetProcAddress(window->m_EGL, name);
         }
 
         if (!window->m_Context || !wglGetCurrentContext())
@@ -305,7 +305,7 @@ namespace dmPlatform
     {
         if (window->m_EGL)
         {
-            Win32EGLSetSwapInterval(window, interval);
+            EGLSetSwapInterval(interval);
             return;
         }
 
@@ -319,7 +319,7 @@ namespace dmPlatform
     {
         if (window->m_EGL)
         {
-            Win32EGLSwapBuffers(window);
+            EGLSwapBuffers(window->m_EGL);
             return;
         }
 
@@ -333,7 +333,7 @@ namespace dmPlatform
     {
         if (window->m_EGL)
         {
-            return Win32EGLAcquireAuxContext(window);
+            return EGLAcquireAuxContext(window->m_EGL);
         }
 
         return window->m_AuxContext && wglMakeCurrent(window->m_AuxDC, window->m_AuxContext) ? window->m_AuxContext : 0;
@@ -343,7 +343,7 @@ namespace dmPlatform
     {
         if (window->m_EGL)
         {
-            Win32EGLUnacquireAuxContext(window, context);
+            EGLUnacquireAuxContext(window->m_EGL, context);
             return;
         }
 
