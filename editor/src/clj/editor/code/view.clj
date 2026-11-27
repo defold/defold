@@ -2078,14 +2078,18 @@
     (g/user-data! view-node :signature-help-request request)
     (lsp/signature-help!
       (lsp/get-lsp) resource cursor
-      (fn [result]
+      (fn on-signature-help-result [result]
         (ui/run-later
           (when (identical? request (g/user-data view-node :signature-help-request))
-            (let [shown (get-property view-node :signature-help)]
+            (let [shown (get-property view-node :signature-help)
+
+                  keep-selection
+                  (and result
+                       (:selected shown)
+                       (= (mapv :label (:signatures shown))
+                          (mapv :label (:signatures result))))]
               (set-properties! view-node nil
-                               {:signature-help (if (and result
-                                                         (:selected shown)
-                                                         (= (mapv :label (:signatures shown)) (mapv :label (:signatures result))))
+                               {:signature-help (if keep-selection
                                                   (assoc result :selected (:selected shown))
                                                   result)}))))))))
 
@@ -2833,14 +2837,14 @@
 (defn- move-or-page-signature-help! [view-node direction]
   (let [{:keys [active selected signatures] :as signature-help}
         (get-property view-node :signature-help)]
-    (if (and (some-> ^PopupWindow (g/user-data view-node :signature-help-window) .isShowing)
-             (< 1 (count signatures))
-             (not (suggestions-visible? view-node)))
+    (if-not (and (some-> ^PopupWindow (g/user-data view-node :signature-help-window) .isShowing)
+                 (< 1 (count signatures))
+                 (not (suggestions-visible? view-node)))
+      (move! view-node :navigation direction)
       (let [step (if (= direction :up) -1 1)
             next-index (mod (+ (long (or selected active)) step) (count signatures))]
         (set-properties! view-node nil
-                         {:signature-help (assoc signature-help :selected next-index)}))
-      (move! view-node :navigation direction))))
+                         {:signature-help (assoc signature-help :selected next-index)})))))
 
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
@@ -4198,9 +4202,9 @@
 
         doc-content
         (when docs
-          (some->> [parameter-doc doc]
-                   (keep #(some-> % markdown))
-                   (remove string/blank?)
+          (some->> (coll/into-> [parameter-doc doc] []
+                     (keep #(some-> % markdown))
+                     (remove string/blank?))
                    coll/not-empty
                    (coll/join-to-string "\n\n<hr>\n\n")))
 
@@ -4218,14 +4222,14 @@
               (let [selected (= index active)
 
                     runs
-                    (if (and selected start)
+                    (if-not (and selected start)
+                      [(signature-text label (if selected "signature-help-text" "signature-help-dim") false)]
                       [(signature-text (subs label 0 start) "signature-help-text" false)
                        (signature-text (subs label start end) "signature-help-parameter" true)
-                       (signature-text (subs label end) "signature-help-text" false)]
-                      [(signature-text label (if selected "signature-help-text" "signature-help-dim") false)])]
+                       (signature-text (subs label end) "signature-help-text" false)])]
                 (cond->> runs
                   (pos? (long index))
-                  (cons (signature-text "\n" "signature-help-dim" false))))))
+                  (into [(signature-text "\n" "signature-help-dim" false)])))))
           cat)
 
         card

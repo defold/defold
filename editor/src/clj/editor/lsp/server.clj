@@ -876,30 +876,40 @@
       {:textDocument {:uri (resource-uri resource)}
        :position (editor-cursor->lsp-position cursor)})
     (bound-fn [result _]
-      (when-let [signatures (not-empty (:signatures result))]
-        {:active (let [i (:activeSignature result)] (if (and i (< -1 i (count signatures))) i 0))
-         :signatures (mapv (fn [{:keys [label parameters activeParameter documentation]}]
-                             (let [index (or activeParameter (:activeParameter result) 0)
-                                   parameter (get parameters index)
-                                   ranges (first
-                                            (reduce
-                                              (fn [[ranges from] {parameter-label :label}]
-                                                (if (string? parameter-label)
-                                                  (if-let [start (string/index-of label parameter-label from)]
-                                                    (let [end (+ (long start) (count parameter-label))]
-                                                      [(conj ranges [start end]) end])
-                                                    [(conj ranges nil) from])
-                                                  [(conj ranges parameter-label) (second parameter-label)]))
-                                              [[] (inc (or (string/index-of label "(") -1))]
-                                              parameters))
-                                   [start end] (get ranges index)
-                                   doc #(if (string? %) (->MarkupContent :plaintext %) (markup-content:lsp->editor %))]
-                               {:label label
-                                :start start
-                                :end end
-                                :doc (some-> documentation doc)
-                                :parameter-doc (some-> (:documentation parameter) doc)}))
-                           signatures)}))))
+      (when-let [signatures (coll/not-empty (:signatures result))]
+        (let [active-signature (:activeSignature result)
+
+              markup-content
+              #(if (string? %) (->MarkupContent :plaintext %) (markup-content:lsp->editor %))]
+          {:active (if (and active-signature (< -1 active-signature (count signatures)))
+                     active-signature
+                     0)
+           :signatures
+           (mapv
+             (fn [{:keys [label parameters activeParameter documentation]}]
+               (let [index (or activeParameter (:activeParameter result) 0)
+                     parameter (get parameters index)
+
+                     ranges
+                     (first
+                       (reduce
+                         (fn [[ranges from] {parameter-label :label}]
+                           (if-not (string? parameter-label)
+                             [(conj ranges parameter-label) (second parameter-label)]
+                             (if-let [start (string/index-of label parameter-label from)]
+                               (let [end (+ (long start) (count parameter-label))]
+                                 [(conj ranges [start end]) end])
+                               [(conj ranges nil) from])))
+                         [[] (inc (or (string/index-of label "(") -1))]
+                         parameters))
+
+                     [start end] (get ranges index)]
+                 {:label label
+                  :start start
+                  :end end
+                  :doc (some-> documentation markup-content)
+                  :parameter-doc (some-> (:documentation parameter) markup-content)}))
+             signatures)})))))
 
 (defn- hover-response->region [range content]
   (assoc range

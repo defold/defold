@@ -127,13 +127,11 @@
     (g/set-property
       view-node
       :signature-help-trigger-characters
-      (into #{}
-            (comp
-              (filter
-                (fn [[server {:keys [status]}]]
-                  (and (= :running status) (server-handles-resource? server resource))))
-              (mapcat #(-> % val :capabilities :signature-help :trigger-characters)))
-            (:server->server-state state)))))
+      (coll/into-> (:server->server-state state) #{}
+        (filter
+          (fn [[server {:keys [status]}]]
+            (and (= :running status) (server-handles-resource? server resource))))
+        (mapcat #(-> % val :capabilities :signature-help :trigger-characters))))))
 
 (s/def ::extension string?)
 (s/def ::extensions (s/coll-of ::extension :kind set? :min-count 1))
@@ -1210,7 +1208,8 @@
     (do (result-callback []) nil)))
 
 (defn signature-help! [lsp resource cursor result-callback]
-  (if (resource/file-resource? resource)
+  (if-not (resource/file-resource? resource)
+    (do (result-callback nil) nil)
     (lsp (bound-fn [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (<! ch)))
@@ -1219,8 +1218,7 @@
                :capabilities-pred :signature-help
                :resource resource
                :timeout-ms 1000
-               :requests [(lsp.server/signature-help resource cursor)]))))
-    (do (result-callback nil) nil)))
+               :requests [(lsp.server/signature-help resource cursor)]))))))
 
 (defn prepare-rename [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 1000}}]
