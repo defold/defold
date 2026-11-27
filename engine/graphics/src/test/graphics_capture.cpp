@@ -1241,15 +1241,16 @@ static bool CheckColorOnlyBackbuffer(HContext context, const CaptureResources& r
         SetDepthFunc(context, test_depth ? COMPARE_FUNC_NEVER : COMPARE_FUNC_ALWAYS);
         SetStencilFunc(context, test_depth ? COMPARE_FUNC_ALWAYS : COMPARE_FUNC_NEVER, 0, 0xff);
         Clear(context, BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
-        DrawRectangle(context, RECT_ORANGE);
+        // White has the same readback bytes on linear and sRGB swapchains.
+        DrawRectangle(context, RECT_BASIC_MASK);
         uint8_t pixel[4] = {};
         if (IsContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
         {
             ReadPixels(context, CAPTURE_SIZE / 2, CAPTURE_SIZE / 2, 1, 1, pixel, sizeof(pixel));
-            if (pixel[0] != 32 || pixel[1] != 96 || pixel[2] != 223)
+            if (pixel[0] != 255 || pixel[1] != 255 || pixel[2] != 255 || pixel[3] != 255)
             {
-                dmLogError("Expected an orange pixel on the color-only backbuffer with the %s test enabled, got RGB (%u, %u, %u).",
-                           test_name, pixel[2], pixel[1], pixel[0]);
+                dmLogError("Expected a white pixel on the color-only backbuffer with the %s test enabled, got RGBA (%u, %u, %u, %u).",
+                           test_name, pixel[2], pixel[1], pixel[0], pixel[3]);
                 return false;
             }
         }

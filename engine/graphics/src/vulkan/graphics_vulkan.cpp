@@ -894,6 +894,30 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
+    static VkFormat GetReadPixelsFormat(VkFormat format)
+    {
+        if (format == VK_FORMAT_R8G8B8A8_UNORM || format == VK_FORMAT_R8G8B8A8_SRGB)
+        {
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        }
+
+        if (format == VK_FORMAT_B8G8R8A8_UNORM || format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            return VK_FORMAT_B8G8R8A8_UNORM;
+        }
+
+        return VK_FORMAT_UNDEFINED;
+    }
+
+    static void SetBackbufferReadbackSupport(GraphicsContext* context, VkImageUsageFlags usage, VkFormat format)
+    {
+        context->m_ContextFeatureSupport &= ~(1u << CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        if ((usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) && GetReadPixelsFormat(format) != VK_FORMAT_UNDEFINED)
+        {
+            SetContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        }
+    }
+
     static VkResult SetupMainRenderTarget(VulkanContext* context)
     {
         // Initialize the dummy rendertarget for the main framebuffer
@@ -918,6 +942,8 @@ namespace dmGraphics
         RenderTarget* brt              = &rt->m_Base;
         brt->m_ColorAttachmentCount    = 1;
 
+        SetBackbufferReadbackSupport(&context->m_BaseContext, context->m_SwapChainCapabilities.m_SurfaceCapabilities.supportedUsageFlags,
+                                     context->m_SwapChain->m_SurfaceFormat.format);
         return VK_SUCCESS;
     }
 
@@ -6513,6 +6539,12 @@ namespace dmGraphics
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
         const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+        if (backbuffer && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
+        {
+            dmLogError("Cannot read pixels from the Vulkan backbuffer because the swapchain does not support readback.");
+            return;
+        }
+
         uint32_t layer = 0;
         HTexture color_handle = context->m_CurrentSwapchainTexture;
         if (!backbuffer)
@@ -6540,9 +6572,8 @@ namespace dmGraphics
             return;
         }
 
-        const bool is_rgba = texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB;
-        const bool is_bgra = texture->m_Format == VK_FORMAT_B8G8R8A8_UNORM || texture->m_Format == VK_FORMAT_B8G8R8A8_SRGB;
-        if (!is_rgba && !is_bgra)
+        const VkFormat format = GetReadPixelsFormat(texture->m_Format);
+        if (format == VK_FORMAT_UNDEFINED)
         {
             dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment");
             return;
@@ -6663,7 +6694,7 @@ namespace dmGraphics
         memcpy(buffer, stage_buffer.m_Allocation.m_MappedDataPtr, width * height * 4);
 
         // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
-        if (is_rgba)
+        if (format == VK_FORMAT_R8G8B8A8_UNORM)
         {
             SwizzleRGBAToBGRA(buffer, width * height);
         }
