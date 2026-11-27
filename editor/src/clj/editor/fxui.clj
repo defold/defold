@@ -82,6 +82,34 @@
 
 (set! *warn-on-reflection* true)
 
+(def ext-with-instances
+  "Owns a map of dynamic :inputs and supplies their instances to :desc.
+
+  The instances map is injected under :key (default :instances), including nil
+  values. Inputs advance before :desc and are deleted after it. A nil :desc
+  unmounts the child without unmounting the inputs."
+  (let [inputs-lifecycle (fx.lifecycle/map-of fx.lifecycle/dynamic)]
+    (reify fx.lifecycle/Lifecycle
+      (create [_ {:keys [inputs desc key] :or {key :instances}} opts]
+        (let [inputs (fx.lifecycle/create inputs-lifecycle inputs opts)]
+          (with-meta
+            {:inputs inputs
+             :child (fx.lifecycle/create fx.lifecycle/dynamic
+                                         (some-> desc (assoc key (fx.component/instance inputs)))
+                                         opts)}
+            ui/child-instance-meta)))
+      (advance [_ {:keys [child] :as component} {:keys [inputs desc key] :or {key :instances}} opts]
+        (let [inputs
+              (fx.lifecycle/advance inputs-lifecycle (:inputs component) inputs opts)]
+          (assoc component
+            :inputs inputs
+            :child (fx.lifecycle/advance fx.lifecycle/dynamic child
+                                         (some-> desc (assoc key (fx.component/instance inputs)))
+                                         opts))))
+      (delete [_ {:keys [inputs child]} opts]
+        (fx.lifecycle/delete fx.lifecycle/dynamic child opts)
+        (fx.lifecycle/delete inputs-lifecycle inputs opts)))))
+
 (defn event->window
   ^Window [^Event event]
   (.getWindow (.getScene ^Node (.getSource event))))
@@ -271,6 +299,9 @@
                    (.setVvalue pane (/ (.getMinY child-bounds)
                                        (- content-height viewport-height)))))))))
        fx.lifecycle/dynamic)}))
+
+(def ext-with-extra-props
+  (fx/make-ext-with-props {}))
 
 (def ext-with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))

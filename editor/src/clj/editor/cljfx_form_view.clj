@@ -95,10 +95,10 @@
 
 (g/defnode CljfxFormView
   (inherits view/WorkbenchView)
+  (output displayed-node-properties g/Any (g/constantly nil))
   (input form-data g/Any :substitute {})
   (property ui-state g/Any (default {:filter-term ""}))
   (property renderer g/Any)
-  (output sidebar-panes g/Any (g/constantly [:outline-pane]))
   (output form-view g/Any :cached produce-form-view))
 
 (node-types/register-node-type-name! CljfxFormView "form")

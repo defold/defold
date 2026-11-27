@@ -22,11 +22,17 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.mouse-binding-test :refer [with-mouse-bindings]]
             [editor.properties :as properties]
+            [editor.scene :as scene]
             [editor.scene-selection :as selection]
             [editor.types :as types]
+            [editor.ui :as ui]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt])
   (:import [editor.curve_view SubSelectionProvider]
+           [javafx.event Event]
+           [javafx.scene Node]
+           [javafx.scene.control Tab]
+           [javafx.scene.layout AnchorPane]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -67,14 +73,8 @@
        (mapv last)))
 
 (defn- make-curve-view! [app-view width height]
-  (let [curve-view (curve-view/make-view!
-                     app-view
-                     nil
-                     nil
-                     nil
-                     test-util/localization
-                     {}
-                     false)]
+  (let [[curve-view]
+        (ui/run-now (curve-view/make-view! app-view test-util/localization {}))]
     (g/transact
       {:undoable false}
       (g/set-property curve-view :viewport (types/->Region 0 width 0 height)))
@@ -88,6 +88,44 @@
           (reduced source-node-id))))
     nil
     (g/inputs (g/now) view :input-handlers)))
+
+;; GL panes expose cleanup immediately; callers own disposal even when a
+;; resource tab closes before the pane's first layout.
+(deftest gl-pane-disposal-test
+  (test-util/with-loaded-project
+    (ui/run-now
+      (testing "The GL helper returns cleanup without attaching it to a tab"
+        (let [[view-id]
+              (g/tx-nodes-added (g/transact (g/make-node scene/SceneView)))
+
+              tab (Tab.)
+              [pane dispose!] (scene/make-gl-pane! view-id {:tab tab})]
+          (is (instance? Node pane))
+          (is (nil? (ui/on-closed tab)))
+          (dispose!)
+          (is (identical? ui/null-event-dispatcher (.getEventDispatcher ^Node pane)))))
+      (testing "Resource views attach cleanup to their tab before layout"
+        (let [tab (Tab.)
+
+              view-id
+              (scene/make-view (AnchorPane.)
+                               (test-util/resource-node project "/logic/atlas_sprite.collection")
+                               {:tab tab
+                                :app-view app-view
+                                :prefs (test-util/make-test-prefs)
+                                :select-fn (partial app-view/select app-view)})
+
+              pane (.getParent ^Node (g/node-value view-id :image-view))]
+          (is (some? (ui/on-closed tab)))
+          (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))
+          (is (identical? ui/null-event-dispatcher (.getEventDispatcher pane)))))
+      (testing "Curve views pass cleanup to their owner"
+        (let [[view-id _ dispose!]
+              (curve-view/make-view! app-view test-util/localization {})
+
+              pane (.getParent ^Node (g/node-value view-id :image-view))]
+          (dispose!)
+          (is (identical? ui/null-event-dispatcher (.getEventDispatcher pane))))))))
 
 (deftest selection
   (test-util/with-loaded-project

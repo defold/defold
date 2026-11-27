@@ -1,46 +1,44 @@
-#tool-tabs {
-    -fx-tab-min-height: 25px;
+.pane-tabs {
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 0 0;
 
+    &:top > .tab-header-area > .headers-region > .console-tab-base {
+        -fx-background-position: 14 center;
+        -fx-background-repeat: no-repeat;
+        -fx-background-size: 17 17;
+        -fx-padding: 0 14 2 36;
+        -fx-spacing: 0;
+    }
+}
+
+#console-grid-pane, #curve-editor-container, #build-errors-tree,
+#search-results-container, #breakpoints-container {
     .list-view {
         -fx-background-insets: 0;
         -fx-border-width: 0;
     }
 
-    .tab-content-area {
+    .content {
         -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
         -fx-padding: 0;
-
-        .content {
-            -fx-background-color: -df-background-light;
-            -fx-background-insets: 0;
-            -fx-padding: 0;
-            -fx-border-radius: 0;
-            -fx-border-width: 0;
-            -fx-border-insets: 0;
-        }
-
-        .text-area, .scroll-pane, .viewport {
-            -fx-background-color: -df-background-light;
-            -fx-background-insets: 0;
-            -fx-padding: 0;
-        }
-        .text-area {
-            -fx-padding: 15px 0 0 0;
-        }
+        -fx-border-radius: 0;
+        -fx-border-width: 0;
+        -fx-border-insets: 0;
     }
 
-    .console-tab-base {
-        -fx-background-position: 10 3;
-        -fx-background-repeat: no-repeat;
-        -fx-background-size: 17 17;
-        -fx-padding: 0 10 5 32;
-        -fx-spacing: 0;
+    .text-area, .scroll-pane, .viewport {
+        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
+        -fx-padding: 0;
+    }
+
+    .text-area {
+        -fx-padding: 15px 0 0 0;
     }
 }
 
-#console-tab {
+.console-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_console-grey.png");
     &:selected {
@@ -55,10 +53,9 @@
     -fx-padding: 0;
 }
 
-#curve-editor-tab {
+.curve-editor-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
-    -fx-background-position: 10 1 !important;
     &:selected {
         -fx-background-image: url("icons/tabs/ic_curve-editor-white.png");
     }
@@ -67,7 +64,7 @@
     }
 }
 
-#build-errors-tab {
+.build-errors-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_build-problems-grey.png");
     &:selected {
@@ -82,7 +79,7 @@
     }
 }
 
-#build-errors-container {
+#build-errors-tree {
     -fx-padding: 0;
     .tree-view {
         // -fx-background-color: #ff0000;
@@ -131,7 +128,7 @@
     }
 }
 
-#search-results-tab {
+.search-results-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_search-results-grey.png");
     &:selected {
@@ -146,9 +143,8 @@
     -fx-padding: 0;
 }
 
-#breakpoints-tab {
+.breakpoints-tab {
     @extend .console-tab-base;
-    -fx-background-position: 10 4 !important;
     -fx-background-image: url("icons/tabs/ic_breakpoints-grey.png");
     &:selected {
         -fx-background-image: url("icons/tabs/ic_breakpoints-white.png");

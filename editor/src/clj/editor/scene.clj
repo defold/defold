@@ -85,9 +85,10 @@
            [javafx.event ActionEvent]
            [javafx.geometry HPos VPos]
            [javafx.scene Cursor Node Parent Scene]
+           [javafx.scene.control Label]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout AnchorPane Pane]
+           [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape Rectangle]
            [javafx.stage Window]
            [javax.imageio ImageIO]
@@ -2057,9 +2058,6 @@
                            (when-not initialized
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this image-view view-id)
-                             (ui/on-closed! (:tab opts) (fn [_]
-                                                          (ui/kill-event-dispatch! this)
-                                                          (dispose-scene-view! view-id)))
                              (when (:camera opts)
                                (ui/user-data! image-view ::preserve-initial-camera true)))
                            (when-not (ui/user-data image-view ::suspended)
@@ -2098,14 +2096,45 @@
     (g/transact
       {:undoable false}
       (g/set-property view-id :image-view image-view))
-    pane))
+    [pane
+     (fn dispose-gl-pane! []
+       (ui/kill-event-dispatch! pane)
+       (dispose-scene-view! view-id))]))
 
 (defn- make-scene-view-pane [view-id opts]
-  (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
-    (ui/fill-control scene-view-pane)
-    (let [gl-pane (make-gl-pane! view-id opts)]
-      (ui/fill-control gl-pane)
-      (.add (.getChildren scene-view-pane) 0 gl-pane))
+  (let [[gl-pane dispose-gl-pane!] (make-gl-pane! view-id opts)
+
+        overlay-anchor-pane
+        (doto (AnchorPane.)
+          (.setId "overlay-anchor-pane")
+          (ui/fill-control))
+
+        info-label
+        (doto (Label.)
+          (.setId "info-label")
+          (.setMouseTransparent true)
+          (AnchorPane/setTopAnchor 15.0)
+          (AnchorPane/setLeftAnchor 30.0))
+
+        toolbar
+        (doto (HBox.)
+          (.setId "toolbar")
+          (AnchorPane/setTopAnchor 15.0)
+          (AnchorPane/setRightAnchor 15.0))
+
+        scene-view-pane
+        (doto (AnchorPane.)
+          (.setId "scene-view-anchor-pane")
+          (ui/fill-control)
+          (ui/children! [(doto gl-pane (ui/fill-control))
+                         overlay-anchor-pane
+                         info-label
+                         toolbar
+                         (doto (Pane.)
+                           (ui/fill-control)
+                           (.setMouseTransparent true)
+                           (ui/add-style! "scene-frame"))]))]
+    (ui/on-closed! (:tab opts) (fn dispose-scene-view-pane! [_] (dispose-gl-pane!)))
     (when (system/defold-dev?)
       (.setOnKeyPressed scene-view-pane (ui/event-handler event
                                           (let [key-event ^KeyEvent event]

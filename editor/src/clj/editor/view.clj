@@ -16,16 +16,13 @@
   (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]))
 
-(def default-sidebar-panes [:outline-pane :properties-pane])
-
 (g/defnode WorkbenchView
   (input resource-node g/NodeID)
   (input node-id+type+resource g/Any :substitute nil)
   (input dirty g/Bool :substitute false)
+  (input node-outline g/Any)
+  (output node-outline g/Any (gu/passthrough node-outline))
   (input selected-node-properties g/Any)
-  ;; Overridable output describing right sidebar panes for this view, in display order.
-  ;; Each value can be :outline-pane, :properties-pane, or a cljfx description.
-  (output sidebar-panes g/Any (g/constantly default-sidebar-panes))
   (output displayed-node-properties g/Any (gu/passthrough selected-node-properties))
   (output view-data g/Any (g/fnk [_node-id node-id+type+resource]
                             [_node-id (when-let [[node-id type resource] node-id+type+resource]
@@ -33,8 +30,7 @@
                                          :resource-node-type type
                                          :resource resource})]))
   ;; TODO(save-value-cleanup): Merge dirty state into view-data?
-  (output view-dirty g/Any (g/fnk [_node-id dirty] [_node-id dirty]))
-  (output view-sidebar-panes g/Any (g/fnk [_node-id sidebar-panes] [_node-id sidebar-panes])))
+  (output view-dirty g/Any (g/fnk [_node-id dirty] [_node-id dirty])))
 
 (g/defnode NonResourceWorkbenchView
   (inherits WorkbenchView)
@@ -42,11 +38,11 @@
   ;; which is what closes its tab during resource synchronization. Views that
   ;; never had a resource report an empty map instead, so they stay open while
   ;; still claiming no resource.
-  (output view-data g/Any (g/fnk [_node-id] [_node-id {}]))
-  (output sidebar-panes g/Any (g/constantly [])))
+  (output view-data g/Any (g/fnk [_node-id] [_node-id {}])))
 
 (defn connect-resource-node [view resource-node]
   (concat
     (g/connect resource-node :_node-id view :resource-node)
     (g/connect resource-node :valid-node-id+type+resource view :node-id+type+resource)
-    (g/connect resource-node :dirty view :dirty)))
+    (g/connect resource-node :dirty view :dirty)
+    (g/connect resource-node :node-outline view :node-outline)))

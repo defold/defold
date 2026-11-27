@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.scene-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as camera]
@@ -24,15 +25,59 @@
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
+            [editor.ui :as ui]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [editor.types AABB]
+           [javafx.css PseudoClass]
+           [javafx.event Event]
+           [javafx.geometry Insets]
+           [javafx.scene Scene]
+           [javafx.scene.control Tab TabPane]
+           [javafx.scene.layout AnchorPane BorderStroke Pane StackPane]
+           [javafx.scene.paint Color]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+;; The free-camera highlight belongs to a mouse-transparent overlay and adds no
+;; insets to the scene content or its tab, without initializing a GL drawable.
+(deftest free-camera-frame-test
+  (test-util/with-loaded-project
+    (ui/run-now
+      (let [tab (Tab.)
+            parent (AnchorPane.)
+
+            view-id
+            (scene/make-view parent
+                             (test-util/resource-node project "/logic/atlas_sprite.collection")
+                             {:tab tab
+                              :app-view app-view
+                              :prefs (test-util/make-test-prefs)
+                              :select-fn (partial app-view/select app-view)})
+
+            tabs (TabPane. (into-array Tab [tab]))
+            fx-scene (Scene. tabs)]
+        (try
+          (.setContent tab parent)
+          (.add (.getStylesheets fx-scene) (str (io/resource "editor.css")))
+          (.applyCss tabs)
+          (let [^Pane frame (.lookup parent ".scene-frame")
+                ^AnchorPane wrapper (.getParent frame)
+                ^StackPane content-area (.getParent parent)]
+            (is (.isMouseTransparent frame))
+            (is (= Color/TRANSPARENT (.getTopStroke ^BorderStroke (first (.getStrokes (.getBorder frame))))))
+            (.pseudoClassStateChanged content-area (PseudoClass/getPseudoClass "free-cam-mode-active") true)
+            (.applyCss tabs)
+            (is (not= Color/TRANSPARENT (.getTopStroke ^BorderStroke (first (.getStrokes (.getBorder frame))))))
+            (is (= Insets/EMPTY (.getInsets wrapper)))
+            (is (= Insets/EMPTY (.getInsets content-area)))
+            (is (nil? (g/node-value view-id :drawable))))
+          (finally
+            (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))))
 
 (deftest gen-scene
   (testing "Scene generation"

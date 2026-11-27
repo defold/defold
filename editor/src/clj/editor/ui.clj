@@ -1458,6 +1458,18 @@
   (run [^Stage main-stage]
     (move-selected-tab! (focused-tab-pane main-stage) 1)))
 
+(defn escape-tab-title
+  ^String [title]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there appears to be
+  ;; no way to enable mnemonic parsing for them. Attempts were made to call
+  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
+  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
+  ;; underscores with the a unicode character that looks somewhat similar.
+  (string/replace title "_" "\u02CD"))
+
 (defn init-tab-pane! [^TabPane tab-pane]
   (let [original-event-dispatcher (.getEventDispatcher tab-pane)]
     (.setEventDispatcher
@@ -2540,20 +2552,18 @@
             (tree-seq window-parents window-parents leaf-window))
     [leaf]))
 
-(defn- visible-command-contexts [^Scene scene evaluation-context]
+(defn- visible-command-contexts [^Scene scene command-contexts evaluation-context]
   (let [parent-scenes (rest (scene-chain scene))]
-    (apply concat (contexts scene true evaluation-context)
+    (apply concat command-contexts
            (map (fn [parent-scene]
                   (filter #(= :global (:name %)) (contexts parent-scene true evaluation-context)))
                 parent-scenes))))
 
-(defn- current-command-contexts [^Scene scene evaluation-context]
-  (contexts scene true evaluation-context))
-
 (defn- refresh-menus!
-  [^Scene scene keymap localization evaluation-context]
-  (let [visible-command-contexts (visible-command-contexts scene evaluation-context)
-        current-command-contexts (current-command-contexts scene evaluation-context)
+  [^Scene scene keymap localization command-contexts evaluation-context]
+  (let [visible-command-contexts
+        (visible-command-contexts scene command-contexts evaluation-context)
+
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
@@ -2567,12 +2577,11 @@
           (refresh-menubar-items?)
           (refresh-menubar-items! menu-bar menu visible-command-contexts keymap localization evaluation-context))
 
-        (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
+        (refresh-menubar-state menu-bar command-contexts evaluation-context)))))
 
 (defn- refresh-toolbars!
-  [^Scene scene keymap localization evaluation-context]
-  (let [command-contexts (current-command-contexts scene evaluation-context)
-        root (.getRoot scene)
+  [^Scene scene keymap localization command-contexts evaluation-context]
+  (let [root (.getRoot scene)
         app-view (-> command-contexts first :env :app-view)
         ^Tab active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
@@ -2591,11 +2600,12 @@
      (refresh scene evaluation-context)))
   ([^Scene scene evaluation-context]
    (let [keymap (or (user-data scene :keymap) keymap/empty)
-         localization (user-data scene :localization)]
+         localization (user-data scene :localization)
+         command-contexts (contexts scene true evaluation-context)]
      (assert (some? localization))
      (refresh-accelerators! scene keymap)
-     (refresh-menus! scene keymap localization evaluation-context)
-     (refresh-toolbars! scene keymap localization evaluation-context))))
+     (refresh-menus! scene keymap localization command-contexts evaluation-context)
+     (refresh-toolbars! scene keymap localization command-contexts evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress

@@ -157,6 +157,7 @@
           common-props)))
 
 (def component-coercer (coerce/wrap-with-pred coerce/userdata #(= :component (:type (meta %))) "is not a UI component"))
+(def nilable-component-coercer (coerce/one-of component-coercer coerce/null))
 (def ^:private absent-coercer (coerce/wrap-with-pred coerce/to-boolean false? "is present (not nil or false)"))
 (def ^:private child-coercer (coerce/one-of component-coercer absent-coercer))
 (def ^:private children-coercer (coerce/vector-of child-coercer))
@@ -681,9 +682,9 @@
 (def function-component-doc
   {:name "component"
    :type :function
-   :description "Convert a function to a UI component.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe `grow`, `row_span`, and `column_span` props are supported automatically."
+   :description "Convert a function to a UI component. Returning `nil` hides its output while preserving the component's hook state.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe `grow`, `row_span`, and `column_span` props are supported automatically."
    :parameters [{:name "fn"
-                 :types ["fun(props:T):editor.component"]
+                 :types ["fun(props:T):editor.component|nil"]
                  :doc "function, will receive a single table of props when called"}]
    :returnvalues [{:name "value"
                    :types ["fun(props:T):editor.component"]

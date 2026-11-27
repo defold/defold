@@ -25,6 +25,7 @@
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.mouse-binding :as mouse-binding]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
@@ -33,6 +34,7 @@
             [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.ui :as ui]
+            [util.coll :as coll]
             [util.defonce :as defonce]
             [util.id-vec :as iv])
   (:import [com.defold.control DefoldStringConverter]
@@ -41,11 +43,11 @@
            [editor.types AABB Rect Region]
            [java.lang Runnable]
            [javafx.beans.property SimpleBooleanProperty]
-           [javafx.scene Node Parent]
-           [javafx.scene.control ListView SelectionMode]
+           [javafx.scene.control ListView SelectionMode SplitPane]
            [javafx.scene.control.cell CheckBoxListCell]
            [javafx.scene.image ImageView]
            [javafx.scene.layout AnchorPane]
+           [javafx.stage Stage]
            [javafx.util Callback]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
@@ -591,8 +593,6 @@
                                                          (.selectIndices index indices))))))))))
   (output active-updatables g/Any (g/constantly [])))
 
-(defonce view-state (atom nil))
-
 (defn frame-selection [view selection animate?]
   (let [aabb (if (empty? selection)
                (g/node-value view :aabb)
@@ -655,96 +655,137 @@
                                     :y y-size
                                     :z 1}}))))
 
-(defn make-view!
-  ([app-view ^Parent parent ^ListView list ^AnchorPane view localization opts]
-   (let [view-id (make-view! app-view parent list view localization opts false)]
-     (reset! view-state {:app-view app-view :parent parent :list list :view view :opts opts :view-id view-id})
-     view-id))
-  ([app-view ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
-   (let [[node-id] (g/tx-nodes-added
-                     (g/transact
-                       {:undoable false}
-                       (g/make-nodes [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
-                                      controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                      selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                      background background/Background
-                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
-                                              :movements-enabled #{:dolly :track}]
-                                      grid CurveGrid
-                                      rulers [rulers/Rulers]]
+(defn- has-curves? [curve-view evaluation-context]
+  (not (coll/empty? (g/maybe-node-value curve-view :curves evaluation-context))))
 
-                         (g/connect camera :_node-id view-id :camera-id)
-                         (g/connect grid :_node-id view-id :grid-id)
-                         (g/connect controller :_node-id view-id :controller-id)
-                         (g/connect selection :_node-id view-id :selection-id)
-                         (g/connect rulers :_node-id view-id :rulers-id)
-                         (g/connect camera :local-camera view-id :local-camera)
-                         (g/connect camera :camera view-id :camera)
-                         (g/connect camera :camera grid :camera)
-                         (g/connect camera :input-handler view-id :input-handlers)
-                         (g/connect camera :update-tick-handler view-id :update-tick-handlers)
-                         (g/connect view-id :viewport camera :viewport)
-                         (g/connect grid :renderable view-id :aux-renderables)
-                         (g/connect background :_node-id view-id :background-id)
-                         (g/connect background :renderable view-id :aux-renderables)
+(defn make-view! [app-view localization opts]
+  (let [list
+        (doto (ListView.)
+          (.setId "curve-editor-list")
+          (ui/fill-control)
+          (-> .getSelectionModel (.setSelectionMode SelectionMode/MULTIPLE))
+          (-> ui/selection (ui/observe-list (fn [_ values] (on-list-selection app-view values)))))
 
-                         (g/connect app-view :selected-node-properties view-id :selected-node-properties)
-                         (g/connect app-view :sub-selection view-id :sub-selection)
+        list-container
+        (doto (AnchorPane.)
+          (.setId "curve-editor-list-anchor")
+          (.setPrefSize 119.0 206.0)
+          (ui/children! [list])
+          (SplitPane/setResizableWithParent false))
 
-                         (g/connect view-id :curve-handle controller :curve-handle)
-                         (g/connect app-view :sub-selection controller :sub-selection)
-                         (g/connect controller :input-handler view-id :input-handlers)
-                         (g/connect controller :info-text view-id :tool-info-text)
+        [node-id]
+        (g/tx-nodes-added
+          (g/transact
+            {:undoable false}
+            (g/make-nodes [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
+                           controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                           selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                           background background/Background
+                           camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
+                                   :movements-enabled #{:dolly :track}]
+                           grid CurveGrid
+                           rulers [rulers/Rulers]]
 
-                         (g/connect selection :renderable view-id :tool-renderables)
-                         (g/connect selection :input-handler view-id :input-handlers)
-                         (g/connect selection :picking-rect view-id :picking-rect)
-                         (g/connect view-id :picking-selection selection :picking-selection)
-                         (g/connect app-view :sub-selection selection :selection)
+              (g/connect camera :_node-id view-id :camera-id)
+              (g/connect grid :_node-id view-id :grid-id)
+              (g/connect controller :_node-id view-id :controller-id)
+              (g/connect selection :_node-id view-id :selection-id)
+              (g/connect rulers :_node-id view-id :rulers-id)
+              (g/connect camera :local-camera view-id :local-camera)
+              (g/connect camera :camera view-id :camera)
+              (g/connect camera :camera grid :camera)
+              (g/connect camera :input-handler view-id :input-handlers)
+              (g/connect camera :update-tick-handler view-id :update-tick-handlers)
+              (g/connect view-id :viewport camera :viewport)
+              (g/connect grid :renderable view-id :aux-renderables)
+              (g/connect background :_node-id view-id :background-id)
+              (g/connect background :renderable view-id :aux-renderables)
 
-                         (g/connect camera :camera rulers :camera)
-                         (g/connect rulers :renderables view-id :aux-renderables)
-                         (g/connect view-id :viewport rulers :viewport)
-                         (g/connect view-id :cursor-pos rulers :cursor-pos)
-                         (g/connect view-id :_node-id app-view :scene-view-ids)
-                         (g/connect view-id :viewport grid :viewport))))]
-     (when parent
-       (let [^Node pane (scene/make-gl-pane! node-id opts)]
-         (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
-         (ui/fill-control pane)
-         (ui/children! view [pane])
-         (let [converter (DefoldStringConverter.
-                           #(if (:property %)
-                              (localization (properties/label (:property %)))
-                              ""))
-               selected-callback (reify Callback
-                                   (call [this item]
-                                     (let [hidden-curves (g/node-value node-id :hidden-curves)]
-                                       (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
-                                         (ui/observe (fn [_observable _old new]
-                                                       (let [kw (:keyword item)]
-                                                         (if new
-                                                           (g/transact
-                                                             {:undoable false}
-                                                             (g/update-property node-id :hidden-curves disj kw))
-                                                           (g/transact
-                                                             {:undoable false}
-                                                             (g/update-property node-id :hidden-curves conj kw))))))))))]
-           (let [items (ui/selection list)]
-             (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
-           (doto (.getSelectionModel list)
-             (.setSelectionMode SelectionMode/MULTIPLE))
-           (.setCellFactory
-             list
-             (fn [_list]
-               (proxy [CheckBoxListCell] [selected-callback converter]
-                 (updateItem [item empty]
-                   (let [this ^CheckBoxListCell this]
-                     (proxy-super updateItem item empty)
-                     (when (and item (not empty))
-                       (let [[^double r ^double g ^double b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
-                         (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))))))))))))))
-     node-id)))
+              (g/connect app-view :selected-node-properties view-id :selected-node-properties)
+              (g/connect app-view :sub-selection view-id :sub-selection)
+
+              (g/connect view-id :curve-handle controller :curve-handle)
+              (g/connect app-view :sub-selection controller :sub-selection)
+              (g/connect controller :input-handler view-id :input-handlers)
+              (g/connect controller :info-text view-id :tool-info-text)
+
+              (g/connect selection :renderable view-id :tool-renderables)
+              (g/connect selection :input-handler view-id :input-handlers)
+              (g/connect selection :picking-rect view-id :picking-rect)
+              (g/connect view-id :picking-selection selection :picking-selection)
+              (g/connect app-view :sub-selection selection :selection)
+
+              (g/connect camera :camera rulers :camera)
+              (g/connect rulers :renderables view-id :aux-renderables)
+              (g/connect view-id :viewport rulers :viewport)
+              (g/connect view-id :cursor-pos rulers :cursor-pos)
+              (g/connect view-id :_node-id app-view :scene-view-ids)
+              (g/connect view-id :viewport grid :viewport))))
+
+        [pane dispose-gl-pane!] (scene/make-gl-pane! node-id opts)
+
+        view
+        (doto (AnchorPane.)
+          (.setId "curve-editor-view")
+          (.setFocusTraversable true)
+          (.setMinSize 0.0 0.0)
+          (.setPrefSize 100.0 160.0)
+          (ui/children! [(doto pane (ui/fill-control))]))
+
+        split
+        (doto (SplitPane.)
+          (.setPrefSize 200.0 160.0)
+          (-> .getItems (.add list-container))
+          (-> .getItems (.add view))
+          (.setDividerPositions (double-array [0.25]))
+          (ui/fill-control))
+
+        parent
+        (doto (AnchorPane.)
+          (.setId "curve-editor-container")
+          (.setPrefSize 200.0 180.0)
+          (ui/children! [split])
+          (ui/context! :curve-view {:view-id node-id} (SubSelectionProvider. app-view)))
+
+        converter
+        (DefoldStringConverter.
+          #(if (:property %)
+             (localization (properties/label (:property %)))
+             ""))
+
+        selected-callback
+        (reify Callback
+          (call [_this item]
+            (let [hidden-curves (g/node-value node-id :hidden-curves)]
+              (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
+                (ui/observe (fn [_observable _old new]
+                              (let [kw (:keyword item)]
+                                (if new
+                                  (g/transact
+                                    {:undoable false}
+                                    (g/update-property node-id :hidden-curves disj kw))
+                                  (g/transact
+                                    {:undoable false}
+                                    (g/update-property node-id :hidden-curves conj kw))))))))))]
+    (.setCellFactory
+      list
+      (fn [_list]
+        (proxy [CheckBoxListCell] [selected-callback converter]
+          (updateItem [item empty]
+            (let [this ^CheckBoxListCell this]
+              (proxy-super updateItem item empty)
+              (when (and item (not empty))
+                (let [[^double r ^double g ^double b]
+                      (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
+                  (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))
+    [node-id
+     {:id :curve-editor
+      :title (localization/message "pane.curve-editor")
+      :location :bottom
+      :content (fn describe-curve-editor [{:keys [evaluation-context]}]
+                 (when (has-curves? node-id evaluation-context)
+                   {:fx/type ui/ext-value :value parent}))}
+     dispose-gl-pane!]))
 
 (defn- delete-cps [sub-selection]
   (let [m (sub-selection->map sub-selection)]
@@ -758,3 +799,9 @@
 
 (handler/defhandler :scene.frame-selection :curve-view
   (run [view-id selection] (frame-selection view-id selection true)))
+
+(handler/defhandler :window.show-curve-editor :global
+  (enabled? [curve-view evaluation-context]
+    (has-curves? curve-view evaluation-context))
+  (run [^Stage main-stage]
+    (app-view/show-pane! (.getScene main-stage) :curve-editor)))

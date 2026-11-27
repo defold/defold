@@ -518,7 +518,9 @@
             (ui/run-later
               (g/transact
                 {:undoable false}
-                (g/set-property view-node :document-symbols document-symbols))))
+                (g/set-property view-node :document-symbols document-symbols))
+              (when-let [scene (ui/main-scene)]
+                (ui/user-data! scene ::ui/refresh-requested? true))))
           (run! #(% document-symbols) callbacks)
           (update-in state [:resource->open-state resource]
                      #(-> %

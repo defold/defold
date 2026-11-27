@@ -32,7 +32,6 @@
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.future :as future]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.lua :as lua]
@@ -52,6 +51,7 @@
            [javafx.scene Parent]
            [javafx.scene.control Button ListView TextField TreeView]
            [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.layout GridPane]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -126,16 +126,12 @@
                                      :style-class ["label" "call-stack-line"]
                                      :text (str line)}]}]}})
 
-(ui/defc call-stack-pane
-  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [call-stack-view localization-state]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state call-stack-pane-label)
-   :content {:fx/type ext-with-list-view-props
-             :desc {:fx/type ui/ext-value
-                    :value call-stack-view}
-             :props {:cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                    :describe describe-call-stack-cell}}}})
+(defn call-stack-pane [{:keys [call-stack-view]}]
+  {:fx/type ext-with-list-view-props
+   :desc {:fx/type ui/ext-value
+          :value call-stack-view}
+   :props {:cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                          :describe describe-call-stack-cell}}})
 
 (defn describe-variables-cell [{:keys [display-name display-value]}]
   {:graphic {:fx/type fx.h-box/lifecycle
@@ -146,22 +142,12 @@
 (def ^:private ext-with-tree-view-props
   (fx/make-ext-with-props fx.tree-view/props))
 
-(ui/defc variables-pane
-  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
-  [{:keys [variables-view localization-state]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state variables-pane-label)
-   :content {:fx/type ext-with-tree-view-props
-             :desc {:fx/type ui/ext-value
-                    :value variables-view}
-             :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
-                                    :describe describe-variables-cell}}}})
-
-(g/defnk produce-debugger-sidebar-panes
-  [debug-session suspension-state call-stack-view variables-view localization]
-  (when (and debug-session (:stack suspension-state))
-    [{:fx/type call-stack-pane :call-stack-view call-stack-view :localization localization}
-     {:fx/type variables-pane :variables-view variables-view :localization localization}]))
+(defn variables-pane [{:keys [variables-view]}]
+  {:fx/type ext-with-tree-view-props
+   :desc {:fx/type ui/ext-value
+          :value variables-view}
+   :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                          :describe describe-variables-cell}}})
 
 (g/defnk produce-execution-locations
   [suspension-state]
@@ -196,8 +182,7 @@
 
   (output update-available-controls g/Any :cached update-available-controls!)
   (output update-call-stack g/Any :cached update-call-stack!)
-  (output execution-locations g/Any :cached produce-execution-locations)
-  (output debugger-sidebar-panes g/Any :cached produce-debugger-sidebar-panes))
+  (output execution-locations g/Any :cached produce-execution-locations))
 
 (defn- current-stack-frame
   [debug-view]
@@ -421,13 +406,13 @@
 (defn- setup-view! [debug-view app-view]
   (g/transact
     {:undoable false}
-    [(g/connect debug-view :execution-locations app-view :debugger-execution-locations)
-     (g/connect debug-view :debugger-sidebar-panes app-view :debugger-sidebar-panes)])
+    [(g/connect debug-view :execution-locations app-view :debugger-execution-locations)])
   debug-view)
 
 (defn make-view!
-  [app-view project ^Parent root open-resource-fn state-changed-fn localization]
-  (let [console-grid-pane (.lookup root "#console-grid-pane")
+  [app-view project console-view open-resource-fn state-changed-fn localization]
+  (let [console-grid-pane
+        (ui/closest-node-of-type GridPane (g/node-value console-view :canvas))
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
         variables-view (debugger-variables/make-view!)
@@ -1016,16 +1001,18 @@
                {:label :separator
                 :id ::debug-end}]}])
 
-(comment
-  (defn get-all-script-nodes [project]
-    (into []
-          (keep (fn [node-id]
-                  (when (g/node-instance? editor.code.script/ScriptNode node-id)
-                    (g/node-by-id node-id))))
-          (g/node-ids (g/now))))
-
-  (->> (g/node-value (dev/project) :breakpoints)
-       (group-by #(get-in % [:resource :project-path])))
-
-  (g/outputs (g/now) (dev/project) :breakpoints)
-  (g/inputs (g/now) (dev/project) :breakpoints))
+(defn pane-definitions [debug-view]
+  (g/let-ec [call-stack-view (g/node-value debug-view :call-stack-view evaluation-context)
+             variables-view (g/node-value debug-view :variables-view evaluation-context)]
+    [{:id :call-stack
+      :title call-stack-pane-label
+      :location :right-top
+      :content (fn describe-call-stack-pane [{:keys [evaluation-context]}]
+                 (when (g/node-value debug-view :debug-session evaluation-context)
+                   {:fx/type call-stack-pane :call-stack-view call-stack-view}))}
+     {:id :variables
+      :title variables-pane-label
+      :location :right-bottom
+      :content (fn describe-variables-pane [{:keys [evaluation-context]}]
+                 (when (g/node-value debug-view :debug-session evaluation-context)
+                   {:fx/type variables-pane :variables-view variables-view}))}]))

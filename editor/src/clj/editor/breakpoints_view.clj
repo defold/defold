@@ -41,7 +41,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [javafx.scene Node Parent]
+  (:import [javafx.scene Parent]
            [javafx.scene.control TableView]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane]))
@@ -454,17 +454,28 @@
 
   (output breakpoints-anchor-pane AnchorPane :cached produce-breakpoints-anchor-pane))
 
-(defn make-breakpoints-view [workspace project open-resource-fn prefs ^Node parent]
-  (first
-    (g/tx-nodes-added
-      (g/transact
-        {:undoable false}
-        (let [open-res-fn (make-open-resource-fn open-resource-fn)]
-          (g/make-nodes [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
-            (g/connect workspace :_node-id view :workspace)
-            (g/connect workspace :localization view :localization)
-            (g/connect project :breakpoints view :breakpoints)
-            (g/connect project :_node-id view :project)))))))
+(defn make-breakpoints-view [workspace project open-resource-fn prefs]
+  (let [parent
+        (doto (AnchorPane.)
+          (.setId "breakpoints-container")
+          (.setPrefSize 200.0 180.0))
+
+        view-id
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (let [open-res-fn (make-open-resource-fn open-resource-fn)]
+                (g/make-nodes [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
+                  (g/connect workspace :_node-id view :workspace)
+                  (g/connect workspace :localization view :localization)
+                  (g/connect project :breakpoints view :breakpoints)
+                  (g/connect project :_node-id view :project))))))]
+    [view-id
+     {:id :breakpoints
+      :title (localization/message "pane.breakpoints")
+      :location :bottom
+      :content (constantly {:fx/type ui/ext-value :value parent})}]))
 
 (handler/defhandler :breakpoints.toggle-selected-enabled :breakpoints-view
   (run [project swap-state breakpoints selection]
@@ -491,16 +502,3 @@
   (enabled? [selection] (= 1 (count selection)))
   (run [table-view]
     (ui/run-command table-view :file.show-in-assets)))
-
-(comment
-  ;; Recreate the breakpoints view
-  (let [bp-container (.lookup (ui/main-root) "#breakpoints-container")
-        open-resource (partial #'editor.app-view/open-resource!
-                               (dev/app-view) (dev/prefs) (dev/localization) (dev/project))
-        bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource
-                                       (dev/prefs) bp-container)
-        auto-pulls [[bp-view :breakpoints-anchor-pane]]]
-    (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))
-  (ui/run-now (ui/reload-root-styles!))
-  (jfx/info-tree (.lookup (ui/main-root) "#breakpoints-table-view"))
-  :-)

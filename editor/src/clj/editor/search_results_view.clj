@@ -367,11 +367,26 @@
   (let [open-resource-fn (g/node-value search-results-view :open-resource-fn)]
     (open-resource-fn resource opts)))
 
+(defn- ensure-search-results-container! [search-results-view]
+  (or (g/node-value search-results-view :search-results-container)
+      (let [container
+            (doto (AnchorPane.)
+              (.setId "search-results-container")
+              (.setPrefSize 200.0 180.0)
+              (ui/add-style! "search-results-view"))]
+        (g/transact
+          {:undoable false}
+          (g/set-property search-results-view :search-results-container container))
+        container)))
+
 (defn- update-search-results! [search-results-view ^TreeView results-tree-view ^ProgressIndicator progress-indicator]
-  (let [search-results-container ^AnchorPane (g/node-value search-results-view :search-results-container)
-        open-selected! (fn []
-                         (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection results-tree-view))]
-                           (open-resource! search-results-view resource opts)))]
+  (let [^AnchorPane search-results-container
+        (ensure-search-results-container! search-results-view)
+
+        open-selected!
+        (fn open-selected! []
+          (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection results-tree-view))]
+            (open-resource! search-results-view resource opts)))]
     ;; Replace tree view.
     (doto (.getChildren search-results-container)
       (.clear)
@@ -382,14 +397,21 @@
                                (open-selected!)))))
       (.add progress-indicator))))
 
-(defn make-search-results-view! [^AnchorPane search-results-container open-resource-fn]
-  (first
-    (g/tx-nodes-added
-      (g/transact
-        {:undoable false}
-        (g/make-node SearchResultsView
-          :open-resource-fn open-resource-fn
-          :search-results-container search-results-container)))))
+(defn make-search-results-view! [open-resource-fn]
+  (let [view-id
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node SearchResultsView
+                :open-resource-fn open-resource-fn))))]
+    [view-id
+     {:id :search-results
+      :title (localization/message "pane.search-results")
+      :location :bottom
+      :content (fn describe-search-results [{:keys [evaluation-context]}]
+                 (when-let [container (g/node-value view-id :search-results-container evaluation-context)]
+                   {:fx/type ui/ext-value :value container}))}]))
 
 (defn show-search-in-files-dialog! [search-results-view project prefs localization show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
@@ -780,12 +802,11 @@
                            in the override inspector output
     localization           the Localization instance"
   [search-results-view node-id properties localization]
-  (let [[parent property-keyword->display-order]
-        (g/with-auto-evaluation-context evaluation-context
-          [(g/node-value search-results-view :search-results-container evaluation-context)
-           (into {}
-                 (map-indexed flipped-pair)
-                 (:display-order (g/node-value node-id :_properties evaluation-context)))])
+  (let [parent (ensure-search-results-container! search-results-view)
+
+        property-keyword->display-order
+        (coll/into-> (:display-order (g/node-value node-id :_properties)) {}
+          (map-indexed flipped-pair))
 
         state-atom (atom {})
         search-future-atom (atom nil)

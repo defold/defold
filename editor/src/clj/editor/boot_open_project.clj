@@ -70,7 +70,7 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
+           [javafx.scene.control MenuBar SplitPane]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
            [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
@@ -102,9 +102,6 @@
     (resource-types/register-resource-types! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
-
-(defn- find-tab [^TabPane tabs id]
-  (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
 (defn- clean-up-resource-prefs [prefs changes]
   (let [moved (reduce (fn [settings [old new]]
@@ -194,48 +191,67 @@
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
           editor-tabs-split    (.lookup root "#editor-tabs-split")
-          right-split          (.lookup root "#right-split")
-          ^TabPane tool-tabs   (.lookup root "#tool-tabs")
-          ^TreeView assets     (.lookup root "#assets")
-          console-tab          (first (.getTabs tool-tabs))
-          console-grid-pane    (.lookup root "#console-grid-pane")
+
+          [app-view ui-timer]
+          (app-view/make-app-view project stage menu-bar editor-tabs-split prefs localization)
+
+          [curve-view curve-pane dispose-curve-view!]
+          (curve-view/make-view! app-view localization {})
+
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
-          [app-view ui-timer]  (app-view/make-app-view project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
+
           scene-visibility     (scene-visibility/make-scene-visibility-node! prefs app-view)
           outline-view         (outline-view/make-outline-view project app-view localization)
-          asset-browser        (asset-browser/make-asset-browser workspace assets prefs localization)
+
+          [asset-browser assets-pane]
+          (asset-browser/make-asset-browser workspace prefs localization)
+
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
-          console-view         (console/make-console! workspace console-tab console-grid-pane open-resource prefs localization)
+
+          [console-view console-pane dispose-console!]
+          (console/make-console! workspace scene open-resource prefs localization)
           _                    (shader/init-failure-line-reporter! console/append-console-line!)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
-          build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         localization
-                                                                         (fn [resource selected-node-ids opts]
-                                                                           (when (open-resource resource opts)
-                                                                             (app-view/select! app-view selected-node-ids))))
-          search-results-view  (search-results-view/make-search-results-view! (.lookup root "#search-results-container")
-                                                                              open-resource)
+
+          [build-errors-view build-pane]
+          (build-errors-view/make-build-errors-view localization
+                                                    (fn [resource selected-node-ids opts]
+                                                      (when (open-resource resource opts)
+                                                        (app-view/select! app-view selected-node-ids))))
+
+          [search-results-view search-pane]
+          (search-results-view/make-search-results-view! open-resource)
           properties-view      (properties-view/make-properties-view workspace project app-view search-results-view prefs)
-          changes-view         (changes-view/make-changes-view workspace prefs localization (.lookup root "#changes-container")
-                                                               (fn [changes-view moved-files]
-                                                                 (app-view/async-reload! app-view changes-view workspace moved-files)))
+
+          [changes-view changes-pane]
+          (changes-view/make-changes-view workspace prefs localization stage
+                                          (fn [changes-view moved-files]
+                                            (app-view/async-reload! app-view changes-view workspace moved-files)))
           git                  (g/node-value changes-view :git)
-          curve-tab            (find-tab tool-tabs "curve-editor-tab")
-          curve-view           (curve-view/make-view! app-view
-                                                      (.lookup root "#curve-editor-container")
-                                                      (.lookup root "#curve-editor-list")
-                                                      (.lookup root "#curve-editor-view")
-                                                      localization
-                                                      {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view
                                                       project
-                                                      root
+                                                      console-view
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs)
+                                                      (fn debugger-state-changed! [attention]
+                                                        (ui/invalidate-menubar-item! ::debug-view/debug)
+                                                        (ui/user-data! scene ::ui/refresh-requested? true)
+                                                        (when attention
+                                                          (doseq [id [:call-stack :variables :console]]
+                                                            (app-view/show-pane! scene id))))
                                                       localization)
 
-          breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource prefs (.lookup root "#breakpoints-container"))
+          [breakpoints-view breakpoints-pane]
+          (breakpoints-view/make-breakpoints-view workspace project open-resource prefs)
+
+          pane-definitions
+          (into [assets-pane changes-pane console-pane curve-pane build-pane search-pane breakpoints-pane
+                 (code-view/structure-pane-definition)
+                 (outline-view/pane-definition outline-view)
+                 (properties-view/pane-definition properties-view)]
+                (debug-view/pane-definitions debug-view))
+
+          _ (app-view/set-built-in-panes! app-view pane-definitions)
           token (web-server/make-token)
           server-handler (web-server/make-dynamic-handler
                            (into []
@@ -277,14 +293,7 @@
           token-file (doto (io/file project-path ".internal" "editor.token")
                        (io/make-parents)
                        (spit token))]
-      (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
-      (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
-      (localization/localize! console-tab localization (localization/message "pane.console"))
-      (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
-      (localization/localize! (find-tab tool-tabs "breakpoints-tab") localization (localization/message "pane.breakpoints"))
-      (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
-      (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
 
       (.addShutdownHook
         (Runtime/getRuntime)
@@ -354,7 +363,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (app-view/store-window-state! stage prefs)
+                                              (app-view/store-window-dimensions! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -373,10 +382,12 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (app-view/store-window-state! stage prefs))
+                                      (app-view/store-window-dimensions! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]
+                             (dispose-console!)
+                             (dispose-curve-view!)
                              (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
                              (ui/remove-application-unfocused-callback! :main-stage-unfocused)
@@ -397,15 +408,16 @@
                          :updater             updater
                          :build-errors-view   build-errors-view
                          :console-view        console-view
+                         :curve-view          curve-view
                          :scene-visibility    scene-visibility
                          :search-results-view search-results-view
                          :changes-view        changes-view
                          :main-stage          stage
                          :asset-browser       asset-browser
-                         :debug-view          debug-view
-                         :tool-tab-pane       tool-tabs}
+                         :debug-view          debug-view}
             dynamics {:active-resource [:app-view :active-resource]}]
-        (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
+        (ui/context! root :global context-env
+                     (ui/->selection-provider (g/node-value asset-browser :raw-tree-view)) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         {:undoable false}
@@ -418,15 +430,13 @@
           (g/connect app-view :active-resource asset-browser :active-resource)
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
-          (g/connect outline-view :pane-desc app-view :outline-pane-desc)
-          (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+          (g/connect outline-view :selected-items scene-visibility :outline-selection)
           (g/connect properties-view :_node-id app-view :properties-view)
-          (g/connect properties-view :pane-desc app-view :properties-pane-desc)
           (g/connect scene-visibility :_node-id app-view :scene-visibility)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
-          (for [label [:active-resource-node :active-outline :open-resource-nodes :outline-active]]
+          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[app-view :refresh-tab-panes]
                             [asset-browser :tree-view]
@@ -439,20 +449,17 @@
       (reset! the-root root)
 
       (ui/run-later
-        ;; These functions need a layout pass before they can do their work. The
-        ;; Layout pass ensures we can get the valid dimensions of the controls.
-        (app-view/restore-hidden-panes! scene prefs)
-
         ;; The nested run-later fixes restore on Linux, by forcing an additional
         ;; layout pass.
         (ui/run-later
-          (app-view/restore-split-positions! scene prefs)
-
           ;; If the project was just created, we automatically open the readme.
           (if newly-created?
             (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
+
+          (app-view/initialize-panes! app-view scene prefs localization)
+          (app-view/restore-split-positions! scene prefs)
 
           ;; The first time a given editor version is opened, surface its bundled
           ;; release notes (once per version; the set tracks every opened version).

@@ -89,7 +89,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.363"
+                     [cljfx "1.10.366"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -407,7 +407,7 @@
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [io.github.cljfx/dev "1.10.6.42"]
-                                                    [io.github.cljfx/plorer "1.31" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [io.github.cljfx/plorer "1.32" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]

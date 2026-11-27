@@ -68,7 +68,8 @@
                                :tool-controller tile-map/TileMapController}))
 
 (defn- make-curve-view! [app-view]
-  (let [view (curve-view/make-view! app-view nil nil nil test-util/localization {} false)]
+  (let [[view]
+        (ui/run-now (curve-view/make-view! app-view test-util/localization {}))]
     (g/transact
       {:undoable false}
       (g/set-property view :viewport (types/->Region 0 128 0 128)))

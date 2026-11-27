@@ -1,12 +1,11 @@
 // definitions
-$spacing-smaller: 16px;
-$spacing-default: 24px;
-$spacing-larger: 32px;
-$spacing-largest: 40px;
+$spacing-smaller: 14px;
+$spacing-default: 22px;
+$spacing-larger: 30px;
+$spacing-largest: 36px;
 
 @use "sass:string";
-@mixin font-size-default { -fx-font-size: 110%; }
-@mixin font-size-header { -fx-font-size: 22px; }
+@mixin font-size-header { -fx-font-size: 20px; }
 @mixin font-default { -fx-font-family: $default-font; }
 @mixin font-light { -fx-font-family: $default-font-light; }
 @mixin text-fill-text-color { -fx-text-fill: -df-text; }
@@ -25,7 +24,6 @@ $spacing-largest: 40px;
 // label
 
 .label {
-  @include font-size-default();
   @include font-default();
   @include text-fill-text-color();
 }
@@ -39,7 +37,6 @@ $spacing-largest: 40px;
 // button
 
 .button {
-  @include font-size-default();
   @include font-default();
   -fx-border-radius: 2px;
   -fx-background-radius: 2px;
@@ -167,7 +164,6 @@ $spacing-largest: 40px;
 
 @mixin text-input-defaults() {
   @include font-default();
-  @include font-size-default();
   -fx-highlight-fill: -df-component-light;
   -fx-text-fill: -df-text-selected;
   -fx-prompt-text-fill: -df-component-light;
@@ -326,7 +322,6 @@ $spacing-largest: 40px;
 }
 
 .hyperlink {
-  @include font-size-default();
   @include font-default();
   -fx-text-fill: -df-defold-blue-light;
   -fx-border-width: 0;
@@ -341,7 +336,6 @@ $spacing-largest: 40px;
 }
 
 Text {
-  @include font-size-default();
   @include font-default();
   -fx-fill: -df-text;
 }
@@ -403,7 +397,6 @@ Text {
   }
 }
 .list-cell {
-  @include font-size-default();
   @include font-default();
   @include text-fill-text-color();
   -fx-background-color: transparent;

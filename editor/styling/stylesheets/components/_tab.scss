@@ -1,6 +1,6 @@
 .tab-pane {
     &:top {
-        -fx-tab-min-height: 3.0em;
+        -fx-tab-min-height: 38px;
         -fx-tab-max-height: 100.0em;
         -fx-border-width: 0;
         -fx-border-color: -df-background-lighter;
@@ -126,11 +126,64 @@
 }
 
 .tab-content-area {
-    -fx-border-width: 1;
+    -fx-border-width: 0;
     -fx-border-color: transparent;
     -fx-padding: 0;
-    &:free-cam-mode-active {
+    &:free-cam-mode-active .scene-frame {
         -fx-border-color: -df-defold-orange;
     }
 }
 
+.scene-frame {
+    -fx-border-width: 1;
+    -fx-border-color: transparent;
+}
+
+
+.pane-tabs:top {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+
+    > .tab-header-area {
+        -fx-padding: 0;
+        -fx-background-color: -df-background;
+        > .tab-header-background {
+            -fx-background-color: -df-background;
+            -fx-background-insets: 0;
+        }
+        > .headers-region > .tab {
+            -fx-background-color: -df-background;
+            -fx-background-insets: 0;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-border-color: transparent;
+            -fx-border-width: 0;
+            -fx-border-insets: 0;
+            -fx-padding: 0px 14px 2px;
+            &:selected {
+                -fx-background-color: -df-background-light;
+                -fx-border-color: transparent;
+            }
+            > .tab-container > .tab-label {
+                -fx-text-fill: -df-text;
+                -fx-padding: 0;
+            }
+            &:hover, &:selected {
+                > .tab-container > .tab-label {
+                    -fx-text-fill: -df-text-selected;
+                }
+            }
+            > .tab-container > .focus-indicator {
+                -fx-border-width: 0;
+                -fx-border-color: transparent;
+            }
+        }
+    }
+    > .tab-content-area {
+        -fx-background-color: -df-background-light;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0;
+        -fx-border-radius: 0;
+        -fx-padding: 0;
+    }
+}

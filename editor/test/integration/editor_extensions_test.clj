@@ -13,10 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.data :as data]
             [editor.code.view :as code-view]
@@ -24,9 +26,11 @@
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.panes :as ext.panes]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.server :as ext.server]
+            [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -36,6 +40,7 @@
             [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
+            [editor.panes :as panes]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -57,9 +62,15 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.io StringWriter]
+  (:import [clojure.lang IRef]
+           [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
+           [java.util.concurrent CompletableFuture TimeUnit]
            [java.util.zip ZipEntry]
+           [javafx.scene Node Scene]
+           [javafx.scene.control Button Labeled Tab]
+           [javafx.scene.layout StackPane]
+           [javafx.stage Stage]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -360,6 +371,8 @@
 (defn- fetch-libraries-noop! []
   (future/completed [[] true]))
 
+(defn- set-panes-noop! [_panes])
+
 (defn- make-invoke-bob-fn [project]
   (fn invoke-bob! [options commands]
     (future/io
@@ -370,15 +383,19 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! invoke-bob! kind open-resource! prefs web-server]
-                                          :or {display-output! println
-                                               fetch-libraries! fetch-libraries-noop!
-                                               kind :all
-                                               open-resource! open-resource-noop!
-                                               web-server stopped-server}}]
+(defn- reload-editor-scripts!
+  [project & {:keys [display-output! fetch-libraries! invoke-bob! kind
+                     open-resource! prefs set-panes! web-server]
+              :or {display-output! println
+                   fetch-libraries! fetch-libraries-noop!
+                   kind :all
+                   open-resource! open-resource-noop!
+                   set-panes! set-panes-noop!
+                   web-server stopped-server}}]
   (extensions/reload! project kind
                       :prefs (or prefs (test-util/make-test-prefs))
                       :localization test-util/localization
+                      :set-panes! set-panes!
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
@@ -386,6 +403,354 @@
                       :fetch-libraries! fetch-libraries!
                       :invoke-bob! (or invoke-bob! (make-invoke-bob-fn project))
                       :web-server web-server))
+
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))
+        output-matches-expectation (= expected actual)]
+    (is output-matches-expectation (when-not output-matches-expectation (coll/join-to-string "\n" (diff/make-diff-output-lines expected actual 3))))))
+
+;; Pane content resolves enclosing contexts, changes its root control,
+;; and survives script reloads.
+(deftest editor-script-pane-reload-test
+  (test-util/with-temp-project-content
+    {"/panes.editor_script"
+     ["local ui = editor.ui"
+      "local function render(props)"
+      "    local path = editor.get(props.selection, 'path')"
+      "    if path == '/game.project' then return ui.button { text = path } end"
+      "    return ui.label { text = path }"
+      "end"
+      "return {get_panes = function() return {editor.pane {"
+      "    id = 'test.details', title = 'Details', location = 'right-bottom',"
+      "    query = {selection = {type = 'resource', cardinality = 'one'}}, render = render"
+      "}} end}"]}
+    (let [pane
+          (fn pane [] (first (:extension (g/node-value app-view :pane-definitions))))
+
+          game-project
+          (g/node-value (test-util/resource-node project "/game.project") :resource)
+
+          script
+          (g/node-value (test-util/resource-node project "/panes.editor_script") :resource)
+
+          desc
+          (fn desc [selection]
+            ((:content (pane))
+             {:app-view app-view
+              :contexts [(handler/->context :workbench {:selection []})
+                         (handler/->context :global {:selection selection})]}))
+
+          text-of
+          (fn text-of [component selector]
+            (ui/run-now (.getText ^Labeled (.lookup ^Node (fx/instance component) selector))))]
+      (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+      (is (= [:test.details] (mapv :id (:extension (g/node-value app-view :pane-definitions)))))
+      (is (nil? (desc [script game-project])))
+      (let [component
+            (volatile! (ui/run-now (fx/create-component (desc [game-project]))))]
+        (try
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (ui/run-now
+            (vswap! component fx/advance-component
+                    ((:content (pane))
+                     {:app-view app-view
+                      :contexts [(handler/->context :workbench {:selection [script]})
+                                 (handler/->context :global {:selection [game-project]})]})))
+          (is (= "/panes.editor_script" (text-of @component ".ext-label")))
+          (ui/run-now
+            (vswap! component fx/advance-component
+                    ((:content (pane))
+                     {:app-view app-view
+                      :contexts [(assoc (handler/->context :workbench {:selection [:selected]})
+                                   :adapters {resource/Resource (constantly game-project)})
+                                 (handler/->context :global {:selection [script]})]})))
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (ui/run-now (vswap! component fx/advance-component (desc [script])))
+          (is (= "/panes.editor_script" (text-of @component ".ext-label")))
+          (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+          (ui/run-now (vswap! component fx/advance-component (desc [game-project])))
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (finally
+            (ui/run-now (fx/delete-component @component))))))))
+
+;; Pane renders share the surrounding lifecycle context with child components;
+;; errors fill the pane, report once, and recover when render props change.
+(deftest editor-script-pane-render-context-test
+  (test-util/with-loaded-project
+    (let [observations (atom [])
+          fail (atom false)
+          output (StringWriter.)
+
+          rt
+          (rt/make
+            :err output
+            :env {"editor" {"ui" (ui-components/env workspace project (.toPath (workspace/project-directory workspace)) test-util/localization)}
+                  "observe" (rt/lua-fn [{:keys [rt evaluation-context]} label]
+                              (swap! observations conj
+                                     {:label (rt/->clj rt coerce/string label)
+                                      :runtime evaluation-context
+                                      :lifecycle (ui-components/lifecycle-evaluation-context)})
+                              (rt/->lua nil))
+                  "should_fail" (rt/lua-fn [_] (rt/->lua @fail))})
+
+          render
+          (rt/invoke-immediate-1 rt
+                                 (rt/bind rt
+                                          (rt/read "local ui = editor.ui
+local child = ui.component(function()
+    observe('component')
+    return ui.label {text = 'Ready'}
+end)
+return function()
+    observe('render')
+    if should_fail() then error('Expected pane render failure with enough words to wrap inside a narrow pane.', 0) end
+    return child {}
+end")))
+
+          pane
+          (ext.panes/compile-pane project workspace test-util/localization rt "/context.editor_script"
+                                  {:id :test.context
+                                   :title "Context"
+                                   :location :bottom
+                                   :query {:selection {:type :resource :cardinality :one}}
+                                   :render render})
+
+          describe
+          (fn describe [path]
+            ((:content pane)
+             {:contexts [(handler/->context :workbench
+                                            {:selection [(g/node-value (test-util/resource-node project path) :resource)]})]}))]
+      (ui/run-now
+        (let [component
+              (volatile! (fx/create-component (describe "/game.project")))]
+          (try
+            (testing "Top-level and nested renders share one lifecycle context"
+              (is (= ["render" "component"] (mapv :label @observations)))
+              (is (apply identical? (mapv :runtime @observations)))
+              (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
+            (reset! fail true)
+            (vswap! component fx/advance-component (describe "/logic/main.gui"))
+            (vswap! component fx/advance-component (describe "/logic/main.gui"))
+            (testing "The error message wraps and is reported once"
+              (let [^Labeled error-label
+                    (.lookup ^Node (fx/instance @component) ".label")]
+                (is (string/ends-with? (.getText error-label)
+                                       "Expected pane render failure with enough words to wrap inside a narrow pane."))
+                (is (.isWrapText error-label))
+                (expect-script-output
+                  (format "Rendering pane :test.context in /context.editor_script failed: %s%n"
+                          (.getText error-label))
+                  output)))
+            (reset! fail false)
+            (vswap! component fx/advance-component (describe "/game.project"))
+            (testing "Changed props recover inside the same pane with a fresh context"
+              (let [^Labeled label
+                    (.lookup ^Node (fx/instance @component) ".label")]
+                (is (= "Ready" (.getText label))))
+              (is (not (identical? (:runtime (first @observations)) (:runtime (last @observations)))))
+              (is (coll/every? #(identical? (:runtime %) (:lifecycle %)) @observations)))
+            (finally
+              (fx/delete-component @component))))))))
+
+;; A nil component result hides its tab while keeping hooks. A nil pane render
+;; unmounts the component.
+(deftest editor-script-pane-nil-output-test
+  (test-util/with-loaded-project
+    (let [flip (atom nil)
+          hide (atom false)
+          prefs (test-util/make-test-prefs)
+
+          rt
+          (rt/make
+            :env {"editor" {"ui" (ui-components/env workspace project (.toPath (workspace/project-directory workspace)) test-util/localization)}
+                  "hide_pane" (rt/lua-fn [_] (rt/->lua @hide))
+                  "on_toggle" (rt/lua-fn [_ setter]
+                                (reset! flip setter)
+                                (rt/->lua nil))})
+
+          render
+          (rt/invoke-immediate-1 rt
+                                 (rt/bind rt
+                                          (rt/read "local ui = editor.ui
+local mounted = 0
+local function next_generation()
+    mounted = mounted + 1
+    return mounted
+end
+local pane = ui.component(function()
+    local generation = ui.use_state(next_generation)
+    local visible, set_visible = ui.use_state(true)
+    on_toggle(set_visible)
+    if not visible then return nil end
+    return ui.button {text = tostring(generation)}
+end)
+return function()
+    if hide_pane() then return nil end
+    return pane {}
+end")))
+
+          pane
+          (ext.panes/compile-pane project workspace test-util/localization rt "/nil.editor_script"
+                                  {:id :test.nil
+                                   :title "Optional pane"
+                                   :location :bottom
+                                   :query {:selection {:type :resource :cardinality :one}}
+                                   :render render})
+
+          describe
+          (fn describe [path]
+            {:fx/type panes/pane
+             :id :test.nil
+             :title "Optional pane"
+             :location :bottom
+             :localization-state @test-util/localization
+             :prefs prefs
+             :content-desc ((:content pane)
+                            {:contexts [(handler/->context :workbench
+                                                           {:selection [(g/node-value (test-util/resource-node project path) :resource)]})]})})
+
+          component
+          (volatile! (ui/run-now (fx/create-component (describe "/game.project"))))
+
+          button-text
+          (fn button-text []
+            (ui/run-now
+              (when-let [^Tab tab (fx/instance @component)]
+                (when-let [^Button button (.lookup ^Node (.getContent tab) ".ext-button")]
+                  (.getText button)))))]
+      (try
+        (is (= "1" (button-text)))
+        (let [setter @flip]
+          (rt/invoke-immediate-1 rt setter (rt/->lua false))
+          @(fx/run-later)
+          (is (nil? (button-text)))
+          (rt/invoke-immediate-1 rt setter (rt/->lua true))
+          @(fx/run-later)
+          (is (= "1" (button-text)))
+          (is (identical? setter @flip)))
+        (reset! hide true)
+        (ui/run-now (vswap! component fx/advance-component (describe "/logic/main.gui")))
+        (is (nil? (fx/instance @component)))
+        (reset! hide false)
+        (ui/run-now (vswap! component fx/advance-component (describe "/game.project")))
+        (is (= "2" (button-text)))
+        (finally (ui/run-now (fx/delete-component @component)))))))
+
+;; Region hiding preserves script component state and localization watches;
+;; individual pane hiding unmounts the component and releases its watch.
+(deftest editor-script-pane-unmount-test
+  (test-util/with-temp-project-content
+    {"/panes.editor_script"
+     ["local ui = editor.ui"
+      "local initializations = 0"
+      "local pane = ui.component(function()"
+      "    local value = ui.use_state(function()"
+      "        initializations = initializations + 1"
+      "        return initializations"
+      "    end)"
+      "    return ui.label {text = tostring(value)}"
+      "end)"
+      "return {get_panes = function() return {editor.pane {"
+      "    id = 'test.counter', title = 'Counter', location = 'bottom', render = pane"
+      "}} end}"]}
+    (let [prefs (test-util/make-test-prefs)
+
+          stage
+          (ui/run-now
+            (let [root (ui/load-fxml "editor.fxml")
+                  scene (Scene. root)]
+              (ui/context! root :global {:app-view app-view :prefs prefs} nil)
+              (g/transact (g/set-property app-view :scene scene))
+              (doto (Stage.) (.setScene scene))))
+
+          scene (.getScene ^Stage stage)
+
+          contexts
+          [(handler/->context :global {:main-stage stage :app-view app-view :prefs prefs})]
+
+          text
+          (fn text []
+            (ui/run-now (.getText ^Labeled (.lookup scene ".ext-label"))))]
+      (prefs/set! prefs [:window :hidden-panes] #{})
+      (prefs/set! prefs [:window :layout :hidden-panes] #{})
+      (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+      (ui/run-now
+        (.applyCss (.getRoot scene))
+        (.layout (.getRoot scene))
+        (app-view/initialize-panes! app-view scene prefs test-util/localization))
+      (try
+        (is (= "1" (text)))
+        (let [mounted-watches
+              (count (.getWatches ^IRef test-util/localization))]
+          (testing "A region toggle preserves use_state and its subscription"
+            (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
+            (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
+            (is (= mounted-watches (count (.getWatches ^IRef test-util/localization))))
+            (ui/run-now (test-util/handler-run :window.toggle-bottom-pane contexts nil))
+            (is (= "1" (text))))
+          (testing "An individual pane toggle unmounts its component"
+            (ui/run-now (test-util/handler-run :window.toggle-pane contexts :test.counter))
+            (is (ui/run-now (nil? (.lookup scene ".ext-label"))))
+            (is (< (count (.getWatches ^IRef test-util/localization)) mounted-watches))))
+        (ui/run-now (app-view/show-pane! scene :test.counter))
+        (is (= "2" (text)))
+        (finally
+          (ui/run-now (ui/advance-ui-user-data-component! scene :editor.app-view/ui nil)))))))
+
+;; Conflicting pane registrations are excluded individually, including reserved
+;; built-ins and duplicate IDs across locations and scripts.
+(deftest editor-script-pane-registration-conflicts-test
+  (test-util/with-temp-project-content
+    {"/first.editor_script"
+     ["local function pane(id, location)"
+      "    return editor.pane {id = id, title = id, location = location,"
+      "        render = function() return editor.ui.label {text = id} end}"
+      "end"
+      "return {get_panes = function() return {"
+      "    pane('test.before', 'left-top'), pane('console', 'right-top'),"
+      "    pane('test.duplicate', 'left-bottom'), pane('outline', 'bottom'),"
+      "    pane('test.new-built-in', 'left-top'), pane('test.after', 'right-bottom')"
+      "} end}"]
+     "/second.editor_script"
+     ["return {get_panes = function() return {"
+      "    editor.pane {id = 'test.duplicate', title = 'Duplicate', location = 'bottom',"
+      "        render = function() return editor.ui.label {text = 'Duplicate'} end},"
+      "    editor.pane {id = 'test.other', title = 'Other', location = 'right-top',"
+      "        render = function() return editor.ui.label {text = 'Other'} end}"
+      "} end}"]}
+    (let [output (StringBuilder.)]
+      (app-view/set-built-in-panes! app-view
+                                    [{:id :console} {:id :outline} {:id :test.new-built-in}])
+      (reload-editor-scripts! project
+                              :set-panes! (partial app-view/set-extension-panes! app-view)
+                              :display-output! #(doto output (.append %2) (.append \newline)))
+      (is (= #{:test.before :test.after :test.other}
+             (set (mapv :id (:extension (g/node-value app-view :pane-definitions))))))
+      (expect-script-output
+        "Omitting conflicting editor pane :console defined in /first.editor_script (conflict with the editor's built-in panes)
+Omitting conflicting editor pane :outline defined in /first.editor_script (conflict with the editor's built-in panes)
+Omitting conflicting editor pane :test.duplicate defined in /first.editor_script and /second.editor_script
+Omitting conflicting editor pane :test.new-built-in defined in /first.editor_script (conflict with the editor's built-in panes)
+"
+        output)
+      (testing "Reload replaces the complete extension collection"
+        (doseq [path ["/first.editor_script" "/second.editor_script"]]
+          (test-util/set-code-editor-lines!
+            (test-util/resource-node project path)
+            ["return {get_panes = function() return {} end}"]))
+        (reload-editor-scripts! project :set-panes! (partial app-view/set-extension-panes! app-view))
+        (is (= [] (:extension (g/node-value app-view :pane-definitions))))
+        (is (= [:console :outline :test.new-built-in]
+               (mapv :id (:built-in (g/node-value app-view :pane-definitions)))))))))
 
 ;; Built-in bundle commands select packages and request the report of packaged
 ;; resources, while contentless bundles exclude packages and their report.
@@ -616,6 +981,52 @@
 
       ;; all the changes should be reverted — a single transaction!
       (test-initial-state!))))
+
+;; A transaction resumed after HTTP suspension requests a UI refresh even after
+;; the original command's refresh has already been consumed.
+(deftest suspended-transaction-refresh-test
+  (let [requested (promise)
+        release (promise)
+
+        server
+        (http-server/start!
+          (fn respond-after-release [_]
+            (deliver requested true)
+            @release
+            (http-server/response 200 "ready")))
+
+        ^Stage stage
+        (ui/run-now
+          (doto (Stage.) (.setScene (Scene. (StackPane.)))))
+
+        scene (.getScene stage)
+        output (StringWriter.)]
+    (try
+      (binding [ui/*main-stage* (atom stage)]
+        (test-util/with-temp-project-content
+          {"/test.editor_script"
+           [(str "return {get_commands = function() return {{label = 'Test', locations = {'Edit'}, run = function()"
+                 " http.request('" (http-server/local-url server) "/wait')"
+                 " editor.transact {editor.tx.set('/game.project', 'display.width', 321)}"
+                 " print(editor.get('/game.project', 'display.width'))"
+                 " end}} end}")]}
+          (reload-editor-scripts! project
+                                  :display-output! (fn capture-output [_ text]
+                                                     (doto output (.append ^String text) (.append \newline))))
+          (let [^CompletableFuture running
+                (handler/run (handler/active
+                               (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                               (eval-handler-contexts :global [])
+                               {}))]
+            (is (= true (deref requested 5000 false)))
+            (ui/run-now (ui/user-data! scene ::ui/refresh-requested? false))
+            (deliver release true)
+            (.get running 5 TimeUnit/SECONDS)
+            (ui/run-now (is (true? (ui/user-data scene ::ui/refresh-requested?))))
+            (expect-script-output "321\n" output))))
+      (finally
+        (deliver release true)
+        (http-server/stop! server 0)))))
 
 (deftest save-test
   (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
@@ -857,20 +1268,6 @@
         (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
         (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
-(defn- normalize-pprint-output [output-string]
-  (let [hash->stable-id (volatile! {})]
-    (string/replace
-      output-string
-      #"0x[0-9a-f]+"
-      (fn [s]
-        (or (@hash->stable-id s)
-            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
-
-(defn- expect-script-output [expected actual]
-  (let [actual (normalize-pprint-output (str actual))
-        output-matches-expectation (= expected actual)]
-    (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
-
 (def ^:private expected-resource-children-test-output
   "Root contains assets: true
 Library contains logo: true
@@ -942,6 +1339,8 @@ scene.node.has_parent_property=false
 scene.node.get_parent_succeeds=false
 ")
 
+;; Real graph-based Outline selections retain the ancestry required by Lua's
+;; parent lookup, including when no native Outline component is mounted.
 (deftest outline-selection-parent-chain-test
   (test-util/with-loaded-project "test/resources/editor_extensions/outline_parent_project"
     (let [out (StringBuilder.)
@@ -949,19 +1348,41 @@ scene.node.get_parent_succeeds=false
           resource-node (test-util/resource-node project "/main/main.collection")
           sprite-outline (decorated-outline resource-node [0 0])
           sprite-node-id (:node-id sprite-outline)
-          run-command! (fn run-command! [location context-name selection label]
-                         (let [command-contexts (eval-handler-contexts context-name selection)
-                               menu-items (handler/realize-menu location)
-                               handler+context (coll/some
-                                                 (fn [{:keys [command]}]
-                                                   (let [handler+context (handler/active command command-contexts {})]
-                                                     (when (and handler+context (= label (handler/label handler+context)))
-                                                       handler+context)))
-                                                 menu-items)]
-                           (assert handler+context "Test bug: undefined test command")
-                           (is (handler/enabled? handler+context))
-                           @(handler/run handler+context)))]
-      (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
+
+          outline-selection
+          (ui/run-now
+            (test-util/open-tab! project app-view "/main/main.collection")
+            (let [outline-view
+                  (outline-view/make-outline-view project app-view test-util/localization)]
+              (g/transact
+                [(g/connect app-view :outline-selection outline-view :selection)
+                 (g/connect resource-node :node-outline outline-view :active-outline)
+                 (g/connect resource-node :_node-id outline-view :active-resource-node)])
+              (app-view/select! app-view [sprite-node-id])
+              (g/with-auto-evaluation-context evaluation-context
+                (handler/selection
+                  (outline-view/->SelectionProvider outline-view (g/node-value outline-view :tree-view evaluation-context))
+                  evaluation-context))))
+
+          run-command!
+          (fn run-command! [location context-name selection label]
+            (let [command-contexts
+                  (eval-handler-contexts context-name selection)
+
+                  menu-items (handler/realize-menu location)
+
+                  handler+context
+                  (coll/some
+                    (fn [{:keys [command]}]
+                      (let [handler+context
+                            (handler/active command command-contexts {})]
+                        (when (and handler+context (= label (handler/label handler+context)))
+                          handler+context)))
+                    menu-items)]
+              (assert handler+context "Test bug: undefined test command")
+              (is (handler/enabled? handler+context))
+              @(handler/run handler+context)))]
+      (run-command! :editor.outline-view/context-menu-end :outline outline-selection "Outline Parent Chain Test")
       (run-command! :editor.scene-selection/context-menu-end :workbench [sprite-node-id] "Scene Parent Chain Test")
       (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 

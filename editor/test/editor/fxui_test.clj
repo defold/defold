@@ -18,8 +18,78 @@
             [cljfx.mutator :as fx.mutator]
             [clojure.test :refer :all]
             [editor.fxui :as fxui]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.coll :as coll])
   (:import [javafx.beans.property SimpleStringProperty]))
+
+;; Inputs reconcile by key and remain mounted independently of the dependent
+;; description, which receives nil and false instances without filtering.
+(deftest with-instances-test
+  (let [events (atom [])
+
+        input
+        (fn input [value]
+          {:fx/type fx/ext-effect
+           :fn (fn mount-input []
+                 (swap! events conj [:created value])
+                 (fn dispose-input [] (swap! events conj [:deleted value])))
+           :desc {:fx/type ui/ext-value :value value}})
+
+        child
+        (fn child [{:keys [instances]}]
+          {:fx/type ui/ext-value :value instances})
+
+        desc
+        {:fx/type fxui/ext-with-instances
+         :inputs {:a (input :a) :b nil :c {:fx/type ui/ext-value :value false}}
+         :desc {:fx/type child}}
+
+        component (volatile! (fx/create-component desc))]
+    (try
+      (testing "The complete map includes nil and false instances"
+        (is (= {:a :a :b nil :c false} (fx/instance @component))))
+      (testing "Equal descriptions preserve input resources"
+        (vswap! component fx/advance-component desc)
+        (is (= [[:created :a]] @events)))
+      (testing "An absent dependent description preserves input resources"
+        (vswap! component fx/advance-component (assoc desc :desc nil))
+        (is (nil? (fx/instance @component)))
+        (is (= [[:created :a]] @events))
+        (vswap! component fx/advance-component desc)
+        (is (= {:a :a :b nil :c false} (fx/instance @component))))
+      (testing "Input replacement, removal and addition precede the child"
+        (vswap! component fx/advance-component
+                (assoc desc :inputs {:a (input :replacement) :d (input :d)}))
+        (is (= {:a :replacement :d :d} (fx/instance @component)))
+        (is (= 1 (get (frequencies @events) [:deleted :a]))))
+      (testing "The injected prop name is configurable"
+        (vswap! component fx/advance-component
+                (assoc desc
+                  :key :values
+                  :desc {:fx/type (fn describe-values [{:keys [values]}]
+                                    {:fx/type ui/ext-value :value values})}))
+        (is (= {:a :a :b nil :c false} (fx/instance @component))))
+      (finally
+        (fx/delete-component @component)))
+    (is (= (frequencies (coll/into-> @events [] (keep (fn [[event value]] (when (= :created event) value)))))
+           (frequencies (coll/into-> @events [] (keep (fn [[event value]] (when (= :deleted event) value))))))))
+  (testing "The dependent child is deleted before its inputs"
+    (let [events (atom [])
+
+          effect
+          (fn effect [id desc]
+            {:fx/type fx/ext-effect
+             :fn (fn mount []
+                   (fn dispose [] (swap! events conj id)))
+             :desc desc})
+
+          component
+          (fx/create-component
+            {:fx/type fxui/ext-with-instances
+             :inputs {:a (effect :input {:fx/type ui/ext-value :value :a})}
+             :desc (effect :child nil)})]
+      (fx/delete-component component)
+      (is (= [:child :input] @events)))))
 
 (defn- recording-prop [calls k]
   (fx/make-prop
