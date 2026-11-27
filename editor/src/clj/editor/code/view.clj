@@ -2083,8 +2083,10 @@
           (when (identical? request (g/user-data view-node :signature-help-request))
             (let [shown (get-property view-node :signature-help)]
               (set-properties! view-node nil
-                               {:signature-help (if (and result shown (= (mapv :label (:signatures shown)) (mapv :label (:signatures result))))
-                                                  (assoc result :active (:active shown))
+                               {:signature-help (if (and result
+                                                         (:user-selected shown)
+                                                         (= (mapv :label (:signatures shown)) (mapv :label (:signatures result))))
+                                                  (assoc result :active (:active shown) :user-selected true)
                                                   result)}))))))))
 
 (defn- hide-signature-help! [view-node]
@@ -2837,7 +2839,7 @@
       (let [step (if (= direction :up) -1 1)
             next-index (mod (+ (long active) step) (count signatures))]
         (set-properties! view-node nil
-                         {:signature-help (assoc signature-help :active next-index)}))
+                         {:signature-help (assoc signature-help :active next-index :user-selected true)}))
       (move! view-node :navigation direction))))
 
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
