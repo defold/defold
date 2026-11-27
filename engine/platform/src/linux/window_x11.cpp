@@ -69,6 +69,7 @@ struct LinuxX11
     dmArray<char> m_Text;
 
     jc::RingBuffer<X11ResizeRequest> m_ResizeRequests;
+    jc::RingBuffer<unsigned long>    m_AppliedResizeSerials;
 };
 
 namespace dmPlatform
@@ -382,6 +383,43 @@ namespace dmPlatform
         return query.m_Found;
     }
 
+    struct ResizeReplyQuery
+    {
+        HWindow       m_Window;
+        unsigned long m_ReadSerial;
+        uint32_t      m_Next;
+        int           m_Width, m_Height;
+    };
+
+    static bool IsResizeReply(const X11ResizeRequest& request, unsigned long serial, bool changed, bool synthetic)
+    {
+        // A manager that declines a resize sends a synthetic ConfigureNotify with the retained size.
+        return serial >= request.m_Serial && (changed || synthetic);
+    }
+
+    // Count the replies Poll will dispatch, leaving all events in their original order.
+    static Bool ObserveResizeReply(Display*, XEvent* event, XPointer data)
+    {
+        ResizeReplyQuery* query = (ResizeReplyQuery*)data;
+        HWindow w = query->m_Window;
+        const XConfigureEvent& e = event->xconfigure;
+        if (event->type == ConfigureNotify && e.event == w->m_Xid && e.window == w->m_Xid &&
+            e.serial >= w->m_X11->m_SizeReadSerial && e.serial < query->m_ReadSerial)
+        {
+            const jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
+            const bool changed = e.width != query->m_Width || e.height != query->m_Height;
+            if (query->m_Next < requests.Size() && IsResizeReply(requests[query->m_Next], e.serial, changed, e.send_event))
+            {
+                ++query->m_Next;
+            }
+
+            query->m_Width = e.width;
+            query->m_Height = e.height;
+        }
+
+        return False;
+    }
+
     static void CompleteGeometryRequest(HWindow w)
     {
         LinuxX11* state = w->m_X11;
@@ -484,8 +522,7 @@ namespace dmPlatform
         jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
         bool changed = width != w->m_Width || height != w->m_Height;
         uint32_t acknowledgements = 0;
-        // A manager that declines a resize sends a synthetic ConfigureNotify with the retained size.
-        if ((changed || synthetic) && !requests.Empty() && serial >= requests[0].m_Serial)
+        if (!requests.Empty() && IsResizeReply(requests[0], serial, changed, synthetic))
         {
             acknowledgements = requests.Pop().m_Count;
             if (changed)
@@ -503,6 +540,19 @@ namespace dmPlatform
                 break;
             }
 
+            NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+        }
+    }
+
+    static void DispatchAppliedResizes(HWindow w, unsigned long serial)
+    {
+        jc::RingBuffer<unsigned long>& applied = w->m_X11->m_AppliedResizeSerials;
+        while (!applied.Empty() && applied[0] <= serial && !w->m_DeletePending)
+        {
+            applied.Pop();
+            // A subsequent request may already have updated the drawable size exposed to queries.
+            w->m_PixelWidth = w->m_Width;
+            w->m_PixelHeight = w->m_Height;
             NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
         }
     }
@@ -958,6 +1008,7 @@ namespace dmPlatform
         {
             XEvent e;
             XNextEvent(d, &e);
+            DispatchAppliedResizes(w, e.xany.serial);
             // Some input methods clear the keycode when they consume an event for text composition.
             unsigned keycode = (e.type == KeyPress || e.type == KeyRelease) ? e.xkey.keycode : 0;
             bool filtered = XFilterEvent(&e, None);
@@ -1153,6 +1204,7 @@ namespace dmPlatform
             }
         }
 
+        DispatchAppliedResizes(w, LastKnownRequestProcessed(d));
         const int cx = w->m_Width / 2, cy = w->m_Height / 2;
         if (x->m_GrabSerial && !x->m_WarpSerial && (x->m_LastCursorX != cx || x->m_LastCursorY != cy))
         {
@@ -1347,6 +1399,7 @@ namespace dmPlatform
         }
 
         x->m_ResizeRequests.Clear();
+        x->m_AppliedResizeSerials.Clear();
         x->m_ConfigureSerial = 0;
         x->m_ClampAfterResize = false;
         XSync(w->m_Display, False);
@@ -1427,49 +1480,65 @@ namespace dmPlatform
         if (w->m_Params.m_ResizeCallback)
         {
             jc::RingBuffer<X11ResizeRequest>& requests = w->m_X11->m_ResizeRequests;
-            if (requests.Empty())
+            const bool have_size = ReadDrawableSize(w);
+            const bool applied = have_size && w->m_PixelWidth == width && w->m_PixelHeight == height;
+            const unsigned long read_serial = LastKnownRequestProcessed(w->m_Display);
+            if (requests.Empty() && applied)
             {
-                // An external resize may still be in the event queue. Only skip the native request
-                // when the server already has the requested size.
-                XWindowAttributes attrs;
-                if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.width == width && attrs.height == height)
+                const Window xid = w->m_Xid;
+                const uint32_t count = w->m_ResizeCallbackCount;
+                // The read includes earlier resizes. A later external change can carry the read's own serial.
+                w->m_X11->m_SizeReadSerial = read_serial;
+                LinuxUpdateSize(w, width, height, w->m_Scale);
+                if (w->m_DeletePending || w->m_Xid != xid)
                 {
-                    const Window xid = w->m_Xid;
-                    const uint32_t count = w->m_ResizeCallbackCount;
-                    // The read includes earlier resizes. A later external change can carry the read's own serial.
-                    w->m_X11->m_SizeReadSerial = LastKnownRequestProcessed(w->m_Display);
-                    LinuxUpdateSize(w, width, height, w->m_Scale);
-                    if (w->m_DeletePending || w->m_Xid != xid)
-                    {
-                        return;
-                    }
-
-                    // A pending move must settle before clamping the final client position.
-                    w->m_X11->m_ClampAfterResize = true;
-                    if (!w->m_X11->m_ConfigureSerial)
-                    {
-                        CompleteGeometryRequest(w);
-                    }
-
-                    if (w->m_ResizeCallbackCount == count)
-                    {
-                        NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
-                    }
-
                     return;
                 }
+
+                // A pending move must settle before clamping the final client position.
+                w->m_X11->m_ClampAfterResize = true;
+                if (!w->m_X11->m_ConfigureSerial)
+                {
+                    CompleteGeometryRequest(w);
+                }
+
+                if (w->m_ResizeCallbackCount == count)
+                {
+                    NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
+                }
+
+                return;
             }
 
-            if (!requests.Empty())
+            if (!requests.Empty() && have_size)
             {
                 X11ResizeRequest& last = requests[requests.Size() - 1];
-                if (last.m_Width == width && last.m_Height == height && ReadDrawableSize(w))
+                if (last.m_Width == width && last.m_Height == height)
                 {
                     // Share the acknowledgement while the resize is pending or its size still holds.
                     // A later external resize can supersede the request before we poll its ConfigureNotify.
-                    if ((w->m_PixelWidth == width && w->m_PixelHeight == height) || !HasQueuedConfigure(w, last.m_Serial))
+                    if (applied || !HasQueuedConfigure(w, last.m_Serial))
                     {
                         ++last.m_Count;
+                        return;
+                    }
+                }
+                else if (applied)
+                {
+                    ResizeReplyQuery query = { w, read_serial, 0, w->m_Width, w->m_Height };
+                    XEvent event = {};
+                    XCheckIfEvent(w->m_Display, &event, ObserveResizeReply, reinterpret_cast<XPointer>(&query));
+                    if (query.m_Next == requests.Size())
+                    {
+                        // The server has applied this size and answered the older requests. A native
+                        // no-op can produce no ConfigureNotify. Deliver this callback after those replies.
+                        jc::RingBuffer<unsigned long>& applied_serials = w->m_X11->m_AppliedResizeSerials;
+                        if (applied_serials.Full())
+                        {
+                            applied_serials.OffsetCapacity(4);
+                        }
+
+                        applied_serials.Push(read_serial);
                         return;
                     }
                 }

@@ -370,6 +370,32 @@ TEST(LinuxWindow, X11AppliedResizeBeforePoll)
     EXPECT_EQ(3u, events.m_Count);
     EXPECT_EQ(481u, events.m_Width);
     EXPECT_EQ(311u, events.m_Height);
+
+    // A different pending request must not strand a request for the size the server already has.
+    for (int later_resize = 0; later_resize <= 1; ++later_resize)
+    {
+        events.m_Count = 0;
+        dmPlatform::SetWindowSize(w, 492, 319);
+        XResizeWindow(manager, w->m_Xid, 503, 327);
+        XSync(manager, False);
+        dmPlatform::SetWindowSize(w, 503, 327);
+        dmPlatform::SetWindowSize(w, 503, 327);
+        if (later_resize)
+        {
+            dmPlatform::SetWindowSize(w, 510, 330);
+        }
+
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(4u + later_resize, events.m_Count);
+        EXPECT_EQ(492u, events.m_FirstWidth);
+        EXPECT_EQ(319u, events.m_FirstHeight);
+        const uint32_t width = later_resize ? 510 : 503, height = later_resize ? 330 : 327;
+        EXPECT_EQ(width, events.m_Width);
+        EXPECT_EQ(height, events.m_Height);
+        dmPlatform::SetWindowSize(w, width, height);
+        EXPECT_EQ(5u + later_resize, events.m_Count);
+    }
+
     XCloseDisplay(manager);
     dmPlatform::DeleteWindow(w);
 }
@@ -540,13 +566,35 @@ TEST(LinuxWindow, X11ConstrainedResize)
     XSync(w->m_Display, False);
     EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
 
+    // A manager that has only answered the first request still needs the final size request.
+    dmPlatform::SetWindowSize(w, 475, 312);
+    dmPlatform::SetWindowSize(w, 478, 315);
+    XResizeWindow(manager, w->m_Xid, 465, 310);
+    XSync(manager, False);
+    dmPlatform::SetWindowSize(w, 465, 310);
+    XSync(w->m_Display, False);
+    const int requested_widths[] = { 475, 478, 465 };
+    for (int width : requested_widths)
+    {
+        ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+        EXPECT_EQ(width, request.xconfigurerequest.width);
+    }
+
+    XResizeWindow(manager, w->m_Xid, 478, 315);
+    XResizeWindow(manager, w->m_Xid, 465, 310);
+    XSync(manager, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(11u, events.m_Count);
+    EXPECT_EQ(465u, events.m_Width);
+    EXPECT_EQ(310u, events.m_Height);
+
     // Deleting from a synchronous acknowledgement releases the display once SetWindowSize returns.
     const int fd = ConnectionNumber(w->m_Display);
     events.m_DeleteOnResize = &w;
     XResizeWindow(manager, w->m_Xid, 470, 310);
     XSync(manager, False);
     dmPlatform::SetWindowSize(w, 470, 310);
-    EXPECT_EQ(9u, events.m_Count);
+    EXPECT_EQ(12u, events.m_Count);
     EXPECT_EQ((HWindow)0, w);
     EXPECT_EQ(-1, fcntl(fd, F_GETFD));
     XDestroyWindow(manager, parent);
