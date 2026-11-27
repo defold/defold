@@ -488,7 +488,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
 
-    compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fdata-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fdata-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--gc-sections -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
 
   arm64-android:
@@ -606,9 +606,9 @@ platforms:
     context:
         defines:        ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/ucrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/winrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/um", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/shared"]
-        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "libBulletDynamics", "libBulletCollision", "platform", "libLinearMath", "libbox2d_defold", "render", "script", "libluajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "liblz4", "image", "libglfw3", "gui", "crashext", "liveupdate", "sound", "decoder_wav", "decoder_ogg"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "winmm", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
-        symbols:        ["LuaDebugger", "GraphicsAdapterOpenGL", "ProfilerRemotery", "ScriptComputeExt"]
+        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_dx12", "graphics_transcoder_basisu", "basis_transcoder", "physics", "libBulletDynamics", "libBulletCollision", "platform", "libLinearMath", "libbox2d_defold", "render", "script", "libluajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "liblz4", "image", "libglfw3", "gui", "crashext", "liveupdate", "sound", "decoder_wav", "decoder_ogg"]
+        libs:           ["OpenGL32", "d3d12.lib", "dxgi.lib", "d3dcompiler.lib", "delayimp", "User32", "shell32", "winmm", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
+        symbols:        ["LuaDebugger", "GraphicsAdapterDX12", "ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -639,15 +639,15 @@ platforms:
 
   linux:
     context:
-        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "openh264", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "decoder_wav", "decoder_ogg"]
+        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "openh264", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_vulkan", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform_vulkan", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "decoder_wav", "decoder_ogg"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
-        linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
-        cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld"]
+        linkFlags:      ["-g", "-O2", "-fuse-ld=lld", "-Wl,--gc-sections"]
+        cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld", "-Wl,--gc-sections"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
         dynamicLibs:    ["openal","Xext","X11","Xi","pthread","m","dl"]
-        symbols:        ["LuaDebugger", "ProfilerRemotery", "ScriptComputeExt"]
+        symbols:        ["LuaDebugger", "ProfilerRemotery", "ScriptComputeExt", "GraphicsAdapterVulkan"]
 
     exePrefix:      ''
     exeExt:         ''
@@ -674,7 +674,7 @@ platforms:
         symbols:     ["GraphicsAdapterOpenGL"]
         engineLibs:  ["graphics"]
         libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
-        dynamicLibs: ["GL","GLU"]
+        dynamicLibs: ["GL"]
 
   arm64-linux:
     env:

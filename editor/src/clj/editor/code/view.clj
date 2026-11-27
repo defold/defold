@@ -2337,6 +2337,26 @@
 
 (def ^:private ^:const completion-icon-text-spacing 4.0)
 
+(defn completion-doc-placement
+  "Place the completion doc popup next to the completion list on the screen.
+
+  Prefers the right side of the list, unless the preferred width only fits on
+  the left or the left has more space. Returns a map with :x, :width, and :side
+  (:left or :right)."
+  [^Rectangle2D screen-bounds ^double list-x ^double list-width ^double pref-width]
+  (let [spacing 6.0
+        left-space (- list-x (.getMinX screen-bounds) spacing)
+        right-space (- (.getMaxX screen-bounds) (+ list-x list-width spacing))]
+    (if (or (<= pref-width right-space)
+            (<= left-space right-space))
+      {:x (+ list-x list-width spacing)
+       :width (min pref-width right-space)
+       :side :right}
+      (let [width (min pref-width left-space)]
+        {:x (- list-x width spacing)
+         :width width
+         :side :left}))))
+
 (defn- completion-list-cell-view [view-node completion]
   (if completion
     (let [text (:display-string completion)
@@ -2483,9 +2503,9 @@
               :desc {:fx/type ui/ext-value :value canvas}
               :popup
               {:fx/type fx.popup/lifecycle
-               :anchor-x (- (.getX anchor) 12.0)
-               :anchor-y (- (.getY anchor) 4.0)
-               :anchor-location :window-top-left
+               :anchor-x (.getX anchor)
+               :anchor-y (.getY anchor)
+               :anchor-location :content-top-left
                :showing completions-showing
                :auto-fix false
                :auto-hide true
@@ -2494,17 +2514,9 @@
                :content [{:fx/type fx/ext-get-ref :ref :content}]}}]
             completions-doc
             (conj
-              (let [pref-doc-width 350.0
-                    doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
-                    spacing 6.0
-                    left-space (- (.getX anchor) spacing)
-                    right-space (- (.getMaxX screen-bounds)
-                                   (+ (.getX anchor) completions-width spacing))
-                    align-right (or (<= pref-doc-width right-space)
-                                    (<= left-space right-space))
-                    doc-width (if align-right
-                                (min pref-doc-width right-space)
-                                (min pref-doc-width left-space))
+              (let [doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
+                    {doc-x :x doc-width :width doc-side :side}
+                    (completion-doc-placement screen-bounds (.getX anchor) completions-width 450.0)
                     {:keys [detail doc type tags]} selected-completion
                     deprecated (contains? tags :deprecated)
                     small-text (or detail (some-> type name (string/replace "-" " ")))
@@ -2522,12 +2534,9 @@
                  :desc {:fx/type fx/ext-get-ref :ref :content}
                  :popup
                  {:fx/type fx.popup/lifecycle
-                  :anchor-x (let [x (- (.getX anchor) 12.0)]
-                              (if align-right
-                                (+ x completions-width spacing)
-                                (- x doc-width spacing)))
-                  :anchor-y (- (.getY anchor) 5.0)
-                  :anchor-location :window-top-left
+                  :anchor-x doc-x
+                  :anchor-y (.getY anchor)
+                  :anchor-location :content-top-left
                   :showing true
                   :auto-fix false
                   :auto-hide false
@@ -2539,6 +2548,7 @@
                                         (cond->
                                           {:fx/type markdown-view/view
                                            :base-url (:base-url doc)
+                                           :code-block-scroll-key (completion-identifier selected-completion)
                                            :event-filter (fn [e]
                                                            (when (instance? KeyEvent e)
                                                              (let [^KeyEvent e e
@@ -2555,7 +2565,7 @@
                                                       small-string small-string
                                                       doc-string doc-string
                                                       :else "<small>no documentation</small>")}
-                                          (not align-right)
+                                          (= :left doc-side)
                                           (assoc :min-width doc-width))]}]}})))}}))))
 
 (node-types/register-node-type-name! CodeEditorView "code")

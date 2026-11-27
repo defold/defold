@@ -172,7 +172,6 @@ def install_linux(args):
         "autoconf",
         "automake",
         "build-essential",
-        "freeglut3-dev",
         "libssl-dev",
         "libtool",
         "libxi-dev",
@@ -286,8 +285,6 @@ def build_engine(channel, platform, args):
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     cmd_opts.append('--disable-ccache')
-    if platform in ('x86_64-linux', 'arm64-linux'):
-        build_opts.append('--with-vulkan')
     if args.verbose:
         cmd_opts.append('--verbose')
 

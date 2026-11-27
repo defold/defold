@@ -40,6 +40,7 @@ namespace dmGraphics
         void*            m_Data;
         TextureSampler   m_Sampler;
         int32_t*         m_LastBoundUnit; // testing
+        uint16_t         m_AllocatedMipMapMask; // Mips defined by full uploads, like OpenGL.
     };
 
     struct VertexStreamBuffer

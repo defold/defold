@@ -117,6 +117,18 @@ jobs:
         uses: ./.github/actions/upload-build-reports,
         with: { platform: 'x86_64-linux', build-variant: 'tsan' }
       },
+      # Exercise native render-owner tests, which are skipped in the normal engine build.
+      # Reuse TSAN, but run only foundation suites: production threaded startup is still gated.
+      {
+        name: 'Threaded rendering foundation (TSAN)',
+        id: threaded_rendering,
+        run: 'source ci/env.sh &&
+              cmake -S . -B engine/build/x86_64-linux -DWITH_THREADED_RENDERING=ON &&
+              xvfb-run --auto-servernum cmake --build engine/build/x86_64-linux --parallel 2 --target
+              run_test_render_execution run_test_render_frame_queue
+              run_test_render_graphics_service run_test_render_graphics_resource
+              run_test_component_render run_test_component_render_state'
+      },
       {
         name: 'MSAN',
         id: msan,

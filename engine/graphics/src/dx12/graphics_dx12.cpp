@@ -177,31 +177,45 @@ namespace dmGraphics
                 return format;
         }
     }
-    static DXGI_FORMAT GetDXGIRenderTargetFormatFromTextureFormat(TextureFormat format)
+
+    static TextureFormat GetTextureStorageFormat(TextureFormat format, bool color_attachment)
     {
         switch (format)
         {
+            case TEXTURE_FORMAT_RGB:
+            {
+                return TEXTURE_FORMAT_RGBA;
+            }
+            case TEXTURE_FORMAT_RGB16F:
+            {
+                return TEXTURE_FORMAT_RGBA16F;
+            }
             case TEXTURE_FORMAT_LUMINANCE:
             case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            case TEXTURE_FORMAT_RGB:
-            case TEXTURE_FORMAT_RGBA:
-                return DXGI_FORMAT_R8G8B8A8_UNORM;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA : format;
+            }
             case TEXTURE_FORMAT_R16F:
             case TEXTURE_FORMAT_RG16F:
-            case TEXTURE_FORMAT_RGB16F:
-            case TEXTURE_FORMAT_RGBA16F:
-                return DXGI_FORMAT_R16G16B16A16_FLOAT;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA16F : format;
+            }
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG32F:
             case TEXTURE_FORMAT_RGB32F:
-            case TEXTURE_FORMAT_RGBA32F:
-                return DXGI_FORMAT_R32G32B32A32_FLOAT;
-
+            {
+                return color_attachment ? TEXTURE_FORMAT_RGBA32F : format;
+            }
             default:
-                return GetDXGIFormatFromTextureFormat(format);
+            {
+                return format;
+            }
         }
+    }
+
+    static DXGI_FORMAT GetDXGIRenderTargetFormatFromTextureFormat(TextureFormat format)
+    {
+        return GetDXGIFormatFromTextureFormat(GetTextureStorageFormat(format, true));
     }
 
     void SetupSupportedTextureFormats(DX12Context* context)
@@ -1950,36 +1964,78 @@ namespace dmGraphics
         return pitch;
     }
 
-    // Fills the upload heap for the array slices [layer_base, layer_base + layer_count) from a
-    // tightly packed source holding exactly those slices.
-    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format,
-        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t layer_base, uint32_t layer_count,
-        const uint8_t* pixels, uint8_t* upload_data)
+    struct TextureUploadLayer
+    {
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_Footprint;
+        UINT                               m_Subresource;
+        D3D12_RESOURCE_STATES              m_PreviousState;
+    };
+
+    // Match native narrow textures by filling missing color channels with zero and alpha with one.
+    template <uint32_t ChannelCount, typename T>
+    static void RepackTextureRowToRGBA(uint32_t width, const uint8_t* src, uint8_t* dst, T alpha)
+    {
+        T texel[4] = { 0, 0, 0, alpha };
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            memcpy(texel, src, ChannelCount * sizeof(T));
+            memcpy(dst, texel, sizeof(texel));
+            src += ChannelCount * sizeof(T);
+            dst += sizeof(texel);
+        }
+    }
+
+    // Dispatch once per row so each texel copy has a fixed byte count.
+    template <typename T>
+    static void RepackTextureRowToRGBA(uint32_t width, uint32_t src_texel_size, const uint8_t* src, uint8_t* dst, T alpha)
+    {
+        if (src_texel_size == sizeof(T))
+        {
+            RepackTextureRowToRGBA<1>(width, src, dst, alpha);
+        }
+        else if (src_texel_size == 2 * sizeof(T))
+        {
+            RepackTextureRowToRGBA<2>(width, src, dst, alpha);
+        }
+        else
+        {
+            assert(src_texel_size == 3 * sizeof(T));
+            RepackTextureRowToRGBA<3>(width, src, dst, alpha);
+        }
+    }
+
+    // Fills the upload heap from a tightly packed source holding exactly the requested layers.
+    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat storage_format,
+                                           const dmArray<TextureUploadLayer>& layers, uint8_t* upload_data)
     {
         // The source is packed at the requested update extent (the sub-rectangle for a sub-update),
         // not at the full subresource, so deriving its pitch from the footprint would overread it.
         uint32_t src_row_pitch;
         uint32_t src_rows;
+        uint32_t src_texel_size = 0;
         TextureFormatCompressedBlockSize block_size;
-        if (GetTextureFormatCompressedBlockSize(format, &block_size))
+        const bool compressed = GetTextureFormatCompressedBlockSize(params.m_Format, &block_size);
+        if (compressed)
         {
             src_row_pitch = ((params.m_Width  + block_size.m_Width  - 1) / block_size.m_Width) * block_size.m_ByteSize;
             src_rows      =  (params.m_Height + block_size.m_Height - 1) / block_size.m_Height;
         }
         else
         {
-            src_row_pitch = params.m_Width * (GetTextureFormatBitsPerPixel(format) / 8);
+            src_texel_size = GetTextureFormatBitsPerPixel(params.m_Format) / 8;
+            src_row_pitch = params.m_Width * src_texel_size;
             src_rows      = params.m_Height;
         }
 
+        const uint8_t* pixels = (const uint8_t*) params.m_Data;
         uint64_t src_offset = 0;
-        for (uint32_t i = 0; i < layer_count; ++i)
+        for (uint32_t i = 0; i < layers.Size(); ++i)
         {
-            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[layer_base + i];
+            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layers[i].m_Footprint;
             const uint64_t dst_row_pitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded), full width
             const uint32_t depth = dmMath::Min((uint32_t) layout.Footprint.Depth, dmMath::Max(1u, (uint32_t) params.m_Depth));
-            const uint32_t dst_rows = GetTextureFormatCompressedBlockSize(format, &block_size) ?
-                (layout.Footprint.Height + block_size.m_Height - 1) / block_size.m_Height : layout.Footprint.Height;
+            const uint32_t dst_rows = compressed ?
+                                      (layout.Footprint.Height + block_size.m_Height - 1) / block_size.m_Height : layout.Footprint.Height;
 
             uint8_t* dst = upload_data + layout.Offset;
 
@@ -1990,7 +2046,23 @@ namespace dmGraphics
                     const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
                     uint8_t* dst_row = dst + (uint64_t) (z * dst_rows + row) * dst_row_pitch;
 
-                    memcpy(dst_row, src_row, src_row_pitch);
+                    if (storage_format == params.m_Format)
+                    {
+                        memcpy(dst_row, src_row, src_row_pitch);
+                    }
+                    else if (storage_format == TEXTURE_FORMAT_RGBA)
+                    {
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, (uint8_t) 255);
+                    }
+                    else if (storage_format == TEXTURE_FORMAT_RGBA16F)
+                    {
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, (uint16_t) 0x3c00); // Half-float 1.0
+                    }
+                    else
+                    {
+                        assert(storage_format == TEXTURE_FORMAT_RGBA32F);
+                        RepackTextureRowToRGBA(params.m_Width, src_texel_size, src_row, dst_row, 1.0f);
+                    }
                 }
             }
 
@@ -2054,13 +2126,13 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format, const TextureParams& params, uint8_t* pixels)
+    static bool TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat storage_format, const TextureParams& params)
     {
         const uint32_t target_mip = params.m_MipMap;
         if (target_mip >= texture->m_ResourceDesc.MipLevels)
         {
             dmLogError("DX12 texture update has an invalid mip");
-            return;
+            return false;
         }
         const bool is_volume = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
         uint32_t layer_base;
@@ -2096,12 +2168,12 @@ namespace dmGraphics
         if (params.m_Z >= mip_depth || depth > mip_depth - params.m_Z)
         {
             dmLogError("DX12 texture update is outside the mip depth");
-            return;
+            return false;
         }
         if (target_mip >= texture->m_ResourceDesc.MipLevels || layer_base >= total_layers || layer_count > total_layers - layer_base)
         {
             dmLogError("DX12 texture update has an invalid mip or slice range");
-            return;
+            return false;
         }
         const uint32_t width = dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.Width >> target_mip);
         const uint32_t height = dmMath::Max(1u, texture->m_ResourceDesc.Height >> target_mip);
@@ -2109,22 +2181,52 @@ namespace dmGraphics
             params.m_Y > height || params.m_Height > height - params.m_Y)
         {
             dmLogError("DX12 texture update is outside the mip extent");
-            return;
+            return false;
         }
-        if (!pixels)
-            return;
 
-        dmArray<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
-        footprints.SetCapacity(layer_count);
-        footprints.SetSize(layer_count);
+        // A full mip uses the entire footprint, including padding to whole compression blocks.
+        const bool full_mip = params.m_Width == width && params.m_Height == height && depth == mip_depth;
+        D3D12_BOX box = {};
+        box.right = params.m_Width;
+        box.bottom = params.m_Height;
+        box.back = depth;
+
+        TextureFormatCompressedBlockSize block;
+        if (!full_mip && GetTextureFormatCompressedBlockSize(params.m_Format, &block))
+        {
+            if (params.m_X % block.m_Width || params.m_Y % block.m_Height ||
+                (box.right % block.m_Width && params.m_X + box.right != width) ||
+                (box.bottom % block.m_Height && params.m_Y + box.bottom != height))
+            {
+                dmLogError("Invalid compressed texture update at (%u, %u) of size %ux%u. Expected whole %ux%u blocks except at the mip edges.",
+                           params.m_X, params.m_Y, box.right, box.bottom, block.m_Width, block.m_Height);
+                return false;
+            }
+
+            // An edge block can contain fewer visible texels but is still copied as a whole block.
+            box.right = DM_ALIGN(box.right, block.m_Width);
+            box.bottom = DM_ALIGN(box.bottom, block.m_Height);
+        }
+
+        // RGB and RGB16F uploads historically clear their expanded texels when no data is supplied.
+        if (!params.m_Data && params.m_Format != TEXTURE_FORMAT_RGB && params.m_Format != TEXTURE_FORMAT_RGB16F)
+        {
+            return true;
+        }
+
+        dmArray<TextureUploadLayer> layers;
+        layers.SetCapacity(layer_count);
+        layers.SetSize(layer_count);
         uint64_t total_upload_size = 0;
         for (uint32_t i = 0; i < layer_count; ++i)
         {
-            const uint32_t subresource = D3D12CalcSubresource(target_mip, layer_base + i, 0, texture->m_ResourceDesc.MipLevels, total_layers);
+            TextureUploadLayer& layer = layers[i];
+            layer.m_Subresource = D3D12CalcSubresource(target_mip, layer_base + i, 0, texture->m_ResourceDesc.MipLevels, total_layers);
+            layer.m_PreviousState = texture->m_ResourceStates[layer.m_Subresource];
             UINT64 size = 0;
-            context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, subresource, 1, 0, &footprints[i], NULL, NULL, &size);
-            footprints[i].Offset = DM_ALIGN(total_upload_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
-            total_upload_size = footprints[i].Offset + size;
+            context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, layer.m_Subresource, 1, 0, &layer.m_Footprint, NULL, NULL, &size);
+            layer.m_Footprint.Offset = DM_ALIGN(total_upload_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+            total_upload_size = layer.m_Footprint.Offset + size;
         }
 
         // Create upload heap
@@ -2150,7 +2252,7 @@ namespace dmGraphics
         if (FAILED(hr))
         {
             OUTPUT_HRESULT(hr);
-            return;
+            return false;
         }
 
         uint8_t* upload_data = NULL;
@@ -2159,10 +2261,17 @@ namespace dmGraphics
         {
             upload_heap->Release();
             OUTPUT_HRESULT(hr);
-            return;
+            return false;
         }
 
-        CopyTextureDataMipmapLevel(params, format, footprints.Begin(), 0, layer_count, pixels, upload_data);
+        if (params.m_Data)
+        {
+            CopyTextureDataMipmapLevel(params, storage_format, layers, upload_data);
+        }
+        else
+        {
+            memset(upload_data, 0, total_upload_size);
+        }
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -2175,8 +2284,7 @@ namespace dmGraphics
         // Copy per array slice
         for (uint32_t i = 0; i < layer_count; ++i)
         {
-            const uint32_t array_layer       = layer_base + i;
-            const uint32_t subresource_index = D3D12CalcSubresource(target_mip, array_layer, 0, texture->m_ResourceDesc.MipLevels, total_layers);
+            const uint32_t subresource_index = layers[i].m_Subresource;
             TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresource_index, 1);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
@@ -2187,18 +2295,9 @@ namespace dmGraphics
             D3D12_TEXTURE_COPY_LOCATION copy_src = {};
             copy_src.pResource                   = upload_heap;
             copy_src.Type                        = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-            copy_src.PlacedFootprint             = footprints[i];
+            copy_src.PlacedFootprint             = layers[i].m_Footprint;
 
-            // This box represents the region of the "source" data that we should copy
-            D3D12_BOX box = {};
-            box.left      = 0;
-            box.top       = 0;
-            box.front     = 0;
-            box.right     = params.m_Width;
-            box.bottom    = params.m_Height;
-            box.back      = depth;
-
-            cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, params.m_Z, &copy_src, &box);
+            cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, params.m_Z, &copy_src, full_mip ? NULL : &box);
             TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_GENERIC_READ, subresource_index, 1);
         }
 
@@ -2213,15 +2312,27 @@ namespace dmGraphics
         }
         else
         {
-            cmd_list->Close();
-            ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
-            context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
-
-            SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+            hr = cmd_list->Close();
+            if (SUCCEEDED(hr))
+            {
+                ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
+                context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+                SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+            }
+            else
+            {
+                OUTPUT_HRESULT(hr);
+                // The queue never executed the recorded transitions.
+                for (uint32_t i = 0; i < layer_count; ++i)
+                {
+                    texture->m_ResourceStates[layers[i].m_Subresource] = layers[i].m_PreviousState;
+                }
+            }
             DestroyOneTimeCommandList(&one_time_cmd_list);
             upload_heap->Unmap(0, 0);
             upload_heap->Release();
         }
+        return SUCCEEDED(hr);
     }
 
     static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
@@ -2494,14 +2605,15 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*)_context;
         DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2515,11 +2627,6 @@ namespace dmGraphics
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            DX12DisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -5025,18 +5132,18 @@ namespace dmGraphics
 
         DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
         const bool volume = tex->m_Base.m_Type == TEXTURE_TYPE_3D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D;
-        TextureFormat format_orig    = params.m_Format;
-        TextureFormat format_actual  = params.m_Format;
-        void* tex_data_ptr           = (void*) params.m_Data;
+        const bool color_attachment = tex->m_Resource && (tex->m_ResourceDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+        // Only the declared attachment format gets its render-target promotion. Other uploads must match the backing format.
+        const TextureFormat storage_format = GetTextureStorageFormat(params.m_Format, color_attachment && params.m_Format == tex->m_Base.m_Format);
         uint16_t tex_layer_count     = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_LayerCount, (uint16_t) params.m_LayerCount));
         uint16_t tex_depth           = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_Base.m_Depth, (uint16_t) params.m_Depth));
         if (tex->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
             tex_layer_count = dmMath::Max(tex_layer_count, tex_depth);
         uint32_t depth_or_array_size = dmMath::Max((uint32_t)tex_depth, (uint32_t)tex_layer_count);
-        DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
+        const DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(storage_format);
         if (dxgi_format == DXGI_FORMAT_UNKNOWN)
         {
-            dmLogError("DX12 unsupported texture format %s", TextureFormatToString(format_orig));
+            dmLogError("DX12 unsupported texture format %s", TextureFormatToString(params.m_Format));
             return;
         }
 
@@ -5053,38 +5160,12 @@ namespace dmGraphics
             return;
         }
 
-        // Note: There's no 8 bit RGB format, we have to expand this to four channels
-        // TODO: Can we use R11G11B10 somehow?
-        if (format_orig == TEXTURE_FORMAT_RGB || format_orig == TEXTURE_FORMAT_RGB16F)
+        // Sub-updates and higher mips must fit the format allocated for mip zero.
+        if (tex->m_Resource && (params.m_SubUpdate || params.m_MipMap > 0) && tex->m_ResourceDesc.Format != dxgi_format)
         {
-            format_actual = format_orig == TEXTURE_FORMAT_RGB ? TEXTURE_FORMAT_RGBA : TEXTURE_FORMAT_RGBA16F;
-            dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
-
-            const uint32_t upload_layers = volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) :
-                params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : depth_or_array_size;
-            const uint64_t pixel_count = (uint64_t) params.m_Width * params.m_Height * upload_layers;
-            const uint32_t bpp_new = format_orig == TEXTURE_FORMAT_RGB ? 4 : 8;
-            if (pixel_count > 0xffffffffu / bpp_new)
-            {
-                dmLogError("DX12 RGB texture update is too large to repack");
-                return;
-            }
-            uint32_t data_pixel_count = (uint32_t) pixel_count;
-            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
-
-            memset(data_new, 0, data_pixel_count * bpp_new);
-            if (tex_data_ptr && format_orig == TEXTURE_FORMAT_RGB)
-                RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-            else if (tex_data_ptr)
-            {
-                for (uint32_t i = 0; i < data_pixel_count; ++i)
-                {
-                    memcpy(data_new + i * 8, (const uint8_t*) tex_data_ptr + i * 6, 6);
-                    const uint16_t one = 0x3c00; // half-float 1.0
-                    memcpy(data_new + i * 8 + 6, &one, sizeof(one));
-                }
-            }
-            tex_data_ptr  = data_new;
+            dmLogError("Invalid DX12 texture upload format %s (DXGI %u) for a resource with DXGI format %u.",
+                       TextureFormatToString(params.m_Format), (uint32_t) dxgi_format, (uint32_t) tex->m_ResourceDesc.Format);
+            return;
         }
 
         bool recreate_resource = tex->m_Resource == 0;
@@ -5097,15 +5178,16 @@ namespace dmGraphics
                 tex->m_Base.m_Depth != tex_depth ||
                 tex->m_LayerCount != tex_layer_count ||
                 tex->m_ResourceDesc.DepthOrArraySize != depth_or_array_size;
+            if (recreate_resource && color_attachment)
+            {
+                dmLogError("Cannot change the format or dimensions of a DX12 render target attachment with SetTexture. Use SetRenderTargetSize to resize it.");
+                return;
+            }
         }
 
+        DX12Texture replacement = {};
         if (recreate_resource)
         {
-            if (tex->m_Resource)
-            {
-                DestroyTextureResourceDeferred(g_DX12Context, tex);
-            }
-
             D3D12_RESOURCE_DESC desc = {};
             desc.Format              = dxgi_format;
             desc.Width               = params.m_Width;
@@ -5123,35 +5205,54 @@ namespace dmGraphics
 
             CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_DEFAULT);
 
-            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
+            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&replacement.m_Resource));
             if (FAILED(hr))
             {
                 OUTPUT_HRESULT(hr);
-                if (format_actual != format_orig)
-                    delete[] (uint8_t*) tex_data_ptr;
                 return;
             }
 
-            InitializeTextureResourceStates(g_DX12Context->m_Device, tex, D3D12_RESOURCE_STATE_COPY_DEST);
+            InitializeTextureResourceStates(g_DX12Context->m_Device, &replacement, D3D12_RESOURCE_STATE_COPY_DEST);
+        }
 
+        if (!TextureBufferUploadHelper(g_DX12Context, recreate_resource ? &replacement : tex, storage_format, params))
+        {
+            if (replacement.m_Resource)
+            {
+                replacement.m_Resource->Release();
+            }
+
+            return;
+        }
+
+        if (recreate_resource)
+        {
+            DestroyTextureResourceDeferred(g_DX12Context, tex);
+            tex->m_Resource = replacement.m_Resource;
+            tex->m_ResourceDesc = replacement.m_ResourceDesc;
+            tex->m_ResourceStates.Swap(replacement.m_ResourceStates);
             tex->m_Base.m_Width  = params.m_Width;
             tex->m_Base.m_Height = params.m_Height;
             tex->m_Base.m_Depth  = tex_depth;
             tex->m_LayerCount = tex_layer_count;
-            tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params, (uint8_t*) tex_data_ptr);
-
-        tex->m_Base.m_Format = format_actual;
+        if (!color_attachment)
+        {
+            tex->m_Base.m_Format = storage_format;
+        }
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
+    }
 
-        if (format_actual != format_orig)
-        {
-            delete[] (uint8_t*)tex_data_ptr;
-        }
+    static bool DX12IsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        DX12Context* context = (DX12Context*)_context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const DX12Texture* tex = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+               (tex->m_Resource && params.m_MipMap < tex->m_Resource->GetDesc().MipLevels);
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)

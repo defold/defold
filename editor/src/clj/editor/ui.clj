@@ -2493,18 +2493,23 @@
              :managed toolbar-visible
              :visible toolbar-visible}}))
 
-(defn- refresh-toolbar [td toolbar-visible command-contexts localization evaluation-context]
+(defn- refresh-toolbar [td toolbar-visible command-contexts keymap localization evaluation-context]
   (let [^HBox control (:control td)]
     (when (.getScene control)
       (let [items
             (transduce
               (keep
-                (fn [{:keys [command user-data label] :as menu-item}]
+                (fn [{:keys [command user-data label tooltip] :as menu-item}]
                   (if (= :separator label)
                     {:type :separator}
                     (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                       (assoc menu-item
                         :type :item
+                        :tooltip (when tooltip
+                                   (localization/message
+                                     "command.tooltip"
+                                     {"command" tooltip
+                                      "shortcut" (keymap/display-text keymap command "none")}))
                         :label (or (handler/label handler-ctx evaluation-context) label)
                         :enabled (handler/enabled? handler-ctx evaluation-context)
                         :options (handler/options handler-ctx evaluation-context)
@@ -2575,14 +2580,14 @@
         (refresh-menubar-state menu-bar command-contexts evaluation-context)))))
 
 (defn- refresh-toolbars!
-  [^Scene scene localization command-contexts evaluation-context]
+  [^Scene scene keymap localization command-contexts evaluation-context]
   (let [root (.getRoot scene)
         app-view (-> command-contexts first :env :app-view)
         ^Tab active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
       (let [control (:control td)
             visible (or (nil? active-tab) (nodes-along-path? control (.getContent active-tab) root))]
-        (refresh-toolbar td visible command-contexts localization evaluation-context)))))
+        (refresh-toolbar td visible command-contexts keymap localization evaluation-context)))))
 
 (defn- refresh-accelerators! [scene keymap]
   (when-not (identical? keymap (user-data scene ::accelerators))
@@ -2600,7 +2605,7 @@
      (assert (some? localization))
      (refresh-accelerators! scene keymap)
      (refresh-menus! scene keymap localization command-contexts evaluation-context)
-     (refresh-toolbars! scene localization command-contexts evaluation-context))))
+     (refresh-toolbars! scene keymap localization command-contexts evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (.setProgress

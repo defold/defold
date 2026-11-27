@@ -339,9 +339,10 @@ namespace dmGameSystem
             sprite_context, collection_proxy_context, factory_context, collectionfactory_context, model_context, label_context);
     }
 
-    bool Initialize(HContext context, dmConfigFile::HConfig config)
+    bool Initialize(HContext context, const InitializeParams& init_params)
     {
         const ContextParams& params = context->m_Params;
+        dmConfigFile::HConfig config = init_params.m_Config;
         context->m_SpriteContext.m_RenderContext = params.m_RenderContext;
         context->m_SpriteContext.m_Factory = params.m_Factory;
         context->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 128);
@@ -361,20 +362,20 @@ namespace dmGameSystem
         context->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(config, COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
         context->m_FactoryContext.m_Factory = params.m_Factory;
-        context->m_FactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_FactoryContext.m_ScriptContext = init_params.m_ScriptContext;
         context->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(config, FACTORY_MAX_COUNT_KEY, 128);
 
         context->m_CollectionFactoryContext.m_Factory = params.m_Factory;
-        context->m_CollectionFactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_CollectionFactoryContext.m_ScriptContext = init_params.m_ScriptContext;
         context->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(config, COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
 
         dmResource::Result resource_result = RegisterResourceTypes(params.m_Factory, params.m_RenderContext,
-            params.m_InputContext, params.m_PhysicsContext, &context->m_ModelContext);
+            init_params.m_InputContext, init_params.m_PhysicsContext, &context->m_ModelContext);
         if (resource_result != dmResource::RESULT_OK)
             return false;
 
         dmGameObject::Result component_result = RegisterComponentTypesInternal(context, params.m_Factory,
-            params.m_Register, params.m_RenderContext, params.m_PhysicsContext, &context->m_SpriteContext,
+            params.m_Register, params.m_RenderContext, init_params.m_PhysicsContext, &context->m_SpriteContext,
             &context->m_CollectionProxyContext, &context->m_FactoryContext, &context->m_CollectionFactoryContext,
             &context->m_ModelContext, &context->m_LabelContext);
         if (component_result != dmGameObject::RESULT_OK)

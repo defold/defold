@@ -50,6 +50,7 @@ public class ProcessTestHelper {
                 System.out.println("ready");
                 System.out.flush();
                 System.in.read();
+                if (args.length > 1) System.exit(Integer.parseInt(args[1]));
                 break;
             case "arguments":
                 for (int i = 1; i < args.length; i++) {

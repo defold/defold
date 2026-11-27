@@ -14,6 +14,16 @@ file(MAKE_DIRECTORY "${GAMEOBJECT_TEST_RUN_DIR}")
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_package(Java COMPONENTS Runtime Development REQUIRED)
 
+# Compile the common main and jc_test implementation once for all suites.
+defold_add_library(gameobject_test_main OBJECT EXCLUDE_FROM_ALL
+  "${GAMEOBJECT_TEST_ROOT}/test_main.cpp")
+defold_target_link_libraries(gameobject_test_main "${TARGET_PLATFORM}" testmain ddf dlib)
+defold_apply_test_compile_definitions(gameobject_test_main)
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
+  find_package(Threads REQUIRED)
+  target_link_libraries(gameobject_test_main PRIVATE Threads::Threads)
+endif()
+
 set(GAMEOBJECT_TEST_EXPORTS
   ResourceTypeGameObject
   ResourceTypeCollection
@@ -59,11 +69,6 @@ function(gameobject_read_manifest out_var manifest)
 endfunction()
 
 set(_GAMEOBJECT_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-if(NOT EXISTS "${_GAMEOBJECT_BOB_LIGHT}")
-  if(NOT TARGET bob_light)
-    message(FATAL_ERROR "bob-light.jar not found and bob_light target is unavailable: ${_GAMEOBJECT_BOB_LIGHT}")
-  endif()
-endif()
 
 set(_GAMEOBJECT_TEST_DATA_FOLDERS_FILE "${GAMEOBJECT_TEST_ROOT}/test_data_folders.txt")
 gameobject_read_manifest(_GAMEOBJECT_TEST_DATA_FOLDERS "${_GAMEOBJECT_TEST_DATA_FOLDERS_FILE}")
@@ -91,8 +96,8 @@ foreach(_folder IN LISTS _GAMEOBJECT_TEST_DATA_FOLDERS)
   list(APPEND _GAMEOBJECT_LANE_${_lane}_JOBS "${_job}")
   list(APPEND _GAMEOBJECT_LANE_${_lane}_STAMPS "${_stamp}")
   list(APPEND _GAMEOBJECT_LANE_${_lane}_DEPENDENCIES "${_inputs_file}" ${_folder_sources})
-  add_custom_target(gameobject_test_content_${_folder} DEPENDS "${_stamp}")
-  add_dependencies(gameobject_test_content_${_folder} defold_bob_worker)
+  add_custom_target(gameobject_test_content_${_folder})
+  add_dependencies(gameobject_test_content_${_folder} gameobject_test_content_lane_${_lane})
   math(EXPR _lane "1 - ${_lane}")
 endforeach()
 foreach(_lane RANGE 0 1)
@@ -121,6 +126,8 @@ foreach(_lane RANGE 0 1)
     WORKING_DIRECTORY "${GAMEOBJECT_TEST_ROOT}"
     COMMENT "Building gameobject test content lane ${_lane}"
     VERBATIM)
+  add_custom_target(gameobject_test_content_lane_${_lane} DEPENDS ${_GAMEOBJECT_LANE_${_lane}_STAMPS})
+  add_dependencies(gameobject_test_content_lane_${_lane} defold_bob_worker)
 endforeach()
 
 function(gameobject_build_test_data out_target dir)
@@ -220,7 +227,7 @@ function(gameobject_add_test dir)
 
   set(_target "test_gameobject_${dir}")
   defold_add_executable(${_target}
-    "${GAMEOBJECT_TEST_ROOT}/test_main.cpp"
+    $<TARGET_OBJECTS:gameobject_test_main>
     ${_cpp}
     ${_generated_proto_cpp}
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
@@ -269,8 +276,7 @@ function(gameobject_add_test dir)
   defold_target_link_libraries_web(${_target} "${TARGET_PLATFORM}"
     library_sys.js
     library_script.js)
-  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
-    find_package(Threads REQUIRED)
+  if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
     target_link_libraries(${_target} PRIVATE Threads::Threads dl)
   endif()
   # These tests use module-local staged content and process-local message

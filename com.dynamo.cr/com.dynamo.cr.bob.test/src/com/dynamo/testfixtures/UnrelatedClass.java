@@ -12,9 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// Compiled separately as strict C++14 to check the public inline implementations.
-#include <dmsdk/datastore/datastore.h>
+package com.dynamo.testfixtures;
 
-#if (defined(_MSVC_LANG) && _MSVC_LANG != 201402L) || (!defined(_MSVC_LANG) && __cplusplus != 201402L)
-#error The public header consumer must compile as C++14
-#endif
+import static org.junit.Assert.fail;
+
+// Outside Bob's scan roots so only the test's scanner supplies this candidate.
+public final class UnrelatedClass {
+    static {
+        fail("Provider discovery initialized an unrelated class");
+    }
+}

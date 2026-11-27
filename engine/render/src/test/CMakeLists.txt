@@ -54,6 +54,8 @@ endfunction()
 foreach(_render_test IN ITEMS
   test_render
   test_render_execution
+  test_render_graphics_service
+  test_render_graphics_resource
   test_render_frame
   test_render_frame_queue
   test_render_command_frame
@@ -122,6 +124,11 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
   if(TARGET bob_light)
     add_dependencies(gltf_render_shaders bob_light)
   endif()
+  # These GPU tests select OpenGL on Windows and do not yet support DX12.
+  set(_gltf_saved_opengl "${WITH_OPENGL}")
+  if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    set(WITH_OPENGL ON)
+  endif()
   defold_get_graphics_symbols(_gltf_graphics_symbols "${TARGET_PLATFORM}")
   if("GraphicsAdapterMetal" IN_LIST _gltf_graphics_symbols)
     set(_gltf_backend metal)
@@ -143,6 +150,7 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
     DM_TEST_GLTF_INSTANCE_SHADER="${_gltf_instance_shader}" DM_TEST_GLTF_SKIN_INSTANCE_SHADER="${_gltf_skin_instance_shader}")
   defold_target_link_libraries(test_gltf_render "${TARGET_PLATFORM}" testmain render ddf dlib profile_null)
   defold_target_link_graphics(test_gltf_render "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  set(WITH_OPENGL "${_gltf_saved_opengl}")
   defold_target_link_platform(test_gltf_render "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_app(test_gltf_render "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_socket(test_gltf_render "${TARGET_PLATFORM}" PRIVATE)

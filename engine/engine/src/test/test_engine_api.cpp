@@ -54,7 +54,7 @@ extern "C" bool TestEngineInit(HEngine engine, HWindow* window)
         "--config=input.game_binding=/text_input/text_input.input_bindingc",
         project_path
     };
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     *window = engine->m_Window;
     return initialized;
 }

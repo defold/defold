@@ -63,13 +63,17 @@
 
 (defn- resolve-deps-impl
   ([build-targets project report-node-id-progress! evaluation-context]
-   (let [proj-path->dynamic-build-targets (code.transpilers/build-output
-                                            (project/code-transpilers (:basis evaluation-context))
-                                            evaluation-context)]
-     (if (g/error-value? proj-path->dynamic-build-targets)
-       proj-path->dynamic-build-targets
-       (let [ret (resolve-deps-impl (HashMap.) [] build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context)]
-         (cond-> ret (not (g/error-value? ret)) flatten-build-targets)))))
+   (let [transpilers (project/code-transpilers (:basis evaluation-context))
+         ;; Dependency previews can use cached targets, but a build must
+         ;; regenerate the Lua files those targets refer to.
+         transpiler-context (update evaluation-context :cache dissoc (g/endpoint transpilers :build-output))
+         build-output (code.transpilers/build-output transpilers transpiler-context)]
+     (resolve-deps-impl build-targets project build-output report-node-id-progress! evaluation-context)))
+  ([build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context]
+   (if (g/error-value? proj-path->dynamic-build-targets)
+     proj-path->dynamic-build-targets
+     (let [ret (resolve-deps-impl (HashMap.) [] build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context)]
+       (cond-> ret (not (g/error-value? ret)) flatten-build-targets))))
   ([^HashMap seen stack build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context]
    (let [ret
          (if (g/error-value? build-targets)
@@ -138,6 +142,11 @@
      (resolve-deps-impl build-targets project nil evaluation-context)))
   ([build-targets project evaluation-context]
    (resolve-deps-impl build-targets project nil evaluation-context)))
+
+(defn resolve-dependencies-with-build-output
+  "Resolves dependencies from supplied transpiler targets."
+  [build-targets project build-output evaluation-context]
+  (resolve-deps-impl build-targets project build-output nil evaluation-context))
 
 (defn resolve-node-dependencies
   "Fully resolve node's build target dependencies

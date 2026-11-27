@@ -37,74 +37,35 @@ public class ShaderCompilers {
     public static final String SHADER_ADAPTER_WEBGPU = "webgpu";
     public static final String SHADER_ADAPTER_DX12 = "dx12";
 
-    private enum GraphicsAdapter {
-        OPENGL(SHADER_ADAPTER_OPENGL),
-        OPENGLES(SHADER_ADAPTER_OPENGLES),
-        VULKAN(SHADER_ADAPTER_VULKAN),
-        METAL(SHADER_ADAPTER_METAL),
-        WEBGPU(SHADER_ADAPTER_WEBGPU),
-        DX12(SHADER_ADAPTER_DX12);
-
-        private final String optionName;
-
-        GraphicsAdapter(String optionName) {
-            this.optionName = optionName;
-        }
-
-        static GraphicsAdapter fromOptionName(String optionName) {
-            for (GraphicsAdapter adapter : values()) {
-                if (adapter.optionName.equals(optionName)) {
-                    return adapter;
-                }
-            }
-            return null;
-        }
-    }
-
-    private static boolean usesGlesShaderLanguages(Platform platform) {
+    public static boolean usesGlesShaderLanguages(Platform platform) {
         return platform.matchesOS(OS.OS_ID_ANDROID) ||
                platform.matchesOS(OS.OS_ID_WEB) ||
                platform.matchesOS(OS.OS_ID_IOS) ||
                (platform.isLinux() && platform.getArch().equals("arm64"));
     }
 
-    private static boolean isDesktopOpenGLPlatform(Platform platform) {
-        return platform.isWindows() ||
-               platform.isMacOS() ||
-               (platform.isLinux() && !usesGlesShaderLanguages(platform));
-    }
-
-    private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
-        LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
+    public static List<String> getDefaultShaderAdapters(Platform platform) {
         if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
-            adapters.add(GraphicsAdapter.METAL);
-        } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
-            adapters.add(GraphicsAdapter.VULKAN);
-            adapters.add(GraphicsAdapter.OPENGLES);
+            return List.of(SHADER_ADAPTER_METAL);
+        } else if (platform.isLinux() || platform.matchesOS(OS.OS_ID_ANDROID)) {
+            return List.of(SHADER_ADAPTER_VULKAN, usesGlesShaderLanguages(platform) ? SHADER_ADAPTER_OPENGLES : SHADER_ADAPTER_OPENGL);
         } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
-            adapters.add(GraphicsAdapter.VULKAN);
-        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
-            adapters.add(GraphicsAdapter.DX12);
+            return List.of(SHADER_ADAPTER_VULKAN);
+        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
+            return List.of(SHADER_ADAPTER_DX12);
         } else if (usesGlesShaderLanguages(platform)) {
-            adapters.add(GraphicsAdapter.OPENGLES);
-        } else if (isDesktopOpenGLPlatform(platform)) {
-            adapters.add(GraphicsAdapter.OPENGL);
+            return List.of(SHADER_ADAPTER_OPENGLES);
+        } else if (platform.isWindows()) {
+            return List.of(SHADER_ADAPTER_OPENGL);
         }
-        return adapters;
+        return List.of();
     }
 
-    private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
-        LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
+    private static List<String> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
         if (platform == Platform.Arm64IosSim || compileOptions.shaderAdapters == null) {
             return getDefaultShaderAdapters(platform);
         }
-        for (String adapterName : compileOptions.shaderAdapters.split(",")) {
-            GraphicsAdapter adapter = GraphicsAdapter.fromOptionName(adapterName);
-            if (adapter != null) {
-                adapters.add(adapter);
-            }
-        }
-        return adapters;
+        return List.of(compileOptions.shaderAdapters.split(","));
     }
 
     private static int readU32LE(byte[] data, int offset) {
@@ -218,28 +179,28 @@ public class ShaderCompilers {
 
         private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, CompileOptions compileOptions) {
             Set<ShaderDesc.Language> shaderLanguages = new LinkedHashSet<>();
-            for (GraphicsAdapter adapter : getShaderAdaptersFromOptions(platform, compileOptions)) {
+            for (String adapter : getShaderAdaptersFromOptions(platform, compileOptions)) {
                 switch (adapter) {
-                    case OPENGL -> {
+                    case SHADER_ADAPTER_OPENGL -> {
                         if (usesGlesShaderLanguages(platform)) {
                             addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
                         } else {
                             addGlslLanguages(shaderLanguages, isComputeType);
                         }
                     }
-                    case OPENGLES -> addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
-                    case VULKAN -> {
+                    case SHADER_ADAPTER_OPENGLES -> addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
+                    case SHADER_ADAPTER_VULKAN -> {
                         if (!platform.matchesOS(OS.OS_ID_WEB)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
                         }
                     }
-                    case METAL -> {
+                    case SHADER_ADAPTER_METAL -> {
                         if (platform.isMacOS() || platform.matchesOS(OS.OS_ID_IOS)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                         }
                     }
-                    case WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
-                    case DX12 -> {
+                    case SHADER_ADAPTER_WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+                    case SHADER_ADAPTER_DX12 -> {
                         if (platform.isWindows() || platform.matchesOS(OS.OS_ID_XBOX)) {
                             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                         }

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.archive-manifest-view :as archive-manifest-view]
             [editor.asset-browser :as asset-browser]
             [editor.beta :as beta]
             [editor.breakpoints-view :as breakpoints-view]
@@ -94,7 +95,8 @@
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
-        (html-view/register-view-types workspace)))
+        (html-view/register-view-types workspace)
+        (archive-manifest-view/register-view-types workspace)))
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)

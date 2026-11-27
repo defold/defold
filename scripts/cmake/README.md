@@ -100,13 +100,23 @@ manual targets remain available. Null-backend rendering, shaders, fonts, and oth
 remain instrumented. The font compiler API test compiles the API into its MSan
 executable instead of loading the ordinary JVM shared library.
 
-Linux CMake builds use OpenGL on x86-64 and OpenGL ES on ARM64 by default.
-Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to include Vulkan as an additional
-adapter. Vulkan-enabled Linux engines load `libvulkan.so.1` at runtime, so
-automatic adapter selection can still choose OpenGL when the Vulkan loader is absent
-or Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails if
-Vulkan is unavailable or unsupported. Window or graphics-context creation failures
-stop startup after adapter selection.
+Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
+`--with-vulkan` (`WITH_OPENGL=ON` or `WITH_VULKAN=ON`) to include additional
+adapters. `--with-dx12` remains accepted for compatibility. App manifest
+graphics selections control bundled adapters and shader formats; DX12 uses HLSL 6.0 / DXIL.
+
+Linux builds include Vulkan by default, with OpenGL on x86-64 and OpenGL ES
+on ARM64 as fallbacks. Vulkan loads `libvulkan.so.1` at runtime, so automatic
+adapter selection can still choose OpenGL when the Vulkan loader is absent or
+Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails
+if Vulkan is unavailable or unsupported. For an OpenGL-only engine,
+configure CMake with `-DWITH_VULKAN=OFF` or select OpenGL in the Linux app manifest.
+
+On all platforms, automatic graphics selection tries registered adapters in priority
+order, skipping unsupported adapters. If window or graphics-context creation fails,
+startup closes the window and tries the next supported adapter until one succeeds
+or all candidates have been tried. Explicit `--graphics-adapter=...` requests fail
+without retrying another adapter.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;

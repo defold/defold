@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Capture deterministic graphics cases or rebuild a report from saved captures."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from functools import partial
 import base64
 import html
 import itertools
@@ -34,12 +36,14 @@ CASE_DESCRIPTIONS = {
     'stencil_depth': 'Back-face culling is enabled. An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
-CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid uploaded in native %s format, sampled at mip 0 with nearest filtering. Unsupported formats are skipped before upload.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
+CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid in native %s format at mip 0.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
 REFERENCE_BACKENDS = {**dict.fromkeys(TEXTURE_CASES, 'CPU decoded texture'), 'stencil_faces': 'OpenGL', 'texture_rgba': 'Source image'}
-BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu')
+BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu', 'dx12')
+DEFAULT_JOBS = 4
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
 SIZE = (256, 256)
+LOWER_MIP_COUNT = max(SIZE).bit_length() - 1
 GRAPHICS_ERROR = re.compile(r'(?:ERROR|FATAL):|Validation Error|VUID-', re.IGNORECASE)
 DIAGNOSTICS = (
     ('repeated', 'repeated', None, 'Repeated render', 'First render'),
@@ -263,6 +267,11 @@ def remove_capture_images(output):
                 diagnostic_path(output, suffix).unlink(missing_ok=True)
 
 
+def write_capture_record(output, record):
+    output.with_suffix('.log').write_text(record.get('log', ''), encoding='utf-8')
+    output.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
+
+
 def capture(executable, root, backend, case, timeout=60, launcher=None, target_platform=None):
     """One fresh process and output file per case, including failed runs."""
     output = root / backend / (case + '.png')
@@ -295,6 +304,10 @@ def capture(executable, root, backend, case, timeout=60, launcher=None, target_p
         identities = re.findall(r'^INFO:[^:\r\n]+: GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
+            if case in TEXTURE_CASES:
+                counts = re.findall(r'^GRAPHICS_CAPTURE_VERIFIED_LOWER_MIPS=(\d+)$', process.stdout, re.MULTILINE)
+                if len(counts) == 1:
+                    record['verified_lower_mips'] = int(counts[0])
         if process.returncode not in (0, 77):
             raise ValueError('Capture process exited with %s' % process.returncode)
         if record['actual_backend'] != backend:
@@ -316,41 +329,72 @@ def capture(executable, root, backend, case, timeout=60, launcher=None, target_p
     except (OSError, ValueError) as error:
         record['reason'] = str(error)
     record['seconds'] = time.monotonic() - start
-    output.with_suffix('.log').write_text(record.get('log', ''), encoding='utf-8')
-    output.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
+    write_capture_record(output, record)
     return record
 
 
-def run_matrix(executable, root, matrix, available, explicit=False, skip_all=None, launcher=None, target_platform=None):
+def unsupported_texture_cases(clear):
+    # Older executables and incomplete clear captures fall back to the individual cases.
+    if clear['status'] != 'pass' or clear.get('actual_backend') != clear['backend'] or not clear.get('target_platform'):
+        return set()
+    actions = {}
+    for row in re.findall(r'^GRAPHICS_CAPTURE_TEXTURE_CASE=(.*)$', clear['log'], re.MULTILINE):
+        case, _, action = row.partition(' ')
+        if case in actions or action not in ('run', 'skip'):
+            return set()
+        actions[case] = action
+    if actions.keys() != set(TEXTURE_CASES):
+        return set()
+    return {case for case, action in actions.items() if action == 'skip'}
+
+
+def record_unlaunched_case(root, backend, case, status, reason, metadata, **details):
+    record = dict(metadata, backend=backend, case=case, status=status, reason=reason, **details)
+    output = root / backend / (case + '.png')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    remove_capture_images(output)
+    write_capture_record(output, record)
+    return record
+
+
+def run_matrix(executable, root, matrix, available, explicit=False, skip_all=None, launcher=None,
+               target_platform=None, jobs=DEFAULT_JOBS):
     root.mkdir(parents=True, exist_ok=True)
     (root / 'captures.json').unlink(missing_ok=True)
+    metadata = dict(platform=platform.platform(), machine=platform.machine())
+    if target_platform:
+        metadata['target_platform'] = target_platform
+    if target_platform == 'arm64_sim-ios':
+        metadata.update(platform='iOS Simulator (not run)', machine='arm64')
+    if launcher:
+        metadata.update(launcher.metadata)
+
     records = []
-    for backend in matrix:
-        for case in CASES:
+    # Each simulator launch replaces the running instance of the same installed app.
+    with ThreadPoolExecutor(max_workers=1 if launcher else jobs) as pool:
+        for backend in matrix:
             if skip_all or backend not in available:
-                record = dict(backend=backend, case=case, status='fail' if explicit and not skip_all else 'skip',
-                              reason=skip_all or '%s adapter omitted from this build/configuration' % backend,
-                              platform=platform.platform(), machine=platform.machine())
-                if target_platform:
-                    record['target_platform'] = target_platform
-                if target_platform == 'arm64_sim-ios':
-                    record.update(platform='iOS Simulator (not run)', machine='arm64')
-                if launcher:
-                    record.update(launcher.metadata)
-                # A skipped/failed availability check must not reuse an old PNG.
-                path = root / backend / (case + '.png')
-                path.parent.mkdir(parents=True, exist_ok=True)
-                remove_capture_images(path)
-                path.with_suffix('.log').write_text('', encoding='utf-8')
-                path.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
-            else:
-                options = {}
-                if launcher:
-                    options['launcher'] = launcher
-                if target_platform:
-                    options['target_platform'] = target_platform
-                record = capture(executable, root, backend, case, **options)
-            records.append(record)
+                status = 'fail' if explicit and not skip_all else 'skip'
+                reason = skip_all or '%s adapter omitted from this build/configuration' % backend
+                records.extend(record_unlaunched_case(root, backend, case, status, reason, metadata) for case in CASES)
+                continue
+
+            run = partial(capture, executable, root, backend, launcher=launcher, target_platform=target_platform)
+            by_case = {}
+            if 'clear' in CASES:
+                clear = run('clear')
+                by_case['clear'] = clear
+                for case in unsupported_texture_cases(clear).intersection(CASES):
+                    reason = 'Texture format %s is not supported by %s' % (case.removeprefix('texture_'), backend)
+                    by_case[case] = record_unlaunched_case(
+                        root, backend, case, 'skip', reason, metadata, actual_backend=backend,
+                        target_platform=clear['target_platform'], capability_source=f'{backend}/clear.log',
+                        log=f'GRAPHICS_CAPTURE_TEXTURE_CASE={case} skip\n')
+
+            remaining = [case for case in CASES if case not in by_case]
+            for record in pool.map(run, remaining):
+                by_case[record['case']] = record
+            records.extend(by_case[case] for case in CASES)
     (root / 'captures.json').write_text(json.dumps(records, indent=2), encoding='utf-8')
     return records
 
@@ -441,6 +485,12 @@ def comparison_html(index, result, record, label=None):
     description = CASE_DESCRIPTIONS[result['case']] if result['kind'] == 'reference' else (
         'Repeated render must match the first image exactly.' if result['kind'] == 'repeated' else
         'Draws with retained %s state must match the uninterrupted sequence exactly.' % result['kind'])
+    if result['kind'] == 'reference' and result['case'] in TEXTURE_CASES:
+        count = record.get('verified_lower_mips')
+        if type(count) is int and 0 <= count <= LOWER_MIP_COUNT:
+            description += f' Verified {count} of {LOWER_MIP_COUNT} lower mip levels.'
+        else:
+            description += ' Lower mip levels are unverified.'
     status = record['case_status'] if result['kind'] == 'reference' else result['status']
     reason = record['case_reason'] if result['kind'] == 'reference' else result.get('reason', '')
     parts = ['<details class="comparison" id="comparison-%s" data-kind="%s"%s><summary><span class="comparison-title">%s</span><span class="backend"%s>%s</span><span class="comparison-score %s">%s · likeness %s</span></summary><article>' %
@@ -616,11 +666,10 @@ def make_report(roots, references, output):
     differences.mkdir(exist_ok=True)
     for stale in differences.glob('*.png'):
         stale.unlink()
-    # Exit 77 marks unsupported texture formats. Keep them in the capture
-    # manifest, but omit them from report entries and totals.
+    # Both the individual case and the clear capture can identify an unsupported format.
     captures = [record for record in load_captures(roots)
-                if not (record['status'] == 'skip' and record.get('exit_code') == 77
-                        and record['case'] in TEXTURE_CASES)]
+                if not (record['status'] == 'skip' and record['case'] in TEXTURE_CASES
+                        and (record.get('exit_code') == 77 or record.get('capability_source')))]
     comparisons = []
     for record in captures:
         checks = []
@@ -666,6 +715,8 @@ def main(argv=None):
     parser.add_argument('--target-platform', help='Defold platform tuple; arm64_sim-ios launches in the iOS simulator')
     parser.add_argument('--simulator', help='Simulator name or UDID (defaults to IOS_SIMULATOR_ID or the booted device)')
     parser.add_argument('--capture-dir', type=Path)
+    parser.add_argument('--jobs', type=int, default=DEFAULT_JOBS,
+                        help='Maximum concurrent desktop captures per backend (default: %(default)s)')
     parser.add_argument('--images', type=Path, action='append', default=[])
     parser.add_argument('--matrix', choices=BACKENDS, nargs='+', default=list(BACKENDS))
     parser.add_argument('--available', choices=BACKENDS, nargs='*', default=[])
@@ -674,6 +725,8 @@ def main(argv=None):
     parser.add_argument('--references', type=Path, default=Path(__file__).with_name('graphics_reference'))
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error('--jobs must be a positive integer')
     if args.simulator and (not args.executable or args.target_platform != 'arm64_sim-ios'):
         parser.error('--simulator requires --executable and --target-platform arm64_sim-ios')
     if args.executable:
@@ -687,7 +740,7 @@ def main(argv=None):
         with session as launcher:
             run_matrix(args.executable.resolve(), args.capture_dir.resolve(), matrix,
                        args.available, explicit=bool(args.backend), skip_all=args.skip_all,
-                       launcher=launcher, target_platform=args.target_platform)
+                       launcher=launcher, target_platform=args.target_platform, jobs=args.jobs)
         args.images = [args.capture_dir]
     elif not args.images:
         parser.error('Use --executable with --capture-dir, or one or more --images directories')

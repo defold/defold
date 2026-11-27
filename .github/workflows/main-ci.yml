@@ -426,6 +426,11 @@ jobs:
           source ci/env.sh
           export PATH="$PATH:$build_test_path"
           python -m unittest discover -s scripts -p 'test_build_*.py'
+          # Run the platform suite once on Linux and its Xcode cases on macOS.
+          case "${{ matrix.platform }}" in
+            x86_64-linux) python scripts/test_cmake_platform.py -v ;;
+            arm64-macos) python scripts/test_cmake_platform.py -v -k test_xcode_ ;;
+          esac
       - name: "Enable KVM"
         if: matrix.emulator
         run: |-
@@ -927,7 +932,7 @@ jobs:
       - *step_clang_on_miss
       - name: "Install dependencies"
         env:
-          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev osslsigncode
+          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev osslsigncode
         run: *retry_apt_setup
       - *step_build_ext_on_miss
       - &step_download_bob
@@ -1076,7 +1081,7 @@ jobs:
       - *step_linux_clang
       - name: "Install dependencies"
         env:
-          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev
         run: *retry_apt_setup
       - *step_build_external
       - *step_download_bob

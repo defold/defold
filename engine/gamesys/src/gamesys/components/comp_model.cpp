@@ -652,6 +652,14 @@ namespace dmGameSystem
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
+        // A draw can supply only one immutable PBR material, including when a render
+        // script selects a PBR shader for a model whose normal shader has no PBR block.
+        // Model-owned metadata can differ while matching values still share geometry.
+        const dmRigDDF::MeshSet* mesh_set = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet;
+        uint64_t material_hash = item.m_MaterialIndex < mesh_set->m_Materials.m_Count ? mesh_set->m_Materials[item.m_MaterialIndex].m_Materialhash : 0;
+        dmHashUpdateBuffer32(state, &material_hash, sizeof(material_hash));
+        dmHashUpdateBuffer32(state, &item.m_MaterialIndex, sizeof(item.m_MaterialIndex));
+
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
@@ -661,14 +669,6 @@ namespace dmGameSystem
         {
             // Metadata belongs to each model; the shared range identifies its geometry.
             dmHashUpdateBuffer32(state, &item.m_Buffers, sizeof(item.m_Buffers));
-
-            // Batch attribute lookups use a common material index.
-            dmHashUpdateBuffer32(state, &item.m_MaterialIndex, sizeof(item.m_MaterialIndex));
-
-            // PBR values can differ even when geometry and Defold materials match.
-            const dmRigDDF::MeshSet* mesh_set = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-            uint64_t material_hash = item.m_MaterialIndex < mesh_set->m_Materials.m_Count ? mesh_set->m_Materials[item.m_MaterialIndex].m_Materialhash : 0;
-            dmHashUpdateBuffer32(state, &material_hash, sizeof(material_hash));
 
             if (item.m_MorphTargetTexture)
             {
@@ -1253,11 +1253,15 @@ namespace dmGameSystem
         {
             dmRender::DeleteRenderItem(world->m_RenderContext, component->m_RenderItems[i].m_RenderItem);
             if (component->m_RenderItems[i].m_RenderConstants)
+            {
                 dmGameSystem::DestroyRenderConstants(component->m_RenderItems[i].m_RenderConstants);
+            }
             FreeMaterialAttribute(world->m_DynamicVertexAttributePool, component->m_RenderItems[i].m_DynamicVertexAttributeIndex);
         }
         for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
             ReleaseMeshAttributeRenderData(&component->m_MeshAttributeRenderDatas[i]);
+        }
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
         component->m_RenderItems.SetSize(0);
 
@@ -1759,6 +1763,25 @@ namespace dmGameSystem
         return true;
     }
 
+    static bool ApplyPBRMaterial(dmGraphics::HContext graphics_context, ModelComponent* component, MeshRenderItem* render_item,
+                                 dmRender::HMaterial material, HComponentRenderConstants* constants, dmRender::RenderObject* ro)
+    {
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(material, &parameters);
+        if (parameters.m_HasFixedLayout && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
+            return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
+        }
+
+        // Legacy path - no uniform buffers are supported
+        if (FillPBRConstants(component->m_Resource, &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
+        {
+            CopyRenderConstants(render_item->m_RenderConstants, *constants);
+            *constants = render_item->m_RenderConstants;
+        }
+        return true;
+    }
+
     static uint32_t GetMeshBufferSize(const ModelResourceBuffers* buffers)
     {
         uint32_t stride = buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED ? sizeof(dmRig::RigModelSkinnedVertex) : sizeof(dmRig::RigModelVertex);
@@ -1840,6 +1863,17 @@ namespace dmGameSystem
         const bool               use_transform_layout = GetInstanceTransformLayout(material_infos, &transform_layout);
         const bool               share_batch_vertex_data = use_transform_layout && CanShareVertexData(material_infos);
 
+        uint8_t animation_attribute_index = dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX;
+        if (!use_transform_layout)
+        {
+            animation_attribute_index = dmRender::GetMaterialAttributeIndex(render_material, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+            if (animation_attribute_index != dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX &&
+                material_infos.m_Infos[animation_attribute_index].m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+            {
+                animation_attribute_index = dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX;
+            }
+        }
+
         int32_t                  first_free_index = FillTextures(&ro, component, material_index);
         MeshAttributeRenderData  shared_attribute_data;
         bool                     has_shared_attribute_data = false;
@@ -1906,6 +1940,16 @@ namespace dmGameSystem
                         if (instance_render_item->m_DynamicVertexAttributesDirty)
                         {
                             SetMeshAttributeRenderData(world, instance_component, render_context, &material_infos, attribute_infos, instance_render_item, instance_component->m_Resource->m_Materials[material_index].m_Attributes, instance_component->m_Resource->m_Materials[material_index].m_AttributeCount, attribute_rd);
+
+                            // The vertex rebuild filters the shared scratch list. Restore the full
+                            // attribute list before writing this instance's data.
+                            FillAttributeInfos(&world->m_DynamicVertexAttributePool,
+                                               instance_render_item->m_DynamicVertexAttributeIndex,
+                                               instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                                               instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                                               &material_infos,
+                                               attribute_infos,
+                                               GetRenderMaterialCoordinateSpace(render_material));
                         }
                     }
 
@@ -1962,7 +2006,32 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    // animation_data is an internal attribute without a semantic. Supply it
+                    // explicitly so the generic writer retains skinning alongside custom values.
+                    dmGraphics::VertexAttributeInfo* animation_attribute = 0;
+                    dmGraphics::VertexAttributeInfo saved_animation_attribute;
+                    uint8_t animation_values[sizeof(dmVMath::Vector4)];
+                    if (animation_attribute_index != dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX)
+                    {
+                        dmGraphics::VertexAttributeInfo& info = (dmGraphics::VertexAttributeInfo&)attribute_infos->m_Infos[animation_attribute_index];
+                        animation_attribute = &info;
+                        saved_animation_attribute = info;
+                        dmVMath::Vector4 animation_data = IsRenderItemSkinned(instance_component, instance_render_item) ? GetModelAnimationData(world, instance_component, graphics_context) : dmVMath::Vector4(0.0f);
+                        uint8_t* animation_value_ptr = animation_values;
+                        for (uint32_t element = 0; element < 4; ++element)
+                        {
+                            animation_value_ptr = dmGraphics::WriteVertexAttributeFromFloat(animation_value_ptr, animation_data.getElem(element), info.m_DataType);
+                        }
+
+                        info.m_ValuePtr = animation_values;
+                        info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                    }
+
                     instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
+                    if (animation_attribute)
+                    {
+                        *animation_attribute = saved_animation_attribute;
+                    }
                 }
                 if (IsRenderItemSkinned(instance_component, instance_render_item))
                     SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
@@ -1996,14 +2065,10 @@ namespace dmGameSystem
             }
         }
 
-        // If the material supports PBR data, we need to use the render item's constants.
-        // Otherwise, each render item will overwrite the component render constants with new values
-        // before the render object is processed and the draw call is dispatched.
         HComponentRenderConstants constants = component->m_RenderConstants;
-        if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
+        if (!ApplyPBRMaterial(graphics_context, component, render_item, render_material, &constants, &ro))
         {
-            CopyRenderConstants(render_item->m_RenderConstants, constants);
-            constants = render_item->m_RenderConstants;
+            return;
         }
 
         if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
@@ -2151,13 +2216,9 @@ namespace dmGameSystem
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
 
-            // If the material supports PBR data, we need to use the render item's constants.
-            // Otherwise, each render item will overwrite the component render constants with new values
-            // before the render object is processed and the draw call is dispatched.
-            if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
+            if (!ApplyPBRMaterial(graphics_context, component, render_item, render_material, &constants, &ro))
             {
-                CopyRenderConstants(render_item->m_RenderConstants, constants);
-                constants = render_item->m_RenderConstants;
+                continue;
             }
 
             if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
@@ -2333,8 +2394,8 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchWorld");
 
-        const MeshRenderItem* render_item      = (MeshRenderItem*) buf[*begin].m_UserData;
-        const ModelComponent* component        = render_item->m_Component;
+        MeshRenderItem* render_item            = (MeshRenderItem*) buf[*begin].m_UserData;
+        ModelComponent* component              = render_item->m_Component;
         uint32_t material_index                = render_item->m_MaterialIndex;
         dmRender::HMaterial material           = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
         // vx_decl is the _shared_ vertex declaration here since we can't use instancing for WorldVs batches
@@ -2399,9 +2460,14 @@ namespace dmGameSystem
 
         FillTextures(&ro, component, material_index);
 
-        if (component->m_RenderConstants)
+        HComponentRenderConstants constants = component->m_RenderConstants;
+        if (!ApplyPBRMaterial(dmRender::GetGraphicsContext(render_context), component, render_item, material, &constants, &ro))
         {
-            dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
+            return;
+        }
+        if (constants)
+        {
+            dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
         dmRender::AddToRender(render_context, &ro);

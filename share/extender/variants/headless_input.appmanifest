@@ -17,9 +17,9 @@ platforms:
 
     linux:
         context:
-            excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_gles","hid","platform"]
+            excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_opengles","graphics_vulkan","hid","platform","platform_vulkan"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
-            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","EGL","GLESv1_CM","GLESv2"]
+            excludeDynamicLibs: ["vulkan","X11-xcb","openal","Xext","X11","Xi","GL","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     web:
@@ -30,8 +30,8 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["record","sound","libtremolo","graphics","hid","platform"]
-            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            excludeLibs: ["record","sound","libtremolo","graphics","graphics_dx12","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan","GraphicsAdapterDX12"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     android:

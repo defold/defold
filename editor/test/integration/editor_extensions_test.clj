@@ -383,13 +383,15 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs set-panes! web-server]
-                                          :or {display-output! println
-                                               fetch-libraries! fetch-libraries-noop!
-                                               kind :all
-                                               open-resource! open-resource-noop!
-                                               set-panes! set-panes-noop!
-                                               web-server stopped-server}}]
+(defn- reload-editor-scripts!
+  [project & {:keys [display-output! fetch-libraries! invoke-bob! kind
+                     open-resource! prefs set-panes! web-server]
+              :or {display-output! println
+                   fetch-libraries! fetch-libraries-noop!
+                   kind :all
+                   open-resource! open-resource-noop!
+                   set-panes! set-panes-noop!
+                   web-server stopped-server}}]
   (extensions/reload! project kind
                       :prefs (or prefs (test-util/make-test-prefs))
                       :localization test-util/localization
@@ -399,7 +401,7 @@
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
                       :fetch-libraries! fetch-libraries!
-                      :invoke-bob! (make-invoke-bob-fn project)
+                      :invoke-bob! (or invoke-bob! (make-invoke-bob-fn project))
                       :web-server web-server))
 
 (defn- normalize-pprint-output [output-string]
@@ -749,6 +751,39 @@ Omitting conflicting editor pane :test.new-built-in defined in /first.editor_scr
         (is (= [] (:extension (g/node-value app-view :pane-definitions))))
         (is (= [:console :outline :test.new-built-in]
                (mapv :id (:built-in (g/node-value app-view :pane-definitions)))))))))
+
+;; Built-in bundle commands select packages and request the report of packaged
+;; resources, while contentless bundles exclude packages and their report.
+(deftest contentless-bundle-disables-live-update-test
+  (test-util/with-loaded-project
+    (let [calls (atom [])]
+      (reload-editor-scripts! project :invoke-bob!
+                              (fn capture-bob-call! [options commands]
+                                (swap! calls conj
+                                       [(select-keys options ["exclude-archive" "archive" "liveupdate" "all-packages" "build-report-html" "bundle-report-html"])
+                                        commands])
+                                (future/completed nil)))
+      (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
+                      (extensions/ext-state project evaluation-context)))
+            bundle (rt/invoke-immediate-1 rt
+                                          (rt/bind rt (rt/read "return function()
+                                           editor.prefs.set('bundle.open-output-directory', false)
+                                           for _, flags in ipairs({{true, true, true}, {false, true, true}, {false, true, false}, {false, false, true}, {false, false, false}}) do
+                                               editor.bundle.create({contentless = flags[1],
+                                                                     liveupdate = flags[2],
+                                                                     build_report = flags[3],
+                                                                     texture_compression = 'enabled',
+                                                                     variant = 'debug'}, '.')
+                                           end
+                                         end")))
+            commands ["resolve" "build" "bundle"]]
+        @(rt/invoke-suspending-1 rt bundle)
+        (is (= [[{"exclude-archive" true} commands]
+                [{"all-packages" true "bundle-report-html" "./report.html"} commands]
+                [{"all-packages" true} commands]
+                [{"bundle-report-html" "./report.html"} commands]
+                [{} commands]]
+               @calls))))))
 
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"

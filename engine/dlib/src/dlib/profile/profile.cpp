@@ -163,6 +163,7 @@ void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
 
 void ProfileUnregisterProfiler(const char* name)
 {
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
     ProfileListener* prev = 0;
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {

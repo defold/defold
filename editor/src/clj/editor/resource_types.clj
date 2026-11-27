@@ -16,6 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.app-manifest :as app-manifest]
+            [editor.archive-manifest :as archive-manifest]
             [editor.atlas :as atlas]
             [editor.binary-file :as binary-file]
             [editor.buffer :as buffer]
@@ -96,6 +97,7 @@
       (image/register-resource-types workspace)
       (label/register-resource-types workspace)
       (light/register-resource-types workspace)
+      (archive-manifest/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)

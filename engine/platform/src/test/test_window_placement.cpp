@@ -133,6 +133,20 @@ protected:
     }
 };
 
+// A null graphics fallback must fail cleanly on GLFW and leave the wrapper reusable for a rendering adapter.
+TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)
+{
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    dmPlatform::CloseWindow(m_Window);
+    m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(m_Window, m_Params));
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED));
+    ASSERT_EQ((GLFWwindow*) 0, dmPlatform::GetGLFWWindow(m_Window));
+    dmPlatform::CloseWindow(m_Window);
+    m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+}
+
 // Verifies the borrowed GLFW handle identifies the platform-owned window without exposing its layout to callers.
 TEST_F(WindowPlacementTest, GLFWWindowHandle)
 {

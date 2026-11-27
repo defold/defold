@@ -33,11 +33,13 @@ foreach(_proto IN LISTS DDF_TEST_PROTO_FILES)
   list(APPEND DDF_TEST_PROTO_PBCC "${_pbcc}")
 endforeach()
 
+add_custom_target(ddf_test_generated_sources DEPENDS ${DDF_TEST_PROTO_CC})
 defold_add_executable(test_ddf
   "${DDF_TEST_SRC_DIR}/test_ddf.cpp"
   "${DDF_TEST_SRC_DIR}/test_ddf_struct.cpp"
   ${DDF_TEST_PROTO_CC}
   ${DDF_TEST_PROTO_PBCC})
+add_dependencies(test_ddf ddf_test_generated_sources)
 
 target_include_directories(test_ddf PRIVATE
   "${DDF_TEST_SRC_DIR}"
@@ -69,6 +71,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|
   defold_add_executable(bench_ddf
     "${DDF_TEST_SRC_DIR}/bench_ddf.cpp"
     ${DDF_TEST_PROTO_CC})
+  add_dependencies(bench_ddf ddf_test_generated_sources)
   set_target_properties(bench_ddf PROPERTIES EXCLUDE_FROM_ALL TRUE)
   target_include_directories(bench_ddf PRIVATE
     "${DDF_TEST_SRC_DIR}"

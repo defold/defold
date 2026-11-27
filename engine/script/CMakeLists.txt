@@ -54,6 +54,7 @@ foreach(_proto IN LISTS SCRIPT_PROTO_FILES)
   list(APPEND SCRIPT_BPROTO "${_bproto}")
 endforeach()
 set(SCRIPT_PROTO_PY_INIT "${SCRIPT_PROTO_PY_DIR}/__init__.py")
+add_custom_target(script_proto_headers DEPENDS ${SCRIPT_PROTO_CC} ${SCRIPT_PROTO_HEADERS})
 add_custom_target(script_proto_py DEPENDS ${SCRIPT_PROTO_PY} "${SCRIPT_PROTO_PY_INIT}")
 add_custom_target(script_bproto DEPENDS ${SCRIPT_BPROTO})
 add_custom_target(script_package_proto_files
@@ -119,6 +120,7 @@ if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()
 add_dependencies(script
+  script_proto_headers
   script_package_proto_files
   font_sdk_headers
   graphics_sdk_headers)

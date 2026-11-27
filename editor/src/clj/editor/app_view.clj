@@ -543,40 +543,40 @@
 
 (handler/register-menu! :toolbar
   [{:id :select
-    :tooltip "Select tool"
+    :tooltip (localization/message "toolbar.select-tool")
     :icon "icons/45/Icons_T_01_Select.png"
     :command :scene.select-select-tool}
    {:id :move
-    :tooltip "Move tool"
+    :tooltip (localization/message "toolbar.move-tool")
     :icon "icons/45/Icons_T_02_Move.png"
     :command :scene.select-move-tool}
    {:id :rotate
-    :tooltip "Rotate tool"
+    :tooltip (localization/message "toolbar.rotate-tool")
     :icon "icons/45/Icons_T_03_Rotate.png"
     :command :scene.select-rotate-tool}
    {:id :scale
-    :tooltip "Scale tool"
+    :tooltip (localization/message "toolbar.scale-tool")
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scene.select-scale-tool}
    menu-items/separator
    {:id :grid
-    :tooltip "Grid"
+    :tooltip (localization/message "command.scene.visibility.toggle-grid")
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
     :command :scene.visibility.toggle-grid
     :more {:id :show-grid-settings
            :command :scene.grid.show-settings}}
    {:id :2d-mode
-    :tooltip "2d mode"
+    :tooltip (localization/message "toolbar.2d-mode")
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
     :command :scene.toggle-interaction-mode}
    {:id :perspective-camera
-    :tooltip "Perspective camera"
+    :tooltip (localization/message "command.scene.set-camera-type.option.perspective")
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
     :command :scene.toggle-camera-type
     :more {:id :show-perspective-camera-settings
            :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
-    :tooltip "Visibility settings"
+    :tooltip (localization/message "toolbar.visibility-settings")
     :graphic-fn make-visibility-settings-graphic
     :command :scene.visibility.show-settings}])
 

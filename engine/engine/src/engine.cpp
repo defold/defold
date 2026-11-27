@@ -539,12 +539,17 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         if (engine->m_EngineService)
+        {
             dmEngineService::OnEngineDelete(engine->m_EngineService);
+        }
 
         {
             dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
             dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
+
+        // Let producers stop first, then finish callbacks before deleting their data.
+        dmRender::DrainGraphicsService(engine->m_RenderContext);
 
         if (engine->m_MainCollectionResource)
             dmResource::Release(engine->m_Factory, engine->m_MainCollectionResource);
@@ -586,6 +591,9 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
+        // Resource teardown can queue more work after the first drain. Finish it
+        // while renderer subsystems and Lua are still available.
+        dmRender::DrainGraphicsService(engine->m_RenderContext);
 
         dmSound::Finalize();
 
@@ -594,8 +602,7 @@ namespace dmEngine
 
         if (engine->m_RenderContext)
         {
-            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
-            engine->m_RenderContext = 0;
+            dmRender::FinalizeRenderer(engine->m_RenderContext, engine->m_ScriptContext);
             ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
         }
 
@@ -619,6 +626,9 @@ namespace dmEngine
             extension_params.SetLuaContext(engine->m_ScriptContext);
             dmExtension::Finalize(extension_params);
 
+            // Extension cleanup may enqueue callbacks that still need Lua or the factory.
+            dmRender::DrainGraphicsService(engine->m_RenderContext);
+
             dmScript::Finalize(engine->m_ScriptContext);
             dmScript::DeleteContext(engine->m_ScriptContext);
             engine->m_ScriptContext = 0;
@@ -628,14 +638,24 @@ namespace dmEngine
 
         if (engine->m_Factory)
         {
+            dmRender::DrainGraphicsService(engine->m_RenderContext);
             dmResource::DeleteFactory(engine->m_Factory);
             engine->m_Factory = 0;
             ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
         }
 
-        // Resource type contexts remain alive until factory teardown completes.
+        // Finish factory-submitted graphics cleanup before freeing gamesys callback data.
+        if (engine->m_RenderContext)
+        {
+            dmRender::DeleteRenderContext(engine->m_RenderContext, 0);
+            engine->m_RenderContext = 0;
+        }
+
+        // Resource type contexts remain alive until factory and graphics cleanup finish.
         if (engine->m_GameSystem)
+        {
             dmGameSystem::DeleteContext(engine->m_GameSystem);
+        }
 
         if (engine->m_GraphicsContext)
         {
@@ -978,24 +998,6 @@ namespace dmEngine
         }
     }
 
-    static WindowsGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
-    {
-        switch(family)
-        {
-            case dmGraphics::ADAPTER_FAMILY_NULL:     return WINDOW_GRAPHICS_API_NULL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGL:   return WINDOW_GRAPHICS_API_OPENGL;
-            case dmGraphics::ADAPTER_FAMILY_OPENGLES: return WINDOW_GRAPHICS_API_OPENGLES;
-            case dmGraphics::ADAPTER_FAMILY_VULKAN:   return WINDOW_GRAPHICS_API_VULKAN;
-            case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
-            case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
-            case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
-            case dmGraphics::ADAPTER_FAMILY_METAL:    return WINDOW_GRAPHICS_API_METAL;
-            default:break;
-        }
-        assert(0);
-        return (WindowsGraphicsApi) -1;
-    }
-
     // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
     // Probably need to allow access to HConfigFile first
     static void SetupStreamingResourceTypes(HEngine engine)
@@ -1065,7 +1067,7 @@ namespace dmEngine
       the project if not overridden in project-file
       (resource.uri)
     */
-    bool Init(HEngine engine, int argc, char* argv[])
+    bool Init(HEngine engine, int argc, char* argv[], bool allow_graphics_fallback)
     {
         engine->m_Ready = false;
         if (engine->m_EngineService)
@@ -1412,14 +1414,13 @@ namespace dmEngine
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
-        window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
         window_params.m_ContextAlphabits        = dmConfigFile::GetInt(engine->m_Config, "html5.transparent_graphics_context", 0) == 0 ? 0 : 8;
 #else
         window_params.m_ContextAlphabits        = 8;
 #endif
 
-        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_OPENGL))
         {
             window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
@@ -1430,20 +1431,6 @@ namespace dmEngine
 #endif
 
         engine->m_Window = dmPlatform::NewWindow();
-
-        WindowResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
-        if (platform_result != WINDOW_RESULT_OK)
-        {
-            dmLogFatal("Could not open window (%d).", platform_result);
-            return false;
-        }
-
-#if defined(DM_PLATFORM_IOS)
-        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
-        // Reset the rate a previous engine instance may have requested before a reboot
-        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
-        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
-#endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
@@ -1465,18 +1452,25 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
-        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_VULKAN))
         {
             graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
-        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        engine->m_GraphicsContext = InitializeGraphics(engine->m_Window, window_params, graphics_context_params, allow_graphics_fallback);
         if (engine->m_GraphicsContext == 0x0)
         {
             dmLogFatal("Unable to create the graphics context.");
             return false;
         }
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+        // Reset the rate a previous engine instance may have requested before a reboot
+        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
+#endif
 
         SetSwapInterval(engine, swap_interval);
 
@@ -1487,6 +1481,37 @@ namespace dmEngine
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
+
+        // Establish the core context and graphics service before loading or extension setup.
+        // Lua, text and debug rendering are initialized once the script context exists.
+        dmRender::ExecutionMode render_execution_mode = dmRender::EXECUTION_MODE_INLINE;
+
+        // TODO: Replace the development build selector with a render.use_thread project setting.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        render_execution_mode = dmRender::EXECUTION_MODE_THREADED;
+#endif
+
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes    = 16;
+        render_params.m_MaxInstances      = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
+        render_params.m_MaxRenderTargets  = 32;
+        render_params.m_MaxCharacters     = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_MaxBatches        = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
+        render_params.m_CommandBufferSize = 1024;
+
+#if !defined(DM_RELEASE)
+        render_params.m_ShaderProgramDesc     = ::DEBUG_SPC;
+        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
+        render_params.m_MaxDebugVertexCount   = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+#else
+        render_params.m_MaxDebugVertexCount = 0;
+#endif
+
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params, render_execution_mode, engine->m_RunWhileIconified);
+        if (!engine->m_RenderContext)
+        {
+            return false;
+        }
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
         engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
@@ -1525,6 +1550,18 @@ namespace dmEngine
         {
             return false;
         }
+
+        // Let loading and extensions service graphics before the other systems exist.
+        dmGameSystem::ContextParams gamesys_params;
+        gamesys_params.m_Factory = engine->m_Factory;
+        gamesys_params.m_Register = engine->m_Register;
+        gamesys_params.m_RenderContext = engine->m_RenderContext;
+        engine->m_GameSystem = dmGameSystem::NewContext(gamesys_params);
+        if (!engine->m_GameSystem)
+        {
+            return false;
+        }
+
         LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
@@ -1570,30 +1607,11 @@ namespace dmEngine
             dmLogFatal("Failed to set '%s' %d for collections (%d)", dmGameObject::COLLECTION_MAX_INSTANCES_KEY, max_instance_count, go_result);
             return false;
         }
+
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
-        dmRender::RenderContextParams render_params;
-        // TODO: Replace the development build selector with a render.use_thread project setting.
-#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-        render_params.m_UseThread = true;
-#endif
-        render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
-        render_params.m_MaxRenderTargets = 32;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
-        render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_ScriptContext;
-#if !defined(DM_RELEASE)
-        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
-        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
-        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
-#else
-        render_params.m_MaxDebugVertexCount = 0;
-#endif
-        render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-        if (!engine->m_RenderContext)
-            return false;
+        dmRender::InitializeRenderer(engine->m_RenderContext, render_params);
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1728,19 +1746,6 @@ namespace dmEngine
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
-        {
-            dmGameSystem::ContextParams params;
-            params.m_Factory = engine->m_Factory;
-            params.m_Register = engine->m_Register;
-            params.m_RenderContext = engine->m_RenderContext;
-            params.m_ScriptContext = engine->m_ScriptContext;
-            params.m_InputContext = engine->m_InputContext;
-            params.m_PhysicsContext = physics_context;
-            engine->m_GameSystem = dmGameSystem::NewContext(params);
-            if (!engine->m_GameSystem)
-                goto bail;
-        }
-
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
@@ -1758,8 +1763,17 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        if (!dmGameSystem::Initialize(engine->m_GameSystem, engine->m_Config))
-            goto bail;
+        {
+            dmGameSystem::InitializeParams params;
+            params.m_Config = engine->m_Config;
+            params.m_ScriptContext = engine->m_ScriptContext;
+            params.m_InputContext = engine->m_InputContext;
+            params.m_PhysicsContext = physics_context;
+            if (!dmGameSystem::Initialize(engine->m_GameSystem, params))
+            {
+                goto bail;
+            }
+        }
 
         // register the component extensions
 
@@ -2507,6 +2521,9 @@ bail:
             }
         }
 
+        // Progress graphics requests and game callbacks even when no frame was rendered.
+        dmRender::UpdateGraphicsService(engine->m_RenderContext);
+
         // Throttling, iconification and callback pacing can skip every simulation
         // step. Keep the owning-thread service responsive without rendering or a profile.
         if (!service_updated && engine->m_EngineService && engine->m_Alive &&
@@ -2824,7 +2841,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
     }
 
     dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
-    bool initialized = dmEngine::Init(engine, argc, argv);
+    bool initialized = dmEngine::Init(engine, argc, argv, arg_adapter_name == 0);
 
     if (!initialized)
     {

@@ -414,7 +414,12 @@ namespace
 
     static bool RunCase(const Workload& workload, BenchmarkMode mode, uint32_t iterations, bool phases, ResultData* result)
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        if (dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL) != dmGraphics::RESULT_OK)
+        {
+            fprintf(stderr, "Failed to install the null graphics adapter.\n");
+            return false;
+        }
+
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
         window_params.m_Width = 20;

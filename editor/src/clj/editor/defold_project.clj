@@ -60,6 +60,8 @@
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [clojure.lang ArityException]
+           [com.dynamo.bob ClassLoaderScanner]
+           [com.dynamo.bob.archive.packages PackageProviders]
            [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
@@ -1559,13 +1561,50 @@
                :resource-metrics @resource-metrics
                :transaction-metrics @transaction-metrics}))))
 
+(defn- describe-package-providers []
+  (try
+    (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
+    (catch Exception error
+      (g/error-fatal (ex-message error)))
+    (catch LinkageError error
+      (g/error-fatal (or (ex-message error)
+                         (some-> error ex-cause ex-message)
+                         (str error))))))
+
+(defn- reload-package-provider-schemas! [project]
+  (let [request (Object.)
+        publish! (fn publish! [schemas]
+                   (when (identical? request (g/user-data project ::package-provider-request))
+                     (g/transact {:undoable false}
+                       (g/set-property project :live-update-provider-schemas schemas))))]
+    (g/user-data! project ::package-provider-request request)
+    (if-not (ui/on-ui-thread?)
+      (publish! (describe-package-providers))
+      (future
+        (let [schemas (describe-package-providers)]
+          (ui/run-later (publish! schemas)))))))
+
 (defn reload-plugins! [project touched-resources]
   (g/let-ec [basis (:basis evaluation-context)
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers basis)]
-    (workspace/unpack-editor-plugins! basis workspace touched-resources)
+             code-transpilers (code-transpilers basis)
+             provider-schemas (g/node-value project :live-update-provider-schemas evaluation-context)
+             resources (g/node-value project :resources evaluation-context)]
+    (let [plugins-touched (workspace/unpack-editor-plugins! basis workspace touched-resources)]
+      (when plugins-touched
+        (g/invalidate-outputs! [(g/endpoint code-transpilers :build-output)]))
+      (when (or plugins-touched (nil? provider-schemas))
+        (if (coll/any? #(and (= :file (resource/source-type %))
+                             (= "archivemanifest" (resource/type-ext %)))
+                       (if plugins-touched resources touched-resources))
+          (reload-package-provider-schemas! project)
+          (when plugins-touched
+            (g/user-data! project ::package-provider-request nil)
+            (when provider-schemas
+              (g/transact {:undoable false}
+                (g/set-property project :live-update-provider-schemas nil)))))))
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1684,6 +1723,7 @@
 
 (g/defnode Project
   (property workspace g/Any)
+  (property live-update-provider-schemas g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
@@ -2013,6 +2053,7 @@
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
     (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    :build-output (= node-id (code-transpilers (:basis evaluation-context)))
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]

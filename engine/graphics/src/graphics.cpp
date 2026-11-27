@@ -44,12 +44,45 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch (family)
+        {
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
+            default:
+            {
+                break;
+            }
+        }
+
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
+
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
                                  GraphicsAdapterIsSupportedCb              is_supported_cb,
                                  GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
                                  GraphicsAdapterGetContextCb               get_context_cb,
                                  int8_t                                    priority)
     {
+        for (GraphicsAdapter* registered = g_adapter_list; registered; registered = registered->m_Next)
+        {
+            if (registered->m_Family == adapter->m_Family)
+            {
+                dmLogError("Cannot register graphics adapter '%s' because an adapter for this family is already registered.", GetAdapterFamilyLiteral(adapter->m_Family));
+                return;
+            }
+        }
+
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_GetContextCb  = get_context_cb;
@@ -131,30 +164,6 @@ namespace dmGraphics
 
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
-    }
-
-    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
-
-    const char* GetAdapterFamilyLiteral(AdapterFamily family)
-    {
-        switch (family)
-        {
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
-            default:
-            {
-                break;
-            }
-        }
-
-        return "<unknown dmGraphics::AdapterFamily>";
     }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
@@ -2071,8 +2080,7 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while ((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
@@ -2136,6 +2144,38 @@ namespace dmGraphics
         }
     }
 
+    bool GetUniformBufferBinding(HProgram prog, dmhash_t name_hash, UniformBufferBindingInfo* out)
+    {
+        ProgramResourceBindingIterator it((Program*) prog);
+        const ProgramResourceBinding* binding;
+        while ((binding = it.Next()))
+        {
+            const ShaderResourceBinding* resource = binding->m_Res;
+            if (resource->m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || resource->m_NameHash != name_hash)
+            {
+                continue;
+            }
+
+            out->m_Name          = resource->m_Name;
+            out->m_InstanceName  = resource->m_InstanceName;
+            out->m_NameHash      = resource->m_NameHash;
+            out->m_Types         = binding->m_TypeInfos->Begin();
+            out->m_NumTypes      = binding->m_TypeInfos->Size();
+            out->m_RootTypeIndex = resource->m_Type.m_TypeIndex;
+            out->m_Size          = resource->m_BindingInfo.m_BlockSize;
+            out->m_Layout        = *(const UniformBufferLayout*) binding->m_BindingUserData;
+            out->m_Set           = resource->m_Set;
+            out->m_Binding       = resource->m_Binding;
+            return true;
+        }
+        return false;
+    }
+
+    uint64_t GetProgramVersion(HProgram program)
+    {
+        return ((Program*) program)->m_Version;
+    }
+
     void BuildUniforms(Program* program)
     {
         uint32_t uniform_count = 0;
@@ -2147,6 +2187,11 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while ((next = it.Next()))
         {
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            {
+                continue;
+            }
+
             const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
             uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
         }
@@ -2877,6 +2922,46 @@ namespace dmGraphics
         return info;
     }
 
+    bool IsTextureUploadValid(HContext context, HTexture texture, const TextureParams& params)
+    {
+        const TextureInfo info = GetTextureInfo(context, texture);
+        if (info.m_Type != TEXTURE_TYPE_2D || info.m_Depth > 1 || info.m_PageCount > 1 || !info.m_Width || !info.m_Height)
+        {
+            return false;
+        }
+
+        if (!params.m_Width || !params.m_Height || params.m_Width > GetMaxTextureSize(context) || params.m_Height > GetMaxTextureSize(context))
+        {
+            return false;
+        }
+
+        // A full level-zero upload can resize the texture. Other uploads must fit
+        // the current size, including after an earlier queued resize.
+        if (params.m_SubUpdate || params.m_MipMap != 0)
+        {
+            if (params.m_MipMap >= GetMipmapCount(dmMath::Max(info.m_Width, info.m_Height)))
+            {
+                return false;
+            }
+
+            const uint32_t width = dmMath::Max(1u, (uint32_t)GetMipmapSize(info.m_Width, params.m_MipMap));
+            const uint32_t height = dmMath::Max(1u, (uint32_t)GetMipmapSize(info.m_Height, params.m_MipMap));
+            if (params.m_SubUpdate)
+            {
+                if (params.m_X > width || params.m_Width > width - params.m_X || params.m_Y > height || params.m_Height > height - params.m_Y)
+                {
+                    return false;
+                }
+            }
+            else if (params.m_Width != width || params.m_Height != height)
+            {
+                return false;
+            }
+        }
+
+        return g_functions.m_IsTextureUploadValid(context, texture, params);
+    }
+
     // SDK-friendly overload that preserves the Vector4-based adapter API.
     void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
     {
@@ -2956,6 +3041,11 @@ namespace dmGraphics
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
 
@@ -2987,6 +3077,11 @@ namespace dmGraphics
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
 
@@ -3053,7 +3148,13 @@ namespace dmGraphics
 
     HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        if (program)
+        {
+            GraphicsContext* gc = (GraphicsContext*) context;
+            ((Program*) program)->m_Version = ++gc->m_ProgramVersion;
+        }
+        return program;
     }
 
     void DeleteProgram(HContext context, HProgram program)
@@ -3090,7 +3191,10 @@ namespace dmGraphics
             DestroyProgram((Program*) program);
         }
 
-        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+        bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        ((Program*) program)->m_Version = ++gc->m_ProgramVersion;
+        return result;
     }
 
     uint32_t GetAttributeCount(HProgram prog)
@@ -3451,6 +3555,10 @@ namespace dmGraphics
 
     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
+        if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
+            return 0;
+        }
         return g_functions.m_NewUniformBuffer(context, layout, size);
     }
 

@@ -28,6 +28,7 @@
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
@@ -481,6 +482,64 @@
       (paste! project app-view root)
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
+
+;; Pasted packages append in the outline and get unique names, so renaming the
+;; copy preserves references to the original package through undo and redo.
+(deftest copy-paste-live-update-package
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [root (test-util/resource-node project "/packages.archivemanifest")
+          original (g/node-value root :save-value)
+          [levels copy] (:packages original)
+          pasted (assoc original :packages [levels copy (assoc levels :name "levels1")])
+          renamed (assoc-in pasted [:packages 2 :name] "renamed")]
+      (copy-paste! project app-view root [2])
+      (is (= pasted (g/node-value root :save-value)))
+      (is (coll/empty? (g/node-value root :diagnostics)))
+      (g/transact (g/set-property (:node-id (outline root [4])) :id "renamed"))
+      (is (= renamed (g/node-value root :save-value)))
+      (g/undo! :undo/global)
+      (is (= pasted (g/node-value root :save-value)))
+      (g/undo! :undo/global)
+      (is (= original (g/node-value root :save-value)))
+      (g/redo! :undo/global)
+      (is (= pasted (g/node-value root :save-value)))
+      (g/redo! :undo/global)
+      (is (= renamed (g/node-value root :save-value))))))
+
+;; Pasted Add rules follow the destination's Remove rule and retain their
+;; relative order, so the last matching rule still wins.
+(deftest paste-live-update-rules-appends
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [manifest {:packages [{:name "source"
+                                :rules [{:name "Episode" :path "/episode[.]collection"}
+                                        {:name "Data" :path "/extra[.]json"}]}
+                               {:name "destination"
+                                :rules [{:name "Include source" :package "source"}
+                                        {:name "Exclude source" :package "source" :operation :remove}]}]}]
+      (test-util/make-resource! workspace "/new.archivemanifest" manifest)
+      (workspace/resource-sync! workspace)
+      (let [root (test-util/resource-node project "/new.archivemanifest")
+            original (g/node-value root :save-value)
+            pasted (update-in original [:packages 1 :rules] into (get-in original [:packages 0 :rules]))
+            data (outline/copy project [(->iterator root [2 0]) (->iterator root [2 1])])]
+        (outline/paste! project (->iterator root [3]) data (partial app-view/select app-view))
+        (is (= pasted (g/node-value root :save-value)))
+        (g/undo! :undo/global)
+        (is (= original (g/node-value root :save-value)))))))
+
+;; Copies of the first preset append after existing presets in both groups.
+(deftest paste-live-update-presets-appends
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/new.archivemanifest")
+    (workspace/resource-sync! workspace)
+    (let [root (test-util/resource-node project "/new.archivemanifest")]
+      (doseq [[group label copy-name] [[0 :container-presets "Zip1"]
+                                       [1 :file-compression-presets "None1"]]]
+        (let [original (g/node-value root :save-value)
+              preset (first (label original))
+              pasted (update original label conj (assoc preset :name copy-name))]
+          (copy-paste! project app-view root [1 group 0])
+          (is (= pasted (g/node-value root :save-value))))))))
 
 (deftest copied-contents
   (test-util/with-loaded-project

@@ -25,10 +25,12 @@
 #include <dmsdk/dlib/intersection.h>
 
 #include <ddf/ddf.h>
+#include <platform/window.hpp>
 
 #include "render_private.h"
 #include "render_script.h"
 #include "render_frame.h"
+#include "render_graphics_service.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 
@@ -118,11 +120,13 @@ namespace dmRender
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
     , m_ShaderProgramDesc(0x0)
+    , m_GraphicsService(0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
     , m_ShaderProgramDescSize(0)
     , m_MaxCharacters(0)
+    , m_MaxBatches(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
     , m_UseThread(false)
@@ -137,49 +141,117 @@ namespace dmRender
 
     }
 
+    static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
+
+    static HRenderContext CreateRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params,
+                                              HRenderExecution execution, HGraphicsService service)
+    {
+        RenderContext* context = new RenderContext();
+        context->m_GraphicsContext = graphics_context;
+        context->m_Execution = execution;
+        context->m_GraphicsService = service;
+        context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
+        context->m_SystemFontMap = params.m_SystemFontMap;
+        context->m_Recording.m_RenderScriptContext.m_CommandBufferSize = params.m_CommandBufferSize;
+        UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
+
+        dmGraphics::AdapterFamily adapter = dmGraphics::GetInstalledAdapterFamily();
+        context->m_MultiBufferingRequired = adapter == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_METAL ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_VENDOR;
+        context->m_UseAdjustedNDC = adapter == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_METAL ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_VENDOR;
+
+        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
+        context->m_RenderItemDispatches.SetCapacity(8);
+        context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
+        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
+        context->m_FirstFreeRenderItem = ~0u;
+        SetLightBufferCount(context, 0);
+
+        dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
+        assert(r == dmMessage::RESULT_OK);
+        SetupContextEventCallback(context, &OnContextEvent);
+        return context;
+    }
+
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& render_params,
+                                    ExecutionMode mode, bool run_while_iconified)
+    {
+        GraphicsServiceParams params = {};
+        params.m_GraphicsContext = graphics_context;
+        params.m_MaxRequests = GRAPHICS_SERVICE_REQUEST_CAPACITY;
+        params.m_MaxPayloadBytes = 8 * 1024 * 1024;
+        params.m_Mode = mode;
+        ExecutionSelection selection;
+        HGraphicsService service = NewGraphicsService(params, &selection);
+        if (!service)
+        {
+            const char* reason = selection.m_ExecutionMode == EXECUTION_MODE_INVALID ? GetExecutionResultString(selection.m_ExecutionResult) : "allocation failed";
+            dmLogError("Failed to create graphics service: %s.", reason);
+            return 0;
+        }
+
+        HRenderContext context = CreateRenderContext(graphics_context, render_params, GetGraphicsServiceExecution(service), service);
+        context->m_OwnsGraphicsService = true;
+        context->m_RunWhileIconified = run_while_iconified;
+        return context;
+    }
+
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        // No production executor is available yet. Standalone queue/executor tests
-        // create their own execution context without initializing renderer state.
+        // Standalone callers either supply a longer-lived service or let this
+        // context own execution without a graphics request queue.
         ExecutionSelection selection;
         ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
-        HRenderExecution execution = NewRenderExecution(mode, false, &selection);
+        HRenderExecution execution = params.m_GraphicsService ? GetGraphicsServiceExecution(params.m_GraphicsService)
+                                                            : NewRenderExecution(mode, false, &selection);
         if (!execution)
         {
             dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
             return 0;
         }
 
-        dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
-                  GetExecutionResultString(selection.m_ExecutionResult));
+        // Initialization still mixes game-owned Lua and graphics calls. A service
+        // must not bypass that gate, even when called by a bound render owner.
+        if (params.m_GraphicsService && GetRenderExecutionMode(execution) != EXECUTION_MODE_INLINE)
+        {
+            dmLogError("Unable to create render context: threaded renderer initialization unavailable");
+            return 0;
+        }
 
-        RenderContext* context = new RenderContext;
-        context->m_Execution = execution;
+        if (params.m_GraphicsService && GetGraphicsServiceContext(params.m_GraphicsService) != graphics_context)
+        {
+            dmLogError("Unable to create render context: graphics service context mismatch");
+            return 0;
+        }
 
-        context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
-        context->m_RenderObjects.SetSize(0);
+        if (params.m_GraphicsService && !IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME))
+        {
+            dmLogError("Unable to create render context: initialization requires the game owner");
+            return 0;
+        }
 
-        context->m_GraphicsContext = graphics_context;
+        HRenderContext context = CreateRenderContext(graphics_context, params, execution, params.m_GraphicsService);
+        InitializeRenderer(context, params);
+        return context;
+    }
 
-        context->m_SystemFontMap = params.m_SystemFontMap;
-
-        context->m_Material = 0;
-        context->m_CurrentRenderCamera = 0;
-        context->m_CurrentRenderCameraUseFrustum = 0;
-
-        UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
-        context->m_Time = 0.0f;
-        context->m_Dt = 0.0f;
-        context->m_Recording.m_Time = 0.0f;
-        context->m_Recording.m_Dt = 0.0f;
+    void InitializeRenderer(HRenderContext context, const RenderContextParams& params)
+    {
+        dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(context->m_Execution)));
+        dmGraphics::HContext graphics_context = context->m_GraphicsContext;
 
         context->m_Recording.m_ScriptContext = params.m_ScriptContext;
-        InitializeRenderScriptContext(context->m_Recording.m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
+        InitializeRenderScriptContext(context->m_Recording.m_RenderScriptContext, graphics_context, params.m_ScriptContext,
+                                      context->m_Recording.m_RenderScriptContext.m_CommandBufferSize);
         InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
         context->m_Recording.m_ScriptWorld = dmScript::NewScriptWorld(context->m_Recording.m_ScriptContext);
-        context->m_Recording.m_CallbackInfo = 0x0;
-
-        context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0)
         {
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
@@ -187,53 +259,20 @@ namespace dmRender
 
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
-        context->m_OutOfResources = 0;
-
-        context->m_StencilBufferCleared = 0;
-
-        context->m_MultiBufferingRequired = 0;
-
-        context->m_IsRenderPaused = 0;
-
-        // TODO: This should be a "context property" or something similar.
-        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
-        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
-        {
-            context->m_MultiBufferingRequired = 1;
-        }
-
-        context->m_UseAdjustedNDC = installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
-
-        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
-        context->m_RenderItemDispatches.SetCapacity(8);
-        context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
-        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
-        context->m_FirstFreeRenderItem = ~0u;
-        context->m_TransientRenderListDirty = false;
-
-        SetupContextEventCallback(context, &OnContextEvent);
-
-        context->m_LightUniformBuffer = 0;
-        SetLightBufferCount(context, 0);
-
-        dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
-        assert(r == dmMessage::RESULT_OK);
-        return context;
+        context->m_RendererInitialized = true;
     }
 
-    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    bool IsRendererInitialized(HRenderContext render_context)
     {
-        if (render_context == 0x0)
+        return render_context && render_context->m_RendererInitialized;
+    }
+
+    void FinalizeRenderer(HRenderContext render_context, dmScript::HContext script_context)
+    {
+        DrainGraphicsService(render_context);
+        if (!render_context->m_RendererInitialized)
         {
-            return RESULT_INVALID_CONTEXT;
+            return;
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
@@ -247,6 +286,28 @@ namespace dmRender
         dmScript::DeleteScriptWorld(render_context->m_Recording.m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
+        render_context->m_Recording.m_ScriptContext = 0;
+        render_context->m_RendererInitialized = false;
+    }
+
+    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    {
+        if (render_context == 0x0)
+        {
+            return RESULT_INVALID_CONTEXT;
+        }
+
+        if (render_context->m_OwnsGraphicsService)
+        {
+            // FinalizeRenderer drains. Close admission before calling it so
+            // completion callbacks cannot keep adding work during final deletion.
+            StopGraphicsService(render_context->m_GraphicsService);
+        }
+
+        FinalizeRenderer(render_context, script_context);
+        SetupContextEventCallback(0, 0);
+
+        // Core state exists even if startup stopped before InitializeRenderer.
         FinalizeLightData(render_context);
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
         {
@@ -254,7 +315,15 @@ namespace dmRender
         }
 
         dmMessage::DeleteSocket(render_context->m_Socket);
-        DeleteRenderExecution(render_context->m_Execution);
+        if (render_context->m_OwnsGraphicsService)
+        {
+            DeleteGraphicsService(render_context->m_GraphicsService);
+        }
+        else if (!render_context->m_GraphicsService)
+        {
+            DeleteRenderExecution(render_context->m_Execution);
+        }
+
         delete render_context;
 
         return RESULT_OK;
@@ -263,6 +332,62 @@ namespace dmRender
     HRenderExecution GetRenderExecution(HRenderContext render_context)
     {
         return render_context->m_Execution;
+    }
+
+    HGraphicsService GetGraphicsService(HRenderContext render_context)
+    {
+        return render_context->m_GraphicsService;
+    }
+
+    bool CanExecuteGraphics(HRenderContext context)
+    {
+        // Window events can occur between engine steps. Paused rendering
+        // is not suspension: independent resource requests still need to progress.
+        return !dmAtomicLoadAcquire32(&context->m_IsContextLost) &&
+               (context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED));
+    }
+
+    void UpdateGraphicsService(HRenderContext context)
+    {
+        if (!context->m_GraphicsService || !IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME))
+        {
+            return; // Completion callbacks belong to the game owner.
+        }
+
+        if (GetRenderExecutionMode(context->m_Execution) == EXECUTION_MODE_INLINE && CanExecuteGraphics(context))
+        {
+            PumpGraphicsService(context->m_GraphicsService, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+        }
+
+        DispatchGraphicsCompletions(context->m_GraphicsService);
+    }
+
+    void DrainGraphicsService(HRenderContext context)
+    {
+        if (!context || !context->m_OwnsGraphicsService)
+        {
+            return;
+        }
+
+        // Owned production services are still inline. A future native/browser executor
+        // must keep running through resource cleanup and join/quiesce before deletion.
+        HGraphicsService service = context->m_GraphicsService;
+        GraphicsServiceStatus status = GetGraphicsServiceStatus(service);
+        while (status.m_Accepted != status.m_Completed)
+        {
+            // A completion callback can change window/context availability.
+            if (CanExecuteGraphics(context))
+            {
+                PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+            }
+            else
+            {
+                CancelGraphicsService(service, GRAPHICS_SERVICE_TASK_CANCELLED);
+            }
+
+            DispatchGraphicsCompletions(service);
+            status = GetGraphicsServiceStatus(service);
+        }
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
@@ -1522,6 +1647,29 @@ namespace dmRender
         }
     }
 
+    // Checks the material-tag ranges built by SortRenderList so draws without matching
+    // entries can skip per-entry culling and sort-buffer preparation. Matching entries
+    // may still be culled. A missing predicate or one with no tags accepts every range.
+    static bool HasMatchingRenderListRange(HRenderContext context, const Predicate* predicate)
+    {
+        if (!predicate || predicate->m_TagCount == 0)
+        {
+            return !context->m_RenderListScratch.m_Ranges.Empty();
+        }
+
+        for (uint32_t i = 0; i < context->m_RenderListScratch.m_Ranges.Size(); ++i)
+        {
+            MaterialTagList taglist;
+            GetMaterialTagList(context, context->m_RenderListScratch.m_Ranges[i].m_TagListKey, &taglist);
+            if (MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Build one view's draw order from renderer-owned items and the supplied pass
     // inputs. Owned command replay has already applied its captured camera here;
     // this preparation does not consult game components or recording state.
@@ -1533,6 +1681,14 @@ namespace dmRender
         if (context->m_RenderListScratch.m_Ranges.Empty())
         {
             SortRenderList(context);
+        }
+
+        // Predicates without matching tag ranges need no visibility or sort-buffer work.
+        // Check after pending debug submissions have been included in the tag ranges.
+        if (!HasMatchingRenderListRange(context, predicate))
+        {
+            context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+            return;
         }
 
         uint32_t frustum_hash = 0;
@@ -1745,6 +1901,9 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
 
+                // Optional textures leave holes in the sampler table. Keep their
+                // slots reserved while allowing split array textures to expand.
+                next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                 uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
@@ -1768,6 +1927,7 @@ namespace dmRender
             if (render_context_textures[i])
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
+                next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                 uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
@@ -1835,16 +1995,21 @@ namespace dmRender
                 }
             }
 
+            if (!ValidateRenderObjectUniformBuffers(material, ro))
+            {
+                continue;
+            }
+
             ApplyMaterialConstants(render_context, material, ro);
 
             if (ro->m_ConstantBuffer) // from components/scripts
             {
-                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer, ro);
             }
 
             if (constant_buffer) // from render script
             {
-                ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+                ApplyNamedConstantBuffer(render_context, material, constant_buffer, ro);
             }
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
@@ -1860,6 +2025,9 @@ namespace dmRender
 
                 if (texture)
                 {
+                    // A named scene texture may follow missing material maps.
+                    // Do not shift it into an earlier sampler's slot.
+                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                     uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
@@ -1873,6 +2041,7 @@ namespace dmRender
             }
 
             ApplyMaterialProgramLightBuffers(render_context, material);
+            EnableRenderObjectUniformBuffers(render_context, material, ro);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 
@@ -1898,6 +2067,8 @@ namespace dmRender
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
             }
 
+            DisableRenderObjectUniformBuffers(render_context, ro);
+
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {
                 if (ro->m_VertexBuffers[i])
@@ -1922,6 +2093,7 @@ namespace dmRender
 
                 if (texture)
                 {
+                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
@@ -1981,8 +2153,23 @@ namespace dmRender
         RenderContext* render_context = (RenderContext*)context;
         if (event_type == dmRender::CONTEXT_LOST)
         {
+            dmAtomicStoreRelease32(&render_context->m_IsContextLost, 1);
+            if (render_context->m_GraphicsService)
+            {
+                SetGraphicsServiceContextLost(render_context->m_GraphicsService, true);
+            }
+
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+        }
+        else if (event_type == dmRender::CONTEXT_RESTORED)
+        {
+            // Allow resource rebuilding before drawing is explicitly resumed.
+            dmAtomicStoreRelease32(&render_context->m_IsContextLost, 0);
+            if (render_context->m_GraphicsService)
+            {
+                SetGraphicsServiceContextLost(render_context->m_GraphicsService, false);
+            }
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)

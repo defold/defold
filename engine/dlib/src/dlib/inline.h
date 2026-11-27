@@ -19,8 +19,10 @@
 // use as "static DM_FORCE_INLINE ReturnType Function(...)" for file-local helpers.
 #if defined(_MSC_VER)
 #define DM_FORCE_INLINE __forceinline
+#define DM_NO_INLINE __declspec(noinline)
 #else
 #define DM_FORCE_INLINE inline __attribute__((always_inline))
+#define DM_NO_INLINE __attribute__((noinline))
 #endif
 
 #endif // DM_INLINE_H

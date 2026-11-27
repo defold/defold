@@ -363,10 +363,48 @@ struct DX12Test : public jc_test_base_class
         bytes.SetCapacity(byte_count);
         bytes.SetSize(byte_count);
         for (UINT row = 0; row < rows * footprint.Footprint.Depth; ++row)
+        {
             memcpy(bytes.Begin() + row * row_bytes, mapped + footprint.Offset + row * footprint.Footprint.RowPitch, (size_t)row_bytes);
+        }
         readback->Unmap(0, 0);
     }
 };
+
+// Repeated and aliased UBO bindings must all be cleared on deletion while their
+// GPU allocation remains queued for retirement behind the frame fence.
+TEST_F(DX12Test, UniformBufferBindingsAndDeferredDeletion)
+{
+    ASSERT_TRUE(IsContextFeatureSupported(GetContext(), CONTEXT_FEATURE_UNIFORM_BUFFER));
+    HUniformBuffer buffer = NewUniformBuffer(GetContext(), 0, 64);
+    HUniformBuffer replacement = NewUniformBuffer(GetContext(), 0, 64);
+    DX12UniformBuffer* data = (DX12UniformBuffer*) buffer;
+    DX12UniformBuffer* replacement_data = (DX12UniformBuffer*) replacement;
+    ASSERT_NE((HUniformBuffer) 0, buffer);
+    ASSERT_NE((HUniformBuffer) 0, replacement);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    DisableUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+
+    EnableUniformBuffer(GetContext(), buffer, 0, 2);
+    EnableUniformBuffer(GetContext(), buffer, 1, 3);
+    EnableUniformBuffer(GetContext(), replacement, 1, 3);
+    ASSERT_EQ(data, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+
+    DX12FrameResource& frame = m_Context->m_FrameResources[m_Context->m_CurrentFrameIndex];
+    uint32_t deferred_count = frame.m_ResourcesToDestroy.Size();
+    ID3D12Resource* resource = data->m_DeviceBuffer.m_Resource;
+    DeleteUniformBuffer(GetContext(), buffer);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[0][2]);
+    ASSERT_EQ(replacement_data, m_Context->m_CurrentUniformBuffers[1][3]);
+    ASSERT_EQ(deferred_count + 1, frame.m_ResourcesToDestroy.Size());
+    ASSERT_EQ(resource, frame.m_ResourcesToDestroy.Back());
+
+    DeleteUniformBuffer(GetContext(), replacement);
+    ASSERT_EQ((DX12UniformBuffer*) 0, m_Context->m_CurrentUniformBuffers[1][3]);
+}
 
 // Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)
@@ -459,6 +497,305 @@ TEST_F(DX12Test, MaximumArrayLayersAndCubemapMips)
     ASSERT_EQ(24u, GetTextureData(cube)->m_ResourceStates.Size());
     ReadTexture(cube, 3, 5, bytes);
     ASSERT_EQ(33, bytes[0]);
+}
+
+// Verifies startup uploads preserve each BC1 block, including mips smaller than 4x4.
+TEST_F(DX12Test, CompressedMipUploads)
+{
+    const uint8_t blocks[][8] = {
+        { 1, 2, 3, 4, 5, 6, 7, 8 },
+        { 9, 10, 11, 12, 13, 14, 15, 16 },
+        { 17, 18, 19, 20, 21, 22, 23, 24 },
+    };
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 4, 4, 1, DM_ARRAY_SIZE(blocks));
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_DataSize = sizeof(blocks[0]);
+    m_Context->m_FrameBegun = 0;
+    for (uint32_t mip = 0; mip < DM_ARRAY_SIZE(blocks); ++mip)
+    {
+        params.m_MipMap = mip;
+        params.m_Width = params.m_Height = 4 >> mip;
+        params.m_Data = blocks[mip];
+        SetTexture(GetContext(), texture, params);
+    }
+
+    m_Context->m_FrameBegun = 1;
+
+    dmArray<uint8_t> bytes;
+    for (uint32_t mip = 0; mip < DM_ARRAY_SIZE(blocks); ++mip)
+    {
+        ReadTexture(texture, mip, 0, bytes);
+        ASSERT_EQ(sizeof(blocks[mip]), bytes.Size());
+        ASSERT_EQ(0, memcmp(blocks[mip], bytes.Begin(), bytes.Size()));
+    }
+}
+
+// Verifies a partial BC1 update at the padded edge of a 6x2 mip preserves its other block.
+TEST_F(DX12Test, CompressedMipEdgeSubUpdate)
+{
+    const uint8_t blocks[][8] = { { 1 }, { 2 }, { 3 } };
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 12, 4, 1, 2);
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_NEAREST;
+    params.m_Width = 12;
+    params.m_Height = 4;
+    params.m_Data = blocks;
+    params.m_DataSize = sizeof(blocks);
+    SetTexture(GetContext(), texture, params);
+
+    params.m_MipMap = 1;
+    params.m_Width = 6;
+    params.m_Height = 2;
+    params.m_DataSize = 2 * sizeof(blocks[0]);
+    SetTexture(GetContext(), texture, params);
+
+    params.m_SubUpdate = 1;
+    params.m_X = 4;
+    params.m_Width = 2;
+    params.m_Data = blocks[2];
+    params.m_DataSize = sizeof(blocks[2]);
+    SetTexture(GetContext(), texture, params);
+
+    // The same 2x2 update inside the first block must preserve the block and its sampler.
+    DX12Texture* tex = GetTextureData(texture);
+    const uint16_t sampler = tex->m_TextureSamplerIndex;
+    params.m_X = 0;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_LINEAR;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+
+    // An uncompressed texel also cannot replace part of a compressed block.
+    const uint8_t rgba[] = { 4, 5, 6, 7 };
+    params.m_Width = params.m_Height = 1;
+    params.m_Format = TEXTURE_FORMAT_RGBA;
+    params.m_Data = rgba;
+    params.m_DataSize = sizeof(rgba);
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(TEXTURE_FORMAT_RGB_BC1, tex->m_Base.m_Format);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 1, 0, bytes);
+    ASSERT_EQ(2 * sizeof(blocks[0]), bytes.Size());
+    ASSERT_EQ(0, memcmp(blocks[0], bytes.Begin(), sizeof(blocks[0])));
+    ASSERT_EQ(0, memcmp(blocks[2], bytes.Begin() + sizeof(blocks[0]), sizeof(blocks[2])));
+}
+
+// Verifies reused mips accept RGB repacked to RGBA and reject BC1 before staging a copy.
+TEST_F(DX12Test, TextureUpdateFormatMustMatchStorage)
+{
+    uint8_t base[6 * 2 * 4];
+    memset(base, 0x5a, sizeof(base));
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 6, 2, 1, 2);
+    TextureParams params;
+    params.m_Width = 6;
+    params.m_Height = 2;
+    params.m_Data = base;
+    params.m_DataSize = sizeof(base);
+    SetTexture(GetContext(), texture, params);
+
+    const uint8_t rgb[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    params.m_SubUpdate = 1;
+    params.m_MipMap = 1;
+    params.m_Width = 3;
+    params.m_Height = 1;
+    params.m_Format = TEXTURE_FORMAT_RGB;
+    params.m_Data = rgb;
+    params.m_DataSize = sizeof(rgb);
+    SetTexture(GetContext(), texture, params);
+
+    const uint32_t staged = GetFrame().m_ResourcesToDestroy.Size();
+    const uint32_t resource_size = GetTextureResourceSize(GetContext(), texture);
+    const uint8_t block[8] = { 10 };
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_Data = block;
+    params.m_DataSize = sizeof(block);
+    params.m_SubUpdate = 0;
+    SetTexture(GetContext(), texture, params);
+
+    params.m_SubUpdate = 1;
+    params.m_MipMap = 0;
+    params.m_X = 4;
+    params.m_Width = params.m_Height = 2;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(staged, GetFrame().m_ResourcesToDestroy.Size());
+    ASSERT_EQ(TEXTURE_FORMAT_RGBA, GetTextureData(texture)->m_Base.m_Format);
+    ASSERT_EQ(resource_size, GetTextureResourceSize(GetContext(), texture));
+
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(base), bytes.Size());
+    ASSERT_EQ(0, memcmp(base, bytes.Begin(), bytes.Size()));
+    const uint8_t rgba[] = { 1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255 };
+    ReadTexture(texture, 1, 0, bytes);
+    ASSERT_EQ(sizeof(rgba), bytes.Size());
+    ASSERT_EQ(0, memcmp(rgba, bytes.Begin(), bytes.Size()));
+}
+
+// Verifies writes in a color attachment's declared format preserve texel spacing and the render target resource.
+TEST_F(DX12Test, PromotedRenderTargetTextureUploads)
+{
+    const uint16_t r16f[] = { 0x3800, 0x4000 }; // 0.5, 2.0
+    const uint16_t rgba16f[] = { 0x3800, 0, 0, 0x3c00, 0x4000, 0, 0, 0x3c00 };
+    const uint8_t rg8[] = { 11, 22, 33, 44 };
+    const uint8_t rgba8[] = { 11, 22, 0, 255, 33, 44, 0, 255 };
+    const float rgb32f[] = { 0.25f, 0.5f, 0.75f, 2.0f, 3.0f, 4.0f };
+    const float rgba32f[] = { 0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 3.0f, 4.0f, 1.0f };
+    const struct
+    {
+        TextureFormat m_Format;
+        TextureFormat m_IncompatibleFormat;
+        const void*   m_Pixels;
+        uint32_t      m_Size;
+        const void*   m_Expected;
+        uint32_t      m_ExpectedSize;
+    } cases[] = {
+        { TEXTURE_FORMAT_R16F, TEXTURE_FORMAT_RG16F, r16f, sizeof(r16f), rgba16f, sizeof(rgba16f) },
+        { TEXTURE_FORMAT_LUMINANCE_ALPHA, TEXTURE_FORMAT_LUMINANCE, rg8, sizeof(rg8), rgba8, sizeof(rgba8) },
+        { TEXTURE_FORMAT_RGB32F, TEXTURE_FORMAT_R32F, rgb32f, sizeof(rgb32f), rgba32f, sizeof(rgba32f) },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        RenderTargetCreationParams creation;
+        creation.m_ColorBufferCreationParams[0].m_Width = creation.m_ColorBufferParams[0].m_Width = 2;
+        creation.m_ColorBufferCreationParams[0].m_Height = creation.m_ColorBufferParams[0].m_Height = 1;
+        creation.m_ColorBufferParams[0].m_Format = cases[i].m_Format;
+        HRenderTarget target = NewRenderTarget(GetContext(), BUFFER_TYPE_COLOR0_BIT, creation);
+        HTexture color = GetRenderTargetTexture(GetContext(), target, BUFFER_TYPE_COLOR0_BIT);
+        ID3D12Resource* attachment = GetTextureData(color)->m_Resource;
+
+        TextureParams params;
+        params.m_Format = cases[i].m_Format;
+        params.m_Width = 2;
+        params.m_Height = 1;
+        params.m_Data = cases[i].m_Pixels;
+        params.m_DataSize = cases[i].m_Size;
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        dmArray<uint8_t> bytes;
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+
+        // Overwrite only the second texel with the first texel's value.
+        params.m_X = 1;
+        params.m_Width = 1;
+        params.m_DataSize = cases[i].m_Size / 2;
+        SetTexture(GetContext(), color, params);
+        ReadTexture(color, 0, 0, bytes);
+        const uint32_t stride = cases[i].m_ExpectedSize / 2;
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), stride));
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin() + stride, stride));
+
+        params.m_SubUpdate = 0;
+        params.m_X = 0;
+        params.m_Width = 2;
+        params.m_DataSize = cases[i].m_Size;
+        SetTexture(GetContext(), color, params);
+
+        // Reject another narrow format that would promote to the same render-target storage.
+        const uint32_t zeros[2] = {};
+        params.m_Format = cases[i].m_IncompatibleFormat;
+        params.m_Data = zeros;
+        params.m_DataSize = GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height);
+        params.m_SubUpdate = 1;
+        SetTexture(GetContext(), color, params);
+        params.m_SubUpdate = 0;
+        SetTexture(GetContext(), color, params);
+        ASSERT_EQ(attachment, GetTextureData(color)->m_Resource);
+        ASSERT_EQ(cases[i].m_Format, GetTextureData(color)->m_Base.m_Format);
+        ReadTexture(color, 0, 0, bytes);
+        ASSERT_EQ(cases[i].m_ExpectedSize, bytes.Size());
+        ASSERT_EQ(0, memcmp(cases[i].m_Expected, bytes.Begin(), bytes.Size()));
+        DeleteRenderTarget(GetContext(), target);
+    }
+}
+
+// Verifies a rejected mip-zero redefinition preserves the original resource until a valid upload replaces it.
+TEST_F(DX12Test, TextureRedefinitionCommitsAfterUpload)
+{
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 1, 1, 1, 1);
+    const uint8_t pixel[] = { 1, 2, 3, 4 };
+    TextureParams params;
+    params.m_Width = params.m_Height = 1;
+    params.m_Data = pixel;
+    params.m_DataSize = sizeof(pixel);
+    SetTexture(GetContext(), texture, params);
+
+    const uint8_t block[8] = { 5 };
+    params.m_X = 1;
+    params.m_Width = params.m_Height = 4;
+    params.m_Format = TEXTURE_FORMAT_RGB_BC1;
+    params.m_Data = block;
+    params.m_DataSize = sizeof(block);
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(1u, GetTextureWidth(GetContext(), texture));
+    ASSERT_EQ(TEXTURE_FORMAT_RGBA, GetTextureData(texture)->m_Base.m_Format);
+    dmArray<uint8_t> bytes;
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(pixel), bytes.Size());
+    ASSERT_EQ(0, memcmp(pixel, bytes.Begin(), bytes.Size()));
+
+    params.m_X = 0;
+    SetTexture(GetContext(), texture, params);
+    ASSERT_EQ(4u, GetTextureWidth(GetContext(), texture));
+    ASSERT_EQ(TEXTURE_FORMAT_RGB_BC1, GetTextureData(texture)->m_Base.m_Format);
+    ReadTexture(texture, 0, 0, bytes);
+    ASSERT_EQ(sizeof(block), bytes.Size());
+    ASSERT_EQ(0, memcmp(block, bytes.Begin(), bytes.Size()));
+}
+
+// Verifies a failed pre-frame Close() restores each layer's state and a subsequent upload succeeds.
+TEST_F(DX12Test, FailedStartupUploadRestoresLayerStates)
+{
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D_ARRAY, 1, 1, 2, 1);
+    TextureParams params;
+    params.m_Width = params.m_Height = 1;
+    params.m_LayerCount = 2;
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_NEAREST;
+    SetTexture(GetContext(), texture, params);
+    DX12Texture* tex = GetTextureData(texture);
+    const uint16_t sampler = tex->m_TextureSamplerIndex;
+    TransitionTexture(m_Context->m_CommandList, tex, D3D12_RESOURCE_STATE_COPY_SOURCE, 1, 1);
+    SubmitAndWait();
+
+    // Overstate the cached width for one upload. WARP rejects both copies when the list closes.
+    D3D12_MESSAGE_ID expected = D3D12_MESSAGE_ID_COPYTEXTUREREGION_DSTREGIONOUTOFBOUNDS;
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumIDs = 1;
+    filter.DenyList.pIDList = &expected;
+    RequireHR(m_Info->PushStorageFilter(&filter));
+    const UINT64 denied = m_Info->GetNumMessagesDeniedByStorageFilter();
+    const uint8_t pixels[][4] = { { 1 }, { 2 }, { 3 }, { 4 } };
+    params.m_SubUpdate = 1;
+    params.m_Width = 2;
+    params.m_Data = pixels;
+    params.m_DataSize = 2 * sizeof(pixels[0]);
+    params.m_MinFilter = params.m_MagFilter = TEXTURE_FILTER_LINEAR;
+    m_Context->m_FrameBegun = 0;
+    tex->m_ResourceDesc.Width = 2;
+    SetTexture(GetContext(), texture, params);
+    tex->m_ResourceDesc.Width = 1;
+    m_Info->PopStorageFilter();
+    ASSERT_GT(m_Info->GetNumMessagesDeniedByStorageFilter(), denied);
+    ASSERT_EQ(D3D12_RESOURCE_STATE_COPY_DEST, tex->m_ResourceStates[0]);
+    ASSERT_EQ(D3D12_RESOURCE_STATE_COPY_SOURCE, tex->m_ResourceStates[1]);
+    ASSERT_EQ(sampler, tex->m_TextureSamplerIndex);
+    RequireHR(m_Context->m_Device->GetDeviceRemovedReason());
+
+    params.m_Width = 1;
+    params.m_DataSize = sizeof(pixels[0]);
+    SetTexture(GetContext(), texture, params);
+    m_Context->m_FrameBegun = 1;
+    dmArray<uint8_t> bytes;
+    for (uint32_t layer = 0; layer < 2; ++layer)
+    {
+        ReadTexture(texture, 0, layer, bytes);
+        ASSERT_EQ(sizeof(pixels[layer]), bytes.Size());
+        ASSERT_EQ(0, memcmp(pixels[layer], bytes.Begin(), bytes.Size()));
+    }
 }
 
 // Verifies compressed array updates preserve blocks outside the updated region.

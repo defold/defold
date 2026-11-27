@@ -1443,6 +1443,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -5521,6 +5522,15 @@ namespace dmGraphics
             params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
         MetalUploadTextureData(context, texture, params);
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
+    }
+
+    static bool MetalIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+               (!tex->m_Destroyed && tex->m_Texture && params.m_MipMap < tex->m_Texture->mipmapLevelCount());
     }
 
     static void MetalSetTexture(HContext _context, HTexture texture, const TextureParams& params)

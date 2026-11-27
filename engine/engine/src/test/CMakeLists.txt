@@ -6,6 +6,29 @@ include(defold)
 set(ENGINE_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOLUTE)
 
+# Startup uses registered test adapters and a test-owned platform shim.
+defold_add_executable(test_engine_graphics
+  "${ENGINE_TEST_ROOT}/test_engine_graphics.cpp"
+  "${ENGINE_TEST_ENGINE_ROOT}/src/engine_graphics.cpp"
+  "${ENGINE_DDF_H}"
+  "${DEFOLD_HOME}/engine/graphics/src/graphics.cpp")
+target_compile_definitions(test_engine_graphics PRIVATE DM_GRAPHICS_NULL)
+target_include_directories(test_engine_graphics PRIVATE
+  "${ENGINE_TEST_ENGINE_ROOT}/src"
+  "${CMAKE_CURRENT_BINARY_DIR}/../.."
+  "${DEFOLD_HOME}/engine/graphics/src")
+# engine_private.h also requires the engine DDF and subsystem headers.
+add_dependencies(test_engine_graphics engine_ddf_generated)
+foreach(_headers_target datastore_sdk_headers gamesys_sdk_headers graphics_sdk_headers platform_sdk_headers)
+  if(TARGET ${_headers_target})
+    add_dependencies(test_engine_graphics ${_headers_target})
+  endif()
+endforeach()
+defold_target_link_libraries(test_engine_graphics "${TARGET_PLATFORM}"
+  testmain graphics_proto ddf dlib image profile_null)
+defold_target_link_socket(test_engine_graphics "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_engine_graphics ON "${ENGINE_TEST_ENGINE_ROOT}")
+
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "macos|linux")
   defold_add_executable(test_engine_perfetto
     "${ENGINE_TEST_ROOT}/test_engine_perfetto.cpp"
@@ -26,9 +49,7 @@ if(_engine_profiler_js_runner)
   add_custom_target(run_test_resource_profiler_js
     COMMAND ${_engine_profiler_js_command}
     USES_TERMINAL VERBATIM)
-  defold_add_to_run_tests(run_test_resource_profiler_js
-    COMMAND ${_engine_profiler_js_command})
-  defold_register_sequential_test_command(resource_profiler_js
+  defold_add_to_run_tests(run_test_resource_profiler_js SEQUENTIAL_NAME resource_profiler_js
     COMMAND ${_engine_profiler_js_command})
 else()
   message(WARNING "Bun or Node.js not found; run_test_resource_profiler_js is unavailable")
@@ -181,10 +202,7 @@ add_custom_target(run_test_engine_test_content
   DEPENDS engine_test_content
   VERBATIM)
 # The runner uses only temporary projects and its own native-tool directory.
-defold_add_to_run_tests(run_test_engine_test_content RUN_GROUP bob_test_content
-  COMMAND ${_test_content_batch_command}
-  DEPENDS engine_test_content)
-defold_register_sequential_test_command(engine_test_content
+defold_add_to_run_tests(run_test_engine_test_content RUN_GROUP bob_test_content SEQUENTIAL_NAME engine_test_content
   COMMAND ${_test_content_batch_command}
   DEPENDS engine_test_content)
 
@@ -206,10 +224,7 @@ if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     add_dependencies(build_tests ${_engine_variant} engine_test_content)
     # Match the other GPU tests: local desktops and Linux CI with a display.
     if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
-      defold_add_to_run_tests(run_test_script_modules_${_engine_variant}
-        COMMAND ${_script_modules_command}
-        DEPENDS ${_engine_variant} engine_test_content)
-      defold_register_sequential_test_command(script_modules_${_engine_variant}
+      defold_add_to_run_tests(run_test_script_modules_${_engine_variant} SEQUENTIAL_NAME script_modules_${_engine_variant}
         COMMAND ${_script_modules_command}
         DEPENDS ${_engine_variant} engine_test_content)
     endif()

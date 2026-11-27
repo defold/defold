@@ -36,6 +36,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
@@ -1078,6 +1079,36 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(3, glyphBank.getGlyphsCount());
     }
 
+    // BMFont's "Match char height" option exports a negative size for the baked glyphs.
+    @Test
+    public void testFNTWithNegativeSize() throws Exception {
+        String fnt = new String(getFile("/bmfont.fnt"), StandardCharsets.UTF_8);
+        addFile("/em-height.fnt", fnt.replace("size=32", "size=-41"));
+        FontMap fontMap = getFontMap(build("/test.font", "font: \"/em-height.fnt\"\nmaterial: \"/test.material\"\n"));
+        assertEquals(41, fontMap.getSize());
+    }
+
+    // Re-exporting the .fnt or its atlas must update the existing glyph bank on an incremental build.
+    @Test
+    public void testFNTRebuildsGlyphBankWhenSourceOrAtlasChanges() throws Exception {
+        String fnt = new String(getFile("/bmfont.fnt"), StandardCharsets.UTF_8);
+        addFile("/fonts/bmfont.fnt", fnt);
+        addFile("/fonts/bmfont.png", getFile("/bmfont.png"));
+        String font = "font: \"/fonts/bmfont.fnt\"\nmaterial: \"/test.material\"\ncharacters: \"!\"\n";
+        FontMap fontMap = getFontMap(build("/test.font", font));
+        IResource output = getProject().getResource(fontMap.getGlyphBank()).output();
+        assertEquals(25.0f, GlyphBank.parseFrom(output.getContent()).getGlyphs(0).getAdvance(), 0.0f);
+
+        addFile("/fonts/bmfont.fnt", fnt.replace("size=32", "size=-32").replace("xadvance=25 ", "xadvance=26 "));
+        build("/test.font", font);
+        GlyphBank reexported = GlyphBank.parseFrom(output.getContent());
+        assertEquals(26.0f, reexported.getGlyphs(0).getAdvance(), 0.0f);
+
+        addImage("/fonts/bmfont.png", 512, 1024);
+        build("/test.font", font);
+        assertNotEquals(reexported.getGlyphData(), GlyphBank.parseFrom(output.getContent()).getGlyphData());
+    }
+
     // BMFont resources ignore stale vector and dynamic settings after switching font type.
     @Test
     public void testFNTIgnoresStaleVectorAndDynamicSettings() throws Exception {
@@ -1201,6 +1232,19 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         } catch (CompileExceptionError e) {
             assertEquals("invalid.fnt", e.getResource().getPath());
             assertTrue(!e.getMessage().isEmpty());
+        }
+    }
+
+    // A missing atlas page must report a compile error on the .fnt that should declare it.
+    @Test
+    public void testFNTWithoutPageReportsSource() throws Exception {
+        addFile("/missing-page.fnt", "info size=32 padding=0,0,0,0 spacing=1,1\ncommon pages=1\n");
+        try {
+            build("/test.font", "font: \"/missing-page.fnt\"\nmaterial: \"/test.material\"\n");
+            fail("Expected a compile error for the missing BMFont page");
+        } catch (CompileExceptionError e) {
+            assertEquals(getProject().getResource("/missing-page.fnt"), e.getResource());
+            assertEquals("BMFont is missing an atlas page entry", e.getMessage());
         }
     }
 
