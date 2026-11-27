@@ -32,17 +32,17 @@ namespace dmTexc
             static const uint8_t alpha_indices[16] = { 0, 128, 0, 128, 4, 128, 4, 128, 8, 128, 8, 128, 12, 128, 12, 128 };
             static const uint8_t color_indices[16] = { 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12 };
             // x86 byte and word types share the same register representation.
-            dsimd_ushort8_t words = SimdShuffleBytes(input, SimdLoadBytes(color_indices));
-            dsimd_ushort8_t alphas = SimdShuffleBytes(input, SimdLoadBytes(alpha_indices));
-            dsimd_ushort8_t alpha_factors = SimdOrUint(alphas, SimdSplatUint(0x00ff0000u));
+            dsimd_ushort8_t words = Simd128ShuffleBytes(input, Simd128LoadBytes(color_indices));
+            dsimd_ushort8_t alphas = Simd128ShuffleBytes(input, Simd128LoadBytes(alpha_indices));
+            dsimd_ushort8_t alpha_factors = Simd128OrUint(alphas, Simd128SplatUint(0x00ff0000u));
             // Split RGBA into R/B and G/A words; multiplying alpha by 255 preserves it.
-            dsimd_ushort8_t even = SimdMulU16(SimdAndU16(words, SimdSplatU16(255)), alphas);
-            dsimd_ushort8_t odd = SimdMulU16(SimdShiftRightU16(words, 8), alpha_factors);
+            dsimd_ushort8_t even = Simd128MulU16(Simd128AndU16(words, Simd128SplatU16(255)), alphas);
+            dsimd_ushort8_t odd = Simd128MulU16(Simd128ShiftRightU16(words, 8), alpha_factors);
             // Exact floor(product / 255) for byte products, using multiply-high.
-            even = SimdShiftRightU16(SimdMulHighU16(even, SimdSplatU16(0x8081)), 7);
-            odd = SimdShiftRightU16(SimdMulHighU16(odd, SimdSplatU16(0x8081)), 7);
+            even = Simd128ShiftRightU16(Simd128MulHighU16(even, Simd128SplatU16(0x8081)), 7);
+            odd = Simd128ShiftRightU16(Simd128MulHighU16(odd, Simd128SplatU16(0x8081)), 7);
             // Each quotient fits in a byte. Merge without saturated packing.
-            return SimdOrU16(even, SimdShiftLeftU16(odd, 8));
+            return Simd128OrU16(even, Simd128ShiftLeftU16(odd, 8));
         }
 #endif
 
@@ -51,7 +51,7 @@ namespace dmTexc
             uint32_t remaining = width * height;
             while (remaining >= 4)
             {
-                SimdStoreBytes(data, PreMultiplyPixels(SimdLoadBytes(data)));
+                Simd128StoreBytes(data, PreMultiplyPixels(Simd128LoadBytes(data)));
                 data += 16;
                 remaining -= 4;
             }
@@ -79,14 +79,14 @@ namespace dmTexc
 #if DM_SIMD_X86_ISA == 42
                 while (remaining >= 16)
                 {
-                    dsimd_byte16_t p0 = ConvertPreviewPixels(SimdLoadBytes(source));
-                    dsimd_byte16_t p1 = ConvertPreviewPixels(SimdLoadBytes(source + 16));
-                    dsimd_byte16_t p2 = ConvertPreviewPixels(SimdLoadBytes(source + 32));
-                    dsimd_byte16_t p3 = ConvertPreviewPixels(SimdLoadBytes(source + 48));
-                    SimdStoreBytes(destination, p0);
-                    SimdStoreBytes(destination + 16, p1);
-                    SimdStoreBytes(destination + 32, p2);
-                    SimdStoreBytes(destination + 48, p3);
+                    dsimd_byte16_t p0 = ConvertPreviewPixels(Simd128LoadBytes(source));
+                    dsimd_byte16_t p1 = ConvertPreviewPixels(Simd128LoadBytes(source + 16));
+                    dsimd_byte16_t p2 = ConvertPreviewPixels(Simd128LoadBytes(source + 32));
+                    dsimd_byte16_t p3 = ConvertPreviewPixels(Simd128LoadBytes(source + 48));
+                    Simd128StoreBytes(destination, p0);
+                    Simd128StoreBytes(destination + 16, p1);
+                    Simd128StoreBytes(destination + 32, p2);
+                    Simd128StoreBytes(destination + 48, p3);
                     source += 64;
                     destination += 64;
                     remaining -= 16;
@@ -95,9 +95,9 @@ namespace dmTexc
                 while (remaining >= 4)
                 {
 #if DM_SIMD_X86_ISA == 42
-                    SimdStoreBytes(destination, ConvertPreviewPixels(SimdLoadBytes(source)));
+                    Simd128StoreBytes(destination, ConvertPreviewPixels(Simd128LoadBytes(source)));
 #else
-                    SimdStoreBytes(destination, PreMultiplyPixels(ReversePixels(SimdLoadBytes(source))));
+                    Simd128StoreBytes(destination, PreMultiplyPixels(ReversePixels(Simd128LoadBytes(source))));
 #endif
                     source += 16;
                     destination += 16;
@@ -123,16 +123,16 @@ namespace dmTexc
 
         void AccumulateResizeRow(const float* source, float* destination, size_t count, float weight, bool add)
         {
-            dsimd_float4_t scale = SimdSplat(weight);
+            dsimd_float4_t scale = Simd128Splat(weight);
             if (add)
             {
                 for (size_t i = 0; i < count; i += 4)
-                    SimdStore(destination + i, SimdMulAdd(SimdLoad(source + i), scale, SimdLoad(destination + i)));
+                    Simd128Store(destination + i, Simd128MulAdd(Simd128Load(source + i), scale, Simd128Load(destination + i)));
             }
             else
             {
                 for (size_t i = 0; i < count; i += 4)
-                    SimdStore(destination + i, SimdMul(SimdLoad(source + i), scale));
+                    Simd128Store(destination + i, Simd128Mul(Simd128Load(source + i), scale));
             }
         }
     }

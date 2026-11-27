@@ -265,13 +265,13 @@ namespace dmDeviceWasapi
         }
         device->m_MixFormat = pformat;
 
-        dmLogInfo("Mix format:");
-        dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", pformat->wFormatTag, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
-        dmLogInfo("  nChannels:        %d", pformat->nChannels);
-        dmLogInfo("  nSamplesPerSec:   %d", pformat->nSamplesPerSec);
-        dmLogInfo("  nAvgBytesPerSec:  %d", pformat->nAvgBytesPerSec);
-        dmLogInfo("  nBlockAlign:      %d", pformat->nBlockAlign);
-        dmLogInfo("  wBitsPerSample:   %d", pformat->wBitsPerSample);
+        dmLogDebug("Mix format:");
+        dmLogDebug("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", pformat->wFormatTag, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+        dmLogDebug("  nChannels:        %d", pformat->nChannels);
+        dmLogDebug("  nSamplesPerSec:   %d", pformat->nSamplesPerSec);
+        dmLogDebug("  nAvgBytesPerSec:  %d", pformat->nAvgBytesPerSec);
+        dmLogDebug("  nBlockAlign:      %d", pformat->nBlockAlign);
+        dmLogDebug("  wBitsPerSample:   %d", pformat->wBitsPerSample);
 
         WAVEFORMATEX* closest = 0;
         hr = device->m_AudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, pformat, &closest);
@@ -317,7 +317,7 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_INIT_ERROR;
         }
 
-        dmLogInfo("  -> Format:        %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+        dmLogDebug("  -> Format:        %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
         device->m_MixFormat = pformat;
 
         REFERENCE_TIME buffer_duration = 0;
@@ -556,7 +556,6 @@ namespace dmDeviceWasapi
 
         info->m_MixRate = device->m_MixFormat->nSamplesPerSec;
         info->m_FrameCount = device->m_FrameCount;
-        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     static void DeviceWasapiStart(dmSound::HDevice _device)

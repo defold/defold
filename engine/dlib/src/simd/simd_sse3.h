@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SIMD_X86_H
-#define DM_SIMD_X86_H
+#ifndef DM_SIMD_SSE3_H
+#define DM_SIMD_SSE3_H
 #include <string.h>
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -387,4 +387,40 @@ static inline dsimd_byte16_t SimdPackSignedBytes(dsimd_ushort8_t low, dsimd_usho
     return _mm_packus_epi16(low, high);
 }
 
-#endif // DM_SIMD_X86_H
+static inline dsimd_float4_t SimdInternalS16LowToFloat(__m128i value)
+{
+#if defined(DM_SIMD_SSE41)
+    return _mm_cvtepi32_ps(_mm_cvtepi16_epi32(value));
+#else
+    return _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpacklo_epi16(value, value), 16));
+#endif
+}
+
+static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source)
+{
+    return SimdInternalS16LowToFloat(_mm_loadl_epi64((const __m128i*)source));
+}
+
+static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source)
+{
+    int32_t bits;
+    memcpy(&bits, source, sizeof(bits));
+    __m128i value = _mm_cvtsi32_si128(bits);
+    value = _mm_unpacklo_epi8(value, value);
+    return SimdInternalS16LowToFloat(value);
+}
+
+static inline __m128i SimdInternalFloatToS16Int(dsimd_float4_t value)
+{
+    __m128 minimum = _mm_set1_ps(-32768.0f), maximum = _mm_set1_ps(32767.0f);
+    return _mm_cvttps_epi32(_mm_min_ps(_mm_max_ps(value, minimum), maximum));
+}
+
+static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right)
+{
+    __m128i l = SimdInternalFloatToS16Int(left);
+    __m128i r = SimdInternalFloatToS16Int(right);
+    _mm_storeu_si128((__m128i*)destination, _mm_packs_epi32(_mm_unpacklo_epi32(l, r), _mm_unpackhi_epi32(l, r)));
+}
+
+#endif // DM_SIMD_SSE3_H

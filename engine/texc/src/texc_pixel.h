@@ -15,7 +15,7 @@
 #ifndef DM_TEXC_PIXEL_H
 #define DM_TEXC_PIXEL_H
 
-#include <simd/simd.h>
+#include <simd/simd_128.h>
 
 namespace dmTexc
 {
@@ -86,7 +86,7 @@ namespace dmTexc
     static inline dsimd_ushort8_t Divide255(dsimd_ushort8_t value)
     {
         // Exact floor(value / 255) for products of two bytes (0..65025).
-        return SimdShiftRightU16(SimdAddU16(SimdAddU16(value, SimdSplatU16(1)), SimdShiftRightU16(value, 8)), 8);
+        return Simd128ShiftRightU16(Simd128AddU16(Simd128AddU16(value, Simd128SplatU16(1)), Simd128ShiftRightU16(value, 8)), 8);
     }
 #endif
 
@@ -95,74 +95,90 @@ namespace dmTexc
 #if defined(DM_SIMD_SCALAR_H)
         // Keep R/B in separate 16-bit fields of each pixel. Products and the
         // division correction stay below 65536, so fields cannot carry into one another.
-        dsimd_uint4_t bits = SimdBytesToUint(pixels);
-        dsimd_uint4_t alpha = SimdShiftRightUint(bits, 24);
-        dsimd_uint4_t rb_mask = SimdSplatUint(0x00ff00ffu);
-        dsimd_uint4_t rb = SimdMulUint(SimdAndUint(bits, rb_mask), alpha);
-        rb = SimdAddUint(SimdAddUint(rb, SimdAndUint(SimdShiftRightUint(rb, 8), rb_mask)), SimdSplatUint(0x00010001u));
-        rb = SimdAndUint(SimdShiftRightUint(rb, 8), rb_mask);
-        dsimd_uint4_t green = SimdMulUint(SimdAndUint(SimdShiftRightUint(bits, 8), SimdSplatUint(255)), alpha);
-        green = SimdShiftRightUint(SimdAddUint(SimdAddUint(green, SimdShiftRightUint(green, 8)), SimdSplatUint(1)), 8);
-        dsimd_uint4_t result = SimdOrUint(SimdOrUint(rb, SimdShiftLeftUint(green, 8)), SimdAndUint(bits, SimdSplatUint(0xff000000u)));
-        return SimdUintToBytes(result);
+        dsimd_uint4_t bits = Simd128BytesToUint(pixels);
+        dsimd_uint4_t alpha = Simd128ShiftRightUint(bits, 24);
+        dsimd_uint4_t rb_mask = Simd128SplatUint(0x00ff00ffu);
+        dsimd_uint4_t rb = Simd128MulUint(Simd128AndUint(bits, rb_mask), alpha);
+        rb = Simd128AddUint(Simd128AddUint(rb, Simd128AndUint(Simd128ShiftRightUint(rb, 8), rb_mask)), Simd128SplatUint(0x00010001u));
+        rb = Simd128AndUint(Simd128ShiftRightUint(rb, 8), rb_mask);
+        dsimd_uint4_t green = Simd128MulUint(Simd128AndUint(Simd128ShiftRightUint(bits, 8), Simd128SplatUint(255)), alpha);
+        green = Simd128ShiftRightUint(Simd128AddUint(Simd128AddUint(green, Simd128ShiftRightUint(green, 8)), Simd128SplatUint(1)), 8);
+        dsimd_uint4_t result = Simd128OrUint(Simd128OrUint(rb, Simd128ShiftLeftUint(green, 8)), Simd128AndUint(bits, Simd128SplatUint(0xff000000u)));
+        return Simd128UintToBytes(result);
 #else
         dsimd_uint4_t alphas;
-#if defined(DM_SIMD_X86_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3))
+#if defined(DM_SIMD_SSE3_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3))
         // SSE3 has no byte table lookup. Replicate each pixel's alpha with shifts.
-        alphas = SimdShiftRightUint(SimdBytesToUint(pixels), 24);
-        alphas = SimdOrUint(alphas, SimdShiftLeftUint(alphas, 8));
-        alphas = SimdOrUint(alphas, SimdShiftLeftUint(alphas, 16));
+        alphas = Simd128ShiftRightUint(Simd128BytesToUint(pixels), 24);
+        alphas = Simd128OrUint(alphas, Simd128ShiftLeftUint(alphas, 8));
+        alphas = Simd128OrUint(alphas, Simd128ShiftLeftUint(alphas, 16));
 #else
         static const uint8_t alpha_indices[16] = { 3, 3, 3, 3, 7, 7, 7, 7, 11, 11, 11, 11, 15, 15, 15, 15 };
-        alphas = SimdBytesToUint(SimdShuffleBytes(pixels, SimdLoadBytes(alpha_indices)));
+        alphas = Simd128BytesToUint(Simd128ShuffleBytes(pixels, Simd128LoadBytes(alpha_indices)));
 #endif
         // Multiply the alpha lanes by 255 so they remain unchanged after division.
-        dsimd_byte16_t  factors = SimdUintToBytes(SimdOrUint(alphas, SimdSplatUint(0xff000000u)));
-        dsimd_ushort8_t low = SimdMulU16(SimdWidenBytesLow(pixels), SimdWidenBytesLow(factors));
-        dsimd_ushort8_t high = SimdMulU16(SimdWidenBytesHigh(pixels), SimdWidenBytesHigh(factors));
-        return SimdPackBytes(Divide255(low), Divide255(high));
+        dsimd_byte16_t  factors = Simd128UintToBytes(Simd128OrUint(alphas, Simd128SplatUint(0xff000000u)));
+        dsimd_ushort8_t low = Simd128MulU16(Simd128WidenBytesLow(pixels), Simd128WidenBytesLow(factors));
+        dsimd_ushort8_t high = Simd128MulU16(Simd128WidenBytesHigh(pixels), Simd128WidenBytesHigh(factors));
+        return Simd128PackBytes(Divide255(low), Divide255(high));
 #endif
     }
 
     static inline dsimd_byte16_t ReversePixels(dsimd_byte16_t pixels)
     {
-#if defined(DM_SIMD_SCALAR_H) || (defined(DM_SIMD_X86_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3)))
+#if defined(DM_SIMD_SCALAR_H) || (defined(DM_SIMD_SSE3_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3)))
         // Reverse bytes within each 32-bit pixel without SSE3's scalar table lookup.
-        dsimd_uint4_t bits = SimdBytesToUint(pixels);
-        dsimd_uint4_t low = SimdOrUint(SimdShiftRightUint(bits, 24),
-                                       SimdAndUint(SimdShiftRightUint(bits, 8), SimdSplatUint(0x0000ff00u)));
-        dsimd_uint4_t high = SimdOrUint(SimdShiftLeftUint(bits, 24),
-                                        SimdAndUint(SimdShiftLeftUint(bits, 8), SimdSplatUint(0x00ff0000u)));
-        return SimdUintToBytes(SimdOrUint(low, high));
+        dsimd_uint4_t bits = Simd128BytesToUint(pixels);
+        dsimd_uint4_t low = Simd128OrUint(Simd128ShiftRightUint(bits, 24),
+                                       Simd128AndUint(Simd128ShiftRightUint(bits, 8), Simd128SplatUint(0x0000ff00u)));
+        dsimd_uint4_t high = Simd128OrUint(Simd128ShiftLeftUint(bits, 24),
+                                        Simd128AndUint(Simd128ShiftLeftUint(bits, 8), Simd128SplatUint(0x00ff0000u)));
+        return Simd128UintToBytes(Simd128OrUint(low, high));
 #else
         static const uint8_t indices[16] = { 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12 };
-        return SimdShuffleBytes(pixels, SimdLoadBytes(indices));
+        return Simd128ShuffleBytes(pixels, Simd128LoadBytes(indices));
 #endif
     }
 
-#if defined(DM_SIMD_AVX2) || defined(DM_SIMD_AVX512)
-    static inline dsimd_wide_byte_t PreMultiplyPixels(dsimd_wide_byte_t pixels)
+    static inline void PreMultiplyPixels_Simd128(uint8_t* data, uint32_t remaining)
     {
-        static const uint8_t alpha_indices[64] = {
-            3, 3, 3, 3, 7, 7, 7, 7, 11, 11, 11, 11, 15, 15, 15, 15, 3, 3, 3, 3, 7, 7, 7, 7, 11, 11, 11, 11, 15, 15, 15, 15, 3, 3, 3, 3, 7, 7, 7, 7, 11, 11, 11, 11, 15, 15, 15, 15, 3, 3, 3, 3, 7, 7, 7, 7, 11, 11, 11, 11, 15, 15, 15, 15
-        };
-        dsimd_wide_uint_t   alpha = SimdWideBytesToUint(SimdWideShuffleBytes(pixels, SimdWideLoadBytes(alpha_indices)));
-        dsimd_wide_byte_t   factors = SimdWideUintToBytes(SimdWideOrUint(alpha, SimdWideSplatUint(0xff000000u)));
-        dsimd_wide_ushort_t low = SimdWideMulU16(SimdWideWidenBytesLow(pixels), SimdWideWidenBytesLow(factors));
-        dsimd_wide_ushort_t high = SimdWideMulU16(SimdWideWidenBytesHigh(pixels), SimdWideWidenBytesHigh(factors));
-        low = SimdWideShiftRightU16(SimdWideAddU16(SimdWideAddU16(low, SimdWideSplatU16(1)), SimdWideShiftRightU16(low, 8)), 8);
-        high = SimdWideShiftRightU16(SimdWideAddU16(SimdWideAddU16(high, SimdWideSplatU16(1)), SimdWideShiftRightU16(high, 8)), 8);
-        return SimdWidePackBytes(low, high);
+        while (remaining >= 4)
+        {
+            Simd128StoreBytes(data, PreMultiplyPixels(Simd128LoadBytes(data)));
+            data += 16;
+            remaining -= 4;
+        }
+        // At most three pixels; do not read beyond small mips or unaligned buffers.
+        while (remaining--)
+        {
+            uint32_t alpha = data[3];
+            data[0] = (uint8_t)(data[0] * alpha / 255);
+            data[1] = (uint8_t)(data[1] * alpha / 255);
+            data[2] = (uint8_t)(data[2] * alpha / 255);
+            data += 4;
+        }
     }
 
-    static inline dsimd_wide_byte_t ReversePixels(dsimd_wide_byte_t pixels)
+    static inline void ConvertPreviewPixels_Simd128(const uint8_t* source, uint8_t* destination, uint32_t remaining)
     {
-        static const uint8_t wide_indices[64] = {
-            3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
-        };
-        return SimdWideShuffleBytes(pixels, SimdWideLoadBytes(wide_indices));
+        while (remaining >= 4)
+        {
+            Simd128StoreBytes(destination, PreMultiplyPixels(ReversePixels(Simd128LoadBytes(source))));
+            source += 16;
+            destination += 16;
+            remaining -= 4;
+        }
+        while (remaining--)
+        {
+            uint32_t alpha = source[0];
+            destination[0] = (uint8_t)(source[3] * alpha / 255);
+            destination[1] = (uint8_t)(source[2] * alpha / 255);
+            destination[2] = (uint8_t)(source[1] * alpha / 255);
+            destination[3] = (uint8_t)alpha;
+            source += 4;
+            destination += 4;
+        }
     }
-#endif
 } // namespace dmTexc
 
 #endif // DM_TEXC_PIXEL_H

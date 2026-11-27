@@ -308,4 +308,31 @@ static inline dsimd_byte16_t SimdPackSignedBytes(dsimd_ushort8_t low, dsimd_usho
     return wasm_u8x16_narrow_i16x8(low, high);
 }
 
+static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source)
+{
+    return wasm_f32x4_convert_i32x4(wasm_i32x4_load16x4(source));
+}
+
+static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source)
+{
+    v128_t bytes = wasm_v128_load32_zero(source);
+    return wasm_f32x4_convert_i32x4(wasm_i32x4_extend_low_i16x8(wasm_i8x16_shuffle(bytes, bytes, 0, 0, 1, 1, 2, 2, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0)));
+}
+
+static inline dsimd_float4_t SimdConvertS8ToS16Float(dsimd_byte16_t bytes, unsigned quartet)
+{
+    v128_t words = quartet < 2 ? wasm_i8x16_shuffle(bytes, bytes, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7)
+                              : wasm_i8x16_shuffle(bytes, bytes, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15);
+    v128_t integers = quartet & 1 ? wasm_i32x4_extend_high_i16x8(words) : wasm_i32x4_extend_low_i16x8(words);
+    return wasm_f32x4_convert_i32x4(integers);
+}
+
+static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right)
+{
+    v128_t l = wasm_i32x4_trunc_sat_f32x4(left);
+    v128_t r = wasm_i32x4_trunc_sat_f32x4(right);
+    v128_t packed = wasm_i16x8_narrow_i32x4(l, r);
+    wasm_v128_store(destination, wasm_i16x8_shuffle(packed, packed, 0, 4, 1, 5, 2, 6, 3, 7));
+}
+
 #endif // DM_SIMD_WASM_H

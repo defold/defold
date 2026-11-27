@@ -73,10 +73,6 @@ namespace dmTexc
     {
         extern const ResizeKernels g_ResizeKernels;
     }
-    namespace Wide
-    {
-        extern const ResizeKernels g_ResizeKernels;
-    }
 } // namespace dmTexc
 
 #endif // DM_TEXC_RESIZE_H

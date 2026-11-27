@@ -17,6 +17,7 @@
 
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
+#include <simd/simd.h>
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/sound/sound.h>
@@ -54,11 +55,21 @@ namespace dmSound
     struct InitializeParams;
     void SetDefaultInitializeParams(InitializeParams* params);
 
+    // DEFAULT selects a CPU/OS-supported kernel during initialization; CPU forces
+    // scalar mixing. Unavailable explicit SIMD requests use the CPU fallback.
+    // Explicit values match dsimd_version_t; the four-lane x86 kernel requires SSE3.
     enum DSPImplType
     {
-        DSPIMPL_TYPE_CPU = 0,
-        DSPIMPL_TYPE_SSE2 = 1,
-        DSPIMPL_TYPE_WASM_SIMD128 = 2,
+        DSPIMPL_TYPE_CPU          = DSIMD_VERSION_SCALAR,
+        DSPIMPL_TYPE_SSE2         = DSIMD_VERSION_SSE2,
+        DSPIMPL_TYPE_SSE3         = DSIMD_VERSION_SSE3,
+        DSPIMPL_TYPE_SSSE3        = DSIMD_VERSION_SSSE3,
+        DSPIMPL_TYPE_SSE41        = DSIMD_VERSION_SSE41,
+        DSPIMPL_TYPE_SSE42        = DSIMD_VERSION_SSE42,
+        DSPIMPL_TYPE_NEON         = DSIMD_VERSION_NEON,
+        DSPIMPL_TYPE_WASM_SIMD128 = DSIMD_VERSION_WASM_SIMD128,
+        DSPIMPL_TYPE_AVX2         = DSIMD_VERSION_AVX2,
+        DSPIMPL_TYPE_AVX512       = DSIMD_VERSION_AVX512,
 
         DSPIMPL_TYPE_DEFAULT = -1,
     };
@@ -192,6 +203,7 @@ namespace dmSound
     {
         uint32_t m_MixRate;
         uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
+        // Reserved for compatibility with existing sound devices.
         DSPImplType m_DSPImplementation;
         uint8_t m_UseNonInterleaved : 1; // If set output buffer contains channels in sequence instead of interleaved
         uint8_t m_UseFloats : 1; // If set device expects float data
