@@ -1585,6 +1585,68 @@ TEST(LinuxWindow, WaylandHiddenFullscreenSize)
     dmPlatform::DeleteWindow(w);
 }
 
+static void AnnounceLegacyCompositor(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
+{
+    if (!strcmp(interface, "wl_compositor"))
+    {
+        dmPlatform::g_WaylandRegistryListener.global(data, registry, name, interface, dmMath::Min(version, 2u));
+    }
+}
+
+// A surface without buffer scaling needs one pixel per logical unit both before and after it enters a HiDPI output.
+TEST(LinuxWindow, WaylandLegacySurfaceScale)
+{
+    if (!getenv("DM_TEST_WAYLAND_SCALE"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w && w->m_Wayland);
+    LinuxWayland* wl = w->m_Wayland;
+    wl_compositor_destroy(wl->m_Compositor);
+    wl->m_Compositor = 0;
+    wl_registry* registry = wl_display_get_registry(w->m_WlDisplay);
+    const wl_registry_listener listener = { AnnounceLegacyCompositor, dmPlatform::g_WaylandRegistryListener.global_remove };
+    wl_registry_add_listener(registry, &listener, w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    wl_registry_destroy(registry);
+    ASSERT_TRUE(wl->m_Compositor);
+    if (wl->m_ScaleManager)
+    {
+        wp_fractional_scale_manager_v1_destroy(wl->m_ScaleManager);
+        wl->m_ScaleManager = 0;
+    }
+
+    WindowCreateParams p = Params();
+    p.m_Hidden = p.m_Fullscreen = true;
+    p.m_Width = p.m_Height = 0;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    ASSERT_LE(wl_surface_get_version(w->m_Surface), 2u);
+    ASSERT_FALSE(wl->m_Outputs.Empty());
+    const LinuxOutput* output = wl->m_Outputs[0];
+    ASSERT_GT(output->m_Scale, 1);
+    const uint32_t width = output->m_Width / output->m_Scale, height = output->m_Height / output->m_Scale;
+    EXPECT_EQ((int)width, w->m_Width);
+    EXPECT_EQ((int)height, w->m_Height);
+    EXPECT_EQ(width, dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ(height, dmPlatform::GetWindowHeight(w));
+
+    dmPlatform::ShowWindow(w);
+    dmPlatform::SwapBuffers(w);
+    const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+    while (!wl->m_SurfaceEntered && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(w);
+    }
+
+    EXPECT_TRUE(wl->m_SurfaceEntered);
+    EXPECT_EQ(1.0f, dmPlatform::GetDisplayScaleFactor(w));
+    EXPECT_EQ(width, dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ(height, dmPlatform::GetWindowHeight(w));
+    dmPlatform::DeleteWindow(w);
+}
+
 static void DeleteWaylandWindowOnResize(void* data, uint32_t, uint32_t)
 {
     HWindow* window = (HWindow*)data;

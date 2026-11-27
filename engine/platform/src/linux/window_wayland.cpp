@@ -90,6 +90,32 @@ namespace dmPlatform
         return CalculateDisplayDensity(output->m_WidthMM, output->m_Width);
     }
 
+    static void UpdateSurfaceSize(HWindow w, int width, int height, float scale)
+    {
+        LinuxWayland* wl = w->m_Wayland;
+        if (w->m_Surface && wl_surface_get_version(w->m_Surface) >= WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
+        {
+            wl_surface_set_buffer_scale(w->m_Surface, wl->m_Viewport ? 1 : (int)scale);
+        }
+        else if (!wl->m_Viewport)
+        {
+            // Without a viewport or buffer scaling, one buffer pixel is one surface unit.
+            scale = 1.0f;
+        }
+
+        if (wl->m_Viewport)
+        {
+            wp_viewport_set_destination(wl->m_Viewport, width, height);
+        }
+
+        if (wl->m_XdgSurface && wl->m_Configured)
+        {
+            WaylandResizeFrame(w, width, height);
+        }
+
+        LinuxUpdateSize(w, width, height, scale);
+    }
+
     static void Resize(HWindow w, int width, int height)
     {
         // A preferred scale can arrive before the initial fullscreen size.
@@ -125,25 +151,7 @@ namespace dmPlatform
             scale = wl->m_PreferredScale / 120.0f;
         }
 
-        if (w->m_Surface)
-        {
-            if (wl_surface_get_version(w->m_Surface) >= WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
-            {
-                wl_surface_set_buffer_scale(w->m_Surface, wl->m_Viewport ? 1 : (int)scale);
-            }
-
-            if (wl->m_Viewport)
-            {
-                wp_viewport_set_destination(wl->m_Viewport, width, height);
-            }
-        }
-
-        if (wl->m_XdgSurface && wl->m_Configured)
-        {
-            WaylandResizeFrame(w, width, height);
-        }
-
-        LinuxUpdateSize(w, width, height, scale);
+        UpdateSurfaceSize(w, width, height, scale);
     }
 
     static void Fractional(void* data, wp_fractional_scale_v1*, uint32_t scale)
@@ -785,7 +793,7 @@ namespace dmPlatform
                     height = (int)lround((output->m_SwapAxes ? output->m_Width : output->m_Height) / scale);
                 }
 
-                LinuxUpdateSize(w, dmMath::Max(1, width), dmMath::Max(1, height), scale);
+                UpdateSurfaceSize(w, dmMath::Max(1, width), dmMath::Max(1, height), scale);
             }
         }
 
