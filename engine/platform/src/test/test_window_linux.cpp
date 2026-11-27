@@ -674,7 +674,7 @@ static void* SaveClipboardSelection(void* data)
     Atom clipboard = XInternAtom(d, "CLIPBOARD", False);
     Atom multiple = XInternAtom(d, "MULTIPLE", False);
     Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
-    Atom targets[] = { XInternAtom(d, "TARGETS", False), XA_STRING };
+    Atom targets[] = { XInternAtom(d, "TARGETS", False), XInternAtom(d, "SAVE_TARGETS", False), XA_STRING };
     XEvent converted;
     for (unsigned i = 0; i < DM_ARRAY_SIZE(targets); ++i)
     {
@@ -759,7 +759,7 @@ TEST(LinuxWindow, X11ClipboardSurvivesCloseAndReopen)
     XCloseDisplay(client);
 }
 
-// An active clipboard handoff can span several idle timeouts and include text larger than a core X11 request.
+// The clipboard owner advertises and acknowledges SAVE_TARGETS and keeps serving text throughout a slow handoff.
 TEST(LinuxWindow, X11ClipboardManagerKeepsText)
 {
     // Only claim the manager selection on the harness's private X server.
@@ -802,13 +802,33 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
     ASSERT_EQ(0, pthread_join(worker, &saved));
     EXPECT_TRUE(saved == &manager);
     EXPECT_EQ(manager.m_Window, XGetSelectionOwner(d, XInternAtom(d, "CLIPBOARD", False)));
+
+    Atom marker = XInternAtom(d, "SAVE_TARGETS", False);
+    Atom type;
+    int format;
+    unsigned long size, left;
+    unsigned char* bytes = 0;
+    ASSERT_EQ(Success, XGetWindowProperty(d, manager.m_Window, XInternAtom(d, "TARGETS", False), 0, 256, True, XA_ATOM, &type, &format, &size, &left, &bytes));
+    ASSERT_EQ(XA_ATOM, type);
+    ASSERT_EQ(32, format);
+    bool advertised = false;
+    for (unsigned long i = 0; i < size; ++i)
+    {
+        advertised |= ((Atom*)bytes)[i] == marker;
+    }
+
+    XFree(bytes);
+    EXPECT_TRUE(advertised);
+    ASSERT_EQ(Success, XGetWindowProperty(d, manager.m_Window, marker, 0, 0, True, AnyPropertyType, &type, &format, &size, &left, &bytes));
+    EXPECT_EQ(XInternAtom(d, "NULL", False), type);
+    EXPECT_EQ(32, format);
+    EXPECT_EQ(0ul, size);
+    EXPECT_EQ(0ul, left);
+    XFree(bytes);
+
     Atom formats[] = { XInternAtom(d, "UTF8_STRING", False), XA_STRING };
     for (unsigned i = 0; i < 2; ++i)
     {
-        Atom type;
-        int format;
-        unsigned long size, left;
-        unsigned char* bytes = 0;
         EXPECT_EQ(Success, XGetWindowProperty(d, manager.m_Window, formats[i], 0, (text.Size() + 3) / 4, False, formats[i], &type, &format, &size, &left, &bytes));
         EXPECT_TRUE(type == formats[i] && format == 8 && size == text.Size() && !left && !memcmp(bytes, text.Begin(), size));
         XFree(bytes);

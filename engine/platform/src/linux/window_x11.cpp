@@ -602,8 +602,15 @@ namespace dmPlatform
         LinuxX11* x = w->m_X11;
         if (target == x->m_Targets)
         {
-            Atom formats[] = { x->m_Targets, x->m_Multiple, x->m_Utf8, XA_STRING };
-            XChangeProperty(w->m_Display, requestor, dest, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 4);
+            Atom formats[] = { x->m_Targets, x->m_Multiple, x->m_SaveTargets, x->m_Utf8, XA_STRING };
+            XChangeProperty(w->m_Display, requestor, dest, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, DM_ARRAY_SIZE(formats));
+            return true;
+        }
+
+        if (target == x->m_SaveTargets)
+        {
+            // On CLIPBOARD, SAVE_TARGETS is a capability marker with an empty result.
+            XChangeProperty(w->m_Display, requestor, dest, AtomFor(w, "NULL"), 32, PropModeReplace, 0, 0);
             return true;
         }
 
