@@ -145,6 +145,45 @@ TEST_F(WindowResizeTest, SetWindowSizeUpdatesLogicalSize)
     ASSERT_EQ(320u, GetWindowHeight(m_Context));
 }
 
+#if !defined(DM_TEST_WINDOW_DX12)
+// Verifies sampled depth starts in the render pass's final layout and keeps a
+// separate shader view for packed depth/stencil, including after target resize.
+TEST_F(WindowResizeTest, DepthSamplingViewSurvivesResize)
+{
+    RenderTargetCreationParams params = {};
+    params.m_DepthTexture = true;
+    params.m_DepthBufferCreationParams.m_Width = params.m_DepthBufferParams.m_Width = 64;
+    params.m_DepthBufferCreationParams.m_Height = params.m_DepthBufferParams.m_Height = 64;
+    params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferCreationParams.m_Width = params.m_StencilBufferParams.m_Width = 64;
+    params.m_StencilBufferCreationParams.m_Height = params.m_StencilBufferParams.m_Height = 64;
+    params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
+    const uint32_t flags = BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+    HRenderTarget target = NewRenderTarget(m_Context, flags, params);
+    ASSERT_NE((HRenderTarget) 0, target);
+
+    VulkanContext* context = (VulkanContext*) m_Context;
+    HTexture handle = GetRenderTargetTexture(m_Context, target, BUFFER_TYPE_DEPTH_BIT);
+    VulkanTexture* depth = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, handle);
+    ASSERT_NE((VulkanTexture*) 0, depth);
+    const VkImageView first_view = depth->GetDescriptorImageView();
+    EXPECT_EQ(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, depth->m_ImageLayout[0]);
+
+    SetRenderTargetSize(m_Context, target, 128, 128);
+    EXPECT_EQ(handle, GetRenderTargetTexture(m_Context, target, BUFFER_TYPE_DEPTH_BIT));
+    EXPECT_EQ(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, depth->m_ImageLayout[0]);
+    EXPECT_NE(first_view, depth->GetDescriptorImageView());
+    EXPECT_NE(VK_NULL_HANDLE, depth->GetDescriptorImageView());
+    if (depth->m_Format == VK_FORMAT_D32_SFLOAT_S8_UINT || depth->m_Format == VK_FORMAT_D24_UNORM_S8_UINT ||
+        depth->m_Format == VK_FORMAT_D16_UNORM_S8_UINT)
+    {
+        EXPECT_NE(depth->m_Handle.m_ImageView, depth->GetDescriptorImageView());
+    }
+
+    DeleteRenderTarget(m_Context, target);
+}
+#endif
+
 #if defined(DM_TEST_WINDOW_DX12)
 // Verifies native DX12 contexts expose storage buffers and can allocate the
 // 12 MiB buffer from issue #13694 through the public API.

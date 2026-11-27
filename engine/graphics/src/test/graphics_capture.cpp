@@ -1066,6 +1066,88 @@ static void ReadCapturePixels(HContext context, dmArray<uint8_t>& pixels)
     ReadPixels(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE, pixels.Begin(), pixels.Size());
 }
 
+// Sample a packed depth/stencil target with no color attachments, including
+// after writing new depth following a previous shader read in the same frame.
+static bool CheckCaptureDepthSampling(HContext context, const CaptureResources& resources)
+{
+    const uint32_t size = 64;
+    RenderTargetCreationParams params = {};
+    params.m_DepthTexture = true;
+    params.m_DepthBufferCreationParams.m_Width = params.m_DepthBufferParams.m_Width = size;
+    params.m_DepthBufferCreationParams.m_Height = params.m_DepthBufferParams.m_Height = size;
+    params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferCreationParams.m_Width = params.m_StencilBufferParams.m_Width = size;
+    params.m_StencilBufferCreationParams.m_Height = params.m_StencilBufferParams.m_Height = size;
+    params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
+    const uint32_t flags = BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+    HRenderTarget depth_target = NewRenderTarget(context, flags, params);
+    HProgram program = NewCaptureProgram(context, ADAPTER_FAMILY_VULKAN, CAPTURE_PROGRAM_TEXTURE_2D);
+    const CaptureVertex triangle[] = {
+        { { -1.0f, -1.0f, 0.0f }, { 0.5f, 0.5f, 0.0f } },
+        { {  3.0f, -1.0f, 0.0f }, { 0.5f, 0.5f, 0.0f } },
+        { { -1.0f,  3.0f, 0.0f }, { 0.5f, 0.5f, 0.0f } },
+    };
+    HVertexBuffer vertices = NewVertexBuffer(context, sizeof(triangle), triangle, BUFFER_USAGE_STATIC_DRAW);
+    HTexture depth = depth_target ? GetRenderTargetTexture(context, depth_target, BUFFER_TYPE_DEPTH_BIT) : 0;
+    bool valid = depth && program && vertices;
+    if (valid)
+    {
+        DisableState(context, STATE_DEPTH_TEST);
+        DisableState(context, STATE_STENCIL_TEST);
+        DisableState(context, STATE_BLEND);
+        DisableState(context, STATE_CULL_FACE);
+        EnableProgram(context, program);
+        EnableVertexBuffer(context, vertices, 0);
+        EnableVertexDeclaration(context, resources.m_Declaration, 0, 0, program);
+
+        // Sample both passes in one submission. Each draw covers half of the
+        // output, so the readback observes each depth value without a mid-frame flush.
+        const float values[] = { 0.25f, 0.75f };
+        const uint32_t half = CAPTURE_SIZE / 2;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+        {
+            SetRenderTarget(context, depth_target, RenderTargetBindingParams());
+            Clear(context, flags, 0, 0, 0, 0, values[i], 0);
+            SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
+            SetViewport(context, i * half, 0, half, CAPTURE_SIZE);
+            EnableTexture(context, 0, 0, depth);
+            Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+            DisableTexture(context, 0, depth);
+        }
+
+        DisableVertexDeclaration(context, resources.m_Declaration);
+        DisableVertexBuffer(context, vertices);
+        DisableProgram(context);
+
+        uint8_t row[CAPTURE_SIZE * 4] = {};
+        ReadPixels(context, 0, half, CAPTURE_SIZE, 1, row, sizeof(row));
+        const uint8_t left = row[half / 2 * 4 + 2];
+        const uint8_t right = row[(half + half / 2) * 4 + 2];
+        valid = left == 64 && right == 191;
+        if (!valid)
+        {
+            dmLogError("Depth sampling readback expected 64 and 191 but got %u and %u", left, right);
+        }
+    }
+
+    if (vertices)
+    {
+        DeleteVertexBuffer(vertices);
+    }
+
+    if (program)
+    {
+        DeleteProgram(context, program);
+    }
+
+    if (depth_target)
+    {
+        DeleteRenderTarget(context, depth_target);
+    }
+
+    return valid;
+}
+
 // Verifies readback preserves the active viewport and depth/stencil contents for subsequent draws.
 // Compare exact pixels with an uninterrupted draw sequence. The viewport probe
 // catches a changed triangle position/scale; the depth/stencil probe catches a
@@ -1354,6 +1436,10 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
     {
         valid &= CheckCaptureReadPixelsTargets(context, resources);
         valid &= CheckCaptureBackbuffer(context, resources);
+        if (GetInstalledAdapterFamily() == ADAPTER_FAMILY_VULKAN)
+        {
+            valid &= CheckCaptureDepthSampling(context, resources);
+        }
     }
     SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
