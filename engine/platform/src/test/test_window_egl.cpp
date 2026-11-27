@@ -110,7 +110,7 @@ TEST(WindowEGL, OptionalPbuffer)
     g_EGL = {};
 }
 
-// A window can use reduced depth and stencil precision, while a full-precision format wins when available.
+// A missing stencil buffer can cost MSAA. A shallower depth buffer with stencil can preserve it.
 TEST(WindowEGL, FramebufferPrecisionFallback)
 {
     TestDisplay display = { { { 4, EGL_WINDOW_BIT | EGL_PBUFFER_BIT, 16, 0 }, { 0, EGL_WINDOW_BIT, 24, 8 } }, 1 };
@@ -130,6 +130,15 @@ TEST(WindowEGL, FramebufferPrecisionFallback)
     EXPECT_EQ((EGLConfig) & display.m_Configs[1], dmPlatform::ChooseWindowConfig(params, &samples, &pbuffer));
     EXPECT_EQ(1u, samples);
     EXPECT_FALSE(pbuffer);
+
+    display.m_Configs[0].m_StencilBits = 8;
+    EXPECT_EQ((EGLConfig) & display.m_Configs[0], dmPlatform::ChooseWindowConfig(params, &samples, &pbuffer));
+    EXPECT_EQ(4u, samples);
+    EXPECT_TRUE(pbuffer);
+
+    params.m_Samples = 0;
+    EXPECT_EQ((EGLConfig) & display.m_Configs[1], dmPlatform::ChooseWindowConfig(params, &samples, &pbuffer));
+    EXPECT_EQ(1u, samples);
 
     g_Display = 0;
     g_EGL = {};

@@ -21,25 +21,46 @@ namespace dmPlatform
 {
     int32_t OpenGLGetDefaultFramebufferId();
 
-    // Any multisampled format is preferable to disabling a positive request.
-    static inline uint32_t OpenGLSampleCountError(uint32_t requested, uint32_t available)
-    {
-        if (requested && !available)
-        {
-            return UINT32_MAX;
-        }
-
-        return requested > available ? requested - available : available - requested;
-    }
-
     struct OpenGLFormatScore
     {
-        uint32_t m_MissingBits, m_SampleError;
+        uint32_t m_MissingBuffers, m_MissingBits, m_SampleError;
         bool     m_Pbuffer;
     };
 
+    static inline OpenGLFormatScore ScoreOpenGLSamples(uint32_t requested, uint32_t available, bool pbuffer)
+    {
+        OpenGLFormatScore score = {};
+        if (requested && !available)
+        {
+            score.m_MissingBuffers = 1;
+            score.m_SampleError = UINT32_MAX;
+        }
+        else
+        {
+            score.m_SampleError = requested > available ? requested - available : available - requested;
+        }
+
+        score.m_Pbuffer = pbuffer;
+        return score;
+    }
+
+    static inline void ScoreOpenGLChannel(OpenGLFormatScore& score, int requested, int available)
+    {
+        if (available < requested)
+        {
+            score.m_MissingBuffers += available == 0;
+            score.m_MissingBits += requested - available;
+        }
+    }
+
     static inline bool BetterOpenGLFormat(const OpenGLFormatScore& candidate, const OpenGLFormatScore& best)
     {
+        // A lower-precision buffer can still provide the requested framebuffer feature.
+        if (candidate.m_MissingBuffers != best.m_MissingBuffers)
+        {
+            return candidate.m_MissingBuffers < best.m_MissingBuffers;
+        }
+
         if (candidate.m_MissingBits != best.m_MissingBits)
         {
             return candidate.m_MissingBits < best.m_MissingBits;

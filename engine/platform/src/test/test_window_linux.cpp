@@ -87,13 +87,14 @@ static const char* EGLAPIENTRY NoEGLExtensions(EGLDisplay display, EGLint query)
     return query == EGL_EXTENSIONS ? "" : eglQueryString(display, query);
 }
 
-// Model two otherwise identical X11 window configs, with a pbuffer only on the second visual.
-static bool g_TestEGLPbuffer;
-static EGLint g_TestVisuals[] = { 1, 2 };
+// Visual 2 adds a pbuffer. Visual 3 trades depth precision for multisampling.
+static bool g_TestEGLConfigs;
+static EGLint g_TestVisuals[] = { 1, 2, 3 };
 
 static EGLBoolean EGLAPIENTRY ChooseTestEGLConfigs(EGLDisplay, const EGLint*, EGLConfig* configs, EGLint capacity, EGLint* count)
 {
-    *count = configs ? dmMath::Min(capacity, 2) : 2;
+    const EGLint available = DM_ARRAY_SIZE(g_TestVisuals);
+    *count = configs ? dmMath::Min(capacity, available) : available;
     for (EGLint i = 0; configs && i < *count; ++i)
     {
         configs[i] = &g_TestVisuals[i];
@@ -119,12 +120,12 @@ static EGLBoolean EGLAPIENTRY GetTestEGLConfigAttrib(EGLDisplay, EGLConfig confi
         }
         case EGL_SAMPLES:
         {
-            *value = 0;
+            *value = visual == 3 ? 4 : 0;
             break;
         }
         case EGL_DEPTH_SIZE:
         {
-            *value = 24;
+            *value = visual == 3 ? 16 : 24;
             break;
         }
         default:
@@ -139,7 +140,7 @@ static EGLBoolean EGLAPIENTRY GetTestEGLConfigAttrib(EGLDisplay, EGLConfig confi
 
 extern "C" void* __wrap_dlsym(void* handle, const char* name)
 {
-    if (g_TestEGLPbuffer)
+    if (g_TestEGLConfigs)
     {
         if (!strcmp(name, "eglChooseConfig"))
         {
@@ -1970,8 +1971,8 @@ TEST(LinuxWindow, FramebufferPrecisionFallback)
     dmPlatform::DeleteWindow(w);
 }
 
-// An equally precise pbuffer-capable format must win even when an exact window-only match is listed first.
-TEST(LinuxWindow, PreferEGLPbufferForSharedContext)
+// Keep requested multisampling at reduced depth precision and prefer a pbuffer for otherwise equal formats.
+TEST(LinuxWindow, EGLFramebufferSelection)
 {
     HWindow w = NewX11TestWindow();
     if (!w)
@@ -1981,14 +1982,19 @@ TEST(LinuxWindow, PreferEGLPbufferForSharedContext)
 
     w->m_Params = Params();
     w->m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
-    w->m_Params.m_Samples = 0;
-    VisualID visual = 0;
-    g_TestEGLPbuffer = true;
-    bool prepared = dmPlatform::LinuxPrepareGL(w, &visual);
-    g_TestEGLPbuffer = false;
-    EXPECT_TRUE(prepared);
-    EXPECT_EQ(2u, visual);
-    dmPlatform::LinuxCloseGL(w);
+    g_TestEGLConfigs = true;
+    const uint32_t requests[] = { 0, 4 };
+    const VisualID expected[] = { 2, 3 };
+    for (unsigned i = 0; i < DM_ARRAY_SIZE(requests); ++i)
+    {
+        w->m_Params.m_Samples = requests[i];
+        VisualID visual = 0;
+        EXPECT_TRUE(dmPlatform::LinuxPrepareGL(w, &visual));
+        EXPECT_EQ(expected[i], visual);
+        dmPlatform::LinuxCloseGL(w);
+    }
+
+    g_TestEGLConfigs = false;
     dmPlatform::DeleteWindow(w);
 }
 

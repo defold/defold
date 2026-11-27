@@ -126,8 +126,7 @@ namespace dmPlatform
         const int preferred_bits[] = { 24, 8, 24, 8 };
         const uint32_t channel_count = DM_ARRAY_SIZE(preferred_bits);
         int best = 0;
-        uint32_t best_missing = UINT32_MAX;
-        OpenGLFormatScore best_score = { UINT32_MAX, UINT32_MAX, false };
+        OpenGLFormatScore best_score = {};
         for (UINT i = 0; i < count; ++i)
         {
             int values[DM_ARRAY_SIZE(attributes)];
@@ -137,24 +136,17 @@ namespace dmPlatform
                 continue;
             }
 
-            // A shallower depth buffer still supplies depth. Count absent buffers before comparing precision.
             const uint32_t available = values[channel_count] ? values[channel_count + 1] : 0;
-            uint32_t missing = available == 0;
-            OpenGLFormatScore score = { 0, OpenGLSampleCountError(requested, available), false };
+            OpenGLFormatScore score = ScoreOpenGLSamples(requested, available, false);
             for (uint32_t j = 0; j < channel_count; ++j)
             {
-                missing += values[j] == 0;
-                if (values[j] < preferred_bits[j])
-                {
-                    score.m_MissingBits += preferred_bits[j] - values[j];
-                }
+                ScoreOpenGLChannel(score, preferred_bits[j], values[j]);
             }
 
-            if (missing < best_missing || (missing == best_missing && BetterOpenGLFormat(score, best_score)))
+            if (!best || BetterOpenGLFormat(score, best_score))
             {
                 best = index;
                 *samples = available > 1 ? available : 1;
-                best_missing = missing;
                 best_score = score;
             }
         }

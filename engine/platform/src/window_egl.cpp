@@ -196,7 +196,7 @@ namespace dmPlatform
         }
 
         EGLConfig best = 0;
-        OpenGLFormatScore best_score = { UINT32_MAX, UINT32_MAX, false };
+        OpenGLFormatScore best_score = {};
         *has_pbuffer = false;
         for (EGLint i = 0; i < count; ++i)
         {
@@ -209,18 +209,15 @@ namespace dmPlatform
 
             EGLint surfaces = 0;
             g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SURFACE_TYPE, &surfaces);
-            OpenGLFormatScore score = { 0, OpenGLSampleCountError(params.m_Samples, samples), (surfaces & EGL_PBUFFER_BIT) != 0 };
+            OpenGLFormatScore score = ScoreOpenGLSamples(params.m_Samples, samples, (surfaces & EGL_PBUFFER_BIT) != 0);
             for (size_t j = 0; j < sizeof(channels) / sizeof(channels[0]); ++j)
             {
                 EGLint bits = 0;
                 g_EGL.m_GetConfigAttrib(g_Display, config, channels[j][0], &bits);
-                if (bits < channels[j][1])
-                {
-                    score.m_MissingBits += channels[j][1] - bits;
-                }
+                ScoreOpenGLChannel(score, channels[j][1], bits);
             }
 
-            if (BetterOpenGLFormat(score, best_score))
+            if (!best || BetterOpenGLFormat(score, best_score))
             {
                 best = config;
                 best_score = score;
