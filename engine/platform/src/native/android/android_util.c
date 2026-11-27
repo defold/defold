@@ -17,6 +17,7 @@
 #include "android_log.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #define EGL_RETRY_INITIAL_DELAY_US (50 * 1000)
@@ -128,13 +129,50 @@ static int add_egl_concluding_attrib(EglAttribSetting* buffer, int size, int off
     return offset;
 }
 
-static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
+static bool is_color_only_egl_config(EGLDisplay display, EGLConfig config)
+{
+    EGLint depth, stencil;
+    return eglGetConfigAttrib(display, config, EGL_DEPTH_SIZE, &depth) && depth == 0 &&
+           eglGetConfigAttrib(display, config, EGL_STENCIL_SIZE, &stencil) && stencil == 0;
+}
+
+// EGL treats zero depth and stencil sizes as minimums. Keep the driver's first
+// match as the fallback when none of the matching configs is color-only.
+static void prefer_color_only_egl_config(EGLDisplay display, const EGLint* attributes, EGLConfig* config)
+{
+    EGLint count;
+    if (is_color_only_egl_config(display, *config) || !eglChooseConfig(display, attributes, NULL, 0, &count) || count < 2)
+    {
+        return;
+    }
+
+    EGLConfig* matches = malloc(sizeof(*matches) * count);
+    if (!matches)
+    {
+        return;
+    }
+
+    if (eglChooseConfig(display, attributes, matches, count, &count))
+    {
+        for (EGLint i = 1; i < count; ++i)
+        {
+            if (is_color_only_egl_config(display, matches[i]))
+            {
+                *config = matches[i];
+                break;
+            }
+        }
+    }
+
+    free(matches);
+}
+
+static EGLint choose_egl_config(EGLDisplay display, bool is_alpha_enabled, EGLConfig* config)
 {
     EGLint result = 0;
     const int max_settings = 10;
     EglAttribSetting settings[max_settings];
 
-    bool is_alpha_enabled = is_alpha_transparency_enabled();
     int actual_settings = is_alpha_enabled ? max_settings : max_settings - 1;
 
     int offset = 0;
@@ -152,7 +190,11 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
 
     eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
     CHECK_EGL_ERROR
-    if (0 == result && dmNativeWin.stencilBits)
+    if (result && !dmNativeWin.depthBits && !dmNativeWin.stencilBits)
+    {
+        prefer_color_only_egl_config(display, (const EGLint*)settings, config);
+    }
+    else if (0 == result && dmNativeWin.stencilBits)
     {
         // Something along this sort of line when adding Tegra support?
         LOGV("egl config choice failed - removing stencil");
@@ -358,7 +400,7 @@ int init_gl(Nativewin_android* win)
     }
 
 
-    numConfigs = choose_egl_config(display, &config);
+    numConfigs = choose_egl_config(display, is_alpha_transparency_enabled(), &config);
     // No configs found, error out
     if (numConfigs == 0)
     {
