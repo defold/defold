@@ -368,9 +368,22 @@ namespace dmPlatform
         }
     }
 
+    void WaylandRequestClose(HWindow w)
+    {
+        if (w->m_Open)
+        {
+            TriggerCloseCallback(w);
+        }
+        else
+        {
+            // The compositor can request a close while the first configure is being dispatched inside OpenWindow.
+            w->m_Wayland->m_PendingClose = true;
+        }
+    }
+
     static void RequestClose(void* data, xdg_toplevel*)
     {
-        TriggerCloseCallback((HWindow)data);
+        WaylandRequestClose((HWindow)data);
     }
 
     const xdg_toplevel_listener g_WaylandToplevelListener = { Toplevel, RequestClose };
@@ -412,7 +425,7 @@ namespace dmPlatform
 
     static void DecorClose(libdecor_frame*, void* data)
     {
-        TriggerCloseCallback((HWindow)data);
+        WaylandRequestClose((HWindow)data);
     }
 
     static void DecorCommit(libdecor_frame*, void* data)
@@ -473,6 +486,17 @@ namespace dmPlatform
 
     static void Poll(HWindow w)
     {
+        if (w->m_Wayland->m_PendingClose && w->m_Open)
+        {
+            w->m_Wayland->m_PendingClose = false;
+            const uint32_t generation = w->m_OpenGeneration;
+            TriggerCloseCallback(w);
+            if (!w->m_Open || w->m_DeletePending || w->m_OpenGeneration != generation)
+            {
+                return;
+            }
+        }
+
         if (w->m_Wayland->m_Lost)
         {
             return;
@@ -860,6 +884,7 @@ namespace dmPlatform
         }
 
         w->m_Surface = 0;
+        wl->m_PendingClose = false;
         wl->m_SurfaceEntered = false;
         for (uint32_t i = 0; i < wl->m_Outputs.Size(); ++i)
         {

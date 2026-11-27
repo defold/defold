@@ -1499,6 +1499,70 @@ TEST(LinuxWindow, WaylandDeleteDuringShow)
     }
 }
 
+struct WaylandOpenClose
+{
+    HWindow  m_Window;
+    unsigned m_Callbacks;
+    bool     m_RequestSent;
+};
+
+static void RequestCloseOnWaylandSync(void* data, wl_callback* callback, uint32_t)
+{
+    wl_callback_destroy(callback);
+    WaylandOpenClose* action = (WaylandOpenClose*)data;
+    EXPECT_FALSE(action->m_Window->m_Open);
+    action->m_RequestSent = true;
+    dmPlatform::g_WaylandToplevelListener.close(action->m_Window, action->m_Window->m_Wayland->m_Toplevel);
+}
+
+static int CloseFromWaylandRequest(void* data)
+{
+    WaylandOpenClose* action = (WaylandOpenClose*)data;
+    ++action->m_Callbacks;
+    EXPECT_TRUE(action->m_Window->m_Open);
+    EXPECT_GT(action->m_Window->m_DispatchDepth, 0u);
+    WindowClose(action->m_Window);
+    return 1;
+}
+
+// A compositor close during WindowOpen runs on the first poll and expires if the window is replaced first.
+TEST(LinuxWindow, WaylandCloseDuringOpen)
+{
+    HWindow w = WindowNew();
+    ASSERT_TRUE(w);
+    if (!w->m_Wayland)
+    {
+        WindowDelete(w);
+        SKIP();
+    }
+
+    static const wl_callback_listener request = { RequestCloseOnWaylandSync };
+    for (int replace = 0; replace <= 1; ++replace)
+    {
+        WaylandOpenClose action = { w, 0, false };
+        WindowCreateParams p = Params();
+        p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        p.m_CloseCallback = CloseFromWaylandRequest;
+        p.m_CloseCallbackUserData = &action;
+        wl_callback_add_listener(wl_display_sync(w->m_WlDisplay), &request, &action);
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+        EXPECT_TRUE(action.m_RequestSent);
+        EXPECT_EQ(0u, action.m_Callbacks);
+        if (replace)
+        {
+            WindowClose(w);
+            ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+        }
+
+        WindowPollEvents(w);
+        EXPECT_EQ(replace ? 0u : 1u, action.m_Callbacks);
+        EXPECT_EQ(replace != 0, w->m_Open);
+        WindowClose(w);
+    }
+
+    WindowDelete(w);
+}
+
 struct WaylandShowClose
 {
     HWindow m_Window;

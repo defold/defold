@@ -76,6 +76,7 @@ struct LinuxWayland
     int                          m_PendingWidth, m_PendingHeight;
     uint32_t                     m_PreferredScale, m_RoleGeneration;
     bool                         m_Configured, m_Unmapped, m_SurfaceEntered, m_Lost;
+    bool                         m_PendingClose;
 
     wl_keyboard*               m_Keyboard;
     xkb_context*               m_Xkb;
@@ -120,6 +121,7 @@ namespace dmPlatform
     void        WaylandSetCursor(HWindow window);
     void        WaylandReleaseCursor(HWindow window);
     void        WaylandRepeat(HWindow window, uint64_t now);
+    void        WaylandRequestClose(HWindow window);
     void        WaylandResetKeyboard(LinuxWayland* wl);
     void        WaylandFrameContentSize(HWindow window, int* width, int* height);
     void        WaylandResizeFrame(HWindow window, int width, int height);

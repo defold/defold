@@ -305,7 +305,7 @@ namespace dmPlatform
         if (button == BTN_LEFT && edge == XDG_TOPLEVEL_RESIZE_EDGE_NONE &&
             wl->m_FramePointerX >= wl->m_FrameWidth + 2 * BORDER - TITLE_HEIGHT)
         {
-            TriggerCloseCallback(w);
+            WaylandRequestClose(w);
         }
         else if (wl->m_Seat && button == BTN_LEFT)
         {
