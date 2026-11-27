@@ -81,7 +81,7 @@ namespace dmPlatform
         }
     }
 
-    static void KeyEnter(void* data, wl_keyboard*, uint32_t, wl_surface* surface, wl_array* keys)
+    static void KeyEnter(void* data, wl_keyboard*, uint32_t serial, wl_surface* surface, wl_array* keys)
     {
         HWindow w = (HWindow)data;
         if (surface != w->m_Surface)
@@ -89,6 +89,8 @@ namespace dmPlatform
             return;
         }
 
+        // The focus callback can claim the clipboard before the first key or button press.
+        w->m_Wayland->m_InputSerial = serial;
         LinuxFocus(w, true);
         const uint32_t* key = (uint32_t*)keys->data;
         for (size_t i = 0; i < keys->size / sizeof(*key); ++i)

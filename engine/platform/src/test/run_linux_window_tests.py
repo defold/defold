@@ -73,6 +73,10 @@ def input_test(executable, app_env, x11, directory, nested):
         mouse('windowactivate', '--sync', window, 'mousemove', '--window', window, '200', '200')
         # Activating the outer Weston window does not tell us when the game surface can receive input.
         expect('POINTER_READY')
+        if nested:
+            focus_text = subprocess.check_output(['wl-paste', '--no-newline'], env=app_env, timeout=10)
+            if focus_text != b'Defold focus clipboard':
+                raise RuntimeError('Clipboard text set on initial Wayland focus did not round-trip')
         mouse('mousedown', '1')
         expect('KEYBOARD_READY')
         mouse('keydown', 'a')

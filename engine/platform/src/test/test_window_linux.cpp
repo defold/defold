@@ -2023,11 +2023,28 @@ TEST(LinuxWindow, TextUsesLookupLength)
     ASSERT_EQ('a', character);
 }
 
+static void CopyOnWaylandFocus(void* data, uint32_t focused)
+{
+    HWindow w = (HWindow)data;
+    if (focused && !w->m_Wayland->m_DataSource)
+    {
+        const char text[] = "Defold focus clipboard";
+        dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
+    }
+}
+
+// The driver pastes the focus callback's selection before sending the first button or key event.
 static int InputTest()
 {
     HWindow w = dmPlatform::NewWindow();
     WindowCreateParams p = Params();
     p.m_Fullscreen = true;
+    if (w && w->m_Wayland)
+    {
+        p.m_FocusCallback = CopyOnWaylandFocus;
+        p.m_FocusCallbackUserData = w;
+    }
+
     const char* expected = getenv("DM_TEST_WINDOW_BACKEND");
     if (!w || (expected && strcmp(w->m_Ops->m_Name, expected)) || dmPlatform::OpenWindow(w, p) != WINDOW_RESULT_OK)
     {
@@ -2063,8 +2080,13 @@ static int InputTest()
         }
 
         dmPlatform::PollEvents(w);
-        if (step == POINTER && (!w->m_Wayland || w->m_Wayland->m_PointerSurface == w->m_Surface))
+        if (step == POINTER && (!w->m_Wayland || (w->m_Focused && w->m_Wayland->m_PointerSurface == w->m_Surface)))
         {
+            if (w->m_Wayland && g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) < 0)
+            {
+                break;
+            }
+
             puts("POINTER_READY");
             ++step;
         }
