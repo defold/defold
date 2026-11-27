@@ -31,6 +31,7 @@
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <math.h>
@@ -196,9 +197,26 @@ static WindowCreateParams Params()
 
 static int g_ResizeFd = -1;
 static unsigned g_ResizeWaits;
+static int g_ClipboardWriteFd = -1;
+static unsigned g_ClipboardWriteWaits;
 extern "C" int __real_poll(struct pollfd*, nfds_t, int);
 extern "C" int __wrap_poll(struct pollfd* fds, nfds_t count, int timeout)
 {
+    if (count == 1 && fds[0].fd == g_ClipboardWriteFd && fds[0].events == POLLOUT)
+    {
+        ++g_ClipboardWriteWaits;
+        if (g_ClipboardWriteWaits == 1 && timeout >= 0)
+        {
+            return 0;
+        }
+
+        if (g_ClipboardWriteWaits == 2)
+        {
+            errno = EINTR;
+            return -1;
+        }
+    }
+
     if (count == 1 && fds[0].fd == g_ResizeFd && timeout > 0)
     {
         ++g_ResizeWaits;
@@ -566,6 +584,38 @@ TEST(LinuxWindow, X11WindowClass)
     XFree(hint.res_name);
     XFree(hint.res_class);
     dmPlatform::DeleteWindow(w);
+}
+
+// A slow reader and an interrupted wait must still receive every byte of a Wayland clipboard offer.
+TEST(LinuxWindow, WaylandClipboardBackpressure)
+{
+    int fds[2];
+    ASSERT_EQ(0, pipe(fds));
+    ASSERT_EQ(0, fcntl(fds[1], F_SETFL, O_NONBLOCK));
+    const int capacity = fcntl(fds[1], F_GETPIPE_SZ);
+    ASSERT_GT(capacity, 0);
+    FILE* reader = fdopen(fds[0], "rb");
+    ASSERT_NE((FILE*)0, reader);
+
+    dmWindow window = {};
+    LinuxWayland wl = {};
+    window.m_Wayland = &wl;
+    wl.m_Clipboard.EnsureSize(2 * capacity + 1);
+    for (uint32_t i = 0; i < wl.m_Clipboard.Size(); ++i)
+    {
+        wl.m_Clipboard[i] = (char)(i % 127);
+    }
+
+    g_ClipboardWriteWaits = 0;
+    g_ClipboardWriteFd = fds[1];
+    dmPlatform::g_WaylandDataSourceListener.send(&window, 0, "text/plain", fds[1]);
+    dmArray<char> received;
+    received.EnsureSize(wl.m_Clipboard.Size() + 1);
+    const size_t size = fread(received.Begin(), 1, received.Size(), reader);
+    fclose(reader);
+    g_ClipboardWriteFd = -1;
+    ASSERT_EQ((size_t)wl.m_Clipboard.Size(), size);
+    EXPECT_EQ(0, memcmp(wl.m_Clipboard.Begin(), received.Begin(), size));
 }
 
 struct TestClipboardManager

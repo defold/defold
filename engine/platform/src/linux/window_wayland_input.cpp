@@ -19,7 +19,6 @@
 #include <sys/mman.h>
 #include <poll.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <errno.h>
 #include <signal.h>
@@ -665,13 +664,17 @@ namespace dmPlatform
         sigemptyset(&signals);
         sigaddset(&signals, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &signals, 0);
-        fcntl(request->m_Fd, F_SETFL, fcntl(request->m_Fd, F_GETFL) | O_NONBLOCK);
+        pollfd descriptor = { request->m_Fd, POLLOUT, 0 };
         unsigned offset = 0;
         while (offset < request->m_Length)
         {
-            pollfd descriptor = { request->m_Fd, POLLOUT, 0 };
-            if (poll(&descriptor, 1, 1000) <= 0)
+            if (poll(&descriptor, 1, -1) < 0)
             {
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+
                 break;
             }
 
@@ -731,7 +734,7 @@ namespace dmPlatform
         wl_data_source_destroy(source);
     }
 
-    static const wl_data_source_listener g_Source = { Target, Send, Cancelled };
+    const wl_data_source_listener g_WaylandDataSourceListener = { Target, Send, Cancelled };
     void WaylandSetClipboard(HWindow w, const char* text, unsigned length)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -752,7 +755,7 @@ namespace dmPlatform
         }
 
         wl->m_DataSource = wl_data_device_manager_create_data_source(wl->m_DataManager);
-        wl_data_source_add_listener(wl->m_DataSource, &g_Source, w);
+        wl_data_source_add_listener(wl->m_DataSource, &g_WaylandDataSourceListener, w);
         wl_data_source_offer(wl->m_DataSource, "text/plain;charset=utf-8");
         wl_data_source_offer(wl->m_DataSource, "text/plain");
         wl_data_device_set_selection(wl->m_DataDevice, wl->m_DataSource, wl->m_InputSerial);
