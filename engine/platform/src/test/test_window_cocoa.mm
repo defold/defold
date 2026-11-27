@@ -751,6 +751,38 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
     }
 }
 
+static void ReopenOnUnmark(void* data, char* text)
+{
+    if (!text[0])
+    {
+        ReopenOrDeleteOnClose(data);
+    }
+}
+
+// Reopening from an IME listener during focus loss must deliver only the new window's own focus event.
+TEST_F(CocoaWindowTest, MarkedTextListenerReopensOnBlur)
+{
+    @autoreleasepool
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        CloseAction action = { window, &params, WINDOW_RESULT_WINDOW_OPEN_ERROR };
+        dmPlatform::SetKeyboardMarkedTextCallback(window, ReopenOnUnmark, &action);
+        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+        NSView<NSTextInputClient>* view = (NSView<NSTextInputClient>*)native.contentView;
+        [view setMarkedText:@"かな" selectedRange:NSMakeRange(0, 1) replacementRange:NSMakeRange(NSNotFound, 0)];
+
+        params.m_Hidden = false;
+        events.m_FocusCount = 0;
+        [native orderOut:nil];
+        ASSERT_EQ(WINDOW_RESULT_OK, action.result);
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(1, events.m_FocusCount);
+        EXPECT_EQ(1, events.m_Focus);
+    }
+}
+
 struct TextAction
 {
     HWindow m_Window;

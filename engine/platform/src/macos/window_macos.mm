@@ -81,9 +81,11 @@
 
 - (void)setFocused:(BOOL)focused
 {
+    [self retain];
+    NSWindow* native = [handle->m_Window retain];
     if (handle->m_Params.m_Fullscreen)
     {
-        handle->m_Window.level = focused ? NSMainMenuWindowLevel + 1 : NSNormalWindowLevel;
+        native.level = focused ? NSMainMenuWindowLevel + 1 : NSNormalWindowLevel;
     }
 
     dmPlatform::UpdateCursorMode(handle, focused);
@@ -92,22 +94,29 @@
         NSView<NSTextInputClient>* view = (NSView<NSTextInputClient>*)handle->m_View;
         if (view.hasMarkedText)
         {
+            // The marked-text listener can close the window or reopen its handle.
+            [view retain];
             [view.inputContext discardMarkedText];
-            if (view.hasMarkedText)
+            if (native.delegate == self && view.hasMarkedText)
             {
                 [view unmarkText];
             }
+
+            [view release];
         }
     }
 
-    NSWindow* native = [handle->m_Window retain];
-    dmPlatform::WindowFocusChanged(handle->m_Focus, handle->m_Params, focused, handle->m_Input);
-    if (!focused && native.delegate == self)
+    if (native.delegate == self)
     {
-        memset(&handle->m_Input, 0, sizeof(handle->m_Input));
+        dmPlatform::WindowFocusChanged(handle->m_Focus, handle->m_Params, focused, handle->m_Input);
+        if (!focused && native.delegate == self)
+        {
+            memset(&handle->m_Input, 0, sizeof(handle->m_Input));
+        }
     }
 
     [native release];
+    [self release];
 }
 
 - (void)windowDidBecomeKey:(NSNotification*)notification {
