@@ -650,6 +650,28 @@ public class ExtenderUtilTest {
         assertArrayEquals(migrated, resource.getContent());
     }
 
+    // Legacy archive selections must prefer scalar while allowing a narrower platform to opt into SIMD.
+    @Test
+    public void testLegacyVorbisArchiveSelection() throws Exception {
+        String source = """
+                platforms:
+                  web: {context: {libs: [custom, decoder_ogg]}}
+                  wasm_pthread-web: {context: {excludeLibs: [decoder_ogg_nosimd]}}
+                  win32: {context: {engineLibs: [libdecoder_ogg.lib]}}
+                """;
+        createFile(fileSystem, "archives.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("archives.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+        byte[] migrated = resource.getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        assertEquals(Map.of(
+                "web", Map.of("context", Map.of("libs", List.of("custom", "decoder_ogg_nosimd", "decoder_ogg"))),
+                "wasm_pthread-web", Map.of("context", Map.of("excludeLibs", List.of("decoder_ogg_nosimd"))),
+                "win32", Map.of("context", Map.of("engineLibs", List.of("decoder_ogg_nosimd", "decoder_ogg")))), manifest.get("platforms"));
+        createFile(fileSystem, "archives.appmanifest", migrated);
+        assertArrayEquals(migrated, resource.getContent());
+    }
+
     // A shared stb exclusion disabled Vorbis on stb-only targets and could combine with a target's Tremolo exclusion.
     @Test
     public void testInheritedVorbisExclusions() throws Exception {

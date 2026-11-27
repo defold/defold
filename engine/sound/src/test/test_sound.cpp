@@ -1636,13 +1636,21 @@ TEST(SoundDecoder, VorbisStreamingMatchesReference)
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
 }
 
-// A chained file keeps its playback position while waiting for the next stream's headers.
+// A chain can stall between streams and switch codebooks even when their identification headers match.
 TEST(SoundDecoder, VorbisChainedStreams)
 {
     dmArray<uint8_t> ogg;
     ogg.SetCapacity(CLICK_TRACK_OGG_SIZE + EXPLOSION_LOW_MONO_OGG_SIZE);
     ogg.PushArray(CLICK_TRACK_OGG, CLICK_TRACK_OGG_SIZE);
     ogg.PushArray(EXPLOSION_LOW_MONO_OGG, EXPLOSION_LOW_MONO_OGG_SIZE);
+    uint8_t* second_page = ogg.Begin() + CLICK_TRACK_OGG_SIZE;
+    uint32_t page_offset, page_size;
+    ASSERT_TRUE(GetOggPage(second_page, EXPLOSION_LOW_MONO_OGG_SIZE, 0, &page_offset, &page_size));
+    // These mono clips differ only in nominal bitrate in their 30-byte identification packets.
+    uint8_t* identification = second_page + 27 + second_page[26];
+    memcpy(identification, CLICK_TRACK_OGG + 27 + CLICK_TRACK_OGG[26], 30);
+    WriteLE32(second_page + 22, 0);
+    WriteLE32(second_page + 22, OggCrc(second_page, page_size));
     StreamingVorbisTestData input = { ogg.Begin(), ogg.Size(), CLICK_TRACK_OGG_SIZE + 100 };
 
     dmSound::InitializeParams params;
@@ -1679,6 +1687,19 @@ TEST(SoundDecoder, VorbisChainedStreams)
     ASSERT_EQ((279300U - 128U) * sizeof(float), bytes);
     ASSERT_EQ(dmSoundCodec::RESULT_END_OF_STREAM, decoder->m_SkipInStream(stream, sizeof(float), &bytes));
     ASSERT_EQ(176400 + 279300, decoder->m_GetInternalStreamPosition(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, UINT32_MAX, &bytes));
+    ASSERT_EQ((176400U + 279300U) * sizeof(float), bytes);
+
+    // The same codebooks with a different sample rate must still be rejected on rewind.
+    input.m_Bytes = second_page;
+    input.m_Size = input.m_Available = EXPLOSION_LOW_MONO_OGG_SIZE;
+    WriteLE32(identification + 12, 22050);
+    WriteLE32(second_page + 22, 0);
+    WriteLE32(second_page + 22, OggCrc(second_page, page_size));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_UNSUPPORTED, decoder->m_DecodeStream(stream, out, sizeof(samples), &bytes));
+    ASSERT_EQ(0U, bytes);
     decoder->m_CloseStream(stream);
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
@@ -1750,18 +1771,26 @@ TEST(SoundDecoder, VorbisInterleavedPCM16)
     int error;
     stb_vorbis* reference = stb_vorbis_open_memory(LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, &error, 0);
     ASSERT_NE((stb_vorbis*)0, reference);
-    int16_t samples[514], expected[514];
-    char* out[] = { (char*)samples };
-    uint32_t bytes;
-    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, 37 * 4, &bytes));
-    ASSERT_EQ(37U * 4, bytes);
-    ASSERT_TRUE(stb_vorbis_seek(reference, 37));
-    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(samples), &bytes));
-    ASSERT_EQ(sizeof(samples), bytes);
-    ASSERT_EQ(257, stb_vorbis_get_samples_short_interleaved(reference, 2, expected, DM_ARRAY_SIZE(expected)));
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samples); ++i)
+    int16_t DM_ALIGNED(16) samples[515];
+    int16_t expected[514];
+    const uint32_t skip_frames[] = { 0, 37, 0 };
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(skip_frames); ++pass)
     {
-        ASSERT_NEAR(expected[i], samples[i], 2);
+        // Exercise aligned stereo, an unaligned source after skipping, and an unaligned destination.
+        int16_t* dst = pass == 2 ? samples + 1 : samples;
+        char* out[] = { (char*)dst };
+        uint32_t bytes;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, skip_frames[pass] * 4, &bytes));
+        ASSERT_EQ(skip_frames[pass] * 4, bytes);
+        ASSERT_TRUE(stb_vorbis_seek(reference, skip_frames[pass]));
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(expected), &bytes));
+        ASSERT_EQ(sizeof(expected), bytes);
+        ASSERT_EQ(257, stb_vorbis_get_samples_short_interleaved(reference, 2, expected, DM_ARRAY_SIZE(expected)));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+        {
+            ASSERT_NEAR(expected[i], dst[i], 2);
+        }
     }
 
     stb_vorbis_close(reference);

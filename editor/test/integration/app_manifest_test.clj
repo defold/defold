@@ -442,6 +442,8 @@
           {"/legacy.appmanifest"
            ["platforms:"
             "  common: {context: {excludeSymbols: [AudioDecoderStbVorbis]}}"
+            "  web: {context: {libs: [decoder_ogg]}}"
+            "  wasm_pthread-web: {context: {excludeLibs: [decoder_ogg_nosimd]}}"
             "  osx: {context: {excludeSymbols: ['AudioDecoder.*Vorbis']}}"
             "  android: {context: {excludeSymbols: ['AudioDecoderTrem.*']}}"]}
           (let [node (test-util/resource-node project "/legacy.appmanifest")
@@ -450,7 +452,8 @@
                 manifest (yaml/load content keyword)]
             (is (true? (:dirty save-data)))
             (is (= {:common {:context {:excludeSymbols []}}
-                    :web {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :web {:context {:excludeSymbols ["AudioDecoderVorbis"] :libs ["decoder_ogg_nosimd" "decoder_ogg"]}}
+                    :wasm_pthread-web {:context {:excludeLibs ["decoder_ogg_nosimd"]}}
                     :win32 {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
                     :linux {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
                     :osx {:context {:excludeSymbols ["AudioDecoder.*Vorbis"] :includeSymbols ["AudioDecoderVorbis"]}}

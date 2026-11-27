@@ -414,7 +414,7 @@ public final class AppManifestMigration {
         return false;
     }
 
-    public static List<?> migrateVorbisItems(String key, List<?> items, boolean expandArchiveExclusions) {
+    public static List<?> migrateVorbisItems(String key, List<?> items, Object excludedLibs, boolean expandArchiveExclusions) {
         if ("symbols".equals(key) || "excludeSymbols".equals(key)) {
             boolean select = "symbols".equals(key) && (items.contains(STB) || items.contains(TREMOLO));
             return replaceVorbisSymbols(items, select || excludesVorbis(items, false));
@@ -422,10 +422,14 @@ public final class AppManifestMigration {
         if ("libs".equals(key) || "engineLibs".equals(key) || "excludeLibs".equals(key)) {
             List<Object> result = new ArrayList<>(items);
             result.removeIf(item -> item instanceof String && TREMOLO_LIBRARIES.contains(item));
-            if (expandArchiveExclusions && "excludeLibs".equals(key) && !selectsScalarVorbis(items)) {
-                for (Object item : items) {
+            boolean excluding = "excludeLibs".equals(key);
+            boolean addScalar = excluding ? expandArchiveExclusions : !selectsScalarVorbis(excludedLibs);
+            if (addScalar && !selectsScalarVorbis(items)) {
+                for (int i = 0; i < result.size(); i++) {
+                    Object item = result.get(i);
                     if ("decoder_ogg".equals(WINDOWS_LIBRARY_NAMES.get(item)) || "libdecoder_ogg.a".equals(item)) {
-                        result.add(((String) item).replace("decoder_ogg", "decoder_ogg_nosimd"));
+                        // The first archive supplies the decoder. A narrower platform can exclude it to select SIMD.
+                        result.add(excluding ? result.size() : i, ((String) item).replace("decoder_ogg", "decoder_ogg_nosimd"));
                         break;
                     }
                 }

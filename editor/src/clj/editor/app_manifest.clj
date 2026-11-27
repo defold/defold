@@ -1085,7 +1085,13 @@
       (let [items (get context key)]
         (if-not (vector? items)
           context
-          (assoc context key (vec (AppManifestMigration/migrateVorbisItems (name key) items expand-archive-exclusions))))))
+          (let [migrated-items
+                (AppManifestMigration/migrateVorbisItems
+                  (name key)
+                  items
+                  (:excludeLibs context)
+                  expand-archive-exclusions)]
+            (assoc context key (vec migrated-items))))))
     context
     [:symbols :excludeSymbols :libs :engineLibs :excludeLibs]))
 

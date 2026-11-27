@@ -655,7 +655,7 @@ public class ExtenderUtil {
         boolean modified = false;
         for (String key : List.of("symbols", "excludeSymbols", "libs", "engineLibs", "excludeLibs")) {
             if (context.get(key) instanceof List<?> items) {
-                List<?> migrated = AppManifestMigration.migrateVorbisItems(key, items, expandArchiveExclusions);
+                List<?> migrated = AppManifestMigration.migrateVorbisItems(key, items, context.get("excludeLibs"), expandArchiveExclusions);
                 if (!items.equals(migrated)) {
                     context.put(key, migrated);
                     modified = true;

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <dlib/math.h>
@@ -37,6 +38,8 @@ namespace dmSoundCodec
         ogg_sync_state      m_Sync;
         ogg_stream_state    m_Ogg;
         stb_vorbis*         m_Decoder;
+        uint8_t*            m_SetupPacket;
+        uint32_t            m_SetupSize;
         Info                m_Info;
         float**             m_Frame;
         uint32_t            m_FrameOffset;
@@ -155,9 +158,64 @@ namespace dmSoundCodec
         }
     }
 
+    static Result OpenPacketDecoder(VorbisStream* stream, const uint8_t* setup, uint32_t size)
+    {
+        if (stream->m_SetupSize == size && memcmp(stream->m_SetupPacket, setup, size) == 0)
+        {
+            // The first audio packet establishes the granule position and starts a new overlap window.
+            stream->m_Decoder->previous_length = 0;
+            stream->m_Decoder->first_decode = true;
+            stream->m_Decoder->eof = false;
+            stream->m_Decoder->error = VORBIS__no_error;
+            return RESULT_OK;
+        }
+
+        if (stream->m_Decoder)
+        {
+            stb_vorbis_close(stream->m_Decoder);
+            stream->m_Decoder = 0;
+        }
+
+        free(stream->m_SetupPacket);
+        stream->m_SetupPacket = 0;
+        stream->m_SetupSize = 0;
+
+        // The packet decoder uses only the allocation callbacks in this context.
+        // Zero callbacks select libnogg's aligned allocator for every stream.
+        static vorbis_t allocator = {};
+        int error;
+        stb_vorbis* decoder = stb_vorbis_open_packet(&allocator, stream->m_Identification, sizeof(stream->m_Identification),
+                                                     setup, (int32_t)size, 0, &error);
+        if (!decoder)
+        {
+            return error == VORBIS_outofmem ? RESULT_OUT_OF_RESOURCES : RESULT_INVALID_FORMAT;
+        }
+
+        stb_vorbis_info info = stb_vorbis_get_info(decoder);
+        if ((info.channels != 1 && info.channels != 2) ||
+            (stream->m_Info.m_Channels && (info.channels != stream->m_Info.m_Channels || info.sample_rate != stream->m_Info.m_Rate)))
+        {
+            stb_vorbis_close(decoder);
+            return RESULT_UNSUPPORTED;
+        }
+
+        stream->m_Decoder = decoder;
+        stream->m_Info.m_Rate = info.sample_rate;
+        stream->m_Info.m_Channels = (uint8_t)info.channels;
+        // libogg owns the packet. Keep a copy to recognize the same setup on rewind or across a chain.
+        stream->m_SetupPacket = (uint8_t*)malloc(size);
+        if (stream->m_SetupPacket)
+        {
+            memcpy(stream->m_SetupPacket, setup, size);
+            stream->m_SetupSize = size;
+        }
+
+        return RESULT_OK;
+    }
+
     static Result ReadHeaders(VorbisStream* stream)
     {
-        while (!stream->m_Decoder)
+        while (stream->m_HeaderCount < 3)
         {
             ogg_packet packet;
             Result result = NextPacket(stream, &packet);
@@ -178,7 +236,11 @@ namespace dmSoundCodec
                     return RESULT_INVALID_FORMAT;
                 }
 
-                memcpy(stream->m_Identification, packet.packet, sizeof(stream->m_Identification));
+                if (memcmp(stream->m_Identification, packet.packet, sizeof(stream->m_Identification)) != 0)
+                {
+                    stream->m_SetupSize = 0;
+                    memcpy(stream->m_Identification, packet.packet, sizeof(stream->m_Identification));
+                }
             }
             else if (stream->m_HeaderCount == 1)
             {
@@ -194,28 +256,11 @@ namespace dmSoundCodec
                     return RESULT_INVALID_FORMAT;
                 }
 
-                // The packet decoder uses only the allocation callbacks in this context.
-                // Zero callbacks select libnogg's aligned allocator for every stream.
-                static vorbis_t allocator = {};
-                int error;
-                stb_vorbis* decoder = stb_vorbis_open_packet(&allocator, stream->m_Identification, sizeof(stream->m_Identification),
-                                                             packet.packet, (int32_t)packet.bytes, 0, &error);
-                if (!decoder)
+                result = OpenPacketDecoder(stream, packet.packet, (uint32_t)packet.bytes);
+                if (result != RESULT_OK)
                 {
-                    return error == VORBIS_outofmem ? RESULT_OUT_OF_RESOURCES : RESULT_INVALID_FORMAT;
+                    return result;
                 }
-
-                stb_vorbis_info info = stb_vorbis_get_info(decoder);
-                if ((info.channels != 1 && info.channels != 2) ||
-                    (stream->m_Info.m_Channels && (info.channels != stream->m_Info.m_Channels || info.sample_rate != stream->m_Info.m_Rate)))
-                {
-                    stb_vorbis_close(decoder);
-                    return RESULT_UNSUPPORTED;
-                }
-
-                stream->m_Decoder = decoder;
-                stream->m_Info.m_Rate = info.sample_rate;
-                stream->m_Info.m_Channels = (uint8_t)info.channels;
             }
 
             ++stream->m_HeaderCount;
@@ -224,14 +269,8 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    static void ClearPacketStream(VorbisStream* stream)
+    static void ClearOggStream(VorbisStream* stream)
     {
-        if (stream->m_Decoder)
-        {
-            stb_vorbis_close(stream->m_Decoder);
-            stream->m_Decoder = 0;
-        }
-
         if (stream->m_HaveStream)
         {
             ogg_stream_clear(&stream->m_Ogg);
@@ -245,7 +284,13 @@ namespace dmSoundCodec
     static void VorbisCloseStream(HDecodeStream handle)
     {
         VorbisStream* stream = (VorbisStream*)handle;
-        ClearPacketStream(stream);
+        if (stream->m_Decoder)
+        {
+            stb_vorbis_close(stream->m_Decoder);
+        }
+
+        free(stream->m_SetupPacket);
+        ClearOggStream(stream);
         ogg_sync_clear(&stream->m_Sync);
         delete stream;
     }
@@ -276,10 +321,10 @@ namespace dmSoundCodec
     {
         while (stream->m_FramesLeft == 0)
         {
-            if (!stream->m_Decoder)
+            if (stream->m_HeaderCount < 3)
             {
                 Result result = ReadHeaders(stream);
-                if (result != RESULT_OK || !stream->m_Decoder)
+                if (result != RESULT_OK || stream->m_HeaderCount < 3)
                 {
                     return result;
                 }
@@ -290,7 +335,7 @@ namespace dmSoundCodec
             if (result == RESULT_END_OF_STREAM && stream->m_FinalPage)
             {
                 // The next logical stream may already be buffered in m_Sync.
-                ClearPacketStream(stream);
+                ClearOggStream(stream);
                 continue;
             }
 
@@ -353,7 +398,16 @@ namespace dmSoundCodec
                     src[c] = stream->m_Frame[c] + stream->m_FrameOffset;
                 }
 
-                float_to_int16_interleave((int16_t*)buffers[0] + done * channels, src, channels, count);
+                int16_t* dst = (int16_t*)buffers[0] + done * channels;
+                // libnogg's SSE2 stereo kernel uses aligned loads and stores.
+                if (channels == 2 && (((uintptr_t)dst | (uintptr_t)src[0] | (uintptr_t)src[1]) & 15) == 0)
+                {
+                    float_to_int16_interleave_2(dst, src[0], src[1], count);
+                }
+                else
+                {
+                    float_to_int16_interleave(dst, src, channels, count);
+                }
             }
             else if (buffers)
             {
@@ -381,7 +435,7 @@ namespace dmSoundCodec
     static Result VorbisResetStream(HDecodeStream handle)
     {
         VorbisStream* stream = (VorbisStream*)handle;
-        ClearPacketStream(stream);
+        ClearOggStream(stream);
         ogg_sync_reset(&stream->m_Sync);
         stream->m_FramesLeft = 0;
         stream->m_ReadOffset = 0;

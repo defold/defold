@@ -4,7 +4,7 @@ Defold uses libnogg 1.18 to decode Vorbis packets and libogg to read Ogg pages. 
 
 The stock engine and Extender use `decoder_ogg_nosimd` by default on every platform. This archive uses the portable C decoder. Its HTML5 build explicitly disables Wasm SIMD128. Both decoder archives are included in the SDK.
 
-Set `-DDEFOLD_ENABLE_FEATURES=simd` in a CMake build to select `decoder_ogg`. It uses NEON on ARM64 and NEON-enabled ARMv7 Android, SSE2 on x86-64, and SIMD128 on HTML5. To opt in through an app manifest, add `decoder_ogg` to `libs` and `decoder_ogg_nosimd` to `excludeLibs` in the desired platform context. Both archives provide the same `AudioDecoderVorbis` registration.
+Set `-DDEFOLD_ENABLE_FEATURES=simd` in a CMake build to select `decoder_ogg`. It uses NEON on ARM64 and NEON-enabled ARMv7 Android, SSE2 on x86-64, and SIMD128 on HTML5. To opt in through an app manifest, add `decoder_ogg` to `libs` and `decoder_ogg_nosimd` to `excludeLibs` in the desired platform context. Both archives provide the same `AudioDecoderVorbis` registration. The editor and Bob put the scalar archive first when migrating legacy `decoder_ogg` selections.
 
 ## Source and patch
 
@@ -14,4 +14,4 @@ CMake applies `defold-simd.patch` to the extracted sources. It groups bins with 
 
 ## Tests
 
-Build the `test_sound` and `test_sound_perf` targets. Run `test_sound --test-filter=SoundDecoder` for streaming, chaining, and large Vorbis headers. Run `test_sound_perf --test-filter=MeasureVorbis` to time decoding and skipping seven mono and stereo clips. For Wasm, use the same filters with `node test_sound.js` and `node test_sound_perf.js`.
+Build the `test_sound` and `test_sound_perf` targets. Run `test_sound --test-filter=SoundDecoder` for streaming, chaining, and large Vorbis headers. Run `test_sound_perf --test-filter=MeasureVorbis` to time decoding and skipping seven mono and stereo clips. The `MeasureVorbisRestart` benchmark measures a rewind and the first 512 stereo frames. For Wasm, use the same filters with `node test_sound.js` and `node test_sound_perf.js`.
