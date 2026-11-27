@@ -60,7 +60,7 @@ $ext-line-height: 26px;
         -fx-max-height: $ext-line-height;
     }
     &-label {
-        -fx-padding: 4px 0px; // padding to make a single line label fit into 26px line-height
+        -fx-padding: 4.5px 0px 3.5px; // padding to make a single line label fit into 26px line-height
         &-color {
             &-text     {}
             &-hint     { -fx-text-fill: -df-text-dark; }
