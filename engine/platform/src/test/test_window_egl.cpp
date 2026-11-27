@@ -17,7 +17,7 @@
 
 struct TestConfig
 {
-    EGLint m_Samples, m_SurfaceTypes;
+    EGLint m_Samples, m_SurfaceTypes, m_DepthBits, m_StencilBits;
 };
 
 struct TestDisplay
@@ -26,23 +26,50 @@ struct TestDisplay
     EGLint     m_Count;
 };
 
-static int EGL_CALL ChooseConfigs(EGLDisplay handle, const EGLint* attributes, EGLConfig* configs, EGLint capacity, EGLint* count)
+static int EGL_CALL GetConfigAttrib(EGLDisplay, EGLConfig config, EGLint attribute, EGLint* value)
 {
-    TestDisplay* display = (TestDisplay*)handle;
-    EGLint surfaces = 0;
-    for (; *attributes != EGL_NONE; attributes += 2)
+    const TestConfig* format = (const TestConfig*)config;
+    const EGLint attributes[][2] = {
+        { EGL_SAMPLES, format->m_Samples }, { EGL_SURFACE_TYPE, format->m_SurfaceTypes },
+        { EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT }, { EGL_DEPTH_SIZE, format->m_DepthBits }, { EGL_STENCIL_SIZE, format->m_StencilBits },
+        { EGL_RED_SIZE, 8 }, { EGL_GREEN_SIZE, 8 }, { EGL_BLUE_SIZE, 8 }, { EGL_ALPHA_SIZE, 8 }
+    };
+    for (size_t i = 0; i < sizeof(attributes) / sizeof(attributes[0]); ++i)
     {
-        if (attributes[0] == EGL_SURFACE_TYPE)
+        if (attributes[i][0] == attribute)
         {
-            surfaces = attributes[1];
+            *value = attributes[i][1];
+            return 1;
         }
     }
 
+    return 0;
+}
+
+static int EGL_CALL ChooseConfigs(EGLDisplay handle, const EGLint* attributes, EGLConfig* configs, EGLint capacity, EGLint* count)
+{
+    TestDisplay* display = (TestDisplay*)handle;
     *count = 0;
     for (int i = 0; i < display->m_Count; ++i)
     {
         TestConfig* format = &display->m_Configs[i];
-        if ((format->m_SurfaceTypes & surfaces) == surfaces)
+        const EGLint* attr = attributes;
+        for (; *attr != EGL_NONE; attr += 2)
+        {
+            EGLint value;
+            if (!GetConfigAttrib(handle, format, attr[0], &value))
+            {
+                return 0;
+            }
+
+            const bool mask = attr[0] == EGL_SURFACE_TYPE || attr[0] == EGL_RENDERABLE_TYPE;
+            if (mask ? (value & attr[1]) != attr[1] : value < attr[1])
+            {
+                break;
+            }
+        }
+
+        if (*attr == EGL_NONE)
         {
             if (configs && *count < capacity)
             {
@@ -56,17 +83,12 @@ static int EGL_CALL ChooseConfigs(EGLDisplay handle, const EGLint* attributes, E
     return 1;
 }
 
-static int EGL_CALL GetConfigAttrib(EGLDisplay, EGLConfig config, EGLint attribute, EGLint* value)
-{
-    const TestConfig* format = (const TestConfig*)config;
-    *value = attribute == EGL_SAMPLES ? format->m_Samples : format->m_SurfaceTypes;
-    return 1;
-}
-
 // A window-only format can be the sole or closest match. Pbuffer support breaks ties between equivalent window formats.
 TEST(WindowEGL, OptionalPbuffer)
 {
-    TestDisplay display = { { { 4, EGL_WINDOW_BIT }, { 0, EGL_WINDOW_BIT | EGL_PBUFFER_BIT }, { 4, EGL_WINDOW_BIT | EGL_PBUFFER_BIT } }, 0 };
+    TestDisplay display = { { { 4, EGL_WINDOW_BIT, 24, 8 },
+        { 0, EGL_WINDOW_BIT | EGL_PBUFFER_BIT, 24, 8 },
+        { 4, EGL_WINDOW_BIT | EGL_PBUFFER_BIT, 24, 8 } }, 0 };
     g_EGL.m_ChooseConfig = ChooseConfigs;
     g_EGL.m_GetConfigAttrib = GetConfigAttrib;
     g_Display = &display;
@@ -83,6 +105,31 @@ TEST(WindowEGL, OptionalPbuffer)
         EXPECT_EQ(4u, samples);
         EXPECT_EQ(shared_format, pbuffer);
     }
+
+    g_Display = 0;
+    g_EGL = {};
+}
+
+// A window can use reduced depth and stencil precision, while a full-precision format wins when available.
+TEST(WindowEGL, FramebufferPrecisionFallback)
+{
+    TestDisplay display = { { { 4, EGL_WINDOW_BIT | EGL_PBUFFER_BIT, 16, 0 }, { 0, EGL_WINDOW_BIT, 24, 8 } }, 1 };
+    g_EGL.m_ChooseConfig = ChooseConfigs;
+    g_EGL.m_GetConfigAttrib = GetConfigAttrib;
+    g_Display = &display;
+
+    WindowCreateParams params = {};
+    params.m_Samples = 4;
+    uint32_t samples = 0;
+    bool pbuffer = false;
+    EXPECT_EQ((EGLConfig) & display.m_Configs[0], dmPlatform::ChooseWindowConfig(params, &samples, &pbuffer));
+    EXPECT_EQ(4u, samples);
+    EXPECT_TRUE(pbuffer);
+
+    display.m_Count = 2;
+    EXPECT_EQ((EGLConfig) & display.m_Configs[1], dmPlatform::ChooseWindowConfig(params, &samples, &pbuffer));
+    EXPECT_EQ(1u, samples);
+    EXPECT_FALSE(pbuffer);
 
     g_Display = 0;
     g_EGL = {};

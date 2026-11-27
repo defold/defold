@@ -176,10 +176,11 @@ namespace dmPlatform
     {
         const EGLint format[] = {
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
-            EGL_ALPHA_SIZE, params.m_ContextAlphabits ? 8 : 0,
-            EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8, EGL_NONE
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE
+        };
+        const EGLint channels[][2] = {
+            { EGL_RED_SIZE, 8 }, { EGL_GREEN_SIZE, 8 }, { EGL_BLUE_SIZE, 8 },
+            { EGL_ALPHA_SIZE, params.m_ContextAlphabits }, { EGL_DEPTH_SIZE, 24 }, { EGL_STENCIL_SIZE, 8 }
         };
         EGLint count = 0;
         if (!g_EGL.m_ChooseConfig(g_Display, format, 0, 0, &count) || !count)
@@ -195,7 +196,7 @@ namespace dmPlatform
         }
 
         EGLConfig best = 0;
-        uint32_t best_error = UINT32_MAX;
+        OpenGLFormatScore best_score = { UINT32_MAX, UINT32_MAX, false };
         *has_pbuffer = false;
         for (EGLint i = 0; i < count; ++i)
         {
@@ -208,15 +209,24 @@ namespace dmPlatform
 
             EGLint surfaces = 0;
             g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SURFACE_TYPE, &surfaces);
-            const bool pbuffer = (surfaces & EGL_PBUFFER_BIT) != 0;
-            const uint32_t error = OpenGLSampleCountError(params.m_Samples, samples);
-            if (!best || error < best_error || (error == best_error && pbuffer && !*has_pbuffer))
+            OpenGLFormatScore score = { 0, OpenGLSampleCountError(params.m_Samples, samples), (surfaces & EGL_PBUFFER_BIT) != 0 };
+            for (size_t j = 0; j < sizeof(channels) / sizeof(channels[0]); ++j)
+            {
+                EGLint bits = 0;
+                g_EGL.m_GetConfigAttrib(g_Display, config, channels[j][0], &bits);
+                if (bits < channels[j][1])
+                {
+                    score.m_MissingBits += channels[j][1] - bits;
+                }
+            }
+
+            if (BetterOpenGLFormat(score, best_score))
             {
                 best = config;
-                best_error = error;
+                best_score = score;
                 *sample_count = samples > 1 ? samples : 1;
-                *has_pbuffer = pbuffer;
-                if (!error && pbuffer)
+                *has_pbuffer = score.m_Pbuffer;
+                if (!score.m_MissingBits && !score.m_SampleError && score.m_Pbuffer)
                 {
                     break;
                 }

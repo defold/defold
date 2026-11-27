@@ -32,6 +32,27 @@ namespace dmPlatform
         return requested > available ? requested - available : available - requested;
     }
 
+    struct OpenGLFormatScore
+    {
+        uint32_t m_MissingBits, m_SampleError;
+        bool     m_Pbuffer;
+    };
+
+    static inline bool BetterOpenGLFormat(const OpenGLFormatScore& candidate, const OpenGLFormatScore& best)
+    {
+        if (candidate.m_MissingBits != best.m_MissingBits)
+        {
+            return candidate.m_MissingBits < best.m_MissingBits;
+        }
+
+        if (candidate.m_SampleError != best.m_SampleError)
+        {
+            return candidate.m_SampleError < best.m_SampleError;
+        }
+
+        return candidate.m_Pbuffer && !best.m_Pbuffer;
+    }
+
     static inline bool OpenGLGetVersion(int32_t version, uint32_t* major, uint32_t* minor)
     {
         uint32_t tmp_major = version / 10;

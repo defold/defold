@@ -127,13 +127,7 @@ namespace dmPlatform
         return value;
     }
 
-    struct FormatScore
-    {
-        uint32_t m_MissingBits, m_SampleError;
-        bool     m_Pbuffer;
-    };
-
-    static FormatScore ScoreFormat(HWindow w, GLXFBConfig glx, EGLConfig egl, bool pbuffer)
+    static OpenGLFormatScore ScoreFormat(HWindow w, GLXFBConfig glx, EGLConfig egl, bool pbuffer)
     {
         // Bit depths are preferences. A 16-bit depth buffer or an RGB565 visual can still run the game.
         const int channels[][3] = {
@@ -141,7 +135,7 @@ namespace dmPlatform
             { GLX_BLUE_SIZE, EGL_BLUE_SIZE, 8 }, { GLX_ALPHA_SIZE, EGL_ALPHA_SIZE, w->m_Params.m_ContextAlphabits },
             { GLX_DEPTH_SIZE, EGL_DEPTH_SIZE, 24 }, { GLX_STENCIL_SIZE, EGL_STENCIL_SIZE, 8 }
         };
-        FormatScore score = {};
+        OpenGLFormatScore score = {};
         for (size_t i = 0; i < sizeof(channels) / sizeof(channels[0]); ++i)
         {
             int missing = channels[i][2] - ConfigAttribute(w, glx, egl, channels[i][0], channels[i][1]);
@@ -155,21 +149,6 @@ namespace dmPlatform
         score.m_SampleError = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
         score.m_Pbuffer = pbuffer;
         return score;
-    }
-
-    static bool BetterFormat(const FormatScore& candidate, const FormatScore& best)
-    {
-        if (candidate.m_MissingBits != best.m_MissingBits)
-        {
-            return candidate.m_MissingBits < best.m_MissingBits;
-        }
-
-        if (candidate.m_SampleError != best.m_SampleError)
-        {
-            return candidate.m_SampleError < best.m_SampleError;
-        }
-
-        return candidate.m_Pbuffer && !best.m_Pbuffer;
     }
 
     static bool SelectGLX(HWindow w, VisualID* visual)
@@ -194,13 +173,13 @@ namespace dmPlatform
             return false;
         }
 
-        FormatScore best = { UINT32_MAX, UINT32_MAX, false };
+        OpenGLFormatScore best = { UINT32_MAX, UINT32_MAX, false };
         for (int i = 0; i < count; ++i)
         {
             int types = 0;
             g->m_glXGetFBConfigAttrib(w->m_Display, configs[i], GLX_DRAWABLE_TYPE, &types);
-            FormatScore score = ScoreFormat(w, configs[i], 0, (types & GLX_PBUFFER_BIT) != 0);
-            if (BetterFormat(score, best))
+            OpenGLFormatScore score = ScoreFormat(w, configs[i], 0, (types & GLX_PBUFFER_BIT) != 0);
+            if (BetterOpenGLFormat(score, best))
             {
                 g->m_XConfig = configs[i];
                 best = score;
@@ -326,7 +305,7 @@ namespace dmPlatform
             return EGLFailure(g, "eglChooseConfig");
         }
 
-        FormatScore best = { UINT32_MAX, UINT32_MAX, false };
+        OpenGLFormatScore best = { UINT32_MAX, UINT32_MAX, false };
         for (EGLint i = 0; i < count; ++i)
         {
             EGLConfig config = configs.Begin()[i];
@@ -345,8 +324,8 @@ namespace dmPlatform
 
             EGLint surface_types = 0;
             g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_SURFACE_TYPE, &surface_types);
-            FormatScore score = ScoreFormat(w, 0, config, (surface_types & EGL_PBUFFER_BIT) != 0);
-            if (BetterFormat(score, best))
+            OpenGLFormatScore score = ScoreFormat(w, 0, config, (surface_types & EGL_PBUFFER_BIT) != 0);
+            if (BetterOpenGLFormat(score, best))
             {
                 best = score;
                 g->m_EConfig = config;
