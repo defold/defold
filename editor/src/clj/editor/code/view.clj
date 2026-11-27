@@ -2092,13 +2092,12 @@
                      (= request [(get-property view-node :lines)
                                  (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]))
             (let [^Canvas canvas (get-property view-node :canvas)]
-              (if-not (identical? canvas (some-> canvas .getScene ui/focus-owner))
+              (if-not (and result (identical? canvas (some-> canvas .getScene ui/focus-owner)))
                 (hide-signature-help! view-node)
                 (let [shown (get-property view-node :signature-help)
 
                       keep-selection
-                      (and result
-                           (:selected shown)
+                      (and (:selected shown)
                            (= (mapv :label (:signatures shown))
                               (mapv :label (:signatures result))))]
                   (set-properties! view-node nil
@@ -4412,7 +4411,7 @@
             (not focused)
             (hide-signature-help! view-node)
 
-            (and signature-help (not= [lines cursor] signature-help-request))
+            (not= [lines cursor] signature-help-request)
             (request-signature-help! view-node)))
         (ui/advance-graph-user-data-component!
           view-node :signature-help-popup
