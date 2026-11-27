@@ -24,6 +24,8 @@ static uint32_t g_ReleasedLayoutCount;
 static uint32_t g_ReleasedPipelineLayoutCount;
 static uint32_t g_GroupCount;
 static uint32_t g_PipelineCount;
+static uint32_t g_SamplerCount;
+static WGPUSamplerDescriptor g_SamplerDesc;
 static bool g_NativeDevice;
 #if defined(DM_GRAPHICS_DAWN)
 static bool g_RejectStencilClearPipeline;
@@ -105,6 +107,18 @@ static WGPURenderPipeline CaptureRenderPipeline(WGPUDevice device, const WGPURen
     return (WGPURenderPipeline)(uintptr_t)g_PipelineCount;
 }
 
+static WGPUSampler CaptureSampler(WGPUDevice device, const WGPUSamplerDescriptor* desc)
+{
+    ++g_SamplerCount;
+    g_SamplerDesc = *desc;
+    if (g_NativeDevice)
+    {
+        return wgpuDeviceCreateSampler(device, desc);
+    }
+
+    return (WGPUSampler)(uintptr_t)g_SamplerCount;
+}
+
 #if defined(DM_GRAPHICS_DAWN)
 static WGPUFuture CaptureRenderPipelineAsync(WGPUDevice device, const WGPURenderPipelineDescriptor* desc, WGPUCreateRenderPipelineAsyncCallbackInfo callback)
 {
@@ -132,7 +146,9 @@ static WGPUFuture CaptureRenderPipelineAsync(WGPUDevice device, const WGPURender
 #define wgpuDeviceCreateBindGroup CaptureBindGroup
 #define wgpuBindGroupRelease ReleaseBindGroup
 #define wgpuDeviceCreateRenderPipeline CaptureRenderPipeline
+#define wgpuDeviceCreateSampler CaptureSampler
 #include "../webgpu/graphics_webgpu.cpp"
+#undef wgpuDeviceCreateSampler
 #undef wgpuDeviceCreateBindGroupLayout
 #undef wgpuDeviceCreatePipelineLayout
 #undef wgpuBindGroupLayoutRelease
@@ -166,6 +182,8 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
         g_ReleasedPipelineLayoutCount = 0;
         g_GroupCount = 0;
         g_PipelineCount = 0;
+        g_SamplerCount = 0;
+        memset(&g_SamplerDesc, 0, sizeof(g_SamplerDesc));
 #if defined(DM_GRAPHICS_DAWN)
         g_RejectStencilClearPipeline = false;
 #endif
@@ -559,6 +577,49 @@ TEST_F(WebGPUTextureLayoutTest, ComputeLayoutsAreUnchanged)
     ASSERT_EQ(1u, m_Program.m_Layouts.Size());
     ASSERT_EQ(WGPUTextureSampleType_UnfilterableFloat, g_Bindings[0][0].texture.sampleType);
     ASSERT_EQ(WGPUSamplerBindingType_NonFiltering, g_Bindings[1][31].sampler.type);
+}
+
+// Every min filter must set the sampler's minFilter and keep the requested magFilter.
+// Guards against NEAREST and LINEAR min filters writing magFilter and leaving minFilter unset.
+TEST_F(WebGPUTextureLayoutTest, SamplerMinFilterKeepsMagFilter)
+{
+#if defined(DM_GRAPHICS_WEBGPU2)
+    const WGPUSamplerDescriptor defaults = WGPU_SAMPLER_DESCRIPTOR_INIT;
+#else
+    const WGPUSamplerDescriptor defaults = {};
+#endif
+    struct MinFilterCase
+    {
+        dmGraphics::TextureFilter m_Filter;
+        WGPUFilterMode            m_MinFilter;
+        WGPUMipmapFilterMode      m_MipmapFilter;
+        float                     m_LodMaxClamp;
+    };
+    const MinFilterCase min_cases[] = {
+        { dmGraphics::TEXTURE_FILTER_NEAREST, WGPUFilterMode_Nearest, defaults.mipmapFilter, 0.25f },
+        { dmGraphics::TEXTURE_FILTER_LINEAR, WGPUFilterMode_Linear, defaults.mipmapFilter, 0.25f },
+        { dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST, WGPUFilterMode_Nearest, WGPUMipmapFilterMode_Nearest, 32.0f },
+        { dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR, WGPUFilterMode_Nearest, WGPUMipmapFilterMode_Linear, 32.0f },
+        { dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST, WGPUFilterMode_Linear, WGPUMipmapFilterMode_Nearest, 32.0f },
+        { dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR, WGPUFilterMode_Linear, WGPUMipmapFilterMode_Linear, 32.0f },
+    };
+    const dmGraphics::TextureFilter mag_filters[] = { dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_LINEAR };
+    const WGPUFilterMode            mag_modes[]   = { WGPUFilterMode_Nearest, WGPUFilterMode_Linear };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(min_cases); ++i)
+    {
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(mag_filters); ++j)
+        {
+            const uint32_t sampler_count = g_SamplerCount;
+            WebGPUGetOrCreateSampler(m_Context, min_cases[i].m_Filter, mag_filters[j], dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
+            ASSERT_EQ(sampler_count + 1, g_SamplerCount);
+            ASSERT_EQ(min_cases[i].m_MinFilter, g_SamplerDesc.minFilter);
+            ASSERT_EQ(mag_modes[j], g_SamplerDesc.magFilter);
+            ASSERT_EQ(min_cases[i].m_MipmapFilter, g_SamplerDesc.mipmapFilter);
+            ASSERT_EQ(min_cases[i].m_LodMaxClamp, g_SamplerDesc.lodMaxClamp);
+        }
+    }
 }
 
 #if defined(DM_GRAPHICS_DAWN)
