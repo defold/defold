@@ -879,12 +879,20 @@
       (when-let [signatures (not-empty (:signatures result))]
         {:active (let [i (:activeSignature result)] (if (and i (< -1 i (count signatures))) i 0))
          :signatures (mapv (fn [{:keys [label parameters activeParameter documentation]}]
-                             (let [parameter (get parameters (or activeParameter (:activeParameter result) 0))
-                                   parameter-label (:label parameter)
-                                   [start end] (if (string? parameter-label)
-                                                 (when-let [i (string/index-of label parameter-label)]
-                                                   [i (+ i (count parameter-label))])
-                                                 parameter-label)
+                             (let [index (or activeParameter (:activeParameter result) 0)
+                                   parameter (get parameters index)
+                                   ranges (first
+                                            (reduce
+                                              (fn [[ranges from] {parameter-label :label}]
+                                                (if (string? parameter-label)
+                                                  (if-let [start (string/index-of label parameter-label from)]
+                                                    (let [end (+ (long start) (count parameter-label))]
+                                                      [(conj ranges [start end]) end])
+                                                    [(conj ranges nil) from])
+                                                  [(conj ranges parameter-label) (second parameter-label)]))
+                                              [[] (inc (or (string/index-of label "(") -1))]
+                                              parameters))
+                                   [start end] (get ranges index)
                                    doc #(if (string? %) (->MarkupContent :plaintext %) (markup-content:lsp->editor %))]
                                {:label label
                                 :start start
