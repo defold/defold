@@ -350,21 +350,60 @@ namespace dmGraphics
         delete[] vk_device_list;
     }
 
-    bool GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut)
+    static uint32_t CountMemoryPropertyFlags(VkMemoryPropertyFlags flags)
     {
-        VkPhysicalDeviceMemoryProperties vk_memory_props;
-        vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &vk_memory_props);
-
-        for (uint32_t i = 0; i < vk_memory_props.memoryTypeCount; i++)
+        uint32_t count = 0;
+        while (flags)
         {
-            if ((typeFilter & (1 << i)) && (vk_memory_props.memoryTypes[i].propertyFlags & vk_property_flags) == vk_property_flags)
+            flags &= flags - 1;
+            ++count;
+        }
+
+        return count;
+    }
+
+    bool GetMemoryTypeIndex(const VkPhysicalDeviceMemoryProperties& properties, uint32_t type_filter,
+                            VkMemoryPropertyFlags required_flags, uint32_t* memory_index_out,
+                            VkMemoryPropertyFlags preferred_flags, VkMemoryPropertyFlags avoided_flags)
+    {
+        uint32_t best_index = VK_MAX_MEMORY_TYPES;
+        uint32_t best_preferred = 0;
+        uint32_t best_avoided = 0;
+        for (uint32_t i = 0; i < properties.memoryTypeCount; ++i)
+        {
+            VkMemoryPropertyFlags flags = properties.memoryTypes[i].propertyFlags;
+            if (!(type_filter & (1u << i)) || (flags & required_flags) != required_flags)
             {
-                *memoryIndexOut = i;
-                return true;
+                continue;
+            }
+
+            uint32_t preferred = CountMemoryPropertyFlags(flags & preferred_flags);
+            uint32_t avoided = CountMemoryPropertyFlags(flags & avoided_flags);
+            if (best_index == VK_MAX_MEMORY_TYPES || preferred > best_preferred ||
+                (preferred == best_preferred && avoided < best_avoided))
+            {
+                best_index = i;
+                best_preferred = preferred;
+                best_avoided = avoided;
             }
         }
 
-        return false;
+        if (best_index == VK_MAX_MEMORY_TYPES)
+        {
+            return false;
+        }
+
+        *memory_index_out = best_index;
+        return true;
+    }
+
+    bool GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t type_filter,
+                            VkMemoryPropertyFlags required_flags, uint32_t* memory_index_out,
+                            VkMemoryPropertyFlags preferred_flags, VkMemoryPropertyFlags avoided_flags)
+    {
+        VkPhysicalDeviceMemoryProperties properties;
+        vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &properties);
+        return GetMemoryTypeIndex(properties, type_filter, required_flags, memory_index_out, preferred_flags, avoided_flags);
     }
 
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
@@ -731,10 +770,11 @@ namespace dmGraphics
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-                                VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
+                                VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut,
+                                VkMemoryPropertyFlags preferred_flags, VkMemoryPropertyFlags avoided_flags)
     {
         VkResult result = CreateDeviceBufferAllocation(vk_physical_device, vk_device, vk_size,
-                                                       vk_memory_flags, bufferOut->m_Usage, &bufferOut->m_Allocation);
+                                                       vk_memory_flags, bufferOut->m_Usage, &bufferOut->m_Allocation, preferred_flags, avoided_flags);
         if (result == VK_SUCCESS)
         {
             bufferOut->m_Base.m_Size = (uint32_t) vk_size;
@@ -744,7 +784,8 @@ namespace dmGraphics
     }
 
     VkResult CreateDeviceBufferAllocation(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-                                          VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* bufferOut)
+                                          VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* bufferOut,
+                                          VkMemoryPropertyFlags preferred_flags, VkMemoryPropertyFlags avoided_flags)
     {
         assert(vk_size < 0x80000000); // Preserve the existing buffer size limit.
 
@@ -774,7 +815,7 @@ namespace dmGraphics
         vk_memory_alloc_info.memoryTypeIndex = 0;
 
         uint32_t memory_type_index = 0;
-        if (!GetMemoryTypeIndex(vk_physical_device, vk_buffer_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        if (!GetMemoryTypeIndex(vk_physical_device, vk_buffer_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index, preferred_flags, avoided_flags))
         {
             res = VK_ERROR_INITIALIZATION_FAILED;
             goto bail;
@@ -797,7 +838,6 @@ namespace dmGraphics
         bufferOut->m_Capacity = (uint32_t) vk_size;
         bufferOut->m_AllocationSize = vk_buffer_memory_req.size;
         bufferOut->m_MemoryTypeIndex = memory_type_index;
-        bufferOut->m_Handle.m_LastUsedSerial = 0;
 
         return VK_SUCCESS;
 bail:

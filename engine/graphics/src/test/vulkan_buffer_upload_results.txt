@@ -1,0 +1,525 @@
+Vulkan vertex/index buffer upload comparison - issue #13751
+Measured 2026-11-25
+
+Scope
+-----
+Compare three memory/upload strategies, then implement reusable staging into
+device-local Vulkan vertex/index buffers. The first section measures the actual
+implementation against a saved original executable through the public buffer APIs.
+Historical sections retain the candidate and Vulkan/DX12/OpenGL comparisons that
+informed the choice. Candidate measurements use explicit allocations/uploads.
+No VMA integration or mesh-component storage changes are included.
+
+Hardware/build
+--------------
+Windows x86_64, OS build 10.0.26300.0
+Intel Core i9-12900K
+NVIDIA GeForce RTX 3060 Ti, 8 GiB, driver 610.88
+PCIe link reported Gen 4 x16; clocks were not locked.
+Base checkout: a5879cb3b3; production changes are described below.
+MSVC 19.51, isolated CMake RelWithDebInfo build, /O2.
+VSync and validation disabled for timing. Validation runs are separate.
+Historical candidate executable SHA-256: d306273d21e63d9425e31358b3d4ddc053c2981261359d4701880767699900b6
+
+Implemented production policy and paired measurements
+-----------------------------------------------------
+Branch: codex/vulkan-staged-vertex-index-uploads
+All vertex/index usage hints now use device-local destinations and reusable,
+persistently mapped host staging. Destinations retain capacity across updates;
+growth replaces the allocation and retires its predecessor after GPU completion.
+Partial writes copy only the changed range. Transfer barriers order copies against
+previous draws and uploads, preserving earlier draws without CPU reads of old data.
+The upload pools are shared with storage buffers and reused only after their frame
+fence completes. Pre-frame calls snapshot caller bytes into a separate pool; the
+next successful BeginFrame transfers ownership to its fenced pool and records the
+queued copies. This batches pre-frame work without per-upload submissions/waits.
+Deleting or growing a buffer cancels its obsolete queued copies.
+
+GetMemoryTypeIndex now separates requirements from preferred/avoided properties.
+Device-local destinations prefer non-host-visible memory; host-coherent staging
+prefers non-device-local memory. These are soft preferences, allowing UMA layouts.
+The old mapped vertex/index copy-on-write allocation cache is removed. This does
+not add memory suballocation for destinations, budget management, VMA, or GPU-only
+mesh-component storage. Those remain separate work.
+
+The native public-API benchmark was rebuilt against this implementation. A saved
+original executable and the fixed executable were interleaved in randomized pairs:
+3 trials, 120 warm-up + 480 measured frames, 4 sizes x 3 workloads x 2 executables
+= 72 processes. Validation and per-frame drains were disabled for timing. Both
+executables exercised all three frame slots. Index bytes add 1/8 of vertex bytes.
+The paired test removes the candidate harness difference from the before/after
+comparison. It still measures a synthetic workload on one GPU with unlocked clocks.
+Before/after process snapshots reported 5430-5432 MiB free GPU memory; these are not
+peak in-process memory measurements. Timing definitions match the backend section.
+
+Original executable SHA-256:
+  245916a877ab7a9f57066aebf9138075cd070f3b22202f4dacdebd4dc3574d38
+Fixed executable SHA-256:
+  05e55815a3f6b72760aa447cdbc8d34d0a76e2f1e3f23a400dd4b0c314c299df
+Raw samples, metadata, summaries and all process logs:
+  tmp/vulkan-buffer-upload/implementation/paired-results/
+Saved original executable:
+  tmp/vulkan-buffer-upload/implementation/benchmark_graphics_buffer_upload-before.exe
+
+Production before/after, us; medians of process means; wall brackets are trial range
+   KiB workload   build    draw GPU   CPU/upload       wall/frame [min,max]
+    64 resident   before       8.88         0.00       141.65 [   138.44,    143.62]
+    64 resident   after        3.66         0.00       138.26 [   134.28,    142.00]
+    64 stream     before       8.47         2.97       144.73 [   137.69,    152.44]
+    64 stream     after        3.45         4.61       142.16 [   141.70,    146.09]
+    64 stream4    before       8.98         2.71       142.31 [   140.44,    155.14]
+    64 stream4    after        3.78         4.90       140.66 [   139.57,    142.90]
+  1024 resident   before      85.02         0.00       212.30 [   209.26,    214.73]
+  1024 resident   after        6.89         0.00       141.10 [   140.21,    142.26]
+  1024 stream     before      99.22        54.74       225.53 [   223.13,    226.18]
+  1024 stream     after        4.81        55.90       203.46 [   192.21,    207.57]
+  1024 stream4    before     102.32        55.66       230.85 [   230.29,    234.45]
+  1024 stream4    after       10.78        58.12       212.39 [   196.71,    212.66]
+ 16384 resident   before    2006.99         0.00      2015.71 [  1877.66,   2073.01]
+ 16384 resident   after       47.92         0.00       185.23 [   180.33,    185.32]
+ 16384 stream     before    2703.53      1626.87      2716.33 [  2700.04,   2908.84]
+ 16384 stream     after       64.77      1400.69      1608.30 [  1604.26,   1683.07]
+ 16384 stream4    before    8952.83      1529.38      8962.54 [  8735.81,   9015.05]
+ 16384 stream4    after      223.09      1313.25      1696.58 [  1674.71,   1892.19]
+ 49152 resident   before    6143.88         0.00      6151.49 [  6039.94,   6299.71]
+ 49152 resident   after      134.32         0.00       261.81 [   253.26,    268.25]
+ 49152 stream     before    9306.78      6253.27      9323.06 [  9149.11,   9615.31]
+ 49152 stream     after      136.91      6083.45      6176.81 [  6150.86,   6339.78]
+ 49152 stream4    before   29523.85      6411.41     29541.64 [ 29331.98,  30116.75]
+ 49152 stream4    after      526.55      6110.60      6202.13 [  6133.73,   6354.42]
+
+At 16 MiB, resident draw GPU time improves from 2006.99 to 47.92 us (41.9x).
+Wall time improves from 2716.33 to 1608.30 us for streaming one draw (1.69x),
+and from 8962.54 to 1696.58 us for four draws (5.28x). At 48 MiB, four-draw
+streaming improves from 29541.64 to 6202.13 us (4.76x). Small uploads add some
+CPU recording cost: the 64 KiB single-draw upload rises from 2.97 to 4.61 us.
+These measurements support the staged baseline; they do not establish that it
+beats mapped BAR memory for every workload or predict complete game frame rates.
+
+Combined context: actual fixed backend alongside earlier DX12/OpenGL measurements
+Wall time in ms/frame; medians. DX12/OpenGL are the earlier 108-process matrix,
+while both Vulkan columns are the new paired run above. They share workload and
+frame counts but were not timed in one interleaved four-column experiment.
+ MiB workload     OpenGL     DX12  Vulkan before  Vulkan fixed
+  16 resident      0.212    0.103          2.016         0.185
+  16 stream        2.701    2.845          2.716         1.608
+  16 stream4       2.451    3.003          8.963         1.697
+  48 resident      0.326    0.164          6.151         0.262
+  48 stream        9.997    9.822          9.323         6.177
+  48 stream4       9.063    9.898         29.542         6.202
+These fixed Vulkan numbers supersede the earlier staged-candidate estimates.
+See the historical backend section for timing interpretation and DX12 allocation
+policy; this table compares implementations rather than inherent API limits.
+
+Implementation validation on Windows / RTX 3060 Ti:
+- RelWithDebInfo build, all 75 general graphics tests (17677 assertions), and the
+  GPU-independent memory-type selection tests passed.
+- The Vulkan buffer suite passed rendered checks with synchronization and queue-
+  submit validation: repeated destination/staging reuse, growth/shrink, partial
+  vertex/index writes between draws, usage transitions, transfer buffers, deletion,
+  queued caller-memory snapshots, staging block growth, byte patches and zero-fill.
+- All 12 native benchmark size/workload cases passed separate rendered checks
+  with synchronization validation (6 warm-up + 12 measured frames).
+- Existing Vulkan ssbo-subdata (60 frames), ssbo-updates and ssbo-hazards tests
+  passed with synchronization validation after sharing the upload pools.
+- The Metal-only ssbo-shared-stages scenario cannot run on the Vulkan adapter;
+  it is not included in the passing Vulkan checks.
+- New C++ sources formatted with Uncrustify 0.83.0; existing edits formatted locally.
+Other vendors and UMA hardware still need device validation. Synthetic tests cover
+UMA memory-type selection, but do not substitute for running on those devices.
+
+Reproduce the paired run after retaining the original backend executable:
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <fixed-backend-executable> tmp/vulkan-buffer-upload/implementation/paired-results --reference-executable <original-backend-executable> --trials 3 --warmup 120 --frames 480 --sizes 64 1024 16384 49152 --workloads resident stream stream4 --modes vulkan --telemetry
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <fixed-backend-executable> tmp/vulkan-buffer-upload/implementation/validation --trials 1 --warmup 6 --frames 12 --sizes 64 1024 16384 49152 --workloads resident stream stream4 --modes vulkan --verify
+For test_app_graphics in this isolated build, DEFOLD_SKIP_BOB_LIGHT=ON reused the
+existing SDK bob-light.jar. No Bob source or build changes were required.
+
+Historical candidate comparison
+------------------------------
+
+Modes
+-----
+host:   Persistently mapped HOST_VISIBLE | HOST_COHERENT system memory.
+bar:    Persistently mapped DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT memory.
+staged: Persistently mapped host staging memory, vkCmdCopyBuffer into DEVICE_LOCAL
+        vertex/index buffers, and transfer-to-vertex/index barriers.
+
+The actual selected memory types on this machine were:
+  host: type 3, flags 0x6, heap 1 (system memory)
+  bar: type 5, flags 0x7, heap 2 (214 MiB host-visible device-local heap)
+  staged destination: type 1, flags 0x1, heap 0 (about 7.84 GiB device-local heap)
+Staged upload sources prefer a non-device-local host-visible heap. The benchmark
+fails or explicitly skips unavailable modes instead of silently relabeling them.
+
+Method
+------
+- 32-byte vertices: two vec4 attributes, all components consumed by the shader.
+- Sequential 32-bit indices; index bytes are one eighth of vertex bytes.
+- Byte sizes are rounded down to a whole number of triangles.
+- Most triangles are clipped to isolate vertex/index fetch rather than fill rate.
+  A visible triangle and alternating vertex/index uploads provide pixel checks.
+- Each mode preallocates the same 3 destination buffer pairs, one per frame
+  slot. Staged mode also owns one upload buffer per slot. No steady-state buffer
+  allocation, mapping, per-upload submission, or per-upload fence wait occurs.
+  BeginFrame waits for the slot fence before the CPU overwrites its contents.
+- Resident: upload each slot once during warm-up, then repeatedly draw it.
+- Stream: upload the complete vertex and index contents every frame, draw once.
+- Stream4: upload once per frame, draw the same geometry four times.
+- Occasional: each slot receives fresh data on its first use in each 60-frame epoch.
+  This means up to 3 uploads per epoch, not one upload globally.
+- CPU upload time includes memcpy and, for staging, copy/barrier recording. It
+  excludes data generation, initial allocations, and frame-fence/presentation work.
+- GPU time uses timestamp queries from before copies to after draws. It includes
+  render-target clear/setup and any staged copy, but excludes CPU memcpy and present.
+  Query results are read only after the frame fence (or final device idle) completes.
+- Wall time includes BeginFrame, upload, draw recording, submission, presentation,
+  and the final drain. CPU and GPU work overlap, so their times must not be added.
+- Hidden 64x64 window and offscreen render target. Small workloads are dominated
+  by CPU/window-system overhead in the wall metric; do not rank them by wall time.
+- Main matrix: 5 trials, 120 warm-up + 480 measured frames per process; 36 cases.
+  Workloads and mode order are shuffled with seed 13751. Cases run sequentially.
+- Longer confirmation: 3 trials, 600 warm-up + 1200 measured frames; 9 large cases.
+  This addresses the wider system-memory variation in the first sweep.
+- Tables report medians of per-process means. GPU brackets are the min/max of
+  those process means, not individual-frame extrema. All timing units are us.
+
+Resource recheck after freeing GPU resources
+-------------------------------------------
+The same Vulkan candidate executable (same SHA-256 above) was reused. Initial
+checks showed approximately 5 GiB free device memory. The saved pre-run snapshot
+reports 5015 MiB free. The original-size run's before/after process snapshots
+ranged from 5006 to 5173 MiB free. These snapshots do not measure peak in-process
+usage; no claim is made that the earlier run was memory-constrained.
+The BAR heap remains 214 MiB, with a reported per-process budget of 211.28 MiB.
+Freeing general VRAM does not enlarge this heap.
+
+- Original sizes: 64 KiB, 1 MiB and 16 MiB; resident, stream and stream4;
+  3 trials of 600 warm-up + 1200 measured frames (81 processes).
+- Expanded all-mode comparison: 48 MiB vertices + 6 MiB indices;
+  same workloads, trials and frame counts (27 processes).
+- Larger host/staged comparison: 128 MiB vertices + 16 MiB indices;
+  resident and stream, 3 trials of 120 warm-up + 480 measured frames (12 processes).
+  BAR was deliberately excluded: the three destination pairs exceed its heap.
+- All 9 expanded 48 MiB cases and all 4 128 MiB cases passed rendered pixel and
+  synchronization validation separately, 6 warm-up + 12 checked frames each.
+- The runner now accepts --modes and optional --telemetry. NVIDIA memory, clock,
+  temperature and power-state snapshots are taken outside each timed process.
+  Clocks remain unlocked, so these are repeated observations, not a controlled
+  experiment isolating the causal effect of freeing other GPU resources.
+
+The matched 16 MiB comparison is essentially unchanged: resident GPU time changed
+by less than 0.5% for all three modes. Staged full-frame time changed by +0.2% for
+stream and -1.0% for stream4 relative to the earlier long confirmation. More free
+memory did not reverse those rankings. The new 48 MiB workload does change the
+BAR/staging streaming ranking, as described in the updated findings.
+
+Recheck results (us; add 1/8 of vertex size for indices)
+   KiB workload     mode               GPU median [min,max]   CPU/upload   wall/frame
+    64 resident     bar          3.71 [     3.61,     3.75]         0.00       142.03
+    64 resident     host         8.86 [     8.81,     9.19]         0.00       140.82
+    64 resident     staged       3.72 [     3.63,     3.76]         0.00       141.49
+    64 stream       bar          2.87 [     2.75,     3.11]         6.67       142.87
+    64 stream       host         8.57 [     8.52,     8.65]         2.59       146.46
+    64 stream       staged       7.59 [     7.53,     7.61]         3.75       147.39
+    64 stream4      bar          3.28 [     3.26,     3.28]         6.82       137.78
+    64 stream4      host         9.09 [     9.08,     9.10]         2.78       147.53
+    64 stream4      staged       8.01 [     7.84,     8.10]         4.09       144.09
+  1024 resident     bar          7.04 [     7.01,     7.06]         0.00       150.66
+  1024 resident     host        86.78 [    86.62,    87.25]         0.00       234.64
+  1024 resident     staged       7.06 [     7.02,     7.09]         0.00       147.41
+  1024 stream       bar          6.94 [     6.92,     6.95]       127.66       205.10
+  1024 stream       host        97.70 [    97.54,   105.41]        54.13       233.79
+  1024 stream       staged      64.90 [    64.50,    65.04]        54.52       200.89
+  1024 stream4      bar         12.37 [    12.28,    12.45]       125.98       208.80
+  1024 stream4      host       102.28 [   100.16,   102.68]        51.33       238.25
+  1024 stream4      staged      71.02 [    70.07,    71.34]        55.51       206.12
+ 16384 resident     bar         48.56 [    48.52,    48.66]         0.00       187.72
+ 16384 resident     host      1809.07 [  1794.22,  1837.72]         0.00      1822.02
+ 16384 resident     staged      48.48 [    48.47,    48.65]         0.00       181.24
+ 16384 stream       bar         65.07 [    61.84,    65.66]      1793.49      1865.70
+ 16384 stream       host      2682.90 [  2586.12,  2819.20]      1571.41      2694.13
+ 16384 stream       staged    1646.74 [  1646.57,  1651.06]      1554.11      1729.21
+ 16384 stream4      bar        201.17 [   194.19,   203.67]      1763.82      1828.74
+ 16384 stream4      host      8357.25 [  8320.62,  9035.58]      1997.52      8365.54
+ 16384 stream4      staged    1788.28 [  1722.83,  1877.02]      1459.82      1818.37
+ 49152 resident     bar        136.99 [   136.88,   137.15]         0.00       275.30
+ 49152 resident     host      6447.42 [  5973.46,  6523.86]         0.00      6455.82
+ 49152 resident     staged     137.12 [   136.75,   137.21]         0.00       278.63
+ 49152 stream       bar        478.98 [   410.49,   482.28]      5326.69      5429.49
+ 49152 stream       host      9579.09 [  9529.64,  9721.31]      6747.81      9590.22
+ 49152 stream       staged    4663.52 [  4586.51,  4785.12]      6422.65      6513.10
+ 49152 stream4      bar       1205.15 [  1090.12,  1210.06]      5417.91      5517.53
+ 49152 stream4      host     28930.24 [ 28799.64, 29339.72]      6792.68     28941.49
+ 49152 stream4      staged    5122.51 [  5098.72,  5133.05]      6432.02      6525.36
+131072 resident     host     17643.95 [ 17000.81, 17933.48]         0.00     17653.28
+131072 resident     staged     389.40 [   383.01,   391.19]         0.00       502.38
+131072 stream       host     27039.86 [ 26326.34, 27344.45]     17579.46     27077.59
+131072 stream       staged   13891.40 [ 13708.19, 14147.43]     18297.55     18432.01
+
+Original Vulkan, DX12 and OpenGL backend comparison (before implementation)
+------------------------------------------------------------------------
+This uses benchmark_graphics_buffer_upload and the production New/Set vertex and
+index buffer APIs for all three backends. It does not transplant the Vulkan
+candidate allocations into DX12/OpenGL. Geometry, shader math, update patterns,
+three application buffer pairs, 64x64 offscreen target and hidden window match the
+candidate workload. Resident data uses STATIC_DRAW; updates use STREAM_DRAW.
+Each backend retains its own resource allocation, synchronization and presentation.
+The GPU name was recorded per process; all cases used the RTX 3060 Ti, not WARP.
+
+- 64 KiB, 1 MiB, 16 MiB and 48 MiB vertices, each with resident, stream and stream4.
+- 3 interleaved trials, 120 warm-up + 480 measured frames (108 processes).
+- Matrix executable SHA-256:
+  7ef43d21b572887405d0f36218d66aacd90f651a30fea56e57e9ab65747da8e2
+  Retained as recheck/benchmark_graphics_buffer_upload-initial.exe.
+- Later scheduling instrumentation/control executable SHA-256:
+  245916a877ab7a9f57066aebf9138075cd070f3b22202f4dacdebd4dc3574d38
+- Separate rendered checks passed for all 36 matrix cases. Vulkan synchronization
+  validation and the DX12 debug info queue reported no errors. Additional checks
+  passed for all 3 backends with occasional updates over 132 frames, and all 3
+  with a per-frame drain at 48 MiB. In total: 42 backend validation cases.
+
+Timing interpretation:
+Three GPU timestamps bracket the upload calls, draw start and draw end. Draw GPU
+below excludes preceding copies. Raw GPU span includes uploads and drawing;
+OpenGL can also include command-feed/CPU gaps because it submits implicitly.
+Consequently, raw GPU span is not treated as a directly comparable upload engine
+measurement. CPU upload measures SetVertexBufferData + SetIndexBufferData calls.
+Wall time includes frame acquisition, uploads, draws, presentation and final drain.
+Queries are read after the final drain; there are no per-frame query waits.
+The small hidden-window wall times include different backend/driver overheads and
+should not be used as a general API ranking or an estimate of game frame rates.
+
+The initial frame-slot probe observed both Vulkan and DX12 cycling through slots
+0, 1 and 2 (mask 0x7). It did not observe DX12 collapsing to a single slot. A
+separate control waits for completion after every frame on every backend to remove
+cross-frame overlap; this measures latency including drain overhead, not throughput.
+
+What the implementations did at the time of this comparison:
+- Original Vulkan draws vertex/index data from host-visible system memory.
+- DX12 copies into DEFAULT-heap device-local buffers. Its persistently mapped
+  upload ring is 8 MiB per frame. These 16/48 MiB vertex uploads exceed that ring,
+  so they take the temporary committed-upload allocation path on every update.
+  The index uploads still fit in the ring. This is an allocation-policy difference
+  from the reusable Vulkan staging candidate, not an inherent DX12 limitation.
+- OpenGL calls glBufferData for full updates; allocation and placement are managed
+  by the driver. Device-local-like read performance is observed, not a queried
+  guarantee about the physical memory placement of each OpenGL buffer.
+
+Original-backend results, us; medians of process means; wall brackets are trial range
+   KiB workload     backend   draw GPU   CPU/upload       wall/frame [min,max]
+    64 resident     dx12         2.28         0.00       108.20 [    96.58,   112.30]
+    64 resident     opengl       4.33         0.00       168.88 [   154.40,   175.40]
+    64 resident     vulkan       9.46         0.00       157.03 [   151.67,   172.39]
+    64 stream       dx12         3.02         5.69       110.02 [   106.56,   125.67]
+    64 stream       opengl       5.66         5.93       199.03 [   168.08,   204.92]
+    64 stream       vulkan       8.90         2.91       158.13 [   153.78,   158.54]
+    64 stream4      dx12         3.90         5.89       115.19 [   101.13,   120.40]
+    64 stream4      opengl       5.77         6.19       170.57 [   167.02,   215.87]
+    64 stream4      vulkan       9.44         3.08       160.03 [   157.70,   161.67]
+  1024 resident     dx12         5.17         0.00        94.24 [    87.30,    98.60]
+  1024 resident     opengl       7.83         0.00       162.36 [   159.84,   171.70]
+  1024 resident     vulkan      86.82         0.00       249.76 [   226.97,   263.15]
+  1024 stream       dx12         6.32        49.55       156.07 [   156.02,   168.83]
+  1024 stream       opengl       7.29        57.48       299.92 [   290.37,   359.08]
+  1024 stream       vulkan      94.94        49.93       226.23 [   221.60,   232.28]
+  1024 stream4      dx12        13.13        52.05       161.17 [   146.71,   164.95]
+  1024 stream4      opengl      14.24        49.35       294.40 [   284.90,   294.66]
+  1024 stream4      vulkan     111.74        53.56       250.34 [   231.20,   275.91]
+ 16384 resident     dx12        46.65         0.00       102.73 [    98.02,   106.65]
+ 16384 resident     opengl      49.23         0.00       212.14 [   189.65,   214.73]
+ 16384 resident     vulkan    2097.80         0.00      2109.06 [  2100.01,  2455.47]
+ 16384 stream       dx12        55.24      2183.53      2845.06 [  2829.47,  3006.68]
+ 16384 stream       opengl      53.20      1857.49      2701.09 [  2548.10,  3683.50]
+ 16384 stream       vulkan    2841.56      1492.97      2851.53 [  2774.99,  3007.01]
+ 16384 stream4      dx12       191.38      2318.87      3003.16 [  2977.73,  3218.13]
+ 16384 stream4      opengl     185.34      1605.97      2451.20 [  2275.82,  2464.43]
+ 16384 stream4      vulkan    9745.14      1939.35      9757.33 [  9524.99, 10630.82]
+ 49152 resident     dx12       136.86         0.00       164.31 [   163.80,   178.74]
+ 49152 resident     opengl     137.51         0.00       325.77 [   311.08,   353.90]
+ 49152 resident     vulkan    6373.24         0.00      6382.59 [  6215.56,  6410.82]
+ 49152 stream       dx12       153.36      8606.94      9821.53 [  9485.86, 10037.10]
+ 49152 stream       opengl     141.95      8122.76      9997.03 [  9828.09, 10050.20]
+ 49152 stream       vulkan    9795.74      6442.18      9813.34 [  9672.35,  9942.74]
+ 49152 stream4      dx12       565.63      8676.78      9898.28 [  9572.67, 10127.30]
+ 49152 stream4      opengl     540.95      7187.53      9062.75 [  8589.71,  9130.38]
+ 49152 stream4      vulkan   29895.49      6804.89     29916.53 [ 29698.67, 31033.22]
+
+One-frame-at-a-time control: stream, one draw, 3 x (120 warm-up + 480 measured)
+   KiB backend   draw GPU   CPU/upload       wall/frame [min,max]
+ 16384 dx12        50.20      2151.60      3450.75 [  3094.57,  3473.69]
+ 16384 opengl      53.35      2085.17      2760.45 [  2235.48,  2956.52]
+ 16384 vulkan    1832.72      1111.95      3085.81 [  2981.09,  4783.74]
+ 49152 dx12       220.06      7374.66     11474.53 [ 11362.50, 11592.98]
+ 49152 opengl     146.67      8908.97     10024.17 [  8784.89, 10075.09]
+ 49152 vulkan    9048.63      4629.80     13920.57 [ 11188.32, 15191.21]
+
+The host-memory Vulkan control varied substantially between trials, especially at
+48 MiB. Its exact latency advantage/disadvantage is not used to select a policy.
+The stronger conclusion is the repeatedly observed resident-read gap: at 16 MiB,
+original Vulkan draw GPU time is 2098 us versus DX12's 47 us and OpenGL's 49 us.
+The Vulkan BAR/staged candidates are already around 48.5 us in the matched recheck.
+Four repeated draws amplify the original Vulkan penalty: 16 MiB wall time is
+9757 us versus 3003 us for DX12 and 2451 us for OpenGL. Single-draw streaming is
+much closer (2852, 2845 and 2701 us respectively), because upload and frame work
+matter too. Reusable staged allocations remain relevant to the Vulkan proposal.
+This comparison measures these backend implementations, not API capability limits.
+
+Timestamp references:
+https://learn.microsoft.com/en-us/windows/win32/direct3d12/timing
+https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf (timer queries)
+
+Candidate findings (before implementation, after the resource recheck)
+---------------------------------------------------------------------
+1. Both device-local modes remove the large repeated-read penalty. Resident GPU
+   time falls from about 1809 us to 48.5 us in the recheck, approximately 37x. Actual frame throughput
+   improves less because CPU and presentation overhead remain.
+2. The winner depends on workload size. At 16 MiB, staging takes 1729 us/frame
+   versus BAR's 1866 us with one streaming draw, about 7% less time. Four draws
+   remain effectively tied (1818 versus 1829 us). At 48 MiB, BAR wins: 5429 versus
+   6513 us for one draw, and 5518 versus 6525 us for four draws. Its CPU upload
+   time is also lower at 48 MiB. Staging is not universally the fastest option.
+3. Small uploads still have a tradeoff: at 64 KiB, direct host writes cost about
+   2.6 us CPU, BAR about 6.7 us, and staging about 3.7 us in the recheck. All three are small
+   relative to this harness's frame overhead. The test does not establish a
+   universal crossover size or justify a hard-coded size threshold.
+4. Staging into device-local vertex/index buffers remains a reasonable general
+   baseline for discrete GPUs because it uses the main device-local heap and can
+   support larger workloads. At 128 MiB, staging takes 18.43 ms/frame versus
+   27.08 ms for host memory with one streaming draw. Retain reusable staging and
+   destination allocations. A mapped device-local path can be faster where it
+   fits, but cannot be the only path: this machine's BAR heap is only 214 MiB.
+   Three slots of 48 MiB vertices plus indices consume 162 MiB there; three slots
+   at 128 MiB would need 432 MiB. The implementation above selects reusable staging.
+5. The original CPU copy-on-write path reads old mapped bytes on partial updates.
+   Merely moving that backing to BAR memory could introduce slow CPU reads; this
+   benchmark measures full sequential writes, not that partial-update path.
+6. Validate AMD/Intel discrete hardware and an integrated/UMA device before treating
+   this single-machine result as a cross-platform default. These are synthetic
+   vertex-fetch workloads, not a reproduction of the reporter's complete game.
+   No PCIe traffic counters were measured, so no traffic reduction is claimed.
+
+Memory-selection change
+-----------------------
+GetMemoryTypeIndex now distinguishes mandatory properties from preferred and
+softly avoided properties. It filters memoryTypeBits and required flags first,
+maximizes the number of preferred matches, then minimizes avoided matches, and
+preserves driver order for ties. Existing callers with no preferences keep their
+current choice. The buffer allocation helpers accept the same optional preferences.
+This permits explicit policies for device-local destinations, mappable GPU memory,
+host staging and cached readback instead of one global preference for all callers.
+The property-based overload supports deterministic tests without a GPU. Tests
+cover compatibility, required properties, ranked preferences, unavailable preferred
+types, UMA fallback, ties, no match, and memory type bit 31.
+Preference fallback selects another compatible type when a preferred type is
+absent. Allocation failure/budget fallback is a separate concern; this change does
+not introduce a VRAM budget manager or automatic eviction.
+The implemented production policy uses DEVICE_LOCAL destinations with a soft
+preference against HOST_VISIBLE, and coherent host staging with a soft preference
+against DEVICE_LOCAL. Both still accept compatible UMA memory types.
+
+Historical benchmark validation (before implementation)
+-------------------------------------------------------
+- All 36 workload/mode cases passed rendered pixel checks with synchronization and
+  queue-submit synchronization validation: 6 warm-up + 12 checked frames each.
+- Additional 16 MiB occasional-update checks passed in all 3 modes over 132 frames,
+  covering updates after repeated reuse and across 60-frame epochs.
+- Vulkan buffer-reuse suite passed with synchronization validation.
+- Memory-type tests passed through run_test_vulkan_memory_type without a GPU context.
+- All 75 general graphics tests passed (17677 assertions).
+- New C++ file formatted with Uncrustify 0.83.0; existing edits formatted locally.
+
+Earlier confirmation: 16 MiB vertices + approximately 2 MiB indices
+----------------------------------------------------------------
+workload     mode               GPU median [min,max]   CPU/upload   wall/frame
+resident     bar         48.74 [    48.72,    48.77]         0.00       190.06
+resident     host      1802.53 [  1800.13,  1819.24]         0.00      1813.89
+resident     staged      48.71 [    48.70,    48.80]         0.00       190.36
+stream       bar         58.13 [    56.14,    59.62]      1776.70      1851.98
+stream       host      2568.13 [  2567.74,  2587.41]      1584.69      2577.74
+stream       staged    1661.11 [  1639.45,  1677.52]      1470.33      1725.47
+stream4      bar        192.67 [   192.64,   202.17]      1771.71      1839.79
+stream4      host      8183.87 [  8155.91,  8401.41]      2081.75      8192.52
+stream4      staged    1794.30 [  1775.41,  1795.34]      1467.45      1836.16
+
+Complete initial matrix
+-----------------------
+KiB denotes vertex size; add one eighth for the 32-bit index buffer.
+   KiB workload     mode               GPU median [min,max]   CPU/upload   wall/frame
+    64 resident     bar          3.87 [     3.60,     5.66]         0.00       158.41
+    64 resident     host         9.28 [     8.94,    12.05]         0.00       170.12
+    64 resident     staged       3.72 [     3.66,     4.23]         0.00       178.99
+    64 stream       bar          2.85 [     2.76,     2.94]         6.71       163.84
+    64 stream       host         8.59 [     8.51,     9.14]         2.88       167.63
+    64 stream       staged       7.65 [     7.52,     7.83]         4.01       164.42
+    64 stream4      bar          3.30 [     3.28,     3.39]         6.59       167.50
+    64 stream4      host         9.34 [     8.98,     9.80]         2.85       155.97
+    64 stream4      staged       8.16 [     7.91,     8.29]         4.22       176.28
+    64 occasional   bar          3.19 [     3.17,     3.29]         6.50       149.40
+    64 occasional   host         8.87 [     8.49,     9.29]         3.96       149.59
+    64 occasional   staged       3.43 [     3.30,     3.78]         5.71       145.76
+  1024 resident     bar          7.14 [     6.94,     7.45]         0.00       152.22
+  1024 resident     host        87.00 [    86.48,    95.39]         0.00       231.13
+  1024 resident     staged       7.11 [     6.98,     7.34]         0.00       151.57
+  1024 stream       bar          6.98 [     6.71,     7.09]       115.81       211.86
+  1024 stream       host        98.72 [    96.23,   107.67]        54.34       239.55
+  1024 stream       staged      67.16 [    65.10,    68.40]        56.41       206.45
+  1024 stream4      bar         12.43 [    12.26,    13.09]       116.38       226.12
+  1024 stream4      host       104.48 [   101.19,   109.96]        53.75       239.20
+  1024 stream4      staged      70.32 [    69.89,    73.40]        55.29       220.86
+  1024 occasional   bar          6.80 [     6.76,     6.92]       113.88       161.35
+  1024 occasional   host        86.97 [    86.38,   107.86]        65.62       226.70
+  1024 occasional   staged       9.58 [     9.44,    10.38]        62.08       157.40
+ 16384 resident     bar         48.68 [    48.50,    49.17]         0.00       202.11
+ 16384 resident     host      1780.55 [  1668.86,  3250.62]         0.00      1790.42
+ 16384 resident     staged      48.67 [    48.54,    48.70]         0.00       190.52
+ 16384 stream       bar         52.45 [    52.40,    52.74]      1785.38      1869.79
+ 16384 stream       host      2544.76 [  2448.67,  3953.87]      1522.91      2560.38
+ 16384 stream       staged    1662.75 [  1611.20,  2137.92]      1568.74      1748.03
+ 16384 stream4      bar        191.09 [   190.90,   191.41]      1800.35      1883.90
+ 16384 stream4      host      7756.03 [  7592.29, 13963.86]      1995.92      7767.06
+ 16384 stream4      staged    1777.02 [  1728.69,  2394.01]      1518.50      1833.82
+ 16384 occasional   bar         48.87 [    48.75,    48.92]      1772.96       274.33
+ 16384 occasional   host      1825.78 [  1772.82,  3236.12]      2232.33      1848.36
+ 16384 occasional   staged     111.78 [   108.17,   123.82]      1912.75       290.75
+
+Reproduction (repository root, Defold build environment)
+-------------------------------------------------------
+cmake -S . -B tmp/vulkan-buffer-upload/cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDEFOLD_BUILD_HOME=<absolute-repository>/tmp/vulkan-buffer-upload/build -DDEFOLD_SDK_ROOT=<absolute-repository>/tmp/dynamo_home "-DDEFOLD_SELECTED_ENGINE_LIBS=testmain,dlib,ddf,platform,graphics" -DWITH_VULKAN=ON
+cmake --build tmp/vulkan-buffer-upload/cmake --target benchmark_vulkan_buffer_upload test_vulkan_buffer_reuse test_graphics
+
+For Windows, the executable below is:
+  tmp/vulkan-buffer-upload/build/engine/graphics/build/x86_64-win32/src/test/benchmark_vulkan_buffer_upload.exe
+
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/results --trials 5 --warmup 120 --frames 480
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/confirmation --trials 3 --warmup 600 --frames 1200 --sizes 16384 --workloads resident stream stream4
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/validation --trials 1 --warmup 6 --frames 12 --verify
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/validation-occasional --trials 1 --warmup 6 --frames 126 --sizes 16384 --workloads occasional --verify
+cmake --build tmp/vulkan-buffer-upload/cmake --target run_test_vulkan_memory_type run_test_graphics
+
+The runner records the executable hash, arguments, all per-process results,
+summary.csv, and process/validation logs in the chosen output directory. Validation
+mode changes the command stream for readback; its timings are not performance data.
+The initial matrix's metadata predates the optional --sizes/--workloads arguments;
+it used their current defaults.
+
+Additional resource recheck (same Vulkan candidate executable):
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/recheck/original-sizes --trials 3 --warmup 600 --frames 1200 --sizes 64 1024 16384 --workloads resident stream stream4 --telemetry
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/recheck/48m --trials 3 --warmup 600 --frames 1200 --sizes 49152 --workloads resident stream stream4 --telemetry
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <executable> tmp/vulkan-buffer-upload/recheck/128m --trials 3 --warmup 120 --frames 480 --sizes 131072 --workloads resident stream --modes host staged --telemetry
+
+For the Windows backend comparison, configure WITH_OPENGL=ON as well as WITH_VULKAN=ON,
+then build target benchmark_graphics_buffer_upload. Its executable is beside the
+Vulkan benchmark. Use it as <backend-executable> below:
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <backend-executable> tmp/vulkan-buffer-upload/recheck/backends --trials 3 --warmup 120 --frames 480 --sizes 64 1024 16384 49152 --workloads resident stream stream4 --modes vulkan dx12 opengl --telemetry
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <backend-executable> tmp/vulkan-buffer-upload/recheck/validation-backends --trials 1 --warmup 6 --frames 12 --sizes 64 1024 16384 49152 --workloads resident stream stream4 --modes vulkan dx12 opengl --verify
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <backend-executable> tmp/vulkan-buffer-upload/recheck/validation-backends-occasional --trials 1 --warmup 6 --frames 126 --sizes 16384 --workloads occasional --modes vulkan dx12 opengl --verify
+
+Optional one-frame-at-a-time latency control, PowerShell:
+$env:DEFOLD_BUFFER_BENCHMARK_SERIAL='1'
+python engine/graphics/src/test/run_vulkan_buffer_upload_benchmark.py <backend-executable> tmp/vulkan-buffer-upload/recheck/backends-serial --trials 3 --warmup 120 --frames 480 --sizes 16384 49152 --workloads stream --modes vulkan dx12 opengl --telemetry
+Remove-Item Env:DEFOLD_BUFFER_BENCHMARK_SERIAL
+
+The final backend source additionally records frame-slot masks and BeginFrame CPU
+time. The initial 108-process matrix used the retained executable without those
+counters; later validation, frame-slot probes and latency controls use the updated
+executable. Both hashes and all raw samples/logs are retained under recheck/.
