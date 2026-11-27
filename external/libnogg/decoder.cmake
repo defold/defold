@@ -1,11 +1,17 @@
 # Decode Vorbis packets with libnogg and stream Ogg pages with the vendored libogg.
 include(FetchContent)
 find_package(Git REQUIRED)
+set(_nogg_patch "${CMAKE_CURRENT_LIST_DIR}/defold-simd.patch")
+# A changed patch must be applied to a fresh copy of the upstream sources.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_nogg_patch}")
+file(SHA256 "${_nogg_patch}" _nogg_patch_hash)
+string(SUBSTRING "${_nogg_patch_hash}" 0 12 _nogg_patch_hash)
 FetchContent_Declare(defold_libnogg
   URL "${DEFOLD_HOME}/packages/libnogg-1.18-source.tar.gz"
   URL_HASH SHA256=7bee6d63c0808f879696a4d1781ab1d251929a40b6f7a571daa0997aff7f8a9c
+  SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/nogg-${_nogg_patch_hash}"
   PATCH_COMMAND "${CMAKE_COMMAND}" "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
-                "-DPATCH_FILE=${CMAKE_CURRENT_LIST_DIR}/defold-simd.patch"
+                "-DPATCH_FILE=${_nogg_patch}"
                 -P "${CMAKE_CURRENT_LIST_DIR}/apply_patch.cmake")
 FetchContent_MakeAvailable(defold_libnogg)
 

@@ -8,7 +8,7 @@ ARM64 builds use NEON and x86-64 builds use SSE2. HTML5 uses the scalar decoder 
 
 The source package contains the unmodified `include/`, `src/`, `COPYING`, and `README` from the 1.18 release. Its SHA-256 is recorded in CMake. The complete upstream release has SHA-256 `9600b7d2c03e447bb0ccbb3541bbe07714f5cd4fe00225ae754463b1b592a370`. [Upstream release](https://achurch.org/libnogg/tarballs/libnogg-1.18.tar.gz) · [Source package](../../packages/libnogg-1.18-source.tar.gz)
 
-CMake applies `defold-simd.patch` to the extracted sources. It groups bins with equal floor gains for vector multiplication and reconstructs four coupled stereo coefficients at a time on NEON and Wasm SIMD. To benchmark upstream libnogg with the same adapter, set `FETCHCONTENT_SOURCE_DIR_DEFOLD_LIBNOGG` to a pristine extracted release. [SIMD patch](defold-simd.patch)
+CMake applies `defold-simd.patch` to the extracted sources. It groups bins with equal floor gains for vector multiplication. The NEON and Wasm SIMD kernels reconstruct four coupled stereo coefficients at a time and use vector lane permutations and four parallel butterflies in the inverse MDCT. To benchmark upstream libnogg with the same adapter, set `FETCHCONTENT_SOURCE_DIR_DEFOLD_LIBNOGG` to a pristine extracted release. [SIMD patch](defold-simd.patch)
 
 ## Tests
 

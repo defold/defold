@@ -1,10 +1,37 @@
 --- a/src/decode/decode.c
 +++ b/src/decode/decode.c
-@@ -759,6 +759,16 @@
+@@ -154,9 +154,7 @@
+     return vzipq_f32(a, a).val[0];
  }
+ static UNUSED inline float32x4_t vswizzleq_xxzz_f32(float32x4_t a) {
+-    const uint32x4_t sel = {~0U, 0, ~0U, 0};
+-    /* vbsl operands: vbsl(mask, mask_on_value, mask_off_value) */
+-    return vbslq_f32(sel, a, (float32x4_t)vshlq_n_u64((uint64x2_t)a, 32));
++    return vtrnq_f32(a, a).val[0];
+ }
+ static UNUSED inline float32x4_t vswizzleq_xyxy_f32(float32x4_t a) {
+     return (float32x4_t)vdupq_n_u64(((uint64x2_t)a)[0]);
+@@ -168,14 +166,10 @@
+     return vswizzleq_xyxy_f32(vswizzleq_yxwz_f32(a));
+ }
+ static UNUSED inline float32x4_t vswizzleq_yxwz_f32(float32x4_t a) {
+-    const uint32x4_t sel = {~0U, 0, ~0U, 0};
+-    return vbslq_f32(sel,
+-                     (float32x4_t)vshrq_n_u64((uint64x2_t)a, 32),
+-                     (float32x4_t)vshlq_n_u64((uint64x2_t)a, 32));
++    return vrev64q_f32(a);
+ }
+ static UNUSED inline float32x4_t vswizzleq_yyww_f32(float32x4_t a) {
+-    const uint32x4_t sel = {~0U, 0, ~0U, 0};
+-    return vbslq_f32(sel, (float32x4_t)vshrq_n_u64((uint64x2_t)a, 32), a);
++    return vtrnq_f32(a, a).val[1];
+ }
+ static UNUSED inline float32x4_t vswizzleq_ywyw_f32(float32x4_t a) {
+     return vuzpq_f32(a, a).val[1];
+@@ -760,6 +754,16 @@
 
  /*-----------------------------------------------------------------------*/
-+
+
 +/* Adjacent bins on a flat section have the same gain.  Keeping the
 + * multiplication contiguous lets the compiler vectorize the run. */
 +static inline void apply_floor1_gain(float *output, int begin, int end, int y)
@@ -14,10 +41,11 @@
 +        output[x] *= gain;
 +    }
 +}
-
++
  /**
   * render_line:  Render a line for a type 1 floor curve and perform the
-@@ -784,22 +794,49 @@
+  * dot-product operation with the residue vector.  Defined by section
+@@ -784,22 +788,49 @@
      ASSERT(y0 >= 0);
      ASSERT(x1 > x0);
 
@@ -75,7 +103,7 @@
          err += ady;
          if (err >= adx) {
              err -= adx;
-@@ -1123,9 +1160,7 @@
+@@ -1123,9 +1154,7 @@
      }
      if (lx < n/2) {
          /* Optimization of: render_line(lx, ly, n/2, ly, output, n/2); */
@@ -86,7 +114,168 @@
      }
  }
 
-@@ -2698,6 +2733,21 @@
+@@ -1657,20 +1686,15 @@
+ #if defined(ENABLE_ASM_ARM_NEON)
+         const float32x4_t v0_i = vld1q_f32(&v0[i]);
+         const float32x4_t v1_i = vld1q_f32(&v1[i]);
+-        const float32x4x2_t A_all = vld2q_f32(&A[j]);
++        const float32x4_t A_40 =
++            vcombine_f32(vld1_f32(&A[j+4]), vld1_f32(&A[j]));
++        const float32x4x2_t twiddle = vtrnq_f32(A_40, A_40);
+         vst1q_f32(&w0[i], vaddq_f32(v0_i, v1_i));
+         const float32x4_t diff = vsubq_f32(v0_i, v1_i);
+         const float32x4_t diff2 = vswizzleq_yxwz_f32(diff);
+-        const uint32x4_t A_sel = {~0U, 0, ~0U, 0};
+-        const float32x4_t A_40 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_all.val[0],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_all.val[0], 32)));
+-        const float32x4_t A_51 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_all.val[1],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_all.val[1], 32)));
+-        vst1q_f32(&w1[i], vaddq_f32(vmulq_f32(diff, A_40),
++        vst1q_f32(&w1[i], vaddq_f32(vmulq_f32(diff, twiddle.val[0]),
+                                     veorq_f32(sign_1010,
+-                                              vmulq_f32(diff2, A_51))));
++                                              vmulq_f32(diff2, twiddle.val[1]))));
+
+ #elif defined(ENABLE_ASM_X86_AVX2)
+         const __m256 v0_i = _mm256_load_ps(&v0[i]);
+@@ -1747,9 +1771,7 @@
+     float *e0 = e + i_off;
+     float *e2 = e0 - k0/2;
+
+-#if defined(ENABLE_ASM_ARM_NEON)
+-    const uint32x4_t sign_1010 = (uint32x4_t)vdupq_n_u64(UINT64_C(1)<<63);
+-#elif defined(ENABLE_ASM_X86_AVX2)
++#if defined(ENABLE_ASM_X86_AVX2)
+     const __m256i sign_1010 = _mm256_set1_epi64x(UINT64_C(1)<<63);
+ #elif defined(ENABLE_ASM_X86_SSE2)
+     const __m128i sign_1010 = _mm_set1_epi64x(UINT64_C(1)<<63);
+@@ -1758,39 +1780,23 @@
+     for (int i = lim/4; i > 0; --i, e0 -= 8, e2 -= 8) {
+
+ #if defined(ENABLE_ASM_ARM_NEON)
+-        const float32x4_t e0_4 = vld1q_f32(&e0[-4]);
+-        const float32x4_t e2_4 = vld1q_f32(&e2[-4]);
+-        const float32x4_t e0_8 = vld1q_f32(&e0[-8]);
+-        const float32x4_t e2_8 = vld1q_f32(&e2[-8]);
+-        const float32x4x2_t A_0k =
+-            vuzpq_f32(vld1q_f32(&A[0]), vld1q_f32(&A[k1]));
+-        const float32x4x2_t A_2k =
+-            vuzpq_f32(vld1q_f32(&A[2*k1]), vld1q_f32(&A[3*k1]));
+-        vst1q_f32(&e0[-4], vaddq_f32(e0_4, e2_4));
+-        vst1q_f32(&e0[-8], vaddq_f32(e0_8, e2_8));
+-        const float32x4_t diff_4 = vsubq_f32(e0_4, e2_4);
+-        const float32x4_t diff_8 = vsubq_f32(e0_8, e2_8);
+-        const float32x4_t diff2_4 = vswizzleq_yxwz_f32(diff_4);
+-        const float32x4_t diff2_8 = vswizzleq_yxwz_f32(diff_8);
+-        const uint32x4_t A_sel = {~0U, 0, ~0U, 0};
+-        const float32x4_t A_0 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_0k.val[0],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_0k.val[0], 32)));
+-        const float32x4_t A_1 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_0k.val[1],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_0k.val[1], 32)));
+-        const float32x4_t A_2 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_2k.val[0],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_2k.val[0], 32)));
+-        const float32x4_t A_3 = vswizzleq_zzxx_f32(vbslq_f32(
+-            A_sel, A_2k.val[1],
+-            (float32x4_t)vshlq_n_u64((uint64x2_t)A_2k.val[1], 32)));
+-        vst1q_f32(&e2[-4], vaddq_f32(vmulq_f32(diff_4, A_0),
+-                                     veorq_f32(sign_1010,
+-                                               vmulq_f32(diff2_4, A_1))));
+-        vst1q_f32(&e2[-8], vaddq_f32(vmulq_f32(diff_8, A_2),
+-                                     veorq_f32(sign_1010,
+-                                               vmulq_f32(diff2_8, A_3))));
++        /* Each lane holds one butterfly.  The real and imaginary parts
++         * are interleaved in memory, in reverse twiddle-factor order. */
++        const float32x4x2_t x = vld2q_f32(e0-8);
++        const float32x4x2_t y = vld2q_f32(e2-8);
++        const float32x4_t a32 =
++            vcombine_f32(vld1_f32(A+3*k1), vld1_f32(A+2*k1));
++        const float32x4_t a10 = vcombine_f32(vld1_f32(A+k1), vld1_f32(A));
++        const float32x4x2_t a = vuzpq_f32(a32, a10);
++        const float32x4_t d0 = vsubq_f32(x.val[0], y.val[0]);
++        const float32x4_t d1 = vsubq_f32(x.val[1], y.val[1]);
++        const float32x4x2_t sum = {{vaddq_f32(x.val[0], y.val[0]),
++                                    vaddq_f32(x.val[1], y.val[1])}};
++        const float32x4x2_t rot = {{
++            vaddq_f32(vmulq_f32(d0, a.val[0]), vmulq_f32(d1, a.val[1])),
++            vsubq_f32(vmulq_f32(d1, a.val[0]), vmulq_f32(d0, a.val[1]))}};
++        vst2q_f32(e0-8, sum);
++        vst2q_f32(e2-8, rot);
+         A += 4*k1;
+
+ #elif defined(ENABLE_ASM_X86_AVX2)
+@@ -2016,7 +2022,20 @@
+  */
+ static inline void iter_54(float *z)
+ {
+-#if defined(ENABLE_ASM_X86_SSE2) || defined(ENABLE_ASM_X86_AVX2)
++#if defined(ENABLE_ASM_ARM_NEON)
++    const float32x4_t a = vld1q_f32(z-4);
++    const float32x4_t b = vld1q_f32(z-8);
++    const float32x4_t sum = vaddq_f32(a, b);
++    const float32x4_t diff = vsubq_f32(a, b);
++    const float32x2_t s0 = vget_low_f32(sum), s1 = vget_high_f32(sum);
++    const float32x2_t d0 = vrev64_f32(vget_low_f32(diff));
++    const float32x2_t d1 = vget_high_f32(diff);
++    const uint32x2_t sign = {0, UINT32_C(1)<<31};
++    const float32x2_t d = (float32x2_t)veor_u32((uint32x2_t)d0, sign);
++    vst1q_f32(z-4, vcombine_f32(vsub_f32(s1, s0), vadd_f32(s1, s0)));
++    vst1q_f32(z-8, vcombine_f32(vadd_f32(d1, d), vsub_f32(d1, d)));
++
++#elif defined(ENABLE_ASM_X86_SSE2) || defined(ENABLE_ASM_X86_AVX2)
+     const __m128i sign_0011 =
+         _mm_set_epi32(0, 0, UINT32_C(1)<<31, UINT32_C(1)<<31);
+     const __m128i sign_0110 =
+@@ -2073,7 +2092,28 @@
+
+     for (float *z = e + n/2; z > e; z -= 16) {
+
+-#if defined(ENABLE_ASM_X86_SSE2) || defined(ENABLE_ASM_X86_AVX2)
++#if defined(ENABLE_ASM_ARM_NEON)
++        const float32x4_t a = vld1q_f32(z-4), b = vld1q_f32(z-8);
++        const float32x4_t c = vld1q_f32(z-12), d = vld1q_f32(z-16);
++        const float32x4_t ac = vsubq_f32(a, c), bd = vsubq_f32(b, d);
++        vst1q_f32(z-4, vaddq_f32(a, c));
++        vst1q_f32(z-8, vaddq_f32(b, d));
++
++        /* Two butterflies use A2.  Add or subtract before multiplying,
++         * in the same order as the scalar transform. */
++        const float32x2x2_t pair =
++            vtrn_f32(vget_low_f32(ac), vget_low_f32(bd));
++        const float32x2_t diff = vsub_f32(pair.val[0], pair.val[1]);
++        const float32x2_t sum = vadd_f32(pair.val[1], pair.val[0]);
++        const float32x2x2_t scaled = vzip_f32(vmul_n_f32(diff, A2),
++                                              vmul_n_f32(sum, A2));
++        vst1q_f32(z-12, vcombine_f32(scaled.val[0], vget_high_f32(ac)));
++        const float32x4_t tail =
++            vcombine_f32(scaled.val[1], vget_high_f32(bd));
++        const uint32x4_t sign = (uint32x4_t)vdupq_n_u64(UINT32_C(1)<<31);
++        vst1q_f32(z-16, veorq_f32(sign, vrev64q_f32(tail)));
++
++#elif defined(ENABLE_ASM_X86_SSE2) || defined(ENABLE_ASM_X86_AVX2)
+ # if defined(ENABLE_ASM_X86_AVX2)
+         const __m256 z_8 = _mm256_load_ps(&z[-8]);
+         const __m256 z_16 = _mm256_load_ps(&z[-16]);
+@@ -2175,7 +2215,13 @@
+
+     for (int i = 0, j = -4; i < (int)(n/8); i += 2, j -= 4) {
+
+-#if defined(ENABLE_ASM_X86_SSE2)
++#if defined(ENABLE_ASM_ARM_NEON)
++        const float32x4_t a = vrev64q_f32(vld1q_f32(&u[bitrev[i+1]]));
++        const float32x4_t b = vrev64q_f32(vld1q_f32(&u[bitrev[i]]));
++        vst1q_f32(&U0[j], vcombine_f32(vget_high_f32(a), vget_high_f32(b)));
++        vst1q_f32(&U1[j], vcombine_f32(vget_low_f32(a), vget_low_f32(b)));
++
++#elif defined(ENABLE_ASM_X86_SSE2)
+         const __m128 bitrev_0 = _mm_load_ps(&u[bitrev[i+0]]);
+         const __m128 bitrev_1 = _mm_load_ps(&u[bitrev[i+1]]);
+         _mm_store_ps(&U0[j], _mm_shuffle_ps(
+@@ -2698,6 +2744,21 @@
      for (int i = map->coupling_steps-1; i >= 0; i--) {
          float *magnitude = channel_buffers[map->coupling[i].magnitude];
          float *angle = channel_buffers[map->coupling[i].angle];
@@ -108,7 +297,7 @@
          for (int j = 0; j < n/2; j++) {
              const float M = magnitude[j];
              const float A = angle[j];
-@@ -2722,6 +2772,7 @@
+@@ -2722,6 +2783,7 @@
              magnitude[j] = new_M;
              angle[j] = new_A;
          }
