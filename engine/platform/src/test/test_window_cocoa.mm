@@ -700,6 +700,44 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
     }
 }
 
+struct TextAction
+{
+    HWindow m_Window;
+    int     m_Character;
+    bool    m_Close;
+};
+
+static void StopTextInput(void* data, int character)
+{
+    TextAction* action = (TextAction*)data;
+    action->m_Character = character;
+    if (action->m_Close)
+    {
+        dmPlatform::CloseWindow(action->m_Window);
+    }
+    else
+    {
+        dmPlatform::SetKeyboardCharCallback(action->m_Window, 0, 0);
+    }
+}
+
+// An IME commit stops delivering characters when its first callback unregisters or closes the window.
+TEST_F(CocoaWindowTest, TextListenerChangesDuringCommit)
+{
+    @autoreleasepool
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        NSView<NSTextInputClient>* view = (NSView<NSTextInputClient>*)dmPlatform::GetOSXNSView(window);
+        for (int close = 0; close < 2; ++close)
+        {
+            TextAction action = { window, 0, close != 0 };
+            dmPlatform::SetKeyboardCharCallback(window, StopTextInput, &action);
+            [view insertText:@"ab" replacementRange:NSMakeRange(NSNotFound, 0)];
+            EXPECT_EQ('a', action.m_Character);
+        }
+    }
+}
+
 static NSPoint ContentCenter(NSWindow* window)
 {
     NSRect content = [window contentRectForFrameRect:window.frame];

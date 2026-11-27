@@ -237,18 +237,21 @@ static NSString* PlainText(id text)
 
 - (void)insertText:(id)text replacementRange:(NSRange)replacement
 {
+    // Either text callback can close the window and release its content view.
+    [self retain];
     if (self.hasMarkedText)
     {
         [self unmarkText];
     }
 
-    if (!handle || !handle->m_InputCallbacks.m_CharCallback || (NSApp.currentEvent.modifierFlags & NSEventModifierFlagCommand))
+    if (NSApp.currentEvent.modifierFlags & NSEventModifierFlagCommand)
     {
+        [self release];
         return;
     }
 
     NSString* string = PlainText(text);
-    for (NSUInteger i = 0; i < string.length; ++i)
+    for (NSUInteger i = 0; handle && handle->m_InputCallbacks.m_CharCallback && i < string.length; ++i)
     {
         UTF32Char scalar = [string characterAtIndex:i];
         if (CFStringIsSurrogateHighCharacter(scalar) && i + 1 < string.length)
@@ -267,6 +270,7 @@ static NSString* PlainText(id text)
             handle->m_InputCallbacks.m_CharCallback(handle->m_InputCallbacks.m_CharUserData, (int)scalar);
         }
     }
+    [self release];
 }
 
 - (void)setButton:(NSEvent*)event down:(BOOL)down
