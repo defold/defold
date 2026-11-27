@@ -1440,6 +1440,8 @@ namespace dmPlatform
                 {
                     const Window xid = w->m_Xid;
                     const uint32_t count = w->m_ResizeCallbackCount;
+                    // The read includes earlier resizes. A later external change can carry the read's own serial.
+                    w->m_X11->m_SizeReadSerial = LastKnownRequestProcessed(w->m_Display);
                     LinuxUpdateSize(w, width, height, w->m_Scale);
                     if (w->m_DeletePending || w->m_Xid != xid)
                     {

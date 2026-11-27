@@ -521,16 +521,22 @@ TEST(LinuxWindow, X11ConstrainedResize)
     XSync(w->m_Display, False);
     dmPlatform::PollEvents(w);
     EXPECT_EQ(5u, events.m_Count);
-    // The server already has the requested size, but its external resize is still queued.
+    // A synchronous acknowledgement supersedes older sizes, while later external changes still apply.
+    XResizeWindow(manager, w->m_Xid, 448, 329);
     XResizeWindow(manager, w->m_Xid, 450, 320);
     XSync(manager, False);
     dmPlatform::SetWindowSize(w, 450, 320);
-    dmPlatform::PollEvents(w);
     EXPECT_EQ(6u, events.m_Count);
     EXPECT_EQ(450u, events.m_Width);
     EXPECT_EQ(320u, events.m_Height);
-    dmPlatform::SetWindowSize(w, 450, 320);
+    XResizeWindow(manager, w->m_Xid, 455, 325);
+    XSync(manager, False);
+    dmPlatform::PollEvents(w);
     EXPECT_EQ(7u, events.m_Count);
+    EXPECT_EQ(455u, events.m_Width);
+    EXPECT_EQ(325u, events.m_Height);
+    dmPlatform::SetWindowSize(w, 455, 325);
+    EXPECT_EQ(8u, events.m_Count);
     XSync(w->m_Display, False);
     EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
 
@@ -540,7 +546,7 @@ TEST(LinuxWindow, X11ConstrainedResize)
     XResizeWindow(manager, w->m_Xid, 470, 310);
     XSync(manager, False);
     dmPlatform::SetWindowSize(w, 470, 310);
-    EXPECT_EQ(8u, events.m_Count);
+    EXPECT_EQ(9u, events.m_Count);
     EXPECT_EQ((HWindow)0, w);
     EXPECT_EQ(-1, fcntl(fd, F_GETFD));
     XDestroyWindow(manager, parent);
