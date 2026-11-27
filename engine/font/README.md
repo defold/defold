@@ -1,5 +1,23 @@
 # Font library image tests
 
+## Build the local tools
+
+Use the usual engine build directory configured with `BUILD_TESTS=ON`. From
+the repository root, build the target for the task you want to run.
+
+```sh
+cmake --build engine/build/arm64-macos --target fontviewer
+cmake --build engine/build/arm64-macos --target run_test_fontviewer_color
+cmake --build engine/build/arm64-macos --target generate_font_test_images
+cmake --build engine/build/arm64-macos --target benchmark_text_layout benchmark_text_layout_null
+```
+
+Replace `arm64-macos` with your configured platform. The test commands
+build the viewer or generators they need. In main CI, both Linux jobs
+run the generator CLI checks. Linux x64 also runs the viewer color check,
+and Linux ARM64 runs the full image matrix. The benchmarks are built
+when requested.
+
 ## Fontviewer rendering modes and color emojis
 
 Select **SDF**, **Bitmap**, or **Vector** under Properties → Render mode.

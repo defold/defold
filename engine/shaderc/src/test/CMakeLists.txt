@@ -49,9 +49,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     COMMAND ${_shaderc_cli_tests}
     DEPENDS shaderc_standalone
     VERBATIM)
-  defold_add_to_run_tests(run_test_shaderc_standalone
-    COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
-  defold_register_sequential_test_command(shaderc_standalone
+  defold_add_to_run_tests(run_test_shaderc_standalone SEQUENTIAL_NAME shaderc_standalone
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
 endif()
 

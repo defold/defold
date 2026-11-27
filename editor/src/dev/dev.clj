@@ -91,6 +91,7 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (namespaces/import-vars
+  [dynamo.graph immediate-predecessor-endpoints]
   [util.debug-util stack-trace]
   [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info]
   [macro pprint-code pprint-macroexpanded simplify-expression])
@@ -640,28 +641,6 @@
   [& more]
   (binding [*out* *err*]
     (apply println more)))
-
-(defn- input-source-endpoints
-  [basis node-id input-label]
-  (e/map gt/source-endpoint
-         (ig/arcs-by-target basis node-id input-label)))
-
-(defn immediate-predecessor-endpoints
-  [basis node-id label]
-  (let [node-type (g/node-type* basis node-id)
-        output-info (get (in/declared-outputs node-type) label)]
-    (cond
-      (some? output-info)
-      (e/mapcat
-        (fn [dep-label]
-          (if (= label dep-label)
-            (when (g/has-input? node-type dep-label)
-              (input-source-endpoints basis node-id dep-label))
-            [(gt/endpoint node-id dep-label)]))
-        (:dependencies output-info))
-
-      (g/has-input? node-type label)
-      (input-source-endpoints basis node-id label))))
 
 (defn recursive-predecessor-endpoints
   [basis node-id label]

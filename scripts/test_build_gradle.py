@@ -10,6 +10,7 @@ import unittest
 from unittest import mock
 
 import build
+import build_bob_light
 import build_output
 import run
 
@@ -837,6 +838,48 @@ class GradleConfigurationTests(unittest.TestCase):
         self.configuration.keep_bob_uncompressed = True
         self.configuration.build_tracker = mock.Mock()
         self.configuration._form_env = lambda: os.environ.copy()
+
+    # Gradle checks every direct request. An engine invocation can reuse a completed build until the JAR disappears.
+    def test_cmake_bob_requests_retry_failures_and_reuse_only_completed_builds(self):
+        package = self.root / 'share/java/bob-light.jar'
+        package.parent.mkdir(parents=True)
+        receipt = self.root / 'build.done'
+        args = ['build_bob_light.py', 'arm64-macos', '--channel=alpha', '--verbose']
+        with mock.patch.dict(os.environ, DYNAMO_HOME=str(self.root), NOCOLOR='1'), \
+                mock.patch.object(sys, 'argv', args), mock.patch.object(build, 'Configuration') as configure, \
+                mock.patch.object(build.build_private, 'set_target_platform'):
+            os.environ.pop('DEFOLD_BOB_LIGHT_RECEIPT', None)
+            configure.return_value.build_tracker = build.BuildTimeTracker()
+            build_light = configure.return_value.build_bob_light
+            build_light.side_effect = package.touch
+            build_bob_light.main()
+            build_bob_light.main()
+            self.assertEqual(2, build_light.call_count)
+            configure.assert_called_with(dynamo_home=str(self.root), target_platform='arm64-macos',
+                                         channel='alpha', verbose=True, no_colors=True)
+
+            os.environ['DEFOLD_BOB_LIGHT_RECEIPT'] = str(receipt)
+            build_light.side_effect = RuntimeError('plugin failed')
+            with self.assertRaisesRegex(RuntimeError, 'plugin failed'):
+                build_bob_light.main()
+            self.assertFalse(receipt.exists())
+            build_light.side_effect = package.touch
+            build_bob_light.main()
+            build_bob_light.main()
+            self.assertEqual(4, build_light.call_count)
+            self.assertIn('commands', json.loads(receipt.read_text()))
+            package.unlink()
+            def fail_after_install():
+                package.touch()
+                raise RuntimeError('plugin failed')
+            build_light.side_effect = fail_after_install
+            with self.assertRaisesRegex(RuntimeError, 'plugin failed'):
+                build_bob_light.main()
+            self.assertFalse(receipt.exists())
+            build_light.side_effect = package.touch
+            build_bob_light.main()
+            self.assertTrue(package.exists())
+            self.assertEqual(6, build_light.call_count)
 
     # Every Bob build/test and private plugin entry point must use compact output without changing its task graph.
     def test_bob_commands_use_shared_runner(self):
