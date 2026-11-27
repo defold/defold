@@ -1358,7 +1358,7 @@ static void CountDepthStencilWarnings(LogSeverity severity, const char* domain, 
     }
 }
 
-// The built-in render script presents its requested clear color and warns only once across frames on a color-only backbuffer.
+// The built-in script draws without a warning and leaves the one-time warning for explicit depth or stencil requests.
 TEST_F(EngineTest, DepthStencilDisabled)
 {
     InitializeTestEngine();
@@ -1388,6 +1388,9 @@ TEST_F(EngineTest, DepthStencilDisabled)
     }
 
     ASSERT_EQ(initial_frames + 2, graphics->m_FlipCount);
+    EXPECT_FALSE(graphics->m_BaseContext.m_DepthStencilWarningIssued);
+    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+    dmGraphics::EnableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
     dmEngine::Delete(engine);
     dmEngineFinalize();
     dmLogUnregisterListener(CountDepthStencilWarnings);
