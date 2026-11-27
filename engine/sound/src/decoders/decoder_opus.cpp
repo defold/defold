@@ -251,15 +251,22 @@ namespace dmSoundCodec
                         dmSound::Result res = dmSound::SoundDataRead(sound_data, stream_info->m_StreamOffset, STREAM_BLOCK_SIZE, stream_info->m_DataBuffer.Begin(), &read_size);
                         if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA)
                         {
+                            if (read_size == 0)
+                            {
+                                // Yield until more data is available, preserving the remaining skip state.
+                                return false;
+                            }
+
                             stream_info->m_DataBuffer.SetSize(read_size);
                             stream_info->m_StreamOffset += read_size;
                         }
                         else
                         {
                             stream_info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
-                            break;
+                            return false;
                         }
                     }
+
                     uint32_t chunk = dmMath::Min(stream_info->m_DataBuffer.Size(), stream_info->m_SkipBytes);
                     CleanupBuffer(stream_info->m_DataBuffer, chunk);
                     stream_info->m_SkipBytes -= chunk;

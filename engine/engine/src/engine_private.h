@@ -182,6 +182,8 @@ namespace dmEngine
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[], bool allow_graphics_fallback);
+    // Returns false only when streaming is enabled and no supported sound formats are registered.
+    bool SetupStreamingResourceTypes(dmResource::HFactory factory, dmConfigFile::HConfig config);
     void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
     void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);

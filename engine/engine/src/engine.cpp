@@ -1000,29 +1000,39 @@ namespace dmEngine
 
     // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
     // Probably need to allow access to HConfigFile first
-    static void SetupStreamingResourceTypes(HEngine engine)
+    bool SetupStreamingResourceTypes(dmResource::HFactory factory, dmConfigFile::HConfig config)
     {
         // Setup streaming if wanted
-        int32_t sound_streaming_enabled = dmConfigFile::GetInt(engine->m_Config, "sound.stream_enabled", 0);
+        int32_t sound_streaming_enabled = dmConfigFile::GetInt(config, "sound.stream_enabled", 0);
         if (sound_streaming_enabled)
         {
             // We currently use size (as opposed to time), as that doesn't require us to know anything about the sound file itself
-            int32_t sound_streaming_preload_size = dmConfigFile::GetInt(engine->m_Config, "sound.stream_preload_size", 0);
+            int32_t sound_streaming_preload_size = dmConfigFile::GetInt(config, "sound.stream_preload_size", 0);
 
-            const char* extensions[] = {"oggc", "wavc"};
+            const char* extensions[] = { "oggc", "wavc", "opusc" };
+            bool has_streaming_types = false;
             for (int i = 0; i < DM_ARRAY_SIZE(extensions); ++i)
             {
                 dmResource::HResourceType type;
-                dmResource::Result result = dmResource::GetTypeFromExtension(engine->m_Factory, extensions[i], &type);
+                dmResource::Result result = dmResource::GetTypeFromExtension(factory, extensions[i], &type);
                 if (dmResource::RESULT_OK != result)
                 {
-                    dmLogWarning("Failed to find resource type %s, couldn't enable for streaming", extensions[i]);
+                    // Sound formats can be excluded from the build through an app manifest.
                     continue;
                 }
 
                 ResourceTypeSetStreaming(type, sound_streaming_preload_size);
+                has_streaming_types = true;
+            }
+
+            if (!has_streaming_types)
+            {
+                dmLogWarning("Sound streaming is enabled, but no supported sound resource types are registered. Include a sound format in the app manifest or disable 'sound.stream_enabled'.");
+                return false;
             }
         }
+
+        return true;
     }
 
     static void SetupPhysicsContextParams(dmGameSystem::PhysicsContext* physics, dmConfigFile::HConfig config)
@@ -1836,7 +1846,7 @@ namespace dmEngine
         dmEngine::ScriptSysEngineInitialize(script_lib_context.m_LuaState, engine);
 
         // setup streaming for resource types, before we load the first collection
-        SetupStreamingResourceTypes(engine);
+        SetupStreamingResourceTypes(engine->m_Factory, engine->m_Config);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)

@@ -306,6 +306,52 @@ static bool MakeOggWithLargeVorbisComment(const uint8_t* src, uint32_t src_size,
     return true;
 }
 
+// Expands the fixture's metadata so streaming can stall while skipping OpusTags,
+// without changing the encoded audio used for the sample comparisons.
+static bool MakeOpusWithLargeTags(const uint8_t* src, uint32_t src_size, dmArray<uint8_t>& out)
+{
+    uint32_t page_offset;
+    uint32_t old_page_size;
+    if (!GetOggPage(src, src_size, 1, &page_offset, &old_page_size))
+    {
+        return false;
+    }
+
+    // Replace the tags page with a valid comment packet larger than the decoder's
+    // initial 16 KiB read. Keep the original audio pages and stream serial.
+    const uint32_t comment_size = 20 * 1024;
+    dmArray<uint8_t> packet;
+    packet.SetCapacity(24 + comment_size);
+    packet.PushArray((const uint8_t*)"OpusTags", 8);
+    // OpusTags stores a length-prefixed vendor string, then a comment count
+    // followed by length-prefixed comments. One large TITLE is enough here.
+    PushLE32(packet, 4);
+    packet.PushArray((const uint8_t*)"test", 4);
+    PushLE32(packet, 1);
+    PushLE32(packet, comment_size);
+    packet.PushArray((const uint8_t*)"TITLE=", 6);
+    for (uint32_t i = 6; i < comment_size; ++i)
+    {
+        packet.Push('x');
+    }
+
+    dmArray<uint8_t> segments;
+    segments.SetCapacity(255);
+    PushPacketLacing(segments, packet.Size());
+    uint32_t new_page_size = 27 + segments.Size() + packet.Size();
+    out.SetCapacity(src_size - old_page_size + new_page_size);
+    // Reuse the page header, but rebuild its lacing table (packet segment sizes)
+    // and checksum for the larger body. The checksum field must be zero for CRC calculation.
+    out.PushArray(src, page_offset + 27);
+    WriteLE32(out.Begin() + page_offset + 22, 0);
+    out[page_offset + 26] = (uint8_t)segments.Size();
+    out.PushArray(segments.Begin(), segments.Size());
+    out.PushArray(packet.Begin(), packet.Size());
+    WriteLE32(out.Begin() + page_offset + 22, OggCrc(out.Begin() + page_offset, new_page_size));
+    out.PushArray(src + page_offset + old_page_size, src_size - page_offset - old_page_size);
+    return true;
+}
+
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
 #endif
@@ -1561,6 +1607,284 @@ TEST(SoundDecoder, StbVorbisLargeStartupComment)
     decoder->m_CloseStream(stream);
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sound_data));
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+// Models a cache containing only the first m_Available bytes of a complete file.
+// The test releases the rest explicitly, so no threads, I/O, or sleeps are needed.
+struct StreamingSoundData
+{
+    const uint8_t*  m_Data;
+    uint32_t        m_Size;
+    uint32_t        m_Available;
+    uint32_t        m_EmptyReads;
+    dmSound::Result m_UnavailableResult;
+};
+
+// Reads stop at the cache boundary. Reaching that boundary means temporary
+// starvation; only reaching the full file size means a real end of stream.
+static dmSound::Result ReadStreamingSoundData(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
+{
+    StreamingSoundData* data = (StreamingSoundData*)context;
+    *out_size = 0;
+    if (offset >= data->m_Size)
+    {
+        return dmSound::RESULT_END_OF_STREAM;
+    }
+
+    if (offset >= data->m_Available)
+    {
+        // Bound a broken decoder's retry loop so the regression fails instead
+        // of hanging the test process. Tests also assert this limit is not hit.
+        if (++data->m_EmptyReads > 64)
+        {
+            return dmSound::RESULT_END_OF_STREAM;
+        }
+
+        return data->m_UnavailableResult;
+    }
+
+    *out_size = dmMath::Min(size, data->m_Available - offset);
+    memcpy(out, data->m_Data + offset, *out_size);
+    return *out_size == size ? dmSound::RESULT_OK : dmSound::RESULT_PARTIAL_DATA;
+}
+
+// Shares the same encoded file between a fully loaded reference (index 0) and
+// a streaming source (index 1). Loopback captures mixer output without an audio device.
+struct SoundStreamingTest : jc_test_base_class
+{
+    StreamingSoundData               m_Source;
+    dmArray<uint8_t>                 m_Opus;
+    dmSound::HSoundData              m_Data[2];
+    dmSound::HSoundInstance          m_Instance;
+    const dmSoundCodec::DecoderInfo* m_Decoder;
+    dmSoundCodec::HDecodeStream      m_Stream[2];
+
+    void SetUp() override
+    {
+        memset(&m_Source, 0, sizeof(m_Source));
+        memset(m_Data, 0, sizeof(m_Data));
+        memset(m_Stream, 0, sizeof(m_Stream));
+        m_Instance = 0;
+        m_Decoder = 0;
+        m_Source.m_UnavailableResult = dmSound::RESULT_PARTIAL_DATA;
+
+        dmSound::InitializeParams params;
+        params.m_OutputDevice = "loopback";
+        params.m_FrameCount = 256;
+        params.m_UseThread = false;
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    }
+
+    void TearDown() override
+    {
+        if (m_Instance)
+        {
+            dmSound::DeleteSoundInstance(m_Instance);
+        }
+
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            if (m_Stream[i])
+            {
+                m_Decoder->m_CloseStream(m_Stream[i]);
+            }
+
+            if (m_Data[i])
+            {
+                dmSound::DeleteSoundData(m_Data[i]);
+            }
+        }
+
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+    }
+
+    // 'available' must include the headers needed to open the decoder, but stop
+    // inside metadata or audio that the decoder will need during playback.
+    void CreateSoundData(const uint8_t* data, uint32_t size, uint32_t available, dmSound::SoundDataType type)
+    {
+        m_Source.m_Data = data;
+        m_Source.m_Size = size;
+        m_Source.m_Available = available;
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(data, size, type, &m_Data[0], 0));
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadStreamingSoundData, &m_Source, type, &m_Data[1], 0));
+    }
+
+    // Drain the cached input, verify the decoder yields without advancing, then
+    // release the rest and compare every decoded byte through end of stream.
+    void VerifyDecode(const char* decoder_name)
+    {
+        m_Decoder = dmSoundCodec::FindDecoderByName(decoder_name);
+        ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, m_Decoder);
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, m_Decoder->m_OpenStream(m_Data[i], &m_Stream[i]));
+            dmSoundCodec::Info info;
+            m_Decoder->m_GetStreamInfo(m_Stream[i], &info);
+            ASSERT_EQ(1U, (uint32_t)info.m_Channels);
+        }
+
+        m_Source.m_EmptyReads = 0;
+
+        // Both 16-bit PCM and float decoders fit in these aligned mono buffers.
+        float streamed[256];
+        float reference[256];
+        char* streamed_buffers[] = { (char*)streamed };
+        char* reference_buffers[] = { (char*)reference };
+        uint32_t total_decoded = 0;
+        bool resumed = false;
+        bool ended = false;
+        for (uint32_t update = 0; update < 4096 && !ended; ++update)
+        {
+            uint32_t decoded = 0;
+            dmSoundCodec::Result result = m_Decoder->m_DecodeStream(m_Stream[1], streamed_buffers, sizeof(streamed), &decoded);
+            ASSERT_LE(m_Source.m_EmptyReads, 64U);
+            if (result == dmSoundCodec::RESULT_END_OF_STREAM)
+            {
+                // Matching samples so far is not enough: both streams must end
+                // together to catch truncated output as well as sample corruption.
+                ASSERT_TRUE(resumed);
+                ASSERT_EQ(0U, decoded);
+                uint32_t reference_decoded = 0;
+                ASSERT_EQ(dmSoundCodec::RESULT_END_OF_STREAM, m_Decoder->m_DecodeStream(m_Stream[0], reference_buffers, sizeof(reference), &reference_decoded));
+                ASSERT_EQ(0U, reference_decoded);
+                ended = true;
+                continue;
+            }
+
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, result);
+            if (decoded == 0)
+            {
+                ASSERT_FALSE(resumed);
+                ASSERT_GT(m_Source.m_EmptyReads, 0U);
+                // Repeated starvation must preserve the decoder state too.
+                int64_t position = m_Decoder->m_GetInternalStreamPosition(m_Stream[1]);
+                ASSERT_EQ(dmSoundCodec::RESULT_OK, m_Decoder->m_DecodeStream(m_Stream[1], streamed_buffers, sizeof(streamed), &decoded));
+                ASSERT_EQ(0U, decoded);
+                ASSERT_EQ(position, m_Decoder->m_GetInternalStreamPosition(m_Stream[1]));
+                ASSERT_LE(m_Source.m_EmptyReads, 64U);
+                // Simulate the pending chunk arriving before the next decode call.
+                m_Source.m_Available = m_Source.m_Size;
+                resumed = true;
+                continue;
+            }
+
+            // A streaming read can produce a short block. Advance the reference
+            // by exactly that amount to compare the same part of the audio.
+            uint32_t reference_decoded = 0;
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, m_Decoder->m_DecodeStream(m_Stream[0], reference_buffers, decoded, &reference_decoded));
+            ASSERT_EQ(decoded, reference_decoded);
+            ASSERT_EQ(0, memcmp(reference, streamed, decoded));
+            total_decoded += decoded;
+        }
+
+        ASSERT_TRUE(ended);
+        ASSERT_GT(total_decoded, 0U);
+    }
+
+};
+
+// Verifies PCM streaming resumes without losing or repeating samples after an empty read.
+TEST_F(SoundStreamingTest, WavDecodeRetry)
+{
+    // The WAV header is available; the cache ends partway through the PCM data.
+    CreateSoundData(MONO_TONE_440_44100_11025_WAV, MONO_TONE_440_44100_11025_WAV_SIZE, 4096, dmSound::SOUND_DATA_TYPE_WAV);
+    VerifyDecode("WavDecoder");
+}
+
+// Verifies the same sample comparison for Vorbis using its explicit input-dry result.
+TEST_F(SoundStreamingTest, OggDecodeRetry)
+{
+    // This fixture's setup headers fit in 4096 bytes, but its audio does not.
+    // STB Vorbis uses RESULT_NO_DATA to signal that input is temporarily unavailable.
+    m_Source.m_UnavailableResult = dmSound::RESULT_NO_DATA;
+    CreateSoundData(MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, 4096, dmSound::SOUND_DATA_TYPE_OGG_VORBIS);
+    VerifyDecode("VorbisDecoderStb");
+}
+
+// Guards against spinning or losing the remaining skip state when OpusTags is only partly cached.
+TEST_F(SoundStreamingTest, OpusTagsDecodeRetry)
+{
+    ASSERT_TRUE(MakeOpusWithLargeTags(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, m_Opus));
+    // The initial cache ends inside the enlarged tags page, before any audio.
+    CreateSoundData(m_Opus.Begin(), m_Opus.Size(), 16 * 1024, dmSound::SOUND_DATA_TYPE_OPUS);
+    VerifyDecode("OpusDecoder");
+}
+
+// Verifies an incomplete Opus audio packet survives starvation without skipped or repeated samples.
+TEST_F(SoundStreamingTest, OpusPacketDecodeRetry)
+{
+    uint32_t page_offset;
+    uint32_t page_size;
+    ASSERT_TRUE(GetOggPage(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, 2, &page_offset, &page_size));
+    // Page 2 is the first audio page. Include its header and lacing table,
+    // then only 13 bytes of its first packet so decoding must wait for the rest.
+    uint32_t available = page_offset + 27 + MONO_RESAMPLE_FRAMECOUNT_16000_OPUS[page_offset + 26] + 13;
+    CreateSoundData(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, available, dmSound::SOUND_DATA_TYPE_OPUS);
+    VerifyDecode("OpusDecoder");
+}
+
+// Verifies Update yields during OpusTags starvation and resumes with the same mixer output as a loaded file.
+TEST_F(SoundStreamingTest, OpusTagsPlaybackRetry)
+{
+    ASSERT_TRUE(MakeOpusWithLargeTags(MONO_RESAMPLE_FRAMECOUNT_16000_OPUS, MONO_RESAMPLE_FRAMECOUNT_16000_OPUS_SIZE, m_Opus));
+    CreateSoundData(m_Opus.Begin(), m_Opus.Size(), 16 * 1024, dmSound::SOUND_DATA_TYPE_OPUS);
+
+    // Record a complete reference playback first, then replay through the streaming
+    // callback. Compare the final mixed samples, including resampling and the tail.
+    dmArray<int16_t> reference;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        g_LoopbackDevice->m_AllOutput.SetSize(0);
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(m_Data[i], &m_Instance));
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(m_Instance));
+        if (i == 1)
+        {
+            // Opening the decoder can prefetch beyond the available data too.
+            // Count only reads made by Update when checking playback starvation.
+            m_Source.m_EmptyReads = 0;
+            // Loopback may need several updates before it requests another buffer.
+            // Wait for the callback's empty-read signal, with a bound to catch failure.
+            for (uint32_t update = 0; update < 64 && m_Source.m_EmptyReads == 0; ++update)
+            {
+                ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+            }
+
+            ASSERT_GT(m_Source.m_EmptyReads, 0U);
+            ASSERT_LE(m_Source.m_EmptyReads, 64U);
+            // Waiting for tags must leave the instance playing at sample zero;
+            // the mixer may queue silence, but must not consume any audio yet.
+            ASSERT_TRUE(dmSound::IsPlaying(m_Instance));
+            ASSERT_EQ(0, dmSound::GetInternalPos(m_Instance));
+            for (uint32_t sample = 0; sample < g_LoopbackDevice->m_AllOutput.Size(); ++sample)
+            {
+                ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[sample]);
+            }
+
+            // Only the silence queued while waiting is excluded from the comparison.
+            g_LoopbackDevice->m_AllOutput.SetSize(0);
+            m_Source.m_Available = m_Source.m_Size;
+        }
+
+        for (uint32_t update = 0; update < 4096 && dmSound::IsPlaying(m_Instance); ++update)
+        {
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+        }
+
+        ASSERT_FALSE(dmSound::IsPlaying(m_Instance));
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(m_Instance));
+        m_Instance = 0;
+        if (i == 0)
+        {
+            ASSERT_GT(g_LoopbackDevice->m_AllOutput.Size(), 0U);
+            reference.SetCapacity(g_LoopbackDevice->m_AllOutput.Size());
+            reference.PushArray(g_LoopbackDevice->m_AllOutput.Begin(), g_LoopbackDevice->m_AllOutput.Size());
+        }
+        else
+        {
+            ASSERT_EQ(reference.Size(), g_LoopbackDevice->m_AllOutput.Size());
+            ASSERT_EQ(0, memcmp(reference.Begin(), g_LoopbackDevice->m_AllOutput.Begin(), reference.Size() * sizeof(int16_t)));
+        }
+    }
 }
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
