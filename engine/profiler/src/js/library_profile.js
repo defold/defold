@@ -11,11 +11,17 @@ var LibraryDmProfile = {
             if(!thread) {
                 const rootMark = { idx: 0, nameStr: "root" };
                 const rootProperty = { idx: 0, nameStr: "root" };
-                thread = { rootMark: rootMark, currentMark: rootMark, marks: new Map(), idxMark: 0,
+                thread = { rootMark: rootMark, currentMark: rootMark, marks: [], idxMark: 0, firstMarkId: 1,
                            rootProperty: rootProperty, properties: new Map(), idxProperty: 0 };
                 this.threads.set(thread_id, thread);
             }
             return thread;
+        },
+        getMark: function(thread_id, idx) {
+            const thread = this.getThread(thread_id);
+            // Slots above the last issued id can still hold records from the previous frame.
+            if(idx <= thread.idxMark)
+                return thread.marks[idx - thread.firstMarkId];
         }
     },
     dmProfileJSInit: function(enablePerformanceTimeline) {
@@ -42,7 +48,9 @@ var LibraryDmProfile = {
             resetProperties(c);
         thread.currentMark = thread.rootMark;
         thread.rootMark.firstChild = thread.rootMark.lastChild = undefined;
-        thread.marks.clear();
+        // Keep the last frame's slots for reuse. Mark ids still advance each frame.
+        thread.marks.length = thread.idxMark - thread.firstMarkId + 1;
+        thread.firstMarkId = thread.idxMark + 1;
     },
     dmProfileJSEndFrame: function(thread_id) {
         const thread = DefoldProfiler.getThread(thread_id);
@@ -65,24 +73,54 @@ var LibraryDmProfile = {
         if(DefoldProfiler.enablePerformanceTimeline)
             performance.mark("frame", { detail: properties });
     },
-    dmProfileJSBeginMark: function(thread_id, name) {
+    dmProfileJSBeginMark: function(thread_id, name, hashLo, hashHi) {
         const thread = DefoldProfiler.getThread(thread_id);
         let mark;
+        const hasHash = hashLo !== 0 || hashHi !== 0;
+        let label;
         for(let m = thread.currentMark.firstChild; m; m = m.nextSibling) {
-            if(m.name == name) {
-                mark = m;
-                break;
+            if(m.name !== name)
+                continue;
+            // A caller can reuse a scratch buffer or supply a hash on only some calls.
+            if(!hasHash || m.hashLo !== hashLo || m.hashHi !== hashHi) {
+                if(label === undefined)
+                    label = UTF8ToString(name);
+                if(m.nameStr !== label)
+                    continue;
             }
+            mark = m;
+            break;
         }
         if(mark) {
             ++mark.calls;
         } else {
-            mark = { idx: ++thread.idxMark, nameStr: UTF8ToString(name), name, begins: [], measures: [], calls: 1, parent: thread.currentMark };
+            const idx = ++thread.idxMark;
+            const slot = idx - thread.firstMarkId;
+            mark = thread.marks[slot];
+            if(!mark) {
+                mark = { begins: [], measures: [] };
+                thread.marks[slot] = mark;
+            } else {
+                mark.begins.length = 0;
+                mark.measures.length = 0;
+                mark.firstChild = undefined;
+                mark.lastChild = undefined;
+                mark.nextSibling = undefined;
+            }
+            if(label !== undefined)
+                mark.nameStr = label;
+            else if(!hasHash || mark.hashLo !== hashLo || mark.hashHi !== hashHi)
+                mark.nameStr = UTF8ToString(name);
+            mark.hashLo = hashLo;
+            mark.hashHi = hashHi;
+            mark.idx = idx;
+            mark.name = name;
+            mark.calls = 1;
+            mark.parent = thread.currentMark;
             if(mark.parent.firstChild)
                 mark.parent.lastChild = mark.parent.lastChild.nextSibling = mark;
             else
                 mark.parent.firstChild = mark.parent.lastChild = mark;
-            thread.marks.set(mark.idx, mark);
         }
         if(DefoldProfiler.enablePerformanceTimeline) {
             if(performance.beginMeasure)
@@ -112,42 +150,36 @@ var LibraryDmProfile = {
         return thread.currentMark === thread.rootMark;
     },
     dmProfileJSFirstChild: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = idx ? thread.marks.get(idx) : thread.rootMark;
+        const mark = idx ? DefoldProfiler.getMark(thread_id, idx) : DefoldProfiler.getThread(thread_id).rootMark;
         if(mark.firstChild)
             return mark.firstChild.idx;
         return -1;
     },
     dmProfileJSNextSibling: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         if(mark.nextSibling)
             return mark.nextSibling.idx;
         return -1;
     },
     dmProfileJSGetName: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         return mark.name;
     },
     dmProfileJSGetStart: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         if(mark.measures.length)
             return mark.measures[0].startTime;
         return 0;
     },
     dmProfileJSGetDuration: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         let duration = 0;
         for(let m of mark.measures)
             duration += m.duration;
         return duration;
     },
     dmProfileJSGetSelfDuration: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         let duration = 0;
         for(let m of mark.measures)
             duration += m.duration;
@@ -158,8 +190,7 @@ var LibraryDmProfile = {
         return duration;
     },
     dmProfileJSGetCallCount: function(thread_id, idx) {
-        const thread = DefoldProfiler.getThread(thread_id);
-        const mark = thread.marks.get(idx);
+        const mark = DefoldProfiler.getMark(thread_id, idx);
         return mark.calls;
     },
     dmProfileJSFirstProperty: function(idx) {
