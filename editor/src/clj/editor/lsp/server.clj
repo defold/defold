@@ -547,8 +547,10 @@
                 (a/go
                   (try
                     ;; LSP lifecycle: initialization
-                    (let [{:keys [capabilities]} (lsp.jsonrpc/unwrap-response (<! (initialize jsonrpc project)))]
-                      (>! out (on-initialized (lsp-capabilities->editor-capabilities capabilities)))
+                    (let [{:keys [capabilities serverInfo]} (lsp.jsonrpc/unwrap-response (<! (initialize jsonrpc project)))]
+                      (>! out (on-initialized (cond-> (lsp-capabilities->editor-capabilities capabilities)
+                                                (:name serverInfo)
+                                                (assoc :server-name (:name serverInfo)))))
                       (>! jsonrpc (lsp.jsonrpc/notification "initialized"))
                       ;; LSP lifecycle: serve requests
                       (<! (lsp.async/pipe (a/map #(->jsonrpc % project on-response) [in]) jsonrpc false))
@@ -674,7 +676,8 @@
 
 #_{:clj-kondo/ignore [:unused-binding]}
 (defn- completion-item:lsp->editor
-  [{:keys [label filterText insertText tags deprecated kind
+  [server-name
+   {:keys [label filterText insertText tags deprecated kind
            insertTextMode insertTextFormat commitCharacters
            detail documentation textEdit additionalTextEdits]
     :or {insertTextMode insert-text-mode-adjust-indentation
@@ -686,9 +689,18 @@
       (code-completion/make
         (or filterText label)
         :display-string label
-        :insert (or (some-> text-edit (assoc :type insert-text-format))
-                    {:type insert-text-format
-                     :value (or insertText label)})
+        :insert (cond-> (or (some-> text-edit (assoc :type insert-text-format))
+                            {:type insert-text-format
+                             :value (or insertText label)})
+                  ;; HACK: The Lua language server ("sumneko.lua") writes
+                  ;; optional parameters in call snippets as placeholders that
+                  ;; end with "?", e.g. "${4:play_properties?}". Accepting such
+                  ;; a placeholder inserts invalid Lua, which breaks parsing of
+                  ;; the call, so LSP features like the signature help popup
+                  ;; disappears. We strip the "?" for this server only.
+                  (and (= "sumneko.lua" server-name)
+                       (= :snippet insert-text-format))
+                  (update :value string/replace #"(\$\{\d+:[^}]*)\?\}" "$1}"))
         :commit-characters (set commitCharacters)
         :type (some-> kind completion-item-kind:lsp->editor)
         :detail detail
@@ -713,7 +725,7 @@
 (defn completion
   "See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_completion"
-  [resource cursor context item-converter]
+  [resource cursor context server-name item-converter]
   (raw-request
     (lsp.jsonrpc/notification
       "textDocument/completion"
@@ -725,7 +737,7 @@
             incomplete (if is-map (:isIncomplete result) false)
             items (if is-map (:items result) result)]
         {:complete (not incomplete)
-         :items (mapv (comp item-converter completion-item:lsp->editor) items)}))))
+         :items (mapv (comp item-converter (partial completion-item:lsp->editor server-name)) items)}))))
 
 (defn resolve-completion
   "See also:
@@ -739,7 +751,7 @@
           ;; LSP specification does not allow null completion resolution
           ;; results, but the Lua language server might return null anyway
           result
-          (conj (select-keys (completion-item:lsp->editor result)
+          (conj (select-keys (completion-item:lsp->editor nil result)
                              [:detail :doc :additional-edits])))))))
 
 (defn find-references

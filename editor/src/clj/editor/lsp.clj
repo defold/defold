@@ -1165,11 +1165,12 @@
                :capabilities-pred :completion
                :resource resource
                :timeout-ms timeout-ms
-               :requests-fn (fn [_ {:keys [out]}]
+               :requests-fn (fn [_ {:keys [out capabilities]}]
                               [(lsp.server/completion
                                  resource
                                  cursor
                                  context
+                                 (:server-name capabilities)
                                  #(vary-meta % assoc :editor.lsp.server-state/out out))])))))
     ;; Don't ask the servers about dependency (zip) resources
     (do (result-callback {:complete true :items []}) nil)))
