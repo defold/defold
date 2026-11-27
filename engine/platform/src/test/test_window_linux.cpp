@@ -741,7 +741,20 @@ TEST(LinuxWindow, X11WindowAndIconTitles)
     dmPlatform::DeleteWindow(w);
 }
 
-// A window manager on a forwarded display must be able to associate the X11 client's PID with its host.
+static const pthread_t g_TestThread = pthread_self();
+static unsigned g_SynchronousHostnameLookups;
+extern "C" int __real_getaddrinfo(const char*, const char*, const addrinfo*, addrinfo**);
+extern "C" int __wrap_getaddrinfo(const char* node, const char* service, const addrinfo* hints, addrinfo** result)
+{
+    if (hints && (hints->ai_flags & AI_CANONNAME) && pthread_equal(pthread_self(), g_TestThread))
+    {
+        ++g_SynchronousHostnameLookups;
+    }
+
+    return __real_getaddrinfo(node, service, hints, result);
+}
+
+// A forwarded X11 window identifies its process and host immediately without resolving DNS on the event thread.
 TEST(LinuxWindow, X11ClientProcessIdentity)
 {
     HWindow w = NewX11TestWindow();
@@ -768,6 +781,7 @@ TEST(LinuxWindow, X11ClientProcessIdentity)
 
     XTextProperty machine = {};
     ASSERT_TRUE(XGetWMClientMachine(w->m_Display, w->m_Xid, &machine));
+    EXPECT_EQ(0u, g_SynchronousHostnameLookups);
     EXPECT_EQ(XA_STRING, machine.encoding);
     EXPECT_EQ(8, machine.format);
     char hostname[HOST_NAME_MAX + 1];
@@ -776,19 +790,37 @@ TEST(LinuxWindow, X11ClientProcessIdentity)
     hints.ai_flags = AI_CANONNAME;
     addrinfo* address = 0;
     const char* expected = hostname;
-    if (!strchr(hostname, '.') && getaddrinfo(hostname, 0, &hints, &address) == 0 &&
+    if (!strchr(hostname, '.') && __real_getaddrinfo(hostname, 0, &hints, &address) == 0 &&
         address->ai_canonname && strchr(address->ai_canonname, '.'))
     {
         expected = address->ai_canonname;
     }
 
-    EXPECT_STREQ(expected, (const char*)machine.value);
+    EXPECT_TRUE(!strcmp(hostname, (const char*)machine.value) || !strcmp(expected, (const char*)machine.value));
+    XFree(machine.value);
+    // Wait for the qualified name when the resolver supplies one.
+    if (expected != hostname)
+    {
+        uint64_t end = dmTime::GetMonotonicTime() + 5000000;
+        for (;;)
+        {
+            dmPlatform::PollEvents(w);
+            ASSERT_TRUE(XGetWMClientMachine(w->m_Display, w->m_Xid, &machine));
+            bool resolved = !strcmp(expected, (const char*)machine.value);
+            XFree(machine.value);
+            if (resolved || dmTime::GetMonotonicTime() >= end)
+            {
+                EXPECT_TRUE(resolved);
+                break;
+            }
+        }
+    }
+
     if (address)
     {
         freeaddrinfo(address);
     }
 
-    XFree(machine.value);
     dmPlatform::DeleteWindow(w);
 }
 

@@ -22,6 +22,8 @@
 #include <X11/cursorfont.h>
 #include <X11/extensions/Xrandr.h>
 #include <dlfcn.h>
+#include <dlib/atomic.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <cmath>
@@ -58,7 +60,7 @@ struct LinuxX11
     unsigned long m_SizeReadSerial;
     uint64_t      m_LayoutHash;
     int           m_RequestX, m_RequestY;
-    bool          m_RequestIsSize, m_ClampAfterResize;
+    bool          m_RequestIsSize, m_ClampAfterResize, m_ClientMachinePending;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
     Window        m_ClipboardWindow;
@@ -531,31 +533,66 @@ namespace dmPlatform
         LinuxUpdateSize(w, w->m_Width, w->m_Height, scale);
     }
 
+    // The resolver only writes process-owned data. Each live window publishes the result on its event thread.
+    static pthread_once_t g_ClientHostnameOnce = PTHREAD_ONCE_INIT;
+    static char g_ClientHostname[HOST_NAME_MAX + 1];
+    static char g_CanonicalHostname[NI_MAXHOST];
+    static int32_atomic_t g_ClientHostnameResolved;
+
+    static void* ResolveClientHostname(void*)
+    {
+        addrinfo hints = {};
+        hints.ai_flags = AI_CANONNAME;
+        addrinfo* address = 0;
+        if (getaddrinfo(g_ClientHostname, 0, &hints, &address) == 0)
+        {
+            if (address->ai_canonname && strchr(address->ai_canonname, '.'))
+            {
+                dmStrlCpy(g_CanonicalHostname, address->ai_canonname, sizeof(g_CanonicalHostname));
+            }
+
+            freeaddrinfo(address);
+        }
+
+        dmAtomicStoreRelease32(&g_ClientHostnameResolved, 1);
+        return 0;
+    }
+
+    static void InitClientHostname()
+    {
+        if (gethostname(g_ClientHostname, sizeof(g_ClientHostname)) != 0)
+        {
+            g_ClientHostname[0] = 0;
+        }
+        else if (g_ClientHostname[0] && !strchr(g_ClientHostname, '.'))
+        {
+            pthread_t thread;
+            if (pthread_create(&thread, 0, ResolveClientHostname, 0) == 0)
+            {
+                pthread_detach(thread);
+                return;
+            }
+        }
+
+        dmAtomicStoreRelease32(&g_ClientHostnameResolved, 1);
+    }
+
+    static void SetClientMachine(HWindow w, const char* name)
+    {
+        XTextProperty machine = { (unsigned char*)name, XA_STRING, 8, strlen(name) };
+        XSetWMClientMachine(w->m_Display, w->m_Xid, &machine);
+    }
+
     static void SetClientIdentity(HWindow w)
     {
-        char hostname[HOST_NAME_MAX + 1];
-        if (gethostname(hostname, sizeof(hostname)) != 0 || !hostname[0])
+        pthread_once(&g_ClientHostnameOnce, InitClientHostname);
+        if (!g_ClientHostname[0])
         {
             return;
         }
 
-        const char* name = hostname;
-        addrinfo hints = {};
-        hints.ai_flags = AI_CANONNAME;
-        addrinfo* address = 0;
-        if (!strchr(hostname, '.') && getaddrinfo(hostname, 0, &hints, &address) == 0 &&
-            address->ai_canonname && strchr(address->ai_canonname, '.'))
-        {
-            name = address->ai_canonname;
-        }
-
-        XTextProperty machine = { (unsigned char*)name, XA_STRING, 8, strlen(name) };
-        XSetWMClientMachine(w->m_Display, w->m_Xid, &machine);
-        if (address)
-        {
-            freeaddrinfo(address);
-        }
-
+        w->m_X11->m_ClientMachinePending = !dmAtomicLoadAcquire32(&g_ClientHostnameResolved);
+        SetClientMachine(w, !w->m_X11->m_ClientMachinePending && g_CanonicalHostname[0] ? g_CanonicalHostname : g_ClientHostname);
         unsigned long pid = getpid();
         XChangeProperty(w->m_Display, w->m_Xid, AtomFor(w, "_NET_WM_PID"), XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&pid, 1);
     }
@@ -882,6 +919,15 @@ namespace dmPlatform
     {
         Display* d = w->m_Display;
         LinuxX11* x = w->m_X11;
+        if (w->m_Xid && x->m_ClientMachinePending && dmAtomicLoadAcquire32(&g_ClientHostnameResolved))
+        {
+            x->m_ClientMachinePending = false;
+            if (g_CanonicalHostname[0])
+            {
+                SetClientMachine(w, g_CanonicalHostname);
+            }
+        }
+
         bool metrics = false;
         bool check_layout = false;
         while (XPending(d))
