@@ -18,6 +18,7 @@
 
 #include <dlib/index_pool.h>
 #include <dlib/transform.h>
+#include <graphics/graphics.h>
 
 #include "particle/particle_ddf.h"
 
@@ -231,6 +232,7 @@ namespace dmParticle
      */
     struct Context
     {
+        dmGraphics::WriteAttributeState m_AttributeWriteState;
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
         : m_AttributeDataPtrIndex(0)
         , m_MaxParticleCount(max_particle_count)

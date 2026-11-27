@@ -202,6 +202,7 @@ namespace dmGameSystem
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
         dmArray<dmVMath::Vector4>        m_ScratchMorphWeightsConstants;
+        dmGraphics::WriteAttributeState  m_AttributeWriteState;
         dmRig::HRigContext               m_RigContext;
         ModelSkinnedAnimationData        m_SkinnedAnimationData;
 
@@ -1022,7 +1023,8 @@ namespace dmGameSystem
             uv_channels,
             uv_channels_count);
 
-        return dmGraphics::WriteAttributes(write_ptr, 0, vertex_count, params);
+        dmGraphics::PrepareWriteAttributes(&world->m_AttributeWriteState, params, vertex_count);
+        return dmGraphics::WriteAttributes(write_ptr, 0, vertex_count, world->m_AttributeWriteState);
     }
 
     static void SetMeshAttributeRenderData(ModelWorld* world, ModelComponent* component, dmRender::HRenderContext render_context, const dmGraphics::VertexAttributeInfos* material_infos, const dmGraphics::VertexAttributeInfos* attribute_infos, MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)

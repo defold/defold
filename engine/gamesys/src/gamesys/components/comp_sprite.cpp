@@ -192,6 +192,7 @@ namespace dmGameSystem
         dmArray<float>                      m_ScratchUVs[MAX_TEXTURE_COUNT];
         dmArray<Vector4>                    m_ScratchPositionWorld;
         dmArray<Vector4>                    m_ScratchPositionLocal;
+        dmGraphics::WriteAttributeState     m_AttributeWriteState;
         uint32_t                            m_RenderObjectsInUse;
         dmRender::HBufferedRenderBuffer     m_VertexBuffer;
         uint8_t*                            m_VertexBufferData;
@@ -954,7 +955,8 @@ namespace dmGameSystem
         float* scratch_tt_ptrs[MAX_TEXTURE_COUNT],
         dmArray<dmVMath::Vector4>* scratch_positions_world,
         dmArray<dmVMath::Vector4>* scratch_positions_local,
-        dmGraphics::VertexAttributeInfos* sprite_infos)
+        dmGraphics::VertexAttributeInfos* sprite_infos,
+        dmGraphics::WriteAttributeState* write_state)
     {
         const Vector3 sprite_size = component->m_Size;
         const Vector4 slice9 = component->m_Slice9;
@@ -1046,6 +1048,7 @@ namespace dmGameSystem
         {
             GenerateSlice9Positions(slice9_params, positions);
         }
+        dmGraphics::PrepareWriteAttributes(write_state, params, SLICE9_VERTEX_COUNT);
         for (uint32_t vertex_index = 0; vertex_index < SLICE9_VERTEX_COUNT; ++vertex_index)
         {
             if (has_local_position_attribute || has_world_position_attribute)
@@ -1062,7 +1065,7 @@ namespace dmGameSystem
                     (*scratch_positions_world)[vertex_index] = world_matrix * local_pos;
                 }
             }
-            vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, params);
+            vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, *write_state);
         }
 
         const uint16_t* slice9_indices = GetSlice9Indices();
@@ -1555,6 +1558,7 @@ namespace dmGameSystem
                     textures_num);
 
                 uint32_t num_vertices = sprite_world->m_ScratchPositionWorld.Size();
+                dmGraphics::PrepareWriteAttributes(&sprite_world->m_AttributeWriteState, write_params, num_vertices);
                 for (uint32_t vertex_index = 0; vertex_index < num_vertices; ++vertex_index)
                 {
                     if (has_local_position_attribute || has_world_position_attribute)
@@ -1573,7 +1577,7 @@ namespace dmGameSystem
                             sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * local_pos;
                         }
                     }
-                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
+                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, sprite_world->m_AttributeWriteState);
                 }
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = animations->m_Geometries[0];
@@ -1632,7 +1636,8 @@ namespace dmGameSystem
                         scratch_tt_ptrs,
                         &sprite_world->m_ScratchPositionWorld,
                         &sprite_world->m_ScratchPositionLocal,
-                        scratch_attribute_infos);
+                        scratch_attribute_infos,
+                        &sprite_world->m_AttributeWriteState);
 
                     indices       += index_type_size * SLICE9_INDEX_COUNT;
                     vertices      += SLICE9_VERTEX_COUNT * vertex_stride;
@@ -1698,7 +1703,8 @@ namespace dmGameSystem
                             uv_channels_count,
                             (const float**) scratch_tt_ptrs,
                             uv_channels_count);
-                        vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
+                        dmGraphics::PrepareWriteAttributes(&sprite_world->m_AttributeWriteState, write_params, 4);
+                        vertices = dmGraphics::WriteAttributes(vertices, 0, 4, sprite_world->m_AttributeWriteState);
                     }
 
                 #if 0

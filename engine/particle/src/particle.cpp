@@ -630,7 +630,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter, uint32_t particle_start, uint32_t particle_count,
+    static GenerateVertexDataResult WriteVertexData(dmGraphics::WriteAttributeState* write_state, Emitter* emitter, uint32_t particle_start, uint32_t particle_count,
                                                     const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
@@ -734,7 +734,7 @@ namespace dmParticle
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
             uint32_t count = dmMath::Min(emitter->m_Particles.Size(), particle_count);
-            res = WriteVertexData(emitter, particle_start, count,
+            res = WriteVertexData(&context->m_AttributeWriteState, emitter, particle_start, count,
                                   attribute_infos, color, vertex_index, vertex_buffer_write, vertex_buffer_size, &bytes_written);
             *out_vertex_buffer_size += bytes_written;
         }
@@ -1142,7 +1142,7 @@ namespace dmParticle
     // stride argument for packed layouts. Zero selects the generic writer;
     // geometry and buffer limits stay shared across all three specializations.
     template <uint32_t PackedStride>
-    static GenerateVertexDataResult WriteVertexDataImpl(Emitter* emitter,
+    static GenerateVertexDataResult WriteVertexDataImpl(dmGraphics::WriteAttributeState* write_state, Emitter* emitter,
                                                         uint32_t particle_start,
                                                         uint32_t particle_count,
                                                         const dmGraphics::VertexAttributeInfos& attribute_infos,
@@ -1355,7 +1355,8 @@ namespace dmParticle
             }
             else
             {
-                dmGraphics::WriteAttributes(write_ptr, 0, 6, write_params);
+                dmGraphics::PrepareWriteAttributes(write_state, write_params, 6);
+                dmGraphics::WriteAttributes(write_ptr, 0, 6, *write_state);
             }
             vertex_index += 6;
         }
@@ -1421,7 +1422,7 @@ namespace dmParticle
         return infos.m_VertexStride;
     }
 
-    static GenerateVertexDataResult WriteVertexData(Emitter* emitter,
+    static GenerateVertexDataResult WriteVertexData(dmGraphics::WriteAttributeState* write_state, Emitter* emitter,
                                                     uint32_t particle_start,
                                                     uint32_t particle_count,
                                                     const dmGraphics::VertexAttributeInfos& attribute_infos,
@@ -1434,13 +1435,13 @@ namespace dmParticle
         const uint32_t stride = GetCompatiblePackedVertexStride(attribute_infos);
         if (stride == PACKED_PARTICLE_VERTEX_STRIDE)
         {
-            return WriteVertexDataImpl<PACKED_PARTICLE_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+            return WriteVertexDataImpl<PACKED_PARTICLE_VERTEX_STRIDE>(write_state, emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
         }
         else if (stride == PACKED_PARTICLE_PAGED_VERTEX_STRIDE)
         {
-            return WriteVertexDataImpl<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+            return WriteVertexDataImpl<PACKED_PARTICLE_PAGED_VERTEX_STRIDE>(write_state, emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
         }
-        return WriteVertexDataImpl<0>(emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
+        return WriteVertexDataImpl<0>(write_state, emitter, particle_start, particle_count, attribute_infos, color, vertex_index, vertex_buffer, vertex_buffer_size, bytes_written);
     }
 
     struct SortPred
