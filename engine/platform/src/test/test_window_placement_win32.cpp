@@ -110,8 +110,7 @@ TEST(Win32Desktop, WebGPUOpensWindow)
     dmPlatform::DeleteWindow(window);
 }
 
-// OpenGL ES must create a current ANGLE context that can resolve GL calls and draw.
-TEST(Win32Desktop, OpenGLESContextRenders)
+static bool HasANGLE()
 {
     HMODULE egl = LoadLibraryW(L"libEGL.dll");
     HMODULE gles = LoadLibraryW(L"libGLESv2.dll");
@@ -125,7 +124,13 @@ TEST(Win32Desktop, OpenGLESContextRenders)
         FreeLibrary(gles);
     }
 
-    if (!egl || !gles)
+    return egl && gles;
+}
+
+// OpenGL ES must create a current ANGLE context that can resolve GL calls and draw.
+TEST(Win32Desktop, OpenGLESContextRenders)
+{
+    if (!HasANGLE())
     {
         SKIP();
     }
@@ -157,6 +162,41 @@ TEST(Win32Desktop, OpenGLESContextRenders)
     EXPECT_EQ(0u, pixel[2]);
     EXPECT_EQ(255u, pixel[3]);
     dmPlatform::SwapBuffers(window);
+    dmPlatform::DeleteWindow(window);
+}
+
+// An oversized MSAA request must keep a supported sample count and report the actual EGL framebuffer.
+TEST(Win32Desktop, OpenGLESMultisampleFallback)
+{
+    if (!HasANGLE())
+    {
+        SKIP();
+    }
+
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    params.m_Hidden = true;
+    const uint32_t requests[] = { 1, 4, 1024, 0 };
+    GLint samples[DM_ARRAY_SIZE(requests)] = {};
+    for (unsigned i = 0; i < DM_ARRAY_SIZE(requests); ++i)
+    {
+        params.m_Samples = requests[i];
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        typedef void (APIENTRY* GetIntegerFn)(GLenum, GLint*);
+        GetIntegerFn get_integer = (GetIntegerFn)dmPlatform::GetProcAddress(window, "glGetIntegerv");
+        ASSERT_NE((GetIntegerFn)0, get_integer);
+        get_integer(0x80A9, &samples[i]); // GL_SAMPLES
+        EXPECT_EQ(requests[i], dmPlatform::GetWindowStateParam(window, WINDOW_STATE_FSAA_SAMPLES));
+        EXPECT_EQ((uint32_t)(samples[i] > 1 ? samples[i] : 1), dmPlatform::GetWindowStateParam(window, WINDOW_STATE_SAMPLE_COUNT));
+        dmPlatform::CloseWindow(window);
+    }
+
+    EXPECT_GE(samples[1], samples[0]);
+    EXPECT_GE(samples[2], samples[1]);
+    EXPECT_LE(samples[3], samples[0]);
     dmPlatform::DeleteWindow(window);
 }
 

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_win32.h"
+#include "../platform_window_opengl.h"
 #include <dlib/log.h>
 
 // EGL is loaded at runtime so Windows builds without ANGLE can still use WGL, DX12 and Vulkan.
@@ -38,7 +39,6 @@ enum
     EGL_WINDOW_BIT             = 0x0004,
     EGL_PBUFFER_BIT            = 0x0001,
     EGL_SAMPLES                = 0x3031,
-    EGL_SAMPLE_BUFFERS         = 0x3032,
     EGL_CONTEXT_CLIENT_VERSION = 0x3098,
     EGL_OPENGL_ES_API          = 0x30A0,
     EGL_WIDTH                  = 0x3057,
@@ -155,6 +155,53 @@ static void ReleaseEGL()
 
 namespace dmPlatform
 {
+    static EGLConfig ChooseWindowConfig(const WindowCreateParams& params, uint32_t* sample_count)
+    {
+        const EGLint format[] = {
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
+            EGL_ALPHA_SIZE, params.m_ContextAlphabits ? 8 : 0,
+            EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8, EGL_NONE
+        };
+        EGLint count = 0;
+        if (!g_EGL.m_ChooseConfig(g_Display, format, 0, 0, &count) || !count)
+        {
+            return 0;
+        }
+
+        dmArray<EGLConfig> configs;
+        configs.SetCapacity(count);
+        if (!g_EGL.m_ChooseConfig(g_Display, format, configs.Begin(), count, &count))
+        {
+            return 0;
+        }
+
+        EGLConfig best = 0;
+        uint32_t best_error = UINT32_MAX;
+        for (EGLint i = 0; i < count; ++i)
+        {
+            EGLConfig config = configs.Begin()[i];
+            EGLint samples;
+            if (g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SAMPLES, &samples))
+            {
+                uint32_t error = OpenGLSampleCountError(params.m_Samples, samples);
+                if (!best || error < best_error)
+                {
+                    best = config;
+                    best_error = error;
+                    *sample_count = samples > 1 ? samples : 1;
+                    if (!error)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
     bool Win32EGLCreate(HWindow window)
     {
         if (!LoadEGL())
@@ -171,24 +218,10 @@ namespace dmPlatform
             return false;
         }
 
-        EGLint format[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
-            EGL_ALPHA_SIZE, window->m_Params.m_ContextAlphabits ? 8 : 0,
-            EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8,
-            EGL_SAMPLE_BUFFERS, window->m_Params.m_Samples ? 1 : 0,
-            EGL_SAMPLES, (EGLint)window->m_Params.m_Samples, EGL_NONE
-        };
-        EGLint count = 0;
-        if (!g_EGL.m_ChooseConfig(g_Display, format, &egl->m_Config, 1, &count) || !count)
+        egl->m_Config = ChooseWindowConfig(window->m_Params, &window->m_Samples);
+        if (!egl->m_Config)
         {
-            // Retry without multisampling when the driver has fewer samples than requested.
-            format[16] = EGL_NONE;
-            if (!g_EGL.m_ChooseConfig(g_Display, format, &egl->m_Config, 1, &count) || !count)
-            {
-                return false;
-            }
+            return false;
         }
 
         const EGLint version[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
@@ -200,9 +233,6 @@ namespace dmPlatform
             return false;
         }
 
-        EGLint samples = 0;
-        g_EGL.m_GetConfigAttrib(g_Display, egl->m_Config, EGL_SAMPLES, &samples);
-        window->m_Samples = samples > 1 ? samples : 1;
         const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
         egl->m_AuxSurface = g_EGL.m_CreatePbufferSurface(g_Display, egl->m_Config, pbuffer);
         if (egl->m_AuxSurface)
