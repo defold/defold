@@ -11,14 +11,19 @@ from pathlib import Path
 
 @unittest.skipUnless(shutil.which('cmake') and shutil.which('ninja'), 'CMake and Ninja are required')
 class PlatformLinkTests(unittest.TestCase):
-    def configure_project(self, root, **definitions):
+    def require_xcode(self):
+        if not shutil.which('xcodebuild') or subprocess.run(
+                ['xcodebuild', '-version'], capture_output=True).returncode:
+            self.skipTest('Xcode is required')
+
+    def configure_project(self, root, generator='Ninja', **definitions):
         repository = Path(__file__).resolve().parent.parent
         build = root / 'build'
         query = build / '.cmake/api/v1/query'
-        query.mkdir(parents=True)
+        query.mkdir(parents=True, exist_ok=True)
         (query / 'codemodel-v2').touch()
         return subprocess.run([
-            'cmake', '-S', str(root), '-B', str(build), '-G', 'Ninja',
+            'cmake', '-S', str(root), '-B', str(build), '-G', generator,
             '-DDEFOLD_HOME=' + repository.as_posix(),
             '-DDEFOLD_BUILD_HOME=' + root.as_posix(),
             *[f'-D{name}={value}' for name, value in definitions.items()],
@@ -35,6 +40,206 @@ class PlatformLinkTests(unittest.TestCase):
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    def write_dlib_link_project(self, root):
+        (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(mbedtls_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+# These tests inspect the build graph, so an empty archive satisfies the SDK import.
+file(WRITE "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}" "!<arch>\\n")
+add_library(defold_sdk INTERFACE)
+include(functions)
+include(features)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
+    dlib dlib_noasan mbedtls mbedtls_noasan)
+''')
+
+    def write_sdk_header_project(self, root):
+        (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(sdk_header_test LANGUAGES CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/installed")
+set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_custom_target(build_tests)
+add_custom_target(engine_sdk_headers COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/published")
+if(NOT PARTIAL_SDK)
+  add_custom_target(ddf_generated_sources)
+endif()
+foreach(target IN ITEMS gameobject_proto_headers gamesys_proto_headers
+    gamesys_model_proto_headers graphics_proto_header input_proto_headers particle_proto_headers
+    render_proto_headers rig_proto_headers script_proto_headers)
+  add_custom_target(${target})
+endforeach()
+file(GLOB DEFOLD_DMSDK_HEADER_NAMES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+list(TRANSFORM DEFOLD_DMSDK_HEADER_NAMES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/" OUTPUT_VARIABLE DEFOLD_DMSDK_HEADER_SOURCES)
+install(FILES ${DEFOLD_DMSDK_HEADER_SOURCES} DESTINATION sdk/include/dmsdk COMPONENT defold_sdk_headers)
+add_subdirectory("${DEFOLD_HOME}/engine/sdk/src/test" sdk)
+''')
+
+    # Only a partial SDK check needs the targets that publish installed engine headers.
+    def test_sdk_header_publishers_are_only_built_for_partial_graphs(self):
+        for partial in (False, True):
+            with self.subTest(partial=partial), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.write_sdk_header_project(root)
+                (root / 'public.h').write_text('#pragma once\n')
+                installed = root / 'build/installed/sdk/include/dmsdk'
+                installed.mkdir(parents=True)
+                (installed / 'public.h').write_text('#pragma once\n' if partial else '#error stale_header\n')
+                target = self.configure_target(root, 'test_sdk_includes_cpp', TARGET_PLATFORM='x86_64-linux',
+                                               PARTIAL_SDK='ON' if partial else 'OFF')
+                dependencies = {dep['id'].split('::')[0] for dep in target['dependencies']}
+                self.assertIn('gameobject_proto_headers', dependencies)
+                self.assertIn('script_proto_headers', dependencies)
+                subprocess.check_output(['cmake', '--build', str(root / 'build'), '--target', 'test_sdk_includes_cpp'])
+                self.assertEqual(partial, (root / 'build/published').exists())
+
+    # Unchanged builds skip staging, missing outputs are restored, and retired headers stop satisfying includes.
+    def test_sdk_header_staging_is_incremental(self):
+        generators = ['Ninja']
+        if os.name != 'nt' and shutil.which('make'):
+            generators.append('Unix Makefiles')
+        for generator in generators:
+            with self.subTest(generator=generator), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.write_sdk_header_project(root)
+                header = root / 'public.h'
+                header.write_text('#include <dmsdk/retired.h>\n#include <dmsdk/vectormath/package.h>\n')
+                retired = root / 'retired.h'
+                retired.write_text('#pragma once\n')
+                # Keep a staged header older than the inputs that trigger staging.
+                os.utime(header, (1, 1))
+                installed = root / 'build/installed/sdk/include/dmsdk'
+                (installed / 'vectormath').mkdir(parents=True)
+                (installed / 'vectormath/package.h').write_text('#pragma once\n')
+                (installed / 'retired.h').write_text(retired.read_text())
+                result = self.configure_project(root, generator=generator, TARGET_PLATFORM='x86_64-linux',
+                                                CMAKE_BUILD_TYPE='Debug')
+                self.assertEqual(0, result.returncode, result.stdout)
+                build = root / 'build'
+                command = ['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp']
+                stage = build / 'sdk/sdk-headers/Debug'
+                staging = 'Staging public headers for SDK tests'
+                self.assertIn(staging, subprocess.check_output(command, text=True))
+                self.assertNotIn(staging, subprocess.check_output(command, text=True))
+                staged_header, = stage.rglob('public.h')
+                staged_header.unlink()
+                subprocess.check_output(command)
+                self.assertEqual(header.read_text(), staged_header.read_text())
+
+                retired.unlink()
+                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                self.assertEqual([], list(stage.rglob('retired.h')))
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn('retired.h', result.stdout)
+                (root / 'replacement.h').write_text('#pragma once\n')
+                header.write_text('#include <dmsdk/replacement.h>\n#include <dmsdk/vectormath/package.h>\n')
+                subprocess.check_output(command)
+
+    # Ninja must recompile a changed header even when both source edits fall in the same second.
+    def test_sdk_header_staging_detects_subsecond_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_sdk_header_project(root)
+            header = root / 'public.h'
+            header.write_text('#pragma once\n')
+            os.utime(header, ns=(1_250_000_000, 1_250_000_000))
+            (root / 'unchanged.h').write_text('#pragma once\n')
+            result = self.configure_project(root, TARGET_PLATFORM='x86_64-linux', CMAKE_BUILD_TYPE='Debug')
+            self.assertEqual(0, result.returncode, result.stdout)
+            build = root / 'build'
+            command = ['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp']
+            subprocess.check_output(command)
+            stage = build / 'sdk/sdk-headers/Debug'
+            unchanged, = stage.rglob('unchanged.h')
+            before = unchanged.stat().st_mtime_ns
+
+            header.write_text('#error public_header_changed\n')
+            os.utime(header, ns=(1_750_000_000, 1_750_000_000))
+            # Force staging of these deliberately old inputs to exercise Ninja's output timestamp check.
+            stamp, = stage.rglob('headers.stamp')
+            stamp.unlink()
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertNotEqual(0, result.returncode, result.stdout)
+            self.assertIn('public_header_changed', result.stdout)
+            self.assertEqual(before, unchanged.stat().st_mtime_ns)
+
+    # A test build must preserve the file list written by an actual SDK header component install.
+    def test_sdk_header_staging_preserves_install_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_sdk_header_project(root)
+            (root / 'public.h').write_text('#pragma once\n')
+            result = self.configure_project(root, TARGET_PLATFORM='x86_64-linux', CMAKE_BUILD_TYPE='Debug')
+            self.assertEqual(0, result.returncode, result.stdout)
+            build = root / 'build'
+            prefix = root / 'installed sdk'
+            subprocess.check_output(['cmake', '--install', str(build), '--config', 'Debug',
+                                     '--component', 'defold_sdk_headers', '--prefix', str(prefix)])
+            manifest = build / 'install_manifest_defold_sdk_headers.txt'
+            installed_files = manifest.read_bytes()
+            self.assertEqual([prefix / 'sdk/include/dmsdk/public.h'],
+                             [Path(line) for line in installed_files.decode().splitlines()])
+            subprocess.check_output(['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp'])
+            self.assertEqual(installed_files, manifest.read_bytes())
+
+    # A packaging DESTDIR must redirect the outer install and leave the SDK test stage inside the build tree.
+    @unittest.skipIf(os.name == 'nt', 'DESTDIR packaging requires Unix paths')
+    def test_sdk_header_stage_ignores_packaging_destdir(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_sdk_header_project(root)
+            (root / 'public.h').write_text('#pragma once\n')
+            result = self.configure_project(root, TARGET_PLATFORM='x86_64-linux', CMAKE_BUILD_TYPE='Debug',
+                                            CMAKE_INSTALL_PREFIX='/defold')
+            self.assertEqual(0, result.returncode, result.stdout)
+            build = root / 'build'
+            package = root / 'package'
+            header = Path('sdk/include/dmsdk/public.h')
+            result = subprocess.run(['cmake', '--build', str(build), '--target', 'test_sdk_includes_cpp', 'install'],
+                                    env=dict(os.environ, DESTDIR=str(package)), stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+            self.assertEqual(1, len(list((build / 'sdk/sdk-headers/Debug').rglob('public.h'))))
+            self.assertEqual([package / 'defold' / header], list(package.rglob('public.h')))
+
+    # Both resource executables must reuse the same compiled archive fixtures in focused builds.
+    def test_resource_archive_embeds_compile_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(resource_archive_objects LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+set(DEFOLD_RESOURCE_BINARY_DIR "${CMAKE_BINARY_DIR}/resource")
+file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_custom_target(build_tests)
+add_subdirectory("${DEFOLD_HOME}/engine/resource/src/test" resource-tests)
+''')
+            shared = self.configure_target(root, 'resource_test_archive_embeds', TARGET_PLATFORM='x86_64-linux')
+            self.assertEqual('OBJECT_LIBRARY', shared['type'])
+            self.assertTrue(any(src['path'].endswith('.embed.cpp') for src in shared['sources']))
+            for name in ('test_resource', 'test_resource_archive'):
+                target = self.read_target(root, name)
+                self.assertIn(shared['id'], [dep['id'] for dep in target['dependencies']])
+                self.assertFalse(any(src['path'].endswith('.embed.cpp') for src in target['sources']))
 
     # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
     def test_server_groups_match_direct_target_locks(self):
@@ -184,25 +389,7 @@ add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
             with self.subTest(platform=platform, enabled=enabled, disabled=disabled, legacy=legacy), \
                     tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                (root / 'CMakeLists.txt').write_text('''
-cmake_minimum_required(VERSION 4.0)
-project(mbedtls_link_test LANGUAGES C CXX)
-set(DEFOLD_CMAKE_INCLUDED ON)
-set(DEFOLD_LANGUAGE_LIST C CXX)
-set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
-set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
-set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
-set(BUILD_TESTS OFF)
-list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
-include(functions)
-include(features)
-add_library(lz4 INTERFACE)
-add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
-add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
-defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
-    dlib dlib_noasan mbedtls mbedtls_noasan)
-''')
+                self.write_dlib_link_project(root)
                 consumer = self.configure_target(
                     root, 'mbedtls_consumer', TARGET_PLATFORM=platform,
                     DEFOLD_ENABLE_FEATURES=enabled, DEFOLD_DISABLE_FEATURES=disabled, WITH_MBEDTLS=legacy)
@@ -211,6 +398,222 @@ defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
                 for library in ('dmbedtls', 'dmbedtls_noasan'):
                     self.assertEqual(expected, bool(re.search(r'\b(?:lib)?' + library + r'\.(?:a|lib)\b', libraries)),
                                      libraries)
+
+    # Prevent duplicate compilation in ordinary builds and ASan instrumentation in the JNI archives.
+    def test_dlib_static_archives_reuse_objects_only_without_asan(self):
+        for with_asan in ('OFF', 'ON'):
+            with self.subTest(with_asan=with_asan), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build = root / 'build'
+                self.write_dlib_link_project(root)
+                result = self.configure_project(root, TARGET_PLATFORM='x86_64-win32',
+                                                WITH_ASAN=with_asan, CMAKE_EXPORT_COMPILE_COMMANDS='ON')
+                self.assertEqual(0, result.returncode, result.stdout)
+                commands = {
+                    Path(entry['directory'], entry['output']).resolve(): entry
+                    for entry in json.loads((build / 'compile_commands.json').read_text())
+                }
+                archive_objects = {}
+                for name in ('dlib', 'dlib_noasan', 'mbedtls', 'mbedtls_noasan'):
+                    archive = self.read_target(root, name)['artifacts'][0]['path']
+                    graph = subprocess.check_output(['ninja', '-t', 'query', archive], cwd=build, text=True)
+                    inputs = graph.split('  outputs:', 1)[0]
+                    objects = {Path(build, line.strip()).resolve() for line in inputs.splitlines()
+                               if line.startswith('    ') and line.endswith(('.o', '.obj'))}
+                    self.assertTrue(objects, graph)
+                    archive_objects[name] = objects
+                    instrumented = with_asan == 'ON' and not name.endswith('_noasan')
+                    for obj in objects:
+                        command = commands[obj]['command']
+                        self.assertEqual(instrumented, 'fsanitize=address' in command, command)
+
+                for name in ('dlib', 'mbedtls'):
+                    normal = archive_objects[name]
+                    noasan = archive_objects[name + '_noasan']
+                    if with_asan == 'ON':
+                        self.assertTrue(normal.isdisjoint(noasan), name)
+                        self.assertEqual({commands[obj]['file'] for obj in normal},
+                                         {commands[obj]['file'] for obj in noasan})
+                    else:
+                        self.assertEqual(normal, noasan, name)
+
+    # Xcode needs a compiled source on each static library to emit its archive.
+    def test_xcode_dlib_archives_have_compiled_sources(self):
+        self.require_xcode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_dlib_link_project(root)
+            result = self.configure_project(root, generator='Xcode', TARGET_PLATFORM='arm64-macos')
+            self.assertEqual(0, result.returncode, result.stdout)
+            for name in ('dlib', 'dlib_noasan', 'mbedtls', 'mbedtls_noasan'):
+                with self.subTest(target=name):
+                    self.assertTrue(self.read_target(root, name).get('compileGroups'))
+
+    # Generate the complete Xcode project to catch conflicting producers for shared test fixtures.
+    def test_xcode_engine_project_with_tests(self):
+        self.require_xcode()
+        sdk = os.environ.get('DYNAMO_HOME')
+        if not sdk:
+            self.skipTest('Run from the Defold build shell with the macOS SDK installed')
+        repository = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = subprocess.run([
+                'cmake', '-G', 'Xcode', '-S', str(repository), '-B', str(root / 'project'),
+                f'-DDEFOLD_BUILD_HOME={root}', f'-DDEFOLD_SDK_ROOT={sdk}',
+                f'-DTARGET_PLATFORM={os.uname().machine}-macos', '-DBUILD_TESTS=ON',
+            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+
+    # Xcode must run each custom command once, including with an existing macOS or iOS Run Tests target.
+    def test_xcode_run_tests_includes_custom_commands_once(self):
+        self.require_xcode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'record.cmake').write_text('file(APPEND ran.txt "${TEST_NAME}\\n")\n')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(custom_tests LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+if(PRECREATE_RUN_TESTS)
+  add_custom_target(run_tests COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/existing-ran")
+endif()
+foreach(name IN ITEMS first second)
+  set(command "${CMAKE_COMMAND}" "-DTEST_NAME=${name}" -P "${CMAKE_CURRENT_SOURCE_DIR}/record.cmake")
+  add_custom_target(run_${name} COMMAND ${command} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  set(options)
+  if(name STREQUAL "second")
+    set(options SEQUENTIAL_NAME second)
+  endif()
+  defold_add_to_run_tests(run_${name} ${options} COMMAND ${command} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endforeach()
+defold_finalize_xcode_run_tests()
+''')
+            for platform, precreated in (('arm64-macos', 'OFF'), ('arm64-macos', 'ON'), ('arm64-ios', 'ON')):
+                with self.subTest(platform=platform, precreated=precreated):
+                    result = self.configure_project(root, generator='Xcode', TARGET_PLATFORM=platform,
+                                                    PRECREATE_RUN_TESTS=precreated)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    result = subprocess.run(['cmake', '--build', str(root / 'build'), '--config', 'Debug',
+                                             '--target', 'run_tests'],
+                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    existing = root / 'build/existing-ran'
+                    self.assertEqual(precreated == 'ON', existing.is_file())
+                    existing.unlink(missing_ok=True)
+                    record = root / 'ran.txt'
+                    self.assertTrue(record.is_file(), result.stdout)
+                    names = record.read_text().splitlines()
+                    if platform == 'arm64-macos':
+                        self.assertEqual(['first', 'second'], names)
+                    else:
+                        self.assertCountEqual(['first', 'second'], names)
+                    record.unlink()
+
+    # Aggregate custom tests must resolve default and relative work directories from the registering subdirectory.
+    def test_custom_test_working_directories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subdir = root / 'suite'
+            subdir.mkdir()
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(custom_test_directories LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_custom_target(run_tests)
+add_subdirectory(suite)
+defold_finalize_sequential_run_tests()
+''')
+            (subdir / 'CMakeLists.txt').write_text('''
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/work dir,tests/Debug")
+foreach(name IN ITEMS default relative)
+  set(options)
+  if(name STREQUAL "relative")
+    set(options WORKING_DIRECTORY "work dir,tests/$<CONFIG>")
+  endif()
+  set(command "${CMAKE_COMMAND}" -E touch "${name}.ran")
+  add_custom_target(run_${name} COMMAND ${command} ${options} VERBATIM)
+  defold_add_to_run_tests(run_${name} SEQUENTIAL_NAME ${name} COMMAND ${command} ${options})
+endforeach()
+''')
+            result = self.configure_project(root, TARGET_PLATFORM='arm64-macos', CMAKE_BUILD_TYPE='Debug')
+            self.assertEqual(0, result.returncode, result.stdout)
+            build = root / 'build'
+            for targets in (['run_default', 'run_relative'], ['run_tests_sequential'], ['run_tests']):
+                with self.subTest(targets=targets):
+                    result = subprocess.run(['cmake', '--build', str(build), '--target', *targets],
+                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    for marker in (build / 'suite/default.ran', build / 'suite/work dir,tests/Debug/relative.ran'):
+                        self.assertTrue(marker.is_file(), marker)
+                        marker.unlink()
+
+    # Keep the default build limited to the font tools used by each CI test suite.
+    def test_font_tools_follow_enabled_test_suites(self):
+        generator = 'test_font_bitmap_gen'
+        generators = {generator, generator + '_skribidi', generator + '_plain', generator + '_skribidi_plain'}
+        benchmarks = {'benchmark_text_layout', 'benchmark_text_layout_null'}
+        tools = generators | benchmarks | {'fontviewer'}
+        cli = 'run_test_font_images_python'
+        viewer = 'run_test_fontviewer_color'
+        images = 'generate_font_test_images'
+        cases = (
+            ('x86_64-win32', '0', set(), set()),
+            ('arm64-macos', '0', set(), set()),
+            ('x86_64-linux', '1', {generator, 'fontviewer'}, {cli, viewer}),
+            ('arm64-linux', '0', generators, {cli, images}),
+            ('x86_64-linux', '0', generators | {'fontviewer'}, {cli, viewer, images}),
+        )
+        for platform, skip_images, expected_tools, expected_checks in cases:
+            with self.subTest(platform=platform, skip_images=skip_images), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build = root / 'build'
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(font_test_graph LANGUAGES C CXX)
+set(ENV{GITHUB_ACTIONS} true)
+set(ENV{DEFOLD_SKIP_FONT_IMAGE_TESTS} "${SKIP_FONT_IMAGES}")
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_TEST_JOBS 2)
+set(FONT_RENDERER_IS_DESKTOP ON)
+set(FONT_RENDER_SRC_DIR "${DEFOLD_HOME}/engine/font/src/render")
+set(FONTC_SRC_DIR "${DEFOLD_HOME}/engine/font/src/fontc")
+set(DEFOLD_BOB_LIGHT_JAR "${CMAKE_BINARY_DIR}/bob-light.jar")
+file(WRITE "${DEFOLD_BOB_LIGHT_JAR}" "")
+# This configure-only graph probe stands in for the compiler DLL and SDK libraries.
+file(WRITE "${CMAKE_BINARY_DIR}/fontc.cpp" "")
+add_library(fontc_shared SHARED "${CMAKE_BINARY_DIR}/fontc.cpp")
+add_library(basis_transcoder INTERFACE)
+add_library(defold_sdk INTERFACE)
+add_custom_target(build_tests)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_subdirectory("${DEFOLD_HOME}/engine/font/src/test" font-tests)
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform, SKIP_FONT_IMAGES=skip_images)
+                self.assertEqual(0, result.returncode, result.stdout)
+
+                def built_tools(*targets):
+                    commands = subprocess.check_output(['ninja', '-t', 'commands', *targets], cwd=build, text=True)
+                    commands = commands.replace('\\', '/')
+                    return {tool for tool in tools if f'CMakeFiles/{tool}.dir/' in commands}
+
+                self.assertEqual(expected_tools, built_tools('all', 'build_tests'))
+                self.assertEqual(expected_tools, built_tools('run_tests'))
+                manifest = json.loads(next(build.glob('defold_run_tests_*.json')).read_text())
+                scheduled_checks = {test['name'] for test in manifest}
+                self.assertEqual(expected_checks, scheduled_checks & {cli, viewer, images})
+                self.assertIn('run_test_font', scheduled_checks)
+
+                if platform == 'x86_64-win32':
+                    self.assertEqual({generator}, built_tools(cli))
+                    self.assertEqual(generators, built_tools(images))
+                    self.assertEqual({'fontviewer'}, built_tools(viewer))
+                    self.assertEqual(benchmarks, built_tools(*sorted(benchmarks)))
 
     # Host tools must compile and link for their own macOS minimum, even when the engine targets a newer OS.
     def test_macos_deployment_target_override(self):
@@ -458,7 +861,7 @@ add_executable(lz4_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
 target_link_libraries(lz4_consumer PRIVATE dlib)
 ''')
                 consumer = self.configure_target(root, 'lz4_consumer', TARGET_PLATFORM=platform)
-                library = self.read_target(root, 'dlib')
+                library = self.read_target(root, 'dlib_objects')
                 source = next(source for source in library['sources']
                               if source['path'].endswith('/dlib/lz4.cpp'))
                 group = library['compileGroups'][source['compileGroupIndex']]

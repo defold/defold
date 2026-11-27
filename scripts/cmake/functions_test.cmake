@@ -49,8 +49,31 @@ endfunction()
 # Register the aggregate command separately so a focused run_* target still
 # runs only its own test. The scheduler reserves a resource group before
 # starting a worker, instead of spending worker slots waiting for group locks.
+# SEQUENTIAL_NAME registers the same command in run_tests_sequential as well.
 function(defold_add_to_run_tests run_target)
-  cmake_parse_arguments(PARSE_ARGV 1 DRT "" "RUN_GROUP;RUN_PRIORITY;WORKING_DIRECTORY" "COMMAND;DEPENDS")
+  cmake_parse_arguments(PARSE_ARGV 1 DRT "" "RUN_GROUP;RUN_PRIORITY;WORKING_DIRECTORY;SEQUENTIAL_NAME" "COMMAND;DEPENDS")
+  if("${DRT_WORKING_DIRECTORY}" STREQUAL "")
+    set(DRT_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+  elseif(NOT IS_ABSOLUTE "${DRT_WORKING_DIRECTORY}")
+    # Resolve after generator expressions expand. Keep literal commas inside each path argument.
+    set(DRT_WORKING_DIRECTORY "$<PATH:ABSOLUTE_PATH,$<1:${DRT_WORKING_DIRECTORY}>,$<1:${CMAKE_CURRENT_BINARY_DIR}>>")
+  endif()
+  # The macOS Xcode Run Tests scheme uses the sequential runner, created after all tests register.
+  set(_xcode_sequential OFF)
+  if(CMAKE_GENERATOR STREQUAL "Xcode" AND TARGET_PLATFORM MATCHES "macos$")
+    set(_xcode_sequential ON)
+    if(NOT DRT_SEQUENTIAL_NAME)
+      set(DRT_SEQUENTIAL_NAME "${run_target}")
+    endif()
+  endif()
+  if(DRT_SEQUENTIAL_NAME)
+    defold_register_sequential_test_command("${DRT_SEQUENTIAL_NAME}"
+      COMMAND "${CMAKE_COMMAND}" -E chdir "${DRT_WORKING_DIRECTORY}" ${DRT_COMMAND}
+      DEPENDS ${DRT_DEPENDS})
+    if(_xcode_sequential)
+      return()
+    endif()
+  endif()
   if(NOT CMAKE_GENERATOR MATCHES "^Ninja" OR NOT TARGET_PLATFORM MATCHES "^(x86_64-win32|(arm64|x86_64)-(macos|linux))$")
     add_dependencies(run_tests ${run_target})
     return()
@@ -66,9 +89,6 @@ function(defold_add_to_run_tests run_target)
   endif()
   if(NOT DRT_RUN_PRIORITY MATCHES "^(0|[1-9][0-9]*)$")
     message(FATAL_ERROR "RUN_PRIORITY must be a non-negative integer")
-  endif()
-  if(NOT DRT_WORKING_DIRECTORY)
-    set(DRT_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
   set(_command "")
   foreach(_arg IN LISTS DRT_COMMAND)
@@ -127,6 +147,7 @@ endfunction()
 #
 # Usage:
 #   defold_register_test_target(<target> [run_flag] [run_workdir]
+#                               [EXCLUDE_FROM_BUILD_TESTS]
 #                               [CONFIGFILE <configfile>]
 #                               [IOS_INFO_PLIST <plist>]
 #                               [IOS_BUNDLE_RESOURCES <path> ...]
@@ -137,6 +158,8 @@ endfunction()
 #   - run_flag: ON/OFF (default ON). If ON, creates a per-test run target and
 #               adds it to global run_tests
 #   - run_workdir: optional working directory for executing the test
+#   - EXCLUDE_FROM_BUILD_TESTS: omit the executable and its runtime dependencies
+#                               from the build_tests aggregate
 #   - CONFIGFILE: optional config file path relative to run_workdir
 #   - IOS_INFO_PLIST: optional complete test app Info.plist, used by both Xcode
 #                     and device/simulator runners. The runners supply bundle identity.
@@ -324,10 +347,11 @@ function(defold_finalize_sequential_run_tests)
     return()
   endif()
 
-  get_property(_run_test_targets GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_TARGETS)
-  if(NOT _run_test_targets)
+  get_property(_run_test_script_content GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_SCRIPT_CONTENT)
+  if(NOT _run_test_script_content)
     return()
   endif()
+  get_property(_run_test_targets GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_TARGETS)
   list(REMOVE_DUPLICATES _run_test_targets)
   list(SORT _run_test_targets)
 
@@ -335,7 +359,6 @@ function(defold_finalize_sequential_run_tests)
   _defold_cmake_quote(_quoted_python "${_python}")
   _defold_cmake_quote(_quoted_interactive_runner "${DEFOLD_HOME}/scripts/cmake/run_interactive.py")
 
-  get_property(_run_test_script_content GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_SCRIPT_CONTENT)
   set(_run_test_script_preamble [=[
 function(_defold_run_test test_name)
   message(STATUS "Running ${test_name}")
@@ -366,8 +389,12 @@ function(defold_finalize_xcode_run_tests)
   endif()
 
   defold_finalize_sequential_run_tests()
-  if(TARGET run_tests_sequential AND NOT TARGET run_tests)
-    add_custom_target(run_tests DEPENDS run_tests_sequential)
+  if(TARGET run_tests_sequential)
+    if(NOT TARGET run_tests)
+      add_custom_target(run_tests DEPENDS run_tests_sequential)
+    elseif(TARGET_PLATFORM MATCHES "macos$")
+      add_dependencies(run_tests run_tests_sequential)
+    endif()
   endif()
 endfunction()
 
@@ -612,11 +639,8 @@ function(_defold_add_ios_run_target run_target target_name run_dir_norm configfi
     COMMENT "Running ${target_name} on iOS ${ios_runner_platform}")
 endfunction()
 
-function(defold_register_test_target target_name)
-  if(NOT TARGET ${target_name})
-    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
-  endif()
-
+# Apply the same test defines to executables and any shared test objects.
+function(defold_apply_test_compile_definitions target_name)
   if(TARGET_PLATFORM MATCHES "x86_64-xbone")
     target_compile_definitions(${target_name} PRIVATE
       JC_TEST_NO_DEATH_TEST
@@ -634,6 +658,14 @@ function(defold_register_test_target target_name)
   else()
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=0)
   endif()
+endfunction()
+
+function(defold_register_test_target target_name)
+  if(NOT TARGET ${target_name})
+    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
+  endif()
+
+  defold_apply_test_compile_definitions(${target_name})
   if(DEFOLD_PLATFORM_TEST_REQUIRES_TESTMAIN AND TARGET testmain)
     target_link_libraries(${target_name} PRIVATE testmain)
   endif()
@@ -642,13 +674,10 @@ function(defold_register_test_target target_name)
   endif()
   _defold_force_load_ios_testmain(${target_name})
 
-  # Keep tests out of the default 'all' build. They are built via build_tests
-  # or when directly requested. This mirrors typical Waf behavior.
+  # Keep test executables out of the default 'all' build.
   set_target_properties(${target_name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-  add_dependencies(build_tests ${target_name})
-
-  set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
+  set(_known_keywords EXCLUDE_FROM_BUILD_TESTS CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
   set(_legacy_args "")
   set(_keyword_args "")
   set(_in_keyword_args FALSE)
@@ -670,7 +699,10 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: expected at most [run_flag] [run_workdir] before keyword arguments")
   endif()
 
-  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;ENVIRONMENT;STAGE_FILES" ${_keyword_args})
+  cmake_parse_arguments(DEFOLD_TEST "EXCLUDE_FROM_BUILD_TESTS" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;ENVIRONMENT;STAGE_FILES" ${_keyword_args})
+  if(NOT DEFOLD_TEST_EXCLUDE_FROM_BUILD_TESTS)
+    add_dependencies(build_tests ${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
+  endif()
 
   if(DEFOLD_TEST_IOS_INFO_PLIST)
     get_filename_component(_info_plist "${DEFOLD_TEST_IOS_INFO_PLIST}" ABSOLUTE)
@@ -683,7 +715,6 @@ function(defold_register_test_target target_name)
 
   set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
   if(DEFOLD_TEST_RUNTIME_DEPENDS)
-    add_dependencies(build_tests ${DEFOLD_TEST_RUNTIME_DEPENDS})
     # Xcode Run schemes and Visual Studio startup projects build the executable
     # directly, bypassing run_* targets.
     # iOS resource staging also runs in the executable's POST_BUILD step.

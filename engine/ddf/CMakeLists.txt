@@ -226,21 +226,14 @@ if(BUILD_TESTS AND DDF_PROTOBUF_INTEROP_TESTS)
     list(APPEND DDF_PROTO_PBCC "${_pbcc}")
   endforeach()
 
-  defold_add_library(ddf_proto_core_generated OBJECT ${DDF_PROTO_PBCC})
-  target_include_directories(ddf_proto_core_generated PUBLIC
-    "${DDF_SRC_DIR}"
-    "${DDF_PROTO_DIR}/.."
-    "${CMAKE_CURRENT_BINARY_DIR}")
-  target_compile_definitions(ddf_proto_core_generated PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
-  target_compile_features(ddf_proto_core_generated PRIVATE cxx_std_17)
-  add_dependencies(ddf_proto_core_generated ddf_proto_py ddf_plugin_py)
-
-  defold_add_library(ddf_proto_core STATIC $<TARGET_OBJECTS:ddf_proto_core_generated>)
+  defold_add_library(ddf_proto_core STATIC ${DDF_PROTO_PBCC})
   target_include_directories(ddf_proto_core PUBLIC
     "${DDF_SRC_DIR}"
     "${DDF_PROTO_DIR}/.."
     "${CMAKE_CURRENT_BINARY_DIR}")
-  add_dependencies(ddf_proto_core ddf_proto_core_generated)
+  target_compile_definitions(ddf_proto_core PRIVATE "DLIB_LOG_DOMAIN=\"DDF\"")
+  target_compile_features(ddf_proto_core PRIVATE cxx_std_17)
+  add_dependencies(ddf_proto_core ddf_proto_py ddf_plugin_py)
 endif()
 
 defold_add_library(ddf STATIC

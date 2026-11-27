@@ -34,6 +34,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
+from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
@@ -333,6 +334,18 @@ SDK_EXCLUDED_LIBS = {
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
+
+EXT_PYTHON_PACKAGES = [
+    'Markdown==3.3.7',
+    'Pygments==2.12.0',
+    'Pillow==11.3.0',
+    'boto3==1.36.3',
+    'protobuf==7.35.1',
+    'PyYAML==6.0.3',
+    'pystache==0.6.8',
+    'rangehttpserver==1.4.0',
+    'requests==2.34.2',
+]
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -690,7 +703,7 @@ class Configuration(object):
 
         cmake_cache = join(build_dir, 'CMakeCache.txt')
         if os.path.exists(cmake_cache) and not (
-                self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+                cmake_configure_state == previous_cmake_configure_state
                 and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)):
             self._clean_cmake_builddir(build_dir)
 
@@ -956,25 +969,47 @@ class Configuration(object):
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
 
-    def _install_python_packages(self, packages):
-        target = join(self.ext, 'lib', 'python')
+    def _python_package_install_command(self, packages, target):
         wheelhouse = join(self.defold_root, 'packages', 'python')
-        self._mkdirs(target)
+        return self.get_python() + [
+            '-m', 'pip',
+            '-q', '-q',
+            'install',
+            '--no-index',
+            '--find-links', wheelhouse,
+            '--only-binary', ':all:',
+            '--upgrade',
+            '--no-compile',
+            '-t', target,
+        ] + packages
 
-        if packages:
-            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
-                self.tool_checks.invalidate('Python Protobuf')
-            run.env_command(self._form_env(), self.get_python() + [
-                '-m', 'pip',
-                '-q', '-q',
-                'install',
-                '--no-index',
-                '--find-links', wheelhouse,
-                '--only-binary', ':all:',
-                '--upgrade',
-                '--no-compile',
-                '-t', target,
-            ] + packages)
+    def _install_python_packages(self, packages, *, while_installing=None):
+        target = abspath(join(self.ext, 'lib', 'python'))
+        self._mkdirs(target)
+        if not packages:
+            if while_installing:
+                while_installing()
+            return
+        if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
+            self.tool_checks.invalidate('Python Protobuf')
+        # SDK extraction can change the process working directory. Resolve pip's
+        # paths and environment before starting it, and give it a stable cwd.
+        env = self._form_env()
+        command = self._python_package_install_command(packages, target)
+
+        def install_wheels():
+            started = time.perf_counter()
+            run.env_command(env, command, cwd=self.defold_root)
+            return time.perf_counter() - started
+
+        if while_installing:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                wheels = executor.submit(install_wheels)
+                while_installing()
+                elapsed = wheels.result()
+        else:
+            elapsed = install_wheels()
+        self.build_tracker.record_step_time('Python wheels', elapsed)
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -985,10 +1020,29 @@ class Configuration(object):
                 'PyYAML==6.0.3',
             ])
 
-    def install_ext(self):
-        self.install_ext_packages()
+    def install_ext(self, *, install_sdk=False):
+        self.install_ext_packages(install_sdk=install_sdk)
         with self.build_tracker.measure_step('Source dependencies'):
             self.build_ext()
+
+    def install_ext_packages(self, *, install_sdk=False):
+        self.check_python()
+        self.check_tar()
+
+        def install_files():
+            if install_sdk:
+                with self.build_tracker.measure_step('SDK installation'):
+                    self.install_sdk()
+            self._install_ext_package_files()
+
+        if has_hook_module('build', self.target_platform):
+            # Private SDK and package hooks may supply files under ext/lib/python.
+            install_files()
+            self._install_python_packages(EXT_PYTHON_PACKAGES)
+        else:
+            # Public archives and SDKs install outside pip's target directory.
+            self._log("Installing Python wheels in parallel with dependency setup")
+            self._install_python_packages(EXT_PYTHON_PACKAGES, while_installing=install_files)
 
     def _install_files(self, title, files, *, extract=False):
         total = len(files)
@@ -1024,10 +1078,7 @@ class Configuration(object):
             if progress is not None:
                 progress.end_line()
 
-    def install_ext_packages(self):
-        self.check_python()
-        self.check_tar()
-
+    def _install_ext_package_files(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
 
@@ -1087,20 +1138,6 @@ class Configuration(object):
 
         with self.build_tracker.measure_step('Package extraction'):
             self._install_files('Installing packages', archives, extract=True)
-
-        print("Installing python wheels")
-        with self.build_tracker.measure_step('Python wheels'):
-            self._install_python_packages([
-                'Markdown==3.3.7',
-                'Pygments==2.12.0',
-                'Pillow==11.3.0',
-                'boto3==1.36.3',
-                'protobuf==7.35.1',
-                'PyYAML==6.0.3',
-                'pystache==0.6.8',
-                'rangehttpserver==1.4.0',
-                'requests==2.34.2',
-            ])
 
         share_dir = join(self.dynamo_home, 'share')
         javascript_files = [
@@ -1975,58 +2012,6 @@ class Configuration(object):
             'defines': defines
         }
 
-    def _cmake_configure_state_matches(self, current, previous, allow_compatible_configure):
-        """
-        Returns True when the existing CMake build directory was configured with
-        the same effective inputs.
-
-        The compatibility mode exists for same-platform builds where the host
-        tool pass runs before the full engine pass. A previous "all" configure
-        is valid for a later "host" request because the full build graph already
-        contains the host targets. The opposite direction is intentionally not
-        accepted, since a host-only build graph may be missing engine targets.
-        """
-        if not previous:
-            return False
-        if current == previous:
-            return True
-        if not allow_compatible_configure:
-            return False
-
-        if current.get('builddir') != previous.get('builddir'):
-            return False
-        if current.get('defold_root') != previous.get('defold_root'):
-            return False
-        if current.get('dynamo_home') != previous.get('dynamo_home'):
-            return False
-        if current.get('cmake_inputs_mtime') != previous.get('cmake_inputs_mtime'):
-            return False
-
-        current_defines = dict(current.get('defines', {}))
-        previous_defines = dict(previous.get('defines', {}))
-        current_lib_set = current_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
-        previous_lib_set = previous_defines.pop('DEFOLD_ENGINE_LIB_SET', None)
-        current_build_tests = current_defines.pop('BUILD_TESTS', None)
-        previous_build_tests = previous_defines.pop('BUILD_TESTS', None)
-        current_skip_bob_light = current_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
-        previous_skip_bob_light = previous_defines.pop('DEFOLD_SKIP_BOB_LIGHT', None)
-
-        if current_defines != previous_defines:
-            return False
-        if current_lib_set != 'host' or previous_lib_set != 'all':
-            return False
-        if current_build_tests != 'OFF':
-            return False
-        if (current_skip_bob_light not in ('OFF', 'ON')
-                or previous_skip_bob_light != 'ON'):
-            return False
-
-        # A same-platform host pass may reuse the previous full build graph even
-        # when that graph contains tests. The host pass only builds the default
-        # target, so test targets remain excluded. Installation is deferred to
-        # the subsequent full engine pass when reusing this configuration.
-        return previous_build_tests in ('OFF', 'ON')
-
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
             return False
@@ -2198,16 +2183,16 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _run_cmake(self, args, builddir, name, phase, cwd=None):
+    def _run_cmake(self, args, builddir, name, phase, cwd=None, env=None):
         verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
         log_path = join(builddir, 'logs', f'{name}-{phase}.log')
         try:
-            build_output.command(self._form_env(), args, f'CMake {phase} {name}', log_path,
+            build_output.command(env if env is not None else self._form_env(), args, f'CMake {phase} {name}', log_path,
                                  cwd=cwd or self.defold_root, verbose=verbose)
         except run.ExecException as error:
             sys.exit(error.retcode)
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests=False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -2221,6 +2206,7 @@ class Configuration(object):
             os.makedirs(builddir)
 
         is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
+        build_bob_light = lib_set == 'all' and not self.skip_bob_light
         test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
@@ -2248,7 +2234,9 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_MESSAGE:STRING=LAZY',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"OFF" if build_bob_light else "ON"}',
+            f'-DDEFOLD_BOB_LIGHT_CHANNEL:STRING={self.channel or ""}',
+            f'-DDEFOLD_BOB_LIGHT_VERBOSE:BOOL={"ON" if is_verbose else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
@@ -2278,19 +2266,11 @@ class Configuration(object):
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
 
-        configure_state_matches = self._cmake_configure_state_matches(
-            cmake_configure_state,
-            previous_cmake_configure_state,
-            allow_compatible_configure)
-        compatible_configure = (configure_state_matches
-                                and cmake_configure_state != previous_cmake_configure_state)
-        validation_configure_state = (previous_cmake_configure_state
-                                      if compatible_configure else cmake_configure_state)
         skip_configure = (
             os.path.exists(cmake_cache)
-            and configure_state_matches
-            and self._cmake_cache_matches_configure_state(cmake_cache, validation_configure_state)
-            and self._cmake_generated_install_matches_configure_state(validation_configure_state)
+            and cmake_configure_state == previous_cmake_configure_state
+            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
+            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
             and generated_outputs_match)
         if skip_configure:
             self._log_step(f'Skipping CMake configure {name}; configure state is unchanged')
@@ -2307,42 +2287,36 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_build)
 
         cmake_build_args = ['cmake', '--build', builddir, '--target', 'all']
+        build_env = self._form_env()
+        if build_bob_light:
+            cmake_build_args.append('bob_light')
+            # Both Ninja invocations below belong to one engine build.
+            bob_timings = join(os.environ['DM_BOB_ROOTFOLDER'], 'bob-light-times.json')
+            build_env['DEFOLD_BOB_LIGHT_RECEIPT'] = bob_timings
         if build_test:
             cmake_build_args.append(build_test)
         if is_verbose:
             cmake_build_args.append('--verbose')
-        self._run_cmake(cmake_build_args, builddir, name, 'build')
+        self._run_cmake(cmake_build_args, builddir, name, 'build', env=build_env)
+        if build_bob_light and os.path.isfile(bob_timings):
+            with open(bob_timings, encoding='utf-8') as timings_file:
+                timings = json.load(timings_file)
+            self.build_tracker.command_times.update(timings['commands'])
+            self.build_tracker.component_times.update(timings['components'])
 
         self.build_tracker.end_command(log_cmd_build)
 
-        if compatible_configure:
-            log_cmd_stage = f'CMake stage Bob Light dependencies {name}'
-            self.build_tracker.start_command(log_cmd_stage)
-
-            cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
-            if is_verbose:
-                cmake_stage_args.append('--verbose')
-            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
-
-            self.build_tracker.end_command(log_cmd_stage)
-
         # Keep install as a separate phase. Use cmake --install instead of the
         # generated install target so the install phase does not re-enter 'all'.
-        # When a same-platform host pass reuses the full engine configuration,
-        # defer installation until the subsequent engine pass has built every
-        # target referenced by the full graph's install rules.
-        if compatible_configure:
-            self._log_step(f'Deferring CMake install {name}; reusing full engine configuration')
-        else:
-            log_cmd_install = f'CMake install {name}'
-            self.build_tracker.start_command(log_cmd_install)
+        log_cmd_install = f'CMake install {name}'
+        self.build_tracker.start_command(log_cmd_install)
 
-            cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
-            if is_verbose:
-                cmake_install_args.append('--verbose')
-            self._run_cmake(cmake_install_args, builddir, name, 'install')
+        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
+        if is_verbose:
+            cmake_install_args.append('--verbose')
+        self._run_cmake(cmake_install_args, builddir, name, 'install')
 
-            self.build_tracker.end_command(log_cmd_install)
+        self.build_tracker.end_command(log_cmd_install)
 
         # ***************************************************************************************
         # run the build
@@ -2353,7 +2327,7 @@ class Configuration(object):
             cmake_test_args = ['cmake', '--build', builddir, '--target', 'run_tests']
             if is_verbose:
                 cmake_test_args.append('--verbose')
-            self._run_cmake(cmake_test_args, builddir, name, 'tests')
+            self._run_cmake(cmake_test_args, builddir, name, 'tests', env=build_env)
 
             self.build_tracker.end_command(log_cmd_tests)
 
@@ -2441,26 +2415,23 @@ class Configuration(object):
 
         host = self.host
         target_platform = self.target_platform
+        native_build = host == target_platform
         self._log_step('Building engine libs with top-level CMake (incremental by default)')
 
-        # Make sure we build these for the host platform for the toolchain (bob light)
-        self.build_tracker.start_component('cmake_host_libs', host)
-        self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests = True, allow_compatible_configure = host == target_platform)
-        self.build_tracker.end_component('cmake_host_libs', host)
+        if not native_build:
+            # Cross-builds need a separate graph for the host toolchain.
+            self.build_tracker.start_component('cmake_host_libs', host)
+            self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests=True)
+            self.build_tracker.end_component('cmake_host_libs', host)
 
-        if not self.skip_bob_light:
-            # We must build bob-light, which builds content during the engine build
-            self.build_bob_light()
+            if not self.skip_bob_light:
+                self.build_bob_light()
 
-        reuse_builddir = host == target_platform
-        target_lib_set = 'all' if reuse_builddir else 'target'
         self.build_tracker.start_component('cmake_engine_libs', target_platform)
         self._build_engine_libs_cmake(
             'engine_libs',
-            target_lib_set,
-            target_platform,
-            reuse_builddir = reuse_builddir,
-            use_existing_bob_light = True)
+            'all' if native_build else 'target',
+            target_platform)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if not self.skip_docs:
@@ -2820,7 +2791,7 @@ class Configuration(object):
                     pass
 
             cmake_cache = join(builddir, 'CMakeCache.txt')
-            skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
+            skip_configure = os.path.exists(cmake_cache) and cmake_configure_state == previous_cmake_configure_state
             if skip_configure:
                 self._log_step('Skipping CMake configure build_docs; configure state is unchanged')
             else:
@@ -4111,14 +4082,21 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
                 c.fatal(msg)
 
     quiet_sdk_check = args == ['check_sdk'] and not c.verbose
-    for cmd in args:
+    package_commands = ('install_ext', 'install_ext_packages')
+    for index, cmd in enumerate(args):
+        # Run adjacent SDK and package setup together so the wheel install can overlap both.
+        if cmd == 'install_sdk' and index + 1 < len(args) and args[index + 1] in package_commands:
+            continue
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
             if not quiet_sdk_check:
                 c.build_tracker.start_command(cmd)
-            f()
+            if cmd in package_commands and index > 0 and args[index - 1] == 'install_sdk':
+                f(install_sdk=True)
+            else:
+                f()
             c.wait_uploads()
             if not quiet_sdk_check:
                 c.build_tracker.end_command(cmd)

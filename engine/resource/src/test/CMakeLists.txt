@@ -17,11 +17,6 @@ if(NOT RESOURCE_PYTHON)
 endif()
 
 set(RESOURCE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
-if(NOT EXISTS "${RESOURCE_BOB_LIGHT}")
-  if(NOT TARGET bob_light)
-    message(FATAL_ERROR "bob-light.jar not found and bob_light target is unavailable: ${RESOURCE_BOB_LIGHT}")
-  endif()
-endif()
 
 set(RESOURCE_ARCHIVE_BASE_SOURCES
   "archive_data/file4.ad"
@@ -293,6 +288,10 @@ add_custom_target(resource_test_data DEPENDS
   "${RESOURCE_TEST_BUILD_DIR}/somedata"
   "${RESOURCE_STATIC_TEST_STAMP}")
 
+defold_add_library(resource_test_archive_embeds OBJECT EXCLUDE_FROM_ALL ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+defold_target_link_libraries(resource_test_archive_embeds "${TARGET_PLATFORM}" dlib)
+add_dependencies(resource_test_archive_embeds resource_test_data)
+
 function(resource_configure_test target run_test)
   set(_resource_exports ${ARGN})
   if(_resource_exports)
@@ -392,7 +391,7 @@ resource_configure_test(test_resource_chunk_cache ON ResourceProviderArchive)
 
 defold_add_executable(test_resource_archive
   "${RESOURCE_TEST_ROOT}/test_resource_archive.cpp"
-  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+  $<TARGET_OBJECTS:resource_test_archive_embeds>)
 resource_configure_test(test_resource_archive ON)
 defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
@@ -402,7 +401,7 @@ defold_protoc_gen_cpp("${RESOURCE_TEST_PROTO_CPP}" "${RESOURCE_TEST_ROOT}/test_r
 defold_add_executable(test_resource
   "${RESOURCE_TEST_ROOT}/test_resource.cpp"
   "${RESOURCE_TEST_PROTO_CPP}"
-  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+  $<TARGET_OBJECTS:resource_test_archive_embeds>)
 target_include_directories(test_resource PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 resource_configure_test(test_resource ON ResourceProviderFile ResourceProviderArchive)
 defold_target_link_app(test_resource "${TARGET_PLATFORM}" SCOPE PRIVATE)

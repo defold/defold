@@ -403,9 +403,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
           COMMAND ${_graphics_shader_tests}
           DEPENDS shaderc_standalone
           VERBATIM)
-        defold_add_to_run_tests(run_test_graphics_shaders RUN_GROUP graphics
-          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
-        defold_register_sequential_test_command(graphics_shaders
+        defold_add_to_run_tests(run_test_graphics_shaders RUN_GROUP graphics SEQUENTIAL_NAME graphics_shaders
           COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
       endif()
       defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
