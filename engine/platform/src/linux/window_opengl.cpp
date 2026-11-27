@@ -601,7 +601,8 @@ namespace dmPlatform
 
         if (g->m_XConfig)
         {
-            if (g->m_XMain && g->m_glXGetCurrentContext() == g->m_XMain)
+            GLXContext current = g->m_glXGetCurrentContext();
+            if (current && (current == g->m_XMain || current == g->m_XAux))
             {
                 g->m_glXMakeContextCurrent(w->m_Display, None, None, 0);
             }
@@ -624,7 +625,8 @@ namespace dmPlatform
 
         if (g->m_EDisplay)
         {
-            if (g->m_EMain && g->m_eglGetCurrentContext() == g->m_EMain)
+            EGLContext current = g->m_eglGetCurrentContext();
+            if (current && (current == g->m_EMain || current == g->m_EAux))
             {
                 g->m_eglMakeCurrent(g->m_EDisplay, 0, 0, 0);
             }

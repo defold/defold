@@ -2725,6 +2725,40 @@ TEST(LinuxWindow, ForwardCompatibleOpenGLContexts)
     dmPlatform::DeleteWindow(w);
 }
 
+// Closing the owner must unbind its auxiliary context, while closing a different window must preserve it.
+TEST(LinuxWindow, CloseWithAuxiliaryContextCurrent)
+{
+    HWindow owner = dmPlatform::NewWindow();
+    HWindow other = dmPlatform::NewWindow();
+    ASSERT_TRUE(owner);
+    ASSERT_TRUE(other);
+    WindowCreateParams p = Params();
+    p.m_Hidden = true;
+    const WindowsGraphicsApi apis[] = { WINDOW_GRAPHICS_API_OPENGL, WINDOW_GRAPHICS_API_OPENGLES };
+    for (WindowsGraphicsApi api : apis)
+    {
+        p.m_GraphicsApi = api;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(owner, p));
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(other, p));
+        void* aux = dmPlatform::AcquireAuxContext(owner);
+        ASSERT_TRUE(aux);
+        __typeof__(&glXGetCurrentContext) current_glx = 0;
+        if (dmPlatform::GetX11GLXContext(owner))
+        {
+            current_glx = (__typeof__(current_glx)) dmPlatform::GetProcAddress(owner, "glXGetCurrentContext");
+            ASSERT_TRUE(current_glx);
+        }
+
+        dmPlatform::CloseWindow(other);
+        EXPECT_EQ(aux, current_glx ? current_glx() : eglGetCurrentContext());
+        dmPlatform::CloseWindow(owner);
+        EXPECT_EQ((void*)0, current_glx ? current_glx() : eglGetCurrentContext());
+    }
+
+    dmPlatform::DeleteWindow(other);
+    dmPlatform::DeleteWindow(owner);
+}
+
 static void CheckDrawableSize(HWindow w, uint32_t client_width, uint32_t client_height)
 {
     // X11 client dimensions are already pixels. Wayland scales logical dimensions, including fractional scales.
