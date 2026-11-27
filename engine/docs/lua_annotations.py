@@ -918,23 +918,15 @@ def _render_namespace(
 
 
 def _render_function(name, variants, metadata, reference_namespaces):
-    unique = []
-    identities = []
+    groups = {}
     for source_path, element in variants:
-        identity = _function_identity(element, metadata)
-        if identity not in identities:
-            identities.append(identity)
-            unique.append((source_path, element))
+        groups.setdefault(_function_identity(element, metadata), []).append((source_path, element))
 
     lines = []
-    for index, (source_path, element) in enumerate(unique):
+    for index, ((source_path, element), *duplicates) in enumerate(groups.values()):
         if index:
             lines.append("")
-        identity = identities[index]
-        lines.extend(_element_doc_lines(
-            element,
-            (other for _, other in variants
-             if other is not element and _function_identity(other, metadata) == identity)))
+        lines.extend(_element_doc_lines(element, (other for _, other in duplicates)))
         stub_parameter_names = _function_stub_parameter_names(element)
         if len(stub_parameter_names) != len(element.parameters):
             lines.append("---@overload %s" % _function_signature(element, metadata))
