@@ -1274,6 +1274,17 @@ namespace dmPlatform
         return true;
     }
 
+    static void ReadDrawableSize(HWindow w)
+    {
+        XWindowAttributes attrs;
+        if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
+        {
+            // Keep the last dispatched size until ConfigureNotify acknowledges each request.
+            w->m_PixelWidth = attrs.width;
+            w->m_PixelHeight = attrs.height;
+        }
+    }
+
     static void Size(HWindow w, int width, int height)
     {
         if (!w->m_Shown)
@@ -1294,7 +1305,7 @@ namespace dmPlatform
 
         RecordGeometryRequest(w, true, width, height);
         XResizeWindow(w->m_Display, w->m_Xid, width, height);
-        XFlush(w->m_Display);
+        ReadDrawableSize(w);
         WindowPlacementChanged(w);
     }
 
@@ -1341,6 +1352,7 @@ namespace dmPlatform
                 {
                     // X11 can omit a second event for two requests for the same dimensions.
                     ++last.m_Count;
+                    ReadDrawableSize(w);
                     return;
                 }
             }

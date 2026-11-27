@@ -104,10 +104,10 @@ namespace dmPlatform
             return;
         }
 
-        const int pixels_x = w->m_X11 ? width : (int)lround(width * scale);
-        const int pixels_y = w->m_X11 ? height : (int)lround(height * scale);
-        if (w->m_Width == width && w->m_Height == height && w->m_PixelWidth == pixels_x &&
-            w->m_PixelHeight == pixels_y && w->m_Scale == scale)
+        // X11 can read ahead of ConfigureNotify. Each callback gets the drawable size of its own event.
+        w->m_PixelWidth = w->m_X11 ? width : (int)lround(width * scale);
+        w->m_PixelHeight = w->m_X11 ? height : (int)lround(height * scale);
+        if (w->m_Width == width && w->m_Height == height && w->m_Scale == scale)
         {
             return;
         }
@@ -115,8 +115,6 @@ namespace dmPlatform
         const bool update_cursor = w->m_Wayland && w->m_Scale != scale;
         w->m_Width = width;
         w->m_Height = height;
-        w->m_PixelWidth = pixels_x;
-        w->m_PixelHeight = pixels_y;
         w->m_Scale = scale;
         if (update_cursor)
         {
@@ -379,8 +377,8 @@ namespace dmPlatform
             return false;
         }
 
-        *width = w->m_Width;
-        *height = w->m_Height;
+        *width = w->m_X11 ? w->m_PixelWidth : w->m_Width;
+        *height = w->m_X11 ? w->m_PixelHeight : w->m_Height;
         return true;
     }
 

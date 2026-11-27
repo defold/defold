@@ -242,12 +242,19 @@ static HWindow NewX11TestWindow()
 struct X11ResizeEvents
 {
     uint32_t m_Count, m_Width, m_Height;
+    uint32_t m_FirstWidth, m_FirstHeight;
     HWindow* m_DeleteOnResize;
 };
 
 static void OnX11Resize(void* data, uint32_t width, uint32_t height)
 {
     X11ResizeEvents* events = (X11ResizeEvents*)data;
+    if (events->m_Count == 0)
+    {
+        events->m_FirstWidth = width;
+        events->m_FirstHeight = height;
+    }
+
     ++events->m_Count;
     events->m_Width = width;
     events->m_Height = height;
@@ -296,6 +303,52 @@ TEST(LinuxWindow, X11PollSecondaryWindow)
     dmPlatform::DeleteWindow(main);
 }
 
+// An applied X11 resize is visible to drawable and client size queries before the next event poll.
+TEST(LinuxWindow, X11AppliedResizeBeforePoll)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    X11ResizeEvents events = {};
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_ResizeCallback = OnX11Resize;
+    p.m_ResizeCallbackUserData = &events;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    XSetWindowAttributes attributes = {};
+    attributes.override_redirect = True;
+    XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
+    dmPlatform::ShowWindow(w);
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    events.m_Count = 0;
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const uint32_t width = 481 + i, height = 311 + i;
+        dmPlatform::SetWindowSize(w, width, height);
+        EXPECT_EQ(width, dmPlatform::GetWindowWidth(w));
+        EXPECT_EQ(height, dmPlatform::GetWindowHeight(w));
+        uint32_t client_width, client_height;
+        ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &client_width, &client_height));
+        EXPECT_EQ(width, client_width);
+        EXPECT_EQ(height, client_height);
+    }
+
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(2u, events.m_Count);
+    EXPECT_EQ(481u, events.m_FirstWidth);
+    EXPECT_EQ(311u, events.m_FirstHeight);
+    EXPECT_EQ(482u, events.m_Width);
+    EXPECT_EQ(312u, events.m_Height);
+    dmPlatform::DeleteWindow(w);
+}
+
 // Each explicit resize must report the dimensions the manager accepts, including when it declines a request.
 TEST(LinuxWindow, X11ConstrainedResize)
 {
@@ -334,6 +387,8 @@ TEST(LinuxWindow, X11ConstrainedResize)
     dmPlatform::SetWindowSize(w, 427, 311);
     g_ResizeFd = -1;
     EXPECT_EQ(0u, g_ResizeWaits);
+    EXPECT_EQ(375u, dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ(255u, dmPlatform::GetWindowHeight(w));
     XSync(w->m_Display, False);
     XEvent request;
     ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
