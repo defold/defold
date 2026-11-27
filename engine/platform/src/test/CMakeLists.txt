@@ -38,6 +38,10 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
+if(PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
+    target_sources(test_platform PRIVATE test_window_egl.cpp)
+endif()
+
 # Exercise the vendor fallbacks with a backend that supplies no density or client-size queries.
 defold_add_executable(test_platform_vendor
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"

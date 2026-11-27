@@ -15,7 +15,7 @@
 #include "window_egl.h"
 #include "platform_window_opengl.h"
 #include <dlib/array.h>
-#include <dlib/log.h>
+#include <dmsdk/dlib/log.h>
 
 // Load ANGLE only for windows that request OpenGL ES.
 #if defined(_WIN32)
@@ -172,10 +172,10 @@ static void ReleaseEGL()
 
 namespace dmPlatform
 {
-    static EGLConfig ChooseWindowConfig(const WindowCreateParams& params, uint32_t* sample_count)
+    static EGLConfig ChooseWindowConfig(const WindowCreateParams& params, uint32_t* sample_count, bool* has_pbuffer)
     {
         const EGLint format[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
             EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
             EGL_ALPHA_SIZE, params.m_ContextAlphabits ? 8 : 0,
@@ -196,22 +196,29 @@ namespace dmPlatform
 
         EGLConfig best = 0;
         uint32_t best_error = UINT32_MAX;
+        *has_pbuffer = false;
         for (EGLint i = 0; i < count; ++i)
         {
             EGLConfig config = configs.Begin()[i];
             EGLint samples;
-            if (g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SAMPLES, &samples))
+            if (!g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SAMPLES, &samples))
             {
-                uint32_t error = OpenGLSampleCountError(params.m_Samples, samples);
-                if (!best || error < best_error)
+                continue;
+            }
+
+            EGLint surfaces = 0;
+            g_EGL.m_GetConfigAttrib(g_Display, config, EGL_SURFACE_TYPE, &surfaces);
+            const bool pbuffer = (surfaces & EGL_PBUFFER_BIT) != 0;
+            const uint32_t error = OpenGLSampleCountError(params.m_Samples, samples);
+            if (!best || error < best_error || (error == best_error && pbuffer && !*has_pbuffer))
+            {
+                best = config;
+                best_error = error;
+                *sample_count = samples > 1 ? samples : 1;
+                *has_pbuffer = pbuffer;
+                if (!error && pbuffer)
                 {
-                    best = config;
-                    best_error = error;
-                    *sample_count = samples > 1 ? samples : 1;
-                    if (!error)
-                    {
-                        break;
-                    }
+                    break;
                 }
             }
         }
@@ -234,7 +241,8 @@ namespace dmPlatform
             return 0;
         }
 
-        egl->m_Config = ChooseWindowConfig(params, sample_count);
+        bool has_pbuffer;
+        egl->m_Config = ChooseWindowConfig(params, sample_count, &has_pbuffer);
         if (!egl->m_Config)
         {
             EGLDestroyWindow(egl);
@@ -249,6 +257,11 @@ namespace dmPlatform
         {
             EGLDestroyWindow(egl);
             return 0;
+        }
+
+        if (!has_pbuffer)
+        {
+            return egl;
         }
 
         const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
