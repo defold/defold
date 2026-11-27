@@ -2084,9 +2084,9 @@
             (let [shown (get-property view-node :signature-help)]
               (set-properties! view-node nil
                                {:signature-help (if (and result
-                                                         (:user-selected shown)
+                                                         (:selected shown)
                                                          (= (mapv :label (:signatures shown)) (mapv :label (:signatures result))))
-                                                  (assoc result :active (:active shown) :user-selected true)
+                                                  (assoc result :selected (:selected shown))
                                                   result)}))))))))
 
 (defn- hide-signature-help! [view-node]
@@ -2831,15 +2831,15 @@
       (request-signature-help! view-node))))
 
 (defn- move-or-page-signature-help! [view-node direction]
-  (let [{:keys [active signatures] :as signature-help}
+  (let [{:keys [active selected signatures] :as signature-help}
         (get-property view-node :signature-help)]
     (if (and (some-> ^PopupWindow (g/user-data view-node :signature-help-window) .isShowing)
              (< 1 (count signatures))
              (not (suggestions-visible? view-node)))
       (let [step (if (= direction :up) -1 1)
-            next-index (mod (+ (long active) step) (count signatures))]
+            next-index (mod (+ (long (or selected active)) step) (count signatures))]
         (set-properties! view-node nil
-                         {:signature-help (assoc signature-help :active next-index :user-selected true)}))
+                         {:signature-help (assoc signature-help :selected next-index)}))
       (move! view-node :navigation direction))))
 
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
@@ -4186,7 +4186,8 @@
 (defn- signature-help-popup-view
   [{:keys [canvas signature-help docs hint project font-name font-size
            view-node anchor-x anchor-y above max-width max-height]}]
-  (let [{:keys [active signatures]} signature-help
+  (let [{:keys [signatures]} signature-help
+        active (or (:selected signature-help) (:active signature-help))
         {:keys [doc parameter-doc]} (signatures active)
 
         markdown
