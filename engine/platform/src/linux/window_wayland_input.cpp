@@ -172,12 +172,14 @@ namespace dmPlatform
         PhysicalKey(w, key, down);
         if (down)
         {
-            KeyText(w, key);
             if (wl->m_RepeatRate > 0 && wl->m_Keymap && g_WaylandClient.xkb_keymap_key_repeats_(wl->m_Keymap, key + 8))
             {
                 wl->m_RepeatKey = key;
                 wl->m_NextRepeat = dmTime::GetMonotonicTime() + 1000ULL * wl->m_RepeatDelay;
             }
+
+            // Closing the window from the character callback cancels the repeat set up for this press.
+            KeyText(w, key);
         }
         else if (key == wl->m_RepeatKey)
         {

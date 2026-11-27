@@ -1646,15 +1646,16 @@ static void CountRepeatedKey(void* data, int character)
     ++*(unsigned*)data;
 }
 
+static const char WAYLAND_TEST_KEYMAP[] = "xkb_keymap { xkb_keycodes { include \"evdev\" }; xkb_types { include \"complete\" }; "
+                                          "xkb_compatibility { include \"complete\" }; xkb_symbols { include \"pc+us\" }; };";
+
 // A slow frame must deliver each elapsed Wayland repeat and keep the next deadline on the keyboard's schedule.
 TEST(LinuxWindow, WaylandRepeatAcrossSlowFrames)
 {
     ASSERT_TRUE(LoadWaylandClient());
     LinuxWayland wl = {};
     wl.m_Xkb = g_WaylandClient.xkb_context_new_(XKB_CONTEXT_NO_FLAGS);
-    const char* keymap = "xkb_keymap { xkb_keycodes { include \"evdev\" }; xkb_types { include \"complete\" }; "
-                         "xkb_compatibility { include \"complete\" }; xkb_symbols { include \"pc+us\" }; };";
-    wl.m_Keymap = g_WaylandClient.xkb_keymap_new_from_string_(wl.m_Xkb, keymap, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+    wl.m_Keymap = g_WaylandClient.xkb_keymap_new_from_string_(wl.m_Xkb, WAYLAND_TEST_KEYMAP, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
     ASSERT_TRUE(wl.m_Keymap);
     wl.m_KeyState = g_WaylandClient.xkb_state_new_(wl.m_Keymap);
     ASSERT_TRUE(wl.m_KeyState);
@@ -2109,6 +2110,43 @@ TEST(LinuxWindow, TextCommitStopsWhenWindowCloses)
         dmPlatform::SetKeyboardCharCallback(w, 0, 0);
     }
 
+    dmPlatform::DeleteWindow(w);
+}
+
+// A repeatable key that reopens the window from its first character callback must leave the replacement without a repeat.
+TEST(LinuxWindow, WaylandReopenCancelsStartingRepeat)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    // A headless compositor may have no keyboard. Supply a US keymap through the same listener as a real seat.
+    FILE* keymap = tmpfile();
+    ASSERT_NE((FILE*)0, keymap);
+    ASSERT_EQ(sizeof(WAYLAND_TEST_KEYMAP), fwrite(WAYLAND_TEST_KEYMAP, 1, sizeof(WAYLAND_TEST_KEYMAP), keymap));
+    ASSERT_EQ(0, fflush(keymap));
+    const wl_keyboard_listener& keyboard = dmPlatform::g_WaylandKeyboardListener;
+    keyboard.keymap(w, 0, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, dup(fileno(keymap)), sizeof(WAYLAND_TEST_KEYMAP));
+    ASSERT_TRUE(w->m_Wayland->m_KeyState);
+    keyboard.repeat_info(w, 0, 25, 200);
+
+    TextCloseAction action = { w, 0, true };
+    dmPlatform::SetKeyboardCharCallback(w, CloseOnFirstCharacter, &action);
+    keyboard.key(w, 0, 1, 0, KEY_A, WL_KEYBOARD_KEY_STATE_PRESSED);
+    EXPECT_EQ(0u, w->m_Wayland->m_NextRepeat);
+    dmPlatform::WaylandRepeat(w, w->m_Wayland->m_NextRepeat);
+    EXPECT_EQ(1u, action.m_Count);
+
+    keyboard.keymap(w, 0, WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP, dup(fileno(keymap)), 0);
+    fclose(keymap);
     dmPlatform::DeleteWindow(w);
 }
 
