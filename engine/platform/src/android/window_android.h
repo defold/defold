@@ -21,7 +21,8 @@
 #include <GLES/gl.h>
 #include <android/native_window.h>
 #include <android_native_app_glue.h>
-#include "window_mobile_web_backend.h"
+#include "joystick_guid.h"
+#include "window_mobile_web_constants.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,6 +105,12 @@ typedef struct
     float         AxisRange[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
 } NativeAndroidJoystick;
 extern NativeAndroidJoystick dmNativeJoy[NATIVE_JOYSTICK_LAST + 1];
+int         dmNativeOSGetJoystickParam(int slot, int param);
+int         dmNativeOSGetJoystickPos(int slot, float* values, uint32_t capacity);
+int         dmNativeOSGetJoystickButtons(int slot, unsigned char* values, uint32_t capacity);
+int         dmNativeOSGetJoystickHats(int slot, unsigned char* values, uint32_t capacity);
+const char* dmNativeAndroidGetJoystickName(int slot);
+const char* dmNativeAndroidGetJoystickGuid(int slot);
 void dmNativeTerminateJoysticks(void);
 
 #ifdef __cplusplus

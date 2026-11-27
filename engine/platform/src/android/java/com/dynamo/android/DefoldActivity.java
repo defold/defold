@@ -80,7 +80,7 @@ public class DefoldActivity extends NativeActivity
         };
     }
 
-    // Must match values from window_mobile_web_backend.h
+    // Must match the keyboard types in mobile_shared/window_mobile_private.h
     public enum NativeKeyboardType
     {
         NATIVE_KEYBOARD_DEFAULT    (0),

@@ -106,7 +106,7 @@ static void SetSceneActive(BOOL active)
     dmNativeWin.iconified = !active;
     if (changed && dmNativeWin.windowFocusCallback)
     {
-        dmNativeWin.windowFocusCallback(active);
+        dmNativeWin.windowFocusCallback(dmNativeWin.windowFocusUserData, active);
     }
 }
 

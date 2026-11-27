@@ -29,6 +29,15 @@ enum
     ANDROID_BUTTON_RECORD,
 };
 
+static void NotifyGamepadEvent(int slot, WindowGamepadEvent event)
+{
+    MobileInputCallbacks* callbacks = dmNativeWin.inputCallbacks;
+    if (callbacks && callbacks->m_GamepadCallback)
+    {
+        callbacks->m_GamepadCallback(callbacks->m_GamepadUserData, slot, event);
+    }
+}
+
 static NativeAndroidJoystick* GetConnectedJoystick(int slot)
 {
     if ((unsigned)slot <= NATIVE_JOYSTICK_LAST && dmNativeJoy[slot].State == NATIVE_ANDROID_GAMEPAD_CONNECTED)
@@ -115,7 +124,7 @@ static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* devi
                 dmNativeJoy[joystickIndex].NumButtons = NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
             }
 
-            dmNativeWin.gamepadCallback(joystickIndex, 1);
+            NotifyGamepadEvent(joystickIndex, WINDOW_GAMEPAD_EVENT_CONNECTED);
             break;
         }
     }
@@ -171,7 +180,7 @@ static void dmNativeAndroidDisconnectJoystick(const int joystickIndex)
         dmNativeJoy[joystickIndex].DeviceId = DEVICE_ID_NONE;
         dmNativeJoy[joystickIndex].NumAxes = 0;
         dmNativeJoy[joystickIndex].NumButtons = 0;
-        dmNativeWin.gamepadCallback(joystickIndex, 0);
+        NotifyGamepadEvent(joystickIndex, WINDOW_GAMEPAD_EVENT_DISCONNECTED);
     }
 }
 
@@ -824,10 +833,10 @@ int dmNativeOSGetJoystickParam(int slot, int param)
     }
 }
 
-int dmNativeOSGetJoystickPos(int slot, float* values, int capacity)
+int dmNativeOSGetJoystickPos(int slot, float* values, uint32_t capacity)
 {
     int count = dmNativeOSGetJoystickParam(slot, NATIVE_AXES);
-    if (count > capacity)
+    if ((uint32_t)count > capacity)
     {
         count = capacity;
     }
@@ -856,10 +865,10 @@ int dmNativeOSGetJoystickPos(int slot, float* values, int capacity)
     return count;
 }
 
-int dmNativeOSGetJoystickButtons(int joy, unsigned char* buttons, int capacity)
+int dmNativeOSGetJoystickButtons(int joy, unsigned char* buttons, uint32_t capacity)
 {
     int numbuttons = dmNativeOSGetJoystickParam(joy, NATIVE_BUTTONS);
-    if (numbuttons > capacity)
+    if ((uint32_t)numbuttons > capacity)
     {
         numbuttons = capacity;
     }
@@ -923,7 +932,7 @@ int dmNativeOSGetJoystickButtons(int joy, unsigned char* buttons, int capacity)
 }
 
 
-int dmNativeOSGetJoystickHats(int slot, unsigned char* hats, int capacity)
+int dmNativeOSGetJoystickHats(int slot, unsigned char* hats, uint32_t capacity)
 {
     NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
     if (pad && pad->LayoutLegacy && hats && capacity > 0)
@@ -935,28 +944,16 @@ int dmNativeOSGetJoystickHats(int slot, unsigned char* hats, int capacity)
     return 0;
 }
 
-int dmNativeOSGetJoystickDeviceId(int slot, char** id)
+const char* dmNativeAndroidGetJoystickName(int slot)
 {
     NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
-    if (!pad || !id)
-    {
-        return 0;
-    }
-
-    *id = pad->DeviceName;
-    return 1;
+    return pad ? pad->DeviceName : NULL;
 }
 
-int dmNativeGetJoystickDeviceGuid(int slot, char** guid)
+const char* dmNativeAndroidGetJoystickGuid(int slot)
 {
     NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
-    if (!pad || !guid)
-    {
-        return 0;
-    }
-
-    *guid = pad->DeviceGuid;
-    return 1;
+    return pad ? pad->DeviceGuid : NULL;
 }
 
 void dmNativeTerminateJoysticks(void)

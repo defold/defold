@@ -72,60 +72,6 @@ int dmNativeGetMouseButton(int button)
     return (pressed & mask) != 0;
 }
 
-int dmNativeIsMouseLeftButtonFromTouch(void)
-{
-    return dmNativeInput.MouseLeftButtonFromTouch;
-}
-
-int dmNativeIsMousePositionFromTouch(void)
-{
-    return dmNativeInput.MousePositionFromTouch;
-}
-
-void dmNativeGetMousePos(int* x, int* y)
-{
-    if (dmNativeWin.opened)
-    {
-        if (x)
-        {
-            *x = dmNativeInput.MousePosX;
-        }
-
-        if (y)
-        {
-            *y = dmNativeInput.MousePosY;
-        }
-    }
-}
-
-int dmNativeGetMouseWheel(void)
-{
-    return 0;
-}
-
-void dmNativeSetCursorVisible(int visible)
-{
-    if (dmNativeWin.opened)
-    {
-        dmNativeWin.cursorHidden = !visible;
-    }
-}
-
-int dmNativeGetMouseLocked(void)
-{
-    return dmNativeWin.cursorHidden;
-}
-
-int dmNativeSetCharCallback(Nativecharfun callback)
-{
-    if (dmNativeWin.opened)
-    {
-        dmNativeWin.charCallback = callback;
-    }
-
-    return dmNativeWin.opened;
-}
-
 void dmNativeInputChar(int character, int action)
 {
     // Platform text events exclude C0, DEL and C1 control characters.
@@ -134,31 +80,18 @@ void dmNativeInputChar(int character, int action)
         return;
     }
 
-    if (action == NATIVE_PRESS && dmNativeWin.charCallback)
+    MobileInputCallbacks* callbacks = dmNativeWin.inputCallbacks;
+    if (action == NATIVE_PRESS && callbacks && callbacks->m_CharCallback)
     {
-        dmNativeWin.charCallback(character, action);
+        callbacks->m_CharCallback(callbacks->m_CharUserData, character);
     }
-}
-
-int dmNativeSetMarkedTextCallback(Nativemarkedtextfun callback)
-{
-    if (dmNativeWin.opened)
-    {
-        dmNativeWin.markedTextCallback = callback;
-    }
-
-    return dmNativeWin.opened;
 }
 
 void dmNativeSetMarkedText(char* text)
 {
-    if (dmNativeWin.markedTextCallback)
+    MobileInputCallbacks* callbacks = dmNativeWin.inputCallbacks;
+    if (callbacks && callbacks->m_MarkedCallback)
     {
-        dmNativeWin.markedTextCallback(text);
+        callbacks->m_MarkedCallback(callbacks->m_MarkedUserData, text);
     }
-}
-
-uint32_t dmNativeGetTouch(WindowTouchData* output, uint32_t capacity)
-{
-    return dmNativeReadTouches(dmNativeInput.Touch, output, capacity, 1);
 }

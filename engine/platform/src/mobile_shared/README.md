@@ -1,10 +1,10 @@
 # Shared mobile window implementation
 
-Android and iOS use the same C++ window adapter. It owns a single `HWindow`,
-passes creation parameters to the native backend, and installs engine callbacks
-with their user data. Web implements the engine interface for the browser canvas.
-[Mobile adapter](../window_mobile_web.cpp) · [Native interface](../window_mobile_web_backend.h) ·
-[Web backend](../web/README.md)
+Android and iOS compile the same `dmPlatform` implementation for their single
+application window. It owns the window handle, cached dimensions, callbacks, and
+reserved areas. Native handlers deliver focus and input callbacks with the
+user data registered by the engine. [Window implementation](window.cpp) ·
+[Native mobile state](window_mobile_private.h)
 
 ## Window lifetime
 
@@ -13,14 +13,14 @@ window clears input, initializes the dimensions, and calls `dmNativeOSOpenWindow
 with either an OpenGL or a no-API request. If opening fails or the context lacks
 the required GLES version, the shared code closes the native window and clears
 its state. The OS hooks handle resources such as an Android surface or an iOS
-rendering view. [Initialization](window_init.c) · [Open, close, and poll](window.c)
+rendering view. [Initialization](window_init.c) · [Window operations](window.cpp)
 
 On Android and iOS, the first call to `GetReservedAreas` starts observing the
-parts of the window reserved by the OS. The adapter caches the rectangles in a
+parts of the window reserved by the OS. The window caches the rectangles in a
 stable order and refreshes them before delivering a resize callback. Android
-signals inset changes from the activity. On iOS the adapter also compares the
+signals inset changes from the activity. On iOS the window also compares the
 rectangles during polling, so an occlusion change alone can trigger the callback.
-Closing the window clears the observation. [Reserved-area handling](../window_mobile_web.cpp)
+Closing the window clears the observation. [Reserved-area handling](window.cpp)
 
 ## Input between frames
 

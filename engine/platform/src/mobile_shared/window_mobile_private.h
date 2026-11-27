@@ -19,12 +19,36 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "window_mobile_web_backend.h"
+#include "window_mobile_web_constants.h"
+#include "window_touch.h"
 #if defined(ANDROID)
 #include "android/window_android.h"
 #elif defined(DM_PLATFORM_IOS)
 #include "ios/window_ios.h"
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum
+{
+    NATIVE_NO_API, NATIVE_OPENGL_API = 0x30001
+};
+enum
+{
+    NATIVE_KEYBOARD_DEFAULT, NATIVE_KEYBOARD_NUMBER_PAD, NATIVE_KEYBOARD_EMAIL, NATIVE_KEYBOARD_PASSWORD
+};
+
+typedef struct
+{
+    FWindowAddKeyboardCharCallback m_CharCallback;
+    void*                          m_CharUserData;
+    FWindowSetMarkedTextCallback   m_MarkedCallback;
+    void*                          m_MarkedUserData;
+    FWindowGamepadEventCallback    m_GamepadCallback;
+    void*                          m_GamepadUserData;
+} MobileInputCallbacks;
 
 typedef struct
 {
@@ -44,11 +68,10 @@ typedef struct
     int                  width, height;
     int                  clientAPI;
     int                  cursorHidden;
-    Nativewindowsizefun  windowSizeCallback;
-    Nativewindowfocusfun windowFocusCallback;
-    Nativecharfun        charCallback;
-    Nativemarkedtextfun  markedTextCallback;
-    Nativegamepadfun     gamepadCallback;
+    void (*windowSizeCallback)(int width, int height);
+    FWindowFocusCallback  windowFocusCallback;
+    void*                 windowFocusUserData;
+    MobileInputCallbacks* inputCallbacks;
 #if defined(DM_PLATFORM_IOS)
     id  window, viewController, view;
     id  context, aux_context;
@@ -60,6 +83,14 @@ extern Nativewin dmNativeWin;
 extern NativeInput dmNativeInput;
 extern int dmNativeInitialized;
 
+int  dmNativeInit(void);
+void dmNativeTerminate(void);
+void dmNativeCloseWindow(void);
+int  dmNativeGetKey(int key);
+int  dmNativeGetMouseButton(int button);
+void dmNativeShowKeyboard(int show, int type, int auto_close);
+void dmNativeResetKeyboard(void);
+void dmNativeAccelerometerEnable(void);
 void dmNativeClearInput(void);
 void dmNativeInputKey(int key, int action);
 void dmNativeInputChar(int character, int action);
@@ -81,15 +112,11 @@ void  dmNativeOSPollEvents(void);
 int   dmNativeOSQueryAuxContext(void);
 void* dmNativeOSAcquireAuxContext(void);
 void  dmNativeOSUnacquireAuxContext(void* context);
-void  dmNativeOSSetViewType(int view_type);
 void  dmNativeOSSetWindowBackgroundColor(unsigned int color);
-float dmNativeOSGetDisplayScaleFactor(void);
-float dmNativeOSGetDisplayDensity(void);
 int   dmNativeOSGetAcceleration(float* x, float* y, float* z);
-int   dmNativeOSGetJoystickParam(int slot, int param);
-int   dmNativeOSGetJoystickPos(int slot, float* values, int capacity);
-int   dmNativeOSGetJoystickButtons(int slot, unsigned char* values, int capacity);
-int   dmNativeOSGetJoystickHats(int slot, unsigned char* values, int capacity);
-int   dmNativeOSGetJoystickDeviceId(int slot, char** id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -14,7 +14,7 @@
 
 #include "platform_app.h"
 
-#include "window_android.h"
+#include "mobile_shared/window_mobile_private.h"
 
 extern "C" void dmNativePreMain(android_app* app);
 

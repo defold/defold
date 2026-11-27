@@ -14,10 +14,7 @@
 
 #include <jc_test/jc_test.h>
 
-extern "C"
-{
 #include "../mobile_shared/window_mobile_private.h"
-}
 
 // The null-backend test executable supplies the single mobile window used by window_input.c.
 Nativewin dmNativeWin;
@@ -25,9 +22,13 @@ Nativewin dmNativeWin;
 class MobileInput : public jc_test_base_class
 {
     protected:
+    MobileInputCallbacks m_Callbacks;
+
     void SetUp()
     {
         memset(&dmNativeWin, 0, sizeof(dmNativeWin));
+        memset(&m_Callbacks, 0, sizeof(m_Callbacks));
+        dmNativeWin.inputCallbacks = &m_Callbacks;
         dmNativeClearInput();
         dmNativeWin.opened = 1;
     }
@@ -55,7 +56,7 @@ TEST_F(MobileInput, TapBetweenPolls)
     dmNativeInput.MousePositionFromTouch = 1;
     dmNativeInputMouseClick(NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS);
     dmNativeInputMouseClick(NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE);
-    ASSERT_EQ(1, dmNativeIsMouseLeftButtonFromTouch());
+    ASSERT_EQ(1, dmNativeInput.MouseLeftButtonFromTouch);
     ASSERT_EQ(0, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_RIGHT));
     ASSERT_EQ(1, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_LEFT));
     ASSERT_EQ(0, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_LEFT));
@@ -67,18 +68,19 @@ TEST_F(MobileInput, TapBetweenPolls)
 }
 
 static int g_TextCount;
-static int g_Codepoint;
-static void OnCharacter(int codepoint, int action)
+static void OnCharacter(void* user_data, int codepoint)
 {
     ++g_TextCount;
-    g_Codepoint = codepoint;
+    *(int*)user_data = codepoint;
 }
 
 // Text input filters control characters and forwards a Unicode press only to a registered callback.
 TEST_F(MobileInput, TextEvents)
 {
     g_TextCount = 0;
-    ASSERT_EQ(1, dmNativeSetCharCallback(OnCharacter));
+    int codepoint = 0;
+    m_Callbacks.m_CharCallback = OnCharacter;
+    m_Callbacks.m_CharUserData = &codepoint;
     dmNativeInputChar(0x1f, NATIVE_PRESS);
     dmNativeInputChar(0x7f, NATIVE_PRESS);
     dmNativeInputChar(0x9f, NATIVE_PRESS);
@@ -87,8 +89,8 @@ TEST_F(MobileInput, TextEvents)
     dmNativeInputChar(' ', NATIVE_PRESS);
     dmNativeInputChar(0x1f600, NATIVE_PRESS);
     ASSERT_EQ(2, g_TextCount);
-    ASSERT_EQ(0x1f600, g_Codepoint);
-    dmNativeSetCharCallback(0);
+    ASSERT_EQ(0x1f600, codepoint);
+    m_Callbacks.m_CharCallback = 0;
     dmNativeInputChar('a', NATIVE_PRESS);
     ASSERT_EQ(2, g_TextCount);
 }
@@ -100,7 +102,6 @@ TEST_F(MobileInput, Reset)
     dmNativeInputKey('A', NATIVE_PRESS);
     dmNativeInputMouseClick(NATIVE_MOUSE_BUTTON_LAST, NATIVE_PRESS);
     dmNativeWin.opened = 0;
-    ASSERT_EQ(0, dmNativeSetCharCallback(OnCharacter));
     ASSERT_EQ(0, dmNativeGetKey('A'));
     ASSERT_EQ(0, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_LAST));
     dmNativeClearInput();
@@ -108,7 +109,7 @@ TEST_F(MobileInput, Reset)
     ASSERT_EQ(0, dmNativeGetKey('A'));
     ASSERT_EQ(0, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_LAST));
     WindowTouchData touches[NATIVE_MAX_TOUCH];
-    ASSERT_EQ(0u, dmNativeGetTouch(touches, NATIVE_MAX_TOUCH));
+    ASSERT_EQ(0u, dmNativeReadTouches(dmNativeInput.Touch, touches, NATIVE_MAX_TOUCH, 1));
     ASSERT_EQ(NATIVE_PHASE_IDLE, dmNativeInput.Touch[NATIVE_MAX_TOUCH - 1].Phase);
     ASSERT_EQ(NATIVE_MAX_TOUCH - 1, dmNativeInput.Touch[NATIVE_MAX_TOUCH - 1].Id);
 }

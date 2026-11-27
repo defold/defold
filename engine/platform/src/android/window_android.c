@@ -17,7 +17,6 @@
 #include <limits.h>
 #include <jni.h>
 #include <unistd.h>
-#include <android/configuration.h>
 
 #include "android_log.h"
 #include "android_util.h"
@@ -258,7 +257,7 @@ void dmNativeAndroidFlushEvents()
             {
                 if (dmNativeWin.windowFocusCallback)
                 {
-                    dmNativeWin.windowFocusCallback(0); // invokes Lua callbacks
+                    dmNativeWin.windowFocusCallback(dmNativeWin.windowFocusUserData, 0); // invokes Lua callbacks
                 }
 
                 break;
@@ -267,7 +266,7 @@ void dmNativeAndroidFlushEvents()
             {
                 if (dmNativeWin.windowFocusCallback)
                 {
-                    dmNativeWin.windowFocusCallback(1); // invokes Lua callbacks
+                    dmNativeWin.windowFocusCallback(dmNativeWin.windowFocusUserData, 1); // invokes Lua callbacks
                 }
 
                 break;
@@ -670,33 +669,8 @@ void dmNativeOSUnacquireAuxContext(void* context)
     dmNativeAndroidPlatformUnacquireAuxContext(context);
 }
 
-void dmNativeOSSetViewType(int view_type)
-{
-}
-
 void dmNativeOSSetWindowBackgroundColor(unsigned int color)
 {
-}
-
-float dmNativeOSGetDisplayScaleFactor()
-{
-    return 1.0f;
-}
-
-float dmNativeOSGetDisplayDensity()
-{
-    // AConfiguration reports the density bucket the activity was started for (160, 240, 320, 420,
-    // 480, ...), the same value DisplayMetrics.densityDpi exposes to Java code.
-    if (g_AndroidApp && g_AndroidApp->config)
-    {
-        int32_t density = AConfiguration_getDensity(g_AndroidApp->config);
-        if (density > 0)
-        {
-            return (float) density;
-        }
-    }
-
-    return 160.0f; // android mdpi, the density everything else is expressed relative to
 }
 
 #define MAX_ACTIVITY_LISTENERS (32)

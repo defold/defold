@@ -41,12 +41,10 @@ set(_platform_mobile_web_sources
     "${PLAT_SRC_DIR}/joystick_guid.c")
 set(_platform_mobile_sources
     ${_platform_mobile_web_sources}
-    "${PLAT_SRC_DIR}/window_mobile_web.cpp"
-    "${PLAT_SRC_DIR}/mobile_shared/window.c"
+    "${PLAT_SRC_DIR}/mobile_shared/window.cpp"
     "${PLAT_SRC_DIR}/mobile_shared/window_init.c"
     "${PLAT_SRC_DIR}/mobile_shared/window_input.c"
-    "${PLAT_SRC_DIR}/mobile_shared/window_joystick.c"
-    "${PLAT_SRC_DIR}/mobile_shared/window_opengl.c")
+    "${PLAT_SRC_DIR}/mobile_shared/window_opengl.cpp")
 
 set(PLATFORM_USE_LINUX OFF)
 set(PLATFORM_USE_COCOA OFF)
@@ -153,7 +151,6 @@ elseif(TARGET_PLATFORM_OS STREQUAL "ios")
         "${PLAT_SRC_DIR}/ios/platform_window_ios.mm"
         "${PLAT_SRC_DIR}/ios/window_init.m"
         "${PLAT_SRC_DIR}/ios/window_ios.m"
-        "${PLAT_SRC_DIR}/ios/window_joystick.m"
         "${PLAT_SRC_DIR}/ios/app/AppDelegate.m"
         "${PLAT_SRC_DIR}/ios/app/AppDelegateProxy.m"
         "${PLAT_SRC_DIR}/ios/app/BaseView.m"

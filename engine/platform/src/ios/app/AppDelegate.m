@@ -186,7 +186,7 @@ static void ShutdownEngine(bool call_exit)
         dmNativeWin.iconified = !dmNativeOSIsSceneActive();
         if (dmNativeWin.windowFocusCallback)
         {
-            dmNativeWin.windowFocusCallback(!dmNativeWin.iconified);
+            dmNativeWin.windowFocusCallback(dmNativeWin.windowFocusUserData, !dmNativeWin.iconified);
         }
 
         return;

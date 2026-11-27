@@ -12,9 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_mobile_web_backend.h"
+#include "mobile_shared/window_mobile_private.h"
 
-#include "window_ios.h"
 #import "app/ViewController.h"
 
 #include <assert.h>
@@ -28,6 +27,38 @@
 
 namespace dmPlatform
 {
+    float GetDisplayDensity(HWindow)
+    {
+        // iOS expresses sizes in points, and a point is roughly 1/160 inch regardless of the device
+        // scale factor, so the native scale is the density relative to that baseline.
+        return (float) [UIScreen mainScreen].nativeScale * 160.0f;
+    }
+
+    const char* GetJoystickDeviceName(HWindow, uint32_t)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickAxes(HWindow, uint32_t, float*, uint32_t)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickHats(HWindow, uint32_t, uint8_t*, uint32_t)
+    {
+        return 0;
+    }
+
+    uint32_t GetJoystickButtons(HWindow, uint32_t, uint8_t*, uint32_t)
+    {
+        return 0;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow, uint32_t)
+    {
+        return 0;
+    }
+
     id GetiOSUIWindow()
     {
         return dmNativeGetiOSUIWindow();
@@ -75,7 +106,7 @@ namespace dmPlatform
 
         UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
         uint32_t screen_maximum = window ? (uint32_t)window.screen.maximumFramesPerSecond : 0;
-        uint32_t limit = (uint32_t)dmNativeGetWindowRefreshRate();
+        uint32_t limit = dmNativeWin.opened ? dmNativeOSGetWindowRefreshRate() : 0;
 
         if (!use_high_refresh_rate)
         {

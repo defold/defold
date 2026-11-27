@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_mobile_private.h"
+#include "window.hpp"
 #if defined(DM_PLATFORM_IOS)
 #include <dlfcn.h>
 #endif
@@ -32,20 +33,24 @@ int dmNativeHasRequiredGLESVersion(void)
 #endif
 }
 
-void* dmNativeGetProcAddress(const char* name)
+namespace dmPlatform
 {
-#if defined(DM_PLATFORM_NO_OPENGL)
-    return NULL;
-#else
-    if (!dmNativeWin.opened || !name)
+    uintptr_t GetProcAddress(HWindow, const char* name)
     {
-        return NULL;
+    #if defined(DM_PLATFORM_NO_OPENGL)
+        return 0;
+    #else
+        if (!dmNativeWin.opened || !name)
+        {
+            return 0;
+        }
+
+    #if defined(DM_PLATFORM_IOS)
+        return (uintptr_t)dlsym(RTLD_DEFAULT, name);
+    #else
+        return (uintptr_t)eglGetProcAddress(name);
+    #endif
+    #endif
     }
 
-#if defined(DM_PLATFORM_IOS)
-    return dlsym(RTLD_DEFAULT, name);
-#else
-    return (void*)eglGetProcAddress(name);
-#endif
-#endif
 }

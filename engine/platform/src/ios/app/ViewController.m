@@ -14,7 +14,6 @@
 
 #import "ViewController.h"
 #import "SceneDelegate.h"
-#include "window_mobile_web_backend.h"
 #include "mobile_shared/window_mobile_private.h"
 
 #import "MetalView.h"
@@ -277,7 +276,7 @@ static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
     return [view isKindOfClass:[EAGLView class]];
 }
 
-void dmNativeOSSetViewType(int view_type)
+static void SetViewType(int view_type)
 {
     ViewController* viewController = (ViewController*) dmNativeWin.viewController;
     if (g_view_type == view_type &&
@@ -302,18 +301,6 @@ void dmNativeOSSetWindowBackgroundColor(unsigned int color)
     float a = 1.0f;
     UIViewController* viewController = (UIViewController*)dmNativeWin.viewController;
     viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
-}
-
-float dmNativeOSGetDisplayScaleFactor()
-{
-    return 1.0f;
-}
-
-float dmNativeOSGetDisplayDensity()
-{
-    // iOS expresses sizes in points, and a point is roughly 1/160 inch regardless of the device
-    // scale factor, so the native scale is the density relative to that baseline.
-    return (float) [UIScreen mainScreen].nativeScale * 160.0f;
 }
 
 void* dmNativeOSAcquireAuxContext()
@@ -356,7 +343,7 @@ int dmNativeOSQueryAuxContext()
 
 int dmNativeOSOpenWindow(int width, int height, int client_api)
 {
-    dmNativeOSSetViewType(client_api);
+    SetViewType(client_api);
 
     if (client_api == NATIVE_NO_API)
     {

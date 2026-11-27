@@ -12,8 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_android.h"
+#include "mobile_shared/window_mobile_private.h"
 
+#include <android/configuration.h>
 #include <dmsdk/dlib/android.h>
 
 #include <dlib/array.h>
@@ -30,6 +31,48 @@ extern "C" {
 
 namespace dmPlatform
 {
+    float GetDisplayDensity(HWindow)
+    {
+        // AConfiguration reports the density bucket the activity was started for (160, 240, 320, 420,
+        // 480, ...), the same value DisplayMetrics.densityDpi exposes to Java code.
+        android_app* app = GetAndroidApp();
+        if (app && app->config)
+        {
+            int32_t density = AConfiguration_getDensity(app->config);
+            if (density > 0)
+            {
+                return (float) density;
+            }
+        }
+
+        return 160.0f; // android mdpi, the density everything else is expressed relative to
+    }
+
+    const char* GetJoystickDeviceName(HWindow, uint32_t slot)
+    {
+        return dmNativeInitialized ? dmNativeAndroidGetJoystickName(slot) : 0;
+    }
+
+    uint32_t GetJoystickAxes(HWindow, uint32_t slot, float* values, uint32_t capacity)
+    {
+        return dmNativeInitialized ? dmNativeOSGetJoystickPos(slot, values, capacity) : 0;
+    }
+
+    uint32_t GetJoystickHats(HWindow, uint32_t slot, uint8_t* values, uint32_t capacity)
+    {
+        return dmNativeInitialized ? dmNativeOSGetJoystickHats(slot, values, capacity) : 0;
+    }
+
+    uint32_t GetJoystickButtons(HWindow, uint32_t slot, uint8_t* values, uint32_t capacity)
+    {
+        return dmNativeInitialized ? dmNativeOSGetJoystickButtons(slot, values, capacity) : 0;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow, uint32_t slot)
+    {
+        return dmNativeAndroidGetJoystickGuid(slot);
+    }
+
     void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
     {
         dmNativeAndroidSetJoystickLayoutLegacy(joystick_index, legacy);

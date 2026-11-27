@@ -38,6 +38,16 @@ int dmNativeInit(void)
     return dmNativeInitialized;
 }
 
+void dmNativeCloseWindow(void)
+{
+    if (dmNativeWin.opened)
+    {
+        dmNativeOSCloseWindow();
+    }
+
+    memset(&dmNativeWin, 0, sizeof(dmNativeWin));
+}
+
 void dmNativeTerminate(void)
 {
     if (dmNativeInitialized && dmNativeOSTerminate())
