@@ -1524,7 +1524,6 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
-#if !defined(DM_TEST_SOUND_USE_OPENAL)
 struct StreamingVorbisTestData
 {
     const uint8_t* m_Bytes;
@@ -1551,6 +1550,7 @@ static dmSound::Result ReadStreamingVorbis(void* context, uint32_t offset, uint3
     return *read == size ? dmSound::RESULT_OK : dmSound::RESULT_PARTIAL_DATA;
 }
 
+#if !defined(DM_TEST_SOUND_USE_OPENAL)
 // A partial Ogg page must survive starvation. Compare both channels through EOS,
 // then rewind and skip an uneven number of frames before resuming playback.
 TEST(SoundDecoder, VorbisStreamingMatchesReference)
@@ -1684,6 +1684,51 @@ TEST(SoundDecoder, VorbisChainedStreams)
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
 }
 #else
+struct StarvedVorbisTestData
+{
+    StreamingVorbisTestData m_Stream;
+    uint32_t                m_StarvedReads;
+};
+
+static dmSound::Result ReadVorbisAfterStall(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* read)
+{
+    StarvedVorbisTestData* data = (StarvedVorbisTestData*)context;
+    if (offset == data->m_Stream.m_Available && ++data->m_StarvedReads == 2)
+    {
+        data->m_Stream.m_Available = data->m_Stream.m_Size;
+    }
+
+    return ReadStreamingVorbis(&data->m_Stream, offset, size, out, read);
+}
+
+// OpenAL must yield on an empty read and resume the same stream on the next update.
+TEST(SoundDecoder, VorbisOpenALResumesAfterStarvation)
+{
+    StarvedVorbisTestData input = { { LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, 0 }, 0 };
+    uint32_t page_size;
+    ASSERT_TRUE(GetOggPage(input.m_Stream.m_Bytes, input.m_Stream.m_Size, 2, &input.m_Stream.m_Available, &page_size));
+
+    dmSound::InitializeParams params;
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    dmSound::HSoundInstance instance;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadVorbisAfterStall, &input, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(data, &instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    EXPECT_EQ(1U, input.m_StarvedReads);
+    EXPECT_TRUE(dmSound::IsPlaying(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    EXPECT_EQ(2U, input.m_StarvedReads);
+    EXPECT_TRUE(dmSound::IsPlaying(instance));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Stop(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
 // OpenAL devices without float32 support can play stereo Vorbis as interleaved PCM16.
 TEST(SoundDecoder, VorbisInterleavedPCM16)
 {
