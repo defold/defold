@@ -292,10 +292,9 @@ namespace dmPlatform
 
         // Mapping a hidden Wayland surface dispatches events, including when called from a poll callback.
         ++w->m_DispatchDepth;
-        w->m_Shown = true;
-        w->m_Ops->m_Show(w, true);
-        if (!w->m_DeletePending)
+        if (w->m_Ops->m_Show(w, true) && !w->m_DeletePending)
         {
+            w->m_Shown = true;
             WindowPlacementShown(w);
         }
 

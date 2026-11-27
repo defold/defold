@@ -406,8 +406,8 @@ namespace dmPlatform
             g_Decor.libdecor_configuration_get_content_size_(cfg, frame, &width, &height);
         }
 
-        DecorSize(w, width > 0 ? width : w->m_Width, height > 0 ? height : w->m_Height, cfg);
         w->m_Wayland->m_Configured = true;
+        DecorSize(w, width > 0 ? width : w->m_Width, height > 0 ? height : w->m_Height, cfg);
     }
 
     static void DecorClose(libdecor_frame*, void* data)
@@ -544,6 +544,7 @@ namespace dmPlatform
 
     static void ReleaseRole(LinuxWayland* wl)
     {
+        ++wl->m_RoleGeneration;
         if (!wl->m_SurfaceEntered || !wl->m_Configured)
         {
             // A startup that fails before its first frame must not replace saved placement.
@@ -643,11 +644,19 @@ namespace dmPlatform
         }
 
         const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
-        while (!wl->m_Configured && Dispatch(w))
+        const uint32_t generation = wl->m_RoleGeneration;
+        while (!wl->m_Configured)
         {
-            if (w->m_DeletePending)
+            // A native callback may hide, close, or reopen the window while mapping its original role.
+            bool dispatched = Dispatch(w);
+            if (w->m_DeletePending || wl->m_RoleGeneration != generation)
             {
                 return false;
+            }
+
+            if (!dispatched)
+            {
+                break;
             }
 
             // libdecor creates the toplevel asynchronously. Fullscreen and session requests
@@ -773,12 +782,12 @@ namespace dmPlatform
     }
 
     static const xdg_activation_token_v1_listener g_Token = { Activate };
-    static void Show(HWindow w, bool show)
+    static bool Show(HWindow w, bool show)
     {
         LinuxWayland* wl = w->m_Wayland;
         if (!show)
         {
-            if (!wl->m_Unmapped)
+            if (wl->m_Frame || wl->m_XdgSurface)
             {
                 ReleaseRole(wl);
                 wl_surface_attach(w->m_Surface, 0, 0, 0);
@@ -790,14 +799,19 @@ namespace dmPlatform
         {
             if (wl->m_Unmapped)
             {
+                if (wl->m_Frame || wl->m_XdgSurface)
+                {
+                    // The outer show is already waiting for this role's configure.
+                    return false;
+                }
+
                 // A Vulkan swapchain can present while hidden. The new shell
                 // role requires an initial commit with no attached buffer.
                 wl_surface_attach(w->m_Surface, 0, 0, 0);
                 wl_surface_commit(w->m_Surface);
                 if (!Map(w))
                 {
-                    w->m_Shown = false;
-                    return;
+                    return false;
                 }
             }
 
@@ -816,6 +830,7 @@ namespace dmPlatform
         }
 
         g_WaylandClient.wl_display_flush_(w->m_WlDisplay);
+        return true;
     }
 
     static void Size(HWindow w, int width, int height)

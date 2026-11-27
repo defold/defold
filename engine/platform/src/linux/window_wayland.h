@@ -74,7 +74,7 @@ struct LinuxWayland
     int                          m_FrameWidth, m_FrameHeight, m_FramePointerX, m_FramePointerY;
     bool                         m_ClientDecorated, m_ShellFullscreen, m_ShellTiled;
     int                          m_PendingWidth, m_PendingHeight;
-    uint32_t                     m_PreferredScale;
+    uint32_t                     m_PreferredScale, m_RoleGeneration;
     bool                         m_Configured, m_Unmapped, m_SurfaceEntered, m_Lost;
 
     wl_keyboard*               m_Keyboard;

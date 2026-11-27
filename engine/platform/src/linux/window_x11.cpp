@@ -1231,7 +1231,7 @@ namespace dmPlatform
         }
     }
 
-    static void Show(HWindow w, bool on)
+    static bool Show(HWindow w, bool on)
     {
         if (on)
         {
@@ -1248,6 +1248,7 @@ namespace dmPlatform
         }
 
         XFlush(w->m_Display);
+        return true;
     }
 
     static void Size(HWindow w, int width, int height)

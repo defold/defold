@@ -59,7 +59,7 @@ struct LinuxWindowOps
     void        (*m_Close)(HWindow);
     void        (*m_Disconnect)(HWindow);
     void        (*m_Poll)(HWindow);
-    void        (*m_Show)(HWindow, bool);
+    bool        (*m_Show)(HWindow, bool);
     void        (*m_Iconify)(HWindow);
     void        (*m_Title)(HWindow, const char*);
     void        (*m_Size)(HWindow, int, int);

@@ -1228,6 +1228,70 @@ TEST(LinuxWindow, WaylandDeleteDuringShow)
     }
 }
 
+struct WaylandShowClose
+{
+    HWindow m_Window;
+    bool    m_Reopen, m_Called;
+};
+
+static void CloseWaylandWindowOnResize(void* data, uint32_t, uint32_t)
+{
+    WaylandShowClose* action = (WaylandShowClose*)data;
+    WindowClose(action->m_Window);
+    if (action->m_Reopen)
+    {
+        WindowCreateParams params = Params();
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        params.m_Hidden = true;
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(action->m_Window, &params));
+    }
+
+    action->m_Called = true;
+    g_ResizeFd = g_WaylandClient.wl_display_get_fd_(action->m_Window->m_WlDisplay);
+    g_ResizeWaits = 0;
+}
+
+// Closing or replacing a window during its initial show cancels the old map immediately.
+TEST(LinuxWindow, WaylandCloseDuringShow)
+{
+    HWindow w = WindowNew();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        WindowDelete(w);
+        SKIP();
+    }
+
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        WaylandShowClose action = { w, reopen != 0, false };
+        WindowCreateParams p = Params();
+        p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        p.m_Hidden = true;
+        p.m_ResizeCallback = CloseWaylandWindowOnResize;
+        p.m_ResizeCallbackUserData = &action;
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+        static const wl_callback_listener resize = { ResizeOnWaylandSync };
+        wl_callback_add_listener(wl_display_sync(w->m_WlDisplay), &resize, &w);
+        WindowShow(w);
+        g_ResizeFd = -1;
+        ASSERT_TRUE(action.m_Called);
+        EXPECT_EQ(0u, g_ResizeWaits);
+        EXPECT_FALSE(w->m_Shown);
+        EXPECT_FALSE(w->m_Wayland->m_Configured);
+        EXPECT_EQ(reopen != 0, w->m_Open);
+        if (reopen)
+        {
+            WindowShow(w);
+            EXPECT_TRUE(w->m_Wayland->m_Configured);
+        }
+
+        WindowClose(w);
+    }
+
+    WindowDelete(w);
+}
+
 // A hidden Vulkan window can query the output density before polling and stays unmapped until shown.
 TEST(LinuxWindow, WaylandHiddenVulkanWindow)
 {
