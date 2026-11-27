@@ -353,6 +353,24 @@ TEST(LinuxWindow, X11AppliedResizeBeforePoll)
     EXPECT_EQ(311u, events.m_FirstHeight);
     EXPECT_EQ(482u, events.m_Width);
     EXPECT_EQ(312u, events.m_Height);
+
+    // An external resize between two identical requests must not supersede the second one.
+    Display* manager = XOpenDisplay(0);
+    ASSERT_TRUE(manager);
+    events.m_Count = 0;
+    dmPlatform::SetWindowSize(w, 481, 311);
+    XResizeWindow(manager, w->m_Xid, 503, 327);
+    XSync(manager, False);
+    dmPlatform::SetWindowSize(w, 481, 311);
+    XWindowAttributes geometry;
+    ASSERT_TRUE(XGetWindowAttributes(manager, w->m_Xid, &geometry));
+    EXPECT_EQ(481, geometry.width);
+    EXPECT_EQ(311, geometry.height);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(3u, events.m_Count);
+    EXPECT_EQ(481u, events.m_Width);
+    EXPECT_EQ(311u, events.m_Height);
+    XCloseDisplay(manager);
     dmPlatform::DeleteWindow(w);
 }
 

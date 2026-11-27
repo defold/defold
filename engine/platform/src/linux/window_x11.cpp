@@ -354,17 +354,32 @@ namespace dmPlatform
         }
     }
 
+    struct ConfigureQuery
+    {
+        Window        m_Window;
+        unsigned long m_Serial;
+        bool          m_Found;
+    };
+
     static Bool ObserveConfigure(Display*, XEvent* event, XPointer data)
     {
-        HWindow w = (HWindow)data;
-        if (event->type == ConfigureNotify && event->xconfigure.window == w->m_Xid &&
-            event->xconfigure.serial >= w->m_X11->m_ConfigureSerial)
+        ConfigureQuery* query = (ConfigureQuery*)data;
+        if (event->type == ConfigureNotify && event->xconfigure.window == query->m_Window &&
+            event->xconfigure.serial >= query->m_Serial)
         {
-            w->m_X11->m_ConfigureSerial = 0;
+            query->m_Found = true;
         }
 
         // Leave the event in order for normal input and resize callback dispatch.
         return False;
+    }
+
+    static bool HasQueuedConfigure(HWindow w, unsigned long serial)
+    {
+        ConfigureQuery query = { w->m_Xid, serial, false };
+        XEvent unused;
+        XCheckIfEvent(w->m_Display, &unused, ObserveConfigure, reinterpret_cast<XPointer>(&query));
+        return query.m_Found;
     }
 
     static void CompleteGeometryRequest(HWindow w)
@@ -405,8 +420,11 @@ namespace dmPlatform
             uint64_t end = dmTime::GetMonotonicTime() + 250000;
             for (;;)
             {
-                XEvent unused;
-                XCheckIfEvent(w->m_Display, &unused, ObserveConfigure, (XPointer)w);
+                if (HasQueuedConfigure(w, state->m_ConfigureSerial))
+                {
+                    state->m_ConfigureSerial = 0;
+                }
+
                 uint64_t now = dmTime::GetMonotonicTime();
                 if (!state->m_ConfigureSerial || now >= end)
                 {
@@ -1370,7 +1388,7 @@ namespace dmPlatform
         return true;
     }
 
-    static void ReadDrawableSize(HWindow w)
+    static bool ReadDrawableSize(HWindow w)
     {
         XWindowAttributes attrs;
         if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
@@ -1378,7 +1396,10 @@ namespace dmPlatform
             // Keep the last dispatched size until ConfigureNotify acknowledges each request.
             w->m_PixelWidth = attrs.width;
             w->m_PixelHeight = attrs.height;
+            return true;
         }
+
+        return false;
     }
 
     static void Size(HWindow w, int width, int height)
@@ -1444,12 +1465,15 @@ namespace dmPlatform
             if (!requests.Empty())
             {
                 X11ResizeRequest& last = requests[requests.Size() - 1];
-                if (last.m_Width == width && last.m_Height == height)
+                if (last.m_Width == width && last.m_Height == height && ReadDrawableSize(w))
                 {
-                    // X11 can omit a second event for two requests for the same dimensions.
-                    ++last.m_Count;
-                    ReadDrawableSize(w);
-                    return;
+                    // Share the acknowledgement while the resize is pending or its size still holds.
+                    // A later external resize can supersede the request before we poll its ConfigureNotify.
+                    if ((w->m_PixelWidth == width && w->m_PixelHeight == height) || !HasQueuedConfigure(w, last.m_Serial))
+                    {
+                        ++last.m_Count;
+                        return;
+                    }
                 }
             }
 
