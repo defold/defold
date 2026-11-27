@@ -2177,7 +2177,7 @@ TEST(LinuxWindow, TextCommitStopsWhenWindowCloses)
     dmPlatform::DeleteWindow(w);
 }
 
-// A repeatable key that reopens the window from its first character callback must leave the replacement without a repeat.
+// Reopening from a key callback cancels repeat and ignores queued keys until the new surface receives focus.
 TEST(LinuxWindow, WaylandReopenCancelsStartingRepeat)
 {
     HWindow w = dmPlatform::NewWindow();
@@ -2204,10 +2204,24 @@ TEST(LinuxWindow, WaylandReopenCancelsStartingRepeat)
 
     TextCloseAction action = { w, 0, true };
     dmPlatform::SetKeyboardCharCallback(w, CloseOnFirstCharacter, &action);
+    wl_array keys = {};
+    keyboard.enter(w, 0, 1, w->m_Surface, &keys);
     keyboard.key(w, 0, 1, 0, KEY_A, WL_KEYBOARD_KEY_STATE_PRESSED);
     EXPECT_EQ(0u, w->m_Wayland->m_NextRepeat);
     dmPlatform::WaylandRepeat(w, w->m_Wayland->m_NextRepeat);
     EXPECT_EQ(1u, action.m_Count);
+
+    keyboard.key(w, 0, 2, 0, KEY_C, WL_KEYBOARD_KEY_STATE_PRESSED);
+    EXPECT_EQ(0, dmPlatform::GetKey(w, 'C'));
+    EXPECT_EQ(0u, w->m_Wayland->m_NextRepeat);
+    EXPECT_EQ(1u, action.m_Count);
+    keyboard.enter(w, 0, 3, w->m_Surface, &keys);
+    // A leave for a surface that was destroyed can arrive with a null surface.
+    keyboard.leave(w, 0, 4, 0);
+    keyboard.key(w, 0, 5, 0, KEY_C, WL_KEYBOARD_KEY_STATE_PRESSED);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, 'C'));
+    EXPECT_NE(0u, w->m_Wayland->m_NextRepeat);
+    EXPECT_EQ(2u, action.m_Count);
 
     keyboard.keymap(w, 0, WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP, dup(fileno(keymap)), 0);
     fclose(keymap);

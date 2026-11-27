@@ -867,7 +867,8 @@ namespace dmPlatform
             out->m_Entered = false;
         }
 
-        wl->m_PreferredScale = wl->m_EnterSerial = wl->m_NextRepeat = 0;
+        WaylandResetKeyboard(wl);
+        wl->m_PreferredScale = wl->m_EnterSerial = 0;
         wl->m_PointerSurface = 0;
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
         wl->m_SessionReplaced = false;

@@ -84,7 +84,7 @@ namespace dmPlatform
     static void KeyEnter(void* data, wl_keyboard*, uint32_t serial, wl_surface* surface, wl_array* keys)
     {
         HWindow w = (HWindow)data;
-        if (surface != w->m_Surface)
+        if (!surface || surface != w->m_Surface)
         {
             return;
         }
@@ -100,16 +100,23 @@ namespace dmPlatform
         LinuxFocus(w, true);
     }
 
-    static void KeyLeave(void* data, wl_keyboard*, uint32_t, wl_surface*)
+    void WaylandResetKeyboard(LinuxWayland* wl)
+    {
+        wl->m_NextRepeat = 0;
+        if (wl->m_Compose)
+        {
+            g_WaylandClient.xkb_compose_state_reset_(wl->m_Compose);
+        }
+    }
+
+    static void KeyLeave(void* data, wl_keyboard*, uint32_t, wl_surface* surface)
     {
         HWindow w = (HWindow)data;
-        w->m_Wayland->m_NextRepeat = 0;
-        if (w->m_Wayland->m_Compose)
+        if (surface == w->m_Surface)
         {
-            g_WaylandClient.xkb_compose_state_reset_(w->m_Wayland->m_Compose);
+            WaylandResetKeyboard(w->m_Wayland);
+            LinuxFocus(w, false);
         }
-
-        LinuxFocus(w, false);
     }
 
     static void KeyText(HWindow w, uint32_t key)
@@ -166,6 +173,12 @@ namespace dmPlatform
     static void Key(void* data, wl_keyboard*, uint32_t serial, uint32_t, uint32_t key, uint32_t state)
     {
         HWindow w = (HWindow)data;
+        // Key events carry no surface. Queued presses belong to the old focus until the replacement gets an enter.
+        if (!w->m_Focused || !w->m_Surface || w->m_DeletePending)
+        {
+            return;
+        }
+
         LinuxWayland* wl = w->m_Wayland;
         wl->m_InputSerial = serial;
         bool down = state == WL_KEYBOARD_KEY_STATE_PRESSED;
@@ -528,7 +541,7 @@ namespace dmPlatform
         }
         else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && wl->m_Keyboard)
         {
-            KeyLeave(w, wl->m_Keyboard, 0, 0);
+            KeyLeave(w, wl->m_Keyboard, 0, w->m_Surface);
             wl_keyboard_release(wl->m_Keyboard);
             wl->m_Keyboard = 0;
             ReleaseKeymap(wl);
