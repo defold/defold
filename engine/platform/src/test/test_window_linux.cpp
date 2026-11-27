@@ -31,6 +31,7 @@
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <atomic>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -624,6 +625,23 @@ struct TestClipboardManager
     Window   m_Window;
 };
 
+// Advance the owner's handoff clock at protocol boundaries while the manager waits on real X11 replies.
+static thread_local bool g_UseClipboardClock;
+static std::atomic<unsigned> g_ClipboardDelayMs(0);
+extern "C" int __real_clock_gettime(clockid_t, struct timespec*);
+extern "C" int __wrap_clock_gettime(clockid_t clock, struct timespec* time)
+{
+    int result = __real_clock_gettime(clock, time);
+    if (result == 0 && clock == CLOCK_MONOTONIC && g_UseClipboardClock)
+    {
+        const uint64_t ns = time->tv_nsec + 1000000ULL * g_ClipboardDelayMs.load();
+        time->tv_sec += ns / 1000000000;
+        time->tv_nsec = ns % 1000000000;
+    }
+
+    return result;
+}
+
 static bool WaitForSelectionEvent(Display* display, int type, XEvent* event)
 {
     const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
@@ -656,10 +674,22 @@ static void* SaveClipboardSelection(void* data)
     Atom clipboard = XInternAtom(d, "CLIPBOARD", False);
     Atom multiple = XInternAtom(d, "MULTIPLE", False);
     Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
+    Atom targets[] = { XInternAtom(d, "TARGETS", False), XA_STRING };
+    XEvent converted;
+    for (unsigned i = 0; i < DM_ARRAY_SIZE(targets); ++i)
+    {
+        g_ClipboardDelayMs += 600;
+        XConvertSelection(d, clipboard, targets[i], targets[i], window, CurrentTime);
+        if (!WaitForSelectionEvent(d, SelectionNotify, &converted) || converted.xselection.property != targets[i])
+        {
+            return 0;
+        }
+    }
+
+    g_ClipboardDelayMs += 600;
     Atom pairs[] = { utf8, utf8, XA_STRING, XA_STRING };
     XChangeProperty(d, window, multiple, XInternAtom(d, "ATOM_PAIR", False), 32, PropModeReplace, (unsigned char*)pairs, 4);
     XConvertSelection(d, clipboard, multiple, multiple, window, CurrentTime);
-    XEvent converted;
     if (!WaitForSelectionEvent(d, SelectionNotify, &converted) || converted.xselection.property != multiple)
     {
         return 0;
@@ -729,7 +759,7 @@ TEST(LinuxWindow, X11ClipboardSurvivesCloseAndReopen)
     XCloseDisplay(client);
 }
 
-// Disconnecting transfers the full clipboard to the manager, including text larger than a core X11 request.
+// An active clipboard handoff can span several idle timeouts and include text larger than a core X11 request.
 TEST(LinuxWindow, X11ClipboardManagerKeepsText)
 {
     // Only claim the manager selection on the harness's private X server.
@@ -762,9 +792,12 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
     Atom selection = XInternAtom(d, "CLIPBOARD_MANAGER", False);
     XSetSelectionOwner(d, selection, manager.m_Window, CurrentTime);
     ASSERT_EQ(manager.m_Window, XGetSelectionOwner(d, selection));
+    g_ClipboardDelayMs = 0;
     pthread_t worker;
     ASSERT_EQ(0, pthread_create(&worker, 0, SaveClipboardSelection, &manager));
+    g_UseClipboardClock = true;
     dmPlatform::DeleteWindow(w);
+    g_UseClipboardClock = false;
     void* saved = 0;
     ASSERT_EQ(0, pthread_join(worker, &saved));
     EXPECT_TRUE(saved == &manager);

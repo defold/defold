@@ -98,7 +98,7 @@ if(PLATFORM_USE_LINUX)
     target_include_directories(test_window_linux BEFORE PRIVATE "${_wayland_generated}")
     defold_target_link_libraries(test_window_linux "${TARGET_PLATFORM}" platform_vulkan dlib profile_null)
     target_link_libraries(test_window_linux PRIVATE vulkan EGL)
-    target_link_options(test_window_linux PRIVATE "-Wl,--wrap=dlsym" "-Wl,--wrap=poll"
+    target_link_options(test_window_linux PRIVATE "-Wl,--wrap=dlsym" "-Wl,--wrap=poll" "-Wl,--wrap=clock_gettime"
         "-Wl,--wrap=XRegisterIMInstantiateCallback" "-Wl,--wrap=XSetICFocus" "-Wl,--wrap=XFilterEvent")
     defold_register_test_target(test_window_linux FALSE)
 

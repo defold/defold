@@ -624,7 +624,7 @@ namespace dmPlatform
         return true;
     }
 
-    static void Selection(HWindow w, const XSelectionRequestEvent& req)
+    static bool Selection(HWindow w, const XSelectionRequestEvent& req)
     {
         LinuxX11* x = w->m_X11;
         XEvent reply = {};
@@ -658,6 +658,7 @@ namespace dmPlatform
 
         XSendEvent(w->m_Display, req.requestor, False, 0, &reply);
         XFlush(w->m_Display);
+        return reply.xselection.property != None;
     }
 
     static Bool ClipboardHandoffEvent(Display*, XEvent* e, XPointer data)
@@ -686,8 +687,9 @@ namespace dmPlatform
         XChangeProperty(d, x->m_ClipboardWindow, x->m_SaveTargets, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 2);
         XConvertSelection(d, x->m_ClipboardManager, x->m_SaveTargets, x->m_SaveTargets, x->m_ClipboardWindow, CurrentTime);
         XFlush(d);
-        // A desktop clipboard manager reads the formats before acknowledging SAVE_TARGETS.
-        const uint64_t deadline = dmTime::GetMonotonicTime() + 1000000;
+        // The manager can request several formats before acknowledging SAVE_TARGETS.
+        const uint64_t idle_timeout = 1000000;
+        uint64_t deadline = dmTime::GetMonotonicTime() + idle_timeout;
         uint64_t now;
         while ((now = dmTime::GetMonotonicTime()) < deadline)
         {
@@ -699,7 +701,10 @@ namespace dmPlatform
                     return;
                 }
 
-                Selection(w, event.xselectionrequest);
+                if (Selection(w, event.xselectionrequest))
+                {
+                    deadline = dmTime::GetMonotonicTime() + idle_timeout;
+                }
             }
             else
             {
