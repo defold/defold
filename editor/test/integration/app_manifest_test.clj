@@ -442,7 +442,8 @@
           {"/legacy.appmanifest"
            ["platforms:"
             "  common: {context: {excludeSymbols: [AudioDecoderStbVorbis]}}"
-            "  android: {context: {excludeSymbols: [AudioDecoderTremolo]}}"]}
+            "  osx: {context: {excludeSymbols: ['AudioDecoder.*Vorbis']}}"
+            "  android: {context: {excludeSymbols: ['AudioDecoderTrem.*']}}"]}
           (let [node (test-util/resource-node project "/legacy.appmanifest")
                 save-data (g/node-value node :save-data)
                 content (resource-node/save-data-content save-data)
@@ -452,7 +453,8 @@
                     :web {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
                     :win32 {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
                     :linux {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
-                    :android {:context {:excludeSymbols ["AudioDecoderVorbis"]}}}
+                    :osx {:context {:excludeSymbols ["AudioDecoder.*Vorbis"] :includeSymbols ["AudioDecoderVorbis"]}}
+                    :android {:context {:excludeSymbols ["AudioDecoderTrem.*" "AudioDecoderVorbis"]}}}
                    (:platforms manifest)))
             content))]
     (test-util/with-temp-project-content

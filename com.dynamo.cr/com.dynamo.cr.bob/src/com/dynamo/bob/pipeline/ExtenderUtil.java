@@ -671,35 +671,28 @@ public class ExtenderUtil {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean migratePlatformVorbisExclusions(Map<?, ?> platforms) {
-        Map<String, List<?>> exclusions = new LinkedHashMap<>();
-        Map<String, List<?>> selections = new HashMap<>();
+    private static boolean migratePlatformVorbisFilters(Map<?, ?> platforms) {
+        Map<String, Map<?, ?>> contexts = new LinkedHashMap<>();
         for (var entry : platforms.entrySet()) {
             if (entry.getKey() instanceof String name && entry.getValue() instanceof Map<?, ?> platform
                     && platform.get("context") instanceof Map<?, ?> context) {
-                if (context.get("excludeSymbols") instanceof List<?> items) {
-                    exclusions.put(name, items);
-                }
-                if (context.get("symbols") instanceof List<?> items) {
-                    selections.put(name, items);
-                }
+                contexts.put(name, context);
             }
         }
         boolean modified = false;
-        for (var entry : AppManifestMigration.migrateVorbisExclusions(exclusions, selections).entrySet()) {
+        for (var entry : AppManifestMigration.migrateVorbisFilters(contexts).entrySet()) {
             String name = entry.getKey();
             Object value = platforms.containsKey(name) ? platforms.get(name) : Map.of();
             if (!(value instanceof Map<?, ?> platform)) {
                 continue;
             }
             Object contextValue = platform.containsKey("context") ? platform.get("context") : Map.of();
-            if (!(contextValue instanceof Map<?, ?> context)
-                    || (context.containsKey("excludeSymbols") && !(context.get("excludeSymbols") instanceof List<?>))) {
+            if (!(contextValue instanceof Map<?, ?> context)) {
                 continue;
             }
             // YAML aliases can share a map between platforms with different decoder defaults.
             Map<Object, Object> migratedContext = new LinkedHashMap<>(context);
-            migratedContext.put("excludeSymbols", entry.getValue());
+            migratedContext.putAll(entry.getValue());
             Map<Object, Object> migratedPlatform = new LinkedHashMap<>(platform);
             migratedPlatform.put("context", migratedContext);
             ((Map<Object, Object>) platforms).put(name, migratedPlatform);
@@ -730,7 +723,7 @@ public class ExtenderUtil {
         if (platformsValue instanceof Map<?, ?> platforms) {
             expandArchiveExclusions &= platforms.values().stream().noneMatch(value ->
                     value instanceof Map<?, ?> platform && selectsScalarVorbis(platform.get("context")));
-            modified |= migratePlatformVorbisExclusions(platforms);
+            modified |= migratePlatformVorbisFilters(platforms);
             for (Map.Entry<?, ?> platform : platforms.entrySet()) {
                 Object platformValue = platform.getValue();
                 if (platformValue instanceof Map<?, ?>) {

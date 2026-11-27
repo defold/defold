@@ -1089,26 +1089,25 @@
     context
     [:symbols :excludeSymbols :libs :engineLibs :excludeLibs]))
 
-(defn- platform-context-lists [platforms key]
-  (coll/into-> platforms {}
-    (keep (fn [[platform value]]
-            (when (keyword? platform)
-              (when-let [items (get-in-guarded value :context map? key vector?)]
-                [(name platform) items]))))))
-
-(defn- migrate-platform-vorbis-exclusions [manifest]
+(defn- migrate-platform-vorbis-filters [manifest]
   (let [platforms (get-in-guarded manifest :platforms map?)
-        exclusions (platform-context-lists platforms :excludeSymbols)
-        selections (platform-context-lists platforms :symbols)]
-    (reduce (fn [manifest [platform items]]
+
+        contexts
+        (coll/into-> platforms {}
+          (keep (fn [[platform value]]
+                  (when (keyword? platform)
+                    (when-let [context (get-in-guarded value :context map?)]
+                      [(name platform) (update-keys (select-keys context [:symbols :includeSymbols :excludeSymbols]) name)])))))]
+    (reduce (fn [manifest [platform filters]]
               (let [platform (keyword platform)
                     value (get platforms platform {})
                     context (get value :context {})]
-                (if-not (and (map? value) (map? context) (vector? (get context :excludeSymbols [])))
+                (if-not (and (map? value) (map? context))
                   manifest
-                  (assoc-in manifest [:platforms platform :context :excludeSymbols] (vec items)))))
+                  (assoc-in manifest [:platforms platform :context]
+                            (coll/into-> filters context (map (fn [[key items]] [(keyword key) (vec items)])))))))
             manifest
-            (AppManifestMigration/migrateVorbisExclusions exclusions selections))))
+            (AppManifestMigration/migrateVorbisFilters contexts))))
 
 (defn- update-manifest-contexts [manifest migrate-context]
   (if-not (map? manifest)
@@ -1148,7 +1147,7 @@
                  (coll/any? (comp selects-scalar? :context val)
                             (get-in-guarded manifest :platforms map?))))]
     (update-manifest-contexts
-      (migrate-platform-vorbis-exclusions manifest)
+      (migrate-platform-vorbis-filters manifest)
       (fn [context _platform]
         (migrate-sound-context context expand-archive-exclusions)))))
 

@@ -680,6 +680,61 @@ public class ExtenderUtilTest {
         assertArrayEquals(migrated, resource.getContent());
     }
 
+    // Preserve regex filters for other symbols and the effective Vorbis selection on each target.
+    @Test
+    public void testRegexVorbisExclusions() throws Exception {
+        String source = """
+                platforms:
+                  common: {context: {excludeSymbols: ['AudioDecoderStb.*']}}
+                  linux: {context: {includeSymbols: ['AudioDecoderStb.*']}}
+                  ios: {context: {excludeSymbols: ['AudioDecoderTrem.*|{{env.custom}}|CustomDecoder']}}
+                  osx: {context: {excludeSymbols: ['AudioDecoder.*Vorbis']}}
+                  android: {context: {excludeSymbols: ['AudioDecoder.*']}}
+                """;
+        createFile(fileSystem, "regex.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("regex.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+        byte[] migrated = resource.getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        assertEquals(Map.of(
+                "common", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderStb.*"))),
+                "web", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "win32", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "linux", Map.of("context", Map.of("includeSymbols", List.of("AudioDecoderStb.*"))),
+                "ios", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderTrem.*|{{env.custom}}|CustomDecoder", "AudioDecoderVorbis"))),
+                "osx", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoder.*Vorbis"), "includeSymbols", List.of("AudioDecoderVorbis"))),
+                "android", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoder.*")))), manifest.get("platforms"));
+        createFile(fileSystem, "regex.appmanifest", migrated);
+        assertArrayEquals(migrated, resource.getContent());
+    }
+
+    // A shared include regex must not enable an unregistered legacy decoder or lose its other matches.
+    @Test
+    public void testRegexVorbisIncludeOnStbOnlyPlatforms() throws Exception {
+        String source = """
+                platforms:
+                  common: {context: {includeSymbols: ['(?x)AudioDecoder(?:Tremolo|Vorbis)|CustomDecoder # retained extension']}}
+                  web: {context: {excludeSymbols: ['AudioDecoderStb.*']}}
+                  linux: {context: {excludeSymbols: ['AudioDecoderStb.*'], symbols: [AudioDecoderTremolo]}}
+                """;
+        createFile(fileSystem, "includes.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("includes.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+        byte[] migrated = resource.getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        Map<?, ?> platforms = (Map<?, ?>) manifest.get("platforms");
+        Map<?, ?> common = (Map<?, ?>) ((Map<?, ?>) platforms.get("common")).get("context");
+        String include = (String) ((List<?>) common.get("includeSymbols")).get(0);
+        assertTrue("CustomDecoder".matches(include));
+        assertTrue("AudioDecoderTremolo".matches(include));
+        assertFalse("AudioDecoderVorbis".matches(include));
+        assertEquals(Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderStb.*", "AudioDecoderVorbis"))), platforms.get("web"));
+        assertEquals(Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderStb.*"), "symbols", List.of("AudioDecoderVorbis"),
+                "includeSymbols", List.of("AudioDecoderVorbis"))), platforms.get("linux"));
+        createFile(fileSystem, "includes.appmanifest", migrated);
+        assertArrayEquals(migrated, resource.getContent());
+    }
+
     // A YAML alias can apply the same stb exclusion to a single-decoder and a dual-decoder target.
     @Test
     public void testAliasedVorbisExclusions() throws Exception {
@@ -707,6 +762,8 @@ public class ExtenderUtilTest {
     @Test
     public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
         for (String manifestYaml : List.of(
+                "platforms: {web: {context: {excludeSymbols: ['AudioDecoder.*']}}}",
+                "platforms: {web: {context: {excludeSymbols: ['(']}}}",
                 "platforms: {web: {context: {libs: [decoder_ogg], excludeLibs: [decoder_ogg_nosimd]}}}",
                 "platforms: {common: {context: {excludeLibs: [decoder_ogg]}}, web: {context: {libs: [decoder_ogg_nosimd]}}}",
                 "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}\n",
