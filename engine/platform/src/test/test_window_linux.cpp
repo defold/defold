@@ -2451,6 +2451,17 @@ TEST(LinuxWindow, WaylandPhysicalKeyCodes)
     EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_2));
     keyboard.key(w, 0, 3, 0, iso, WL_KEYBOARD_KEY_STATE_PRESSED);
     EXPECT_EQ(1, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_2));
+
+    const uint32_t print_keys[] = { KEY_SYSRQ, KEY_PRINT };
+    uint32_t serial = 4;
+    for (uint32_t key : print_keys)
+    {
+        keyboard.key(w, 0, serial++, 0, key, WL_KEYBOARD_KEY_STATE_PRESSED);
+        EXPECT_EQ(1, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_PRINT_SCREEN));
+        keyboard.key(w, 0, serial++, 0, key, WL_KEYBOARD_KEY_STATE_RELEASED);
+        EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_PRINT_SCREEN));
+    }
+
     dmPlatform::DeleteWindow(w);
 }
 

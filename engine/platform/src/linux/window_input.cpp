@@ -178,6 +178,7 @@ namespace dmPlatform
                 return PLATFORM_KEY_KP_NUM_LOCK;
             }
             case KEY_SYSRQ:
+            case KEY_PRINT:
             {
                 return PLATFORM_KEY_PRINT_SCREEN;
             }
