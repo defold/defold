@@ -2359,7 +2359,8 @@
                                                       regions)
                                                 ;; no triggers: remove introduced regions
                                                 (into [] (remove introduced-region?) regions)))
-                              (data/frame-cursor layout))))))))
+                              (data/frame-cursor layout)))
+         (request-signature-help! view-node))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props
@@ -2417,8 +2418,7 @@
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
        :on-mouse-clicked (fn [_]
-                           (accept-suggestion! view-node (code-completion/insertion completion))
-                           (request-signature-help! view-node))})
+                           (accept-suggestion! view-node (code-completion/insertion completion)))})
     {}))
 
 (defn- completion-popup-view
@@ -2825,10 +2825,7 @@
         (if (and show-suggestions (implies-completions? view-node))
           (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))
-    (when (or (and selected-suggestion
-                   (or (= "\r" typed)
-                       (contains? (:commit-characters selected-suggestion) typed)))
-              (contains? (get-property view-node :signature-help-trigger-characters) typed))
+    (when (contains? (get-property view-node :signature-help-trigger-characters) typed)
       (request-signature-help! view-node))))
 
 (defn- move-or-page-signature-help! [view-node direction]
