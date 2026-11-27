@@ -4205,10 +4205,10 @@
                    (coll/join-to-string "\n\n<hr>\n\n")))
 
         signature-text
-        (fn signature-text [text fill bold]
+        (fn signature-text [text style-class bold]
           {:fx/type fx.text/lifecycle
            :text text
-           :fill fill
+           :style-class style-class
            :font {:family font-name :size font-size :weight (if bold :bold :normal)}})
 
         signature-labels
@@ -4219,13 +4219,13 @@
 
                     runs
                     (if (and selected start)
-                      [(signature-text (subs label 0 start) "#a2b0be" false)
-                       (signature-text (subs label start end) "#4cb1ff" true)
-                       (signature-text (subs label end) "#a2b0be" false)]
-                      [(signature-text label (if selected "#a2b0be" "#6c7a88") false)])]
+                      [(signature-text (subs label 0 start) "signature-help-text" false)
+                       (signature-text (subs label start end) "signature-help-parameter" true)
+                       (signature-text (subs label end) "signature-help-text" false)]
+                      [(signature-text label (if selected "signature-help-text" "signature-help-dim") false)])]
                 (cond->> runs
                   (pos? (long index))
-                  (cons (signature-text "\n" "#6c7a88" false))))))
+                  (cons (signature-text "\n" "signature-help-dim" false))))))
           cat)
 
         card
@@ -4261,7 +4261,7 @@
                                      {:left 6 :right 6 :bottom 4})
                           :children [{:fx/type fx.text/lifecycle
                                       :text (str hint ": Toggle docs")
-                                      :fill "#6c7a88"}]}))]
+                                      :style-class "signature-help-dim"}]}))]
              (if above (vec (rseq children)) children))}]}]
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ui/ext-value :value canvas}

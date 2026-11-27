@@ -134,3 +134,14 @@
 #proposals .list-cell:filled:selected {
     -fx-text-fill: -df-script-intellisense;
 }
+
+/* Signature help */
+.signature-help-text {
+  -fx-fill: -df-text;
+}
+.signature-help-parameter {
+  -fx-fill: -df-defold-blue;
+}
+.signature-help-dim {
+  -fx-fill: -df-text-dark;
+}
