@@ -17,6 +17,7 @@
 #include "test_window_focus.h"
 #include "../linux/window_wayland.h"
 #include "../linux/joystick_linux.h"
+#include "../window_desktop_keys.h"
 #include <vulkan/vulkan.h>
 #include "../platform_window_vulkan.h"
 #include <dlib/hash.h>
@@ -2422,6 +2423,34 @@ TEST(LinuxWindow, WaylandFocusRestoresHeldKeysBeforeCallback)
     EXPECT_TRUE(w->m_Open);
     EXPECT_FALSE(w->m_Focused);
     EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::LinuxKeyCode(shift)));
+    dmPlatform::DeleteWindow(w);
+}
+
+// Wayland must expose its established physical key codes on focus entry and subsequent key events.
+TEST(LinuxWindow, WaylandPhysicalKeyCodes)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    const wl_keyboard_listener& keyboard = dmPlatform::g_WaylandKeyboardListener;
+    uint32_t iso = KEY_102ND;
+    wl_array held = { sizeof(iso), sizeof(iso), &iso };
+    keyboard.enter(w, 0, 1, w->m_Surface, &held);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_2));
+    EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_1));
+    keyboard.key(w, 0, 2, 0, iso, WL_KEYBOARD_KEY_STATE_RELEASED);
+    EXPECT_EQ(0, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_2));
+    keyboard.key(w, 0, 3, 0, iso, WL_KEYBOARD_KEY_STATE_PRESSED);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, dmPlatform::PLATFORM_KEY_NON_US_2));
     dmPlatform::DeleteWindow(w);
 }
 

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_wayland.h"
+#include "../window_desktop_keys.h"
 
 #include <dlib/time.h>
 #include <linux/input-event-codes.h>
@@ -73,7 +74,8 @@ namespace dmPlatform
 
     static void PhysicalKey(HWindow w, uint32_t key, bool down)
     {
-        int code = LinuxKeyCode(key);
+        // The ISO key beside left Shift has historically used the second non-US key code on Wayland.
+        int code = key == KEY_102ND ? PLATFORM_KEY_NON_US_2 : LinuxKeyCode(key);
         if (code >= 0 && code < (int)sizeof(w->m_Keys))
         {
             w->m_Keys[code] = down;
