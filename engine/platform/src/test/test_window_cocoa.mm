@@ -765,7 +765,7 @@ static void ReopenOnUnmark(void* data, char* text)
     }
 }
 
-// Reopening from an IME listener during focus loss must deliver only the new window's own focus event.
+// Reopening from an IME listener during blur must retire the old focus callback and preserve the new window's focus.
 TEST_F(CocoaWindowTest, MarkedTextListenerReopensOnBlur)
 {
     @autoreleasepool
@@ -779,13 +779,18 @@ TEST_F(CocoaWindowTest, MarkedTextListenerReopensOnBlur)
         NSView<NSTextInputClient>* view = (NSView<NSTextInputClient>*)native.contentView;
         [view setMarkedText:@"かな" selectedRange:NSMakeRange(0, 1) replacementRange:NSMakeRange(NSNotFound, 0)];
 
+        const int originalFocusCount = events.m_FocusCount;
+        WindowEvents replacement = {};
         params.m_Hidden = false;
-        events.m_FocusCount = 0;
+        params.m_FocusCallbackUserData = &replacement;
         [native orderOut:nil];
         ASSERT_EQ(WINDOW_RESULT_OK, action.result);
-        dmPlatform::PollEvents(window);
-        EXPECT_EQ(1, events.m_FocusCount);
-        EXPECT_EQ(1, events.m_Focus);
+        // A stale blur can overwrite the replacement's focus before its queued callbacks run.
+        NSWindow* reopened = dmPlatform::GetOSXNSWindow(window);
+        EXPECT_EQ((bool)reopened.keyWindow, window->m_Focus.m_Focused);
+        EXPECT_TRUE(WaitFor(&replacement.m_Focus, 1));
+        EXPECT_EQ(originalFocusCount, events.m_FocusCount);
+        dmPlatform::CloseWindow(window);
     }
 }
 
