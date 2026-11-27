@@ -63,7 +63,7 @@ struct ResizeAction
 static void CloseOnResize(void* data, uint32_t, uint32_t)
 {
     ResizeAction* action = (ResizeAction*)data;
-    if (++action->m_Callbacks != 1)
+    if (!action->m_Window || ++action->m_Callbacks != 1)
     {
         return;
     }
@@ -78,6 +78,32 @@ static void CloseOnResize(void* data, uint32_t, uint32_t)
         dmPlatform::DeleteWindow(action->m_Window);
         action->m_Window = 0;
     }
+}
+
+// A fullscreen display change can replace its HWND from the resize callback while Win32 is processing the message.
+TEST(dmPlatform, WindowsDisplayChangeCanReopenWindow)
+{
+    WindowCreateParams replacement;
+    WindowCreateParamsInitialize(&replacement);
+    replacement.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    replacement.m_Hidden = true;
+    WindowCreateParams fullscreen = replacement;
+    fullscreen.m_Fullscreen = true;
+    ResizeAction action = { 0, &replacement, 0 };
+    fullscreen.m_ResizeCallback = CloseOnResize;
+    fullscreen.m_ResizeCallbackUserData = &action;
+
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, fullscreen));
+    HWND original = dmPlatform::GetWindowsHWND(window);
+    ASSERT_TRUE(SetWindowPos(original, 0, 0, 0, 64, 64, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER));
+    action.m_Window = window;
+    EXPECT_EQ((LRESULT)0, SendMessageW(original, WM_DISPLAYCHANGE, 32, 0));
+    EXPECT_EQ(1u, action.m_Callbacks);
+    EXPECT_FALSE(IsWindow(original));
+    EXPECT_TRUE(IsWindow(dmPlatform::GetWindowsHWND(window)));
+    dmPlatform::DeleteWindow(window);
 }
 
 // A synchronous resize may delete the window or reopen the same handle without notifying the replacement.

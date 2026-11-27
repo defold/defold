@@ -177,6 +177,12 @@ namespace dmPlatform
                     WindowPlacementMonitorsChanged();
                 }
 
+                // The fullscreen resize can close the HWND while SetWindowPos is delivering WM_SIZE.
+                if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+                {
+                    return 0;
+                }
+
                 break;
             }
             case WM_SETTINGCHANGE:
