@@ -34,6 +34,8 @@
 #include <atomic>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <netdb.h>
 #include <poll.h>
 #include <math.h>
 #include <unistd.h>
@@ -731,6 +733,57 @@ TEST(LinuxWindow, X11WindowAndIconTitles)
         }
     }
 
+    dmPlatform::DeleteWindow(w);
+}
+
+// A window manager on a forwarded display must be able to associate the X11 client's PID with its host.
+TEST(LinuxWindow, X11ClientProcessIdentity)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    Atom type;
+    int format;
+    unsigned long count, remaining;
+    unsigned char* value;
+    Atom pid = XInternAtom(w->m_Display, "_NET_WM_PID", False);
+    ASSERT_EQ(Success, XGetWindowProperty(w->m_Display, w->m_Xid, pid, 0, 1, False, XA_CARDINAL, &type, &format, &count, &remaining, &value));
+    ASSERT_EQ(XA_CARDINAL, type);
+    ASSERT_EQ(32, format);
+    ASSERT_EQ(1ul, count);
+    EXPECT_EQ((unsigned long)getpid(), *(unsigned long*)value);
+    XFree(value);
+
+    XTextProperty machine = {};
+    ASSERT_TRUE(XGetWMClientMachine(w->m_Display, w->m_Xid, &machine));
+    EXPECT_EQ(XA_STRING, machine.encoding);
+    EXPECT_EQ(8, machine.format);
+    char hostname[HOST_NAME_MAX + 1];
+    ASSERT_EQ(0, gethostname(hostname, sizeof(hostname)));
+    addrinfo hints = {};
+    hints.ai_flags = AI_CANONNAME;
+    addrinfo* address = 0;
+    const char* expected = hostname;
+    if (!strchr(hostname, '.') && getaddrinfo(hostname, 0, &hints, &address) == 0 &&
+        address->ai_canonname && strchr(address->ai_canonname, '.'))
+    {
+        expected = address->ai_canonname;
+    }
+
+    EXPECT_STREQ(expected, (const char*)machine.value);
+    if (address)
+    {
+        freeaddrinfo(address);
+    }
+
+    XFree(machine.value);
     dmPlatform::DeleteWindow(w);
 }
 

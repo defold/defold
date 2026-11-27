@@ -28,6 +28,7 @@
 #include <dlib/array.h>
 #include <jc/ringbuffer.h>
 #include <limits.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <poll.h>
 #include <locale.h>
@@ -528,6 +529,35 @@ namespace dmPlatform
         w->m_Density = CalculateDisplayDensity(best->m_MM, best->m_Bounds.m_Width * scale);
         w->m_RefreshRate = best->m_Refresh;
         LinuxUpdateSize(w, w->m_Width, w->m_Height, scale);
+    }
+
+    static void SetClientIdentity(HWindow w)
+    {
+        char hostname[HOST_NAME_MAX + 1];
+        if (gethostname(hostname, sizeof(hostname)) != 0 || !hostname[0])
+        {
+            return;
+        }
+
+        const char* name = hostname;
+        addrinfo hints = {};
+        hints.ai_flags = AI_CANONNAME;
+        addrinfo* address = 0;
+        if (!strchr(hostname, '.') && getaddrinfo(hostname, 0, &hints, &address) == 0 &&
+            address->ai_canonname && strchr(address->ai_canonname, '.'))
+        {
+            name = address->ai_canonname;
+        }
+
+        XTextProperty machine = { (unsigned char*)name, XA_STRING, 8, strlen(name) };
+        XSetWMClientMachine(w->m_Display, w->m_Xid, &machine);
+        if (address)
+        {
+            freeaddrinfo(address);
+        }
+
+        unsigned long pid = getpid();
+        XChangeProperty(w->m_Display, w->m_Xid, AtomFor(w, "_NET_WM_PID"), XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&pid, 1);
     }
 
     static void Title(HWindow w, const char* title)
@@ -1201,8 +1231,7 @@ namespace dmPlatform
                             PropModeReplace, (unsigned char*)&user_time, 1);
         }
 
-        unsigned long pid = getpid();
-        XChangeProperty(d, w->m_Xid, AtomFor(w, "_NET_WM_PID"), XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&pid, 1);
+        SetClientIdentity(w);
         Title(w, w->m_Params.m_Title);
         if (w->m_Params.m_Fullscreen)
         {
