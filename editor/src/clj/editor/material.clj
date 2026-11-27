@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as code.data]
             [editor.code.shader-compilation :as shader-compilation]
@@ -38,8 +39,9 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$ShaderDesc$ShaderReflection Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
+           [com.google.protobuf ByteString]
            [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -106,19 +108,25 @@
         (-> (:material-desc-with-build-resources user-data)
             (update :program build-resource->fused-build-resource-path))]
     {:resource resource
-     :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
+     :content (.toByteArray
+                (MaterialBuilder/buildRenderState
+                  (protobuf/map->pb Material$MaterialDesc material-desc-with-fused-build-resource-paths)
+                  (Graphics$ShaderDesc$ShaderReflection/parseFrom ^ByteString (:shader-reflection user-data))))}))
 
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(defn- build-target-samplers [samplers max-page-count]
-  (mapv (fn [sampler]
-          (assoc sampler
-            :name-hash (murmur/hash64 (:name sampler))
-            :name-indirections (mapv (fn [slice-index]
-                                       (murmur/hash64 (str (:name sampler) "_" slice-index)))
-                                     (range max-page-count))))
-        samplers))
+(defn- build-target-samplers [samplers max-page-count shader-desc]
+  (let [material-builder (doto (Material$MaterialDesc/newBuilder)
+                           (.setMaxPageCount max-page-count)
+                           (.addAllSamplers
+                             (mapv (fn [sampler]
+                                     (protobuf/map->pb Material$MaterialDesc$Sampler
+                                                       (assoc sampler :name-hash (murmur/hash64 (:name sampler)))))
+                                   samplers)))]
+    (when shader-desc
+      (MaterialBuilder/applyVariantTextureArray material-builder shader-desc))
+    (mapv protobuf/pb->map-without-defaults (.getSamplersList material-builder))))
 
 (defn- attribute-info->error-values [{:keys [data-type error name normalize]} node-id label]
   (filterv some?
@@ -138,22 +146,29 @@
         (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
         (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
-            build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
-            build-target-attributes (build-target-attributes attribute-infos)
-            build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
-            dep-build-targets [shader-desc-build-target]
-            material-desc-with-build-resources (assoc base-pb-msg
-                                                 :program (:resource shader-desc-build-target)
-                                                 :samplers build-target-samplers
-                                                 :attributes build-target-attributes
-                                                 :pbr-parameters build-target-pbr-params)]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-material
-            :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
-            :deps dep-build-targets})])))
+      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)]
+        ;; Material state needs reflection from a successfully compiled shader.
+        (g/precluding-errors
+          [shader-desc-build-target
+           (mapv (fn [message]
+                   (g/->error _node-id :build-targets :fatal nil (string/trim message)))
+                 (get-in shader-desc-build-target [:user-data :compile-warning-messages]))]
+          (let [build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count (get-in shader-desc-build-target [:user-data :shader-desc]))
+                build-target-attributes (build-target-attributes attribute-infos)
+                build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
+                dep-build-targets [shader-desc-build-target]
+                material-desc-with-build-resources (assoc base-pb-msg
+                                                     :program (:resource shader-desc-build-target)
+                                                     :samplers build-target-samplers
+                                                     :attributes build-target-attributes
+                                                     :pbr-parameters build-target-pbr-params)]
+            [(bt/with-content-hash
+               {:node-id _node-id
+                :resource (workspace/make-build-resource resource)
+                :build-fn build-material
+                :user-data {:material-desc-with-build-resources material-desc-with-build-resources
+                            :shader-reflection (.toByteString ^Graphics$ShaderDesc$ShaderReflection (:shader-reflection shader-desc-build-target))}
+                :deps dep-build-targets})])))))
 
 (defn- constant->val [constant]
   (case (:type constant)

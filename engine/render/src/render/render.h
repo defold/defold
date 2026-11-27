@@ -330,6 +330,13 @@ namespace dmRender
     void RenderListBegin(HRenderContext render_context);
     void RenderListEnd(HRenderContext render_context);
 
+    // Optional preparation for submitted persistent dispatches, called before each
+    // draw's predicate filtering, culling and sorting. May update existing items,
+    // but must not register/unregister dispatches or submit another render list.
+    // Uses the registration's user data; 0 removes the callback.
+    typedef void (*RenderListPrepareFn)(void* user_data);
+    void SetRenderListPrepareFn(HRenderContext context, HRenderItemDispatch dispatch, RenderListPrepareFn prepare_fn);
+
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
@@ -453,6 +460,18 @@ namespace dmRender
 
     // Material
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
+    // Cached hash of shared draw state. Attribute values and textures are resolved by the component.
+    // Engine-owned skinning and morph samplers are not persistent material state.
+    // Mutate material constants through the material setters to invalidate the cached hash.
+    uint64_t                        GetMaterialInstancingHash(HMaterial material);
+    // Portable material settings, shared with the compiler. Not a complete draw key.
+    uint64_t                        GetMaterialRenderHash(HMaterial material);
+    void                            SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash);
+    // Invalidates component batch-key caches, including tag and attribute-only changes.
+    // This revision is not part of material compatibility or batch identity.
+    uint32_t                        GetMaterialVersion(HMaterial material);
+    // Invalidates generated vertex data when attribute layouts or defaults change.
+    uint32_t                        GetMaterialAttributeVersion(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
@@ -472,6 +491,11 @@ namespace dmRender
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
     bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
     bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
+    bool                            IsMaterialInternalSampler(dmhash_t name_hash);
+    // Internal samplers reserve tail entries only when reflected in this material.
+    // These are RenderObject texture indices, not physical GPU texture units.
+    uint32_t                        GetMaterialUserTextureCount(HMaterial material);
+    uint32_t                        GetMaterialInternalTextureSlot(HMaterial material, dmhash_t name_hash);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -507,6 +531,10 @@ namespace dmRender
     bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    // Resource loading associates active fallback bindings with their authored sampler.
+    void                            SetMaterialSamplerLogicalName(HMaterial material, uint32_t unit, dmhash_t logical_name_hash);
+    // Updates one logical sampler and every active binding generated from it.
+    bool                            SetMaterialSamplerOptions(HMaterial material, dmhash_t name_hash, const SamplerInfo& options);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 

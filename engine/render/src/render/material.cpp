@@ -17,6 +17,7 @@
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/math.h> // min
@@ -24,10 +25,19 @@
 #include <dmsdk/graphics/graphics.h>
 #include "render.h"
 #include "render_private.h"
+#include "material_render_state.h"
 
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static void InvalidateMaterial(HMaterial material)
+    {
+        material->m_RenderHashDirty = 1;
+        material->m_InstancingHashDirty = 1;
+        ++material->m_Version;
+    }
+
 
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
@@ -54,93 +64,17 @@ namespace dmRender
 
     static void SetVertexAttributeInfoDefaultSettings(dmGraphics::VertexAttributeInfo* info, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported)
     {
-        info->m_NameHash        = name_hash;
-        info->m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
-        info->m_VectorType      = GetAttributeVectorType(graphics_type);
-        info->m_ElementCount    = element_count;
-        info->m_Normalize       = false;
-        info->m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-        info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-        info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
-        info->m_ValuePtr        = 0;
-        info->m_ValueVectorType = info->m_VectorType;
-
-        if (name_hash == VERTEX_STREAM_POSITION)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
-        }
-        else if (name_hash == VERTEX_STREAM_TEXCOORD0 || name_hash == VERTEX_STREAM_TEXCOORD1)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
-        }
-        else if (name_hash == VERTEX_STREAM_COLOR)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
-        }
-        else if (name_hash == VERTEX_STREAM_PAGE_INDEX)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
-        }
-        else if (name_hash == VERTEX_STREAM_NORMAL)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
-        }
-        else if (name_hash == VERTEX_STREAM_TANGENT)
-        {
-            info->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
-        }
-        else if (name_hash == VERTEX_STREAM_BONE_WEIGHTS)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS;
-        }
-        else if (name_hash == VERTEX_STREAM_BONE_INDICES)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES;
-        }
-        // Instancing attributes
-        else if (name_hash == VERTEX_STREAM_WORLD_MATRIX)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
-        }
-        else if (name_hash == VERTEX_STREAM_NORMAL_MATRIX)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
-        }
-        else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
-        {
-            // Internal attribute used for instancing, does not have a semantic type.
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
-        }
-        else if (name_hash == VERTEX_STREAM_TEXTURE_TRANSFORM_2D)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
-            info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
-        }
-        else if (name_hash == VERTEX_STREAM_MORPH_TARGET_WEIGHTS)
-        {
-            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS;
-            if (instancing_supported)
-            {
-                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-            }
-        }
+        dmGraphics::VertexAttribute attribute = MakeDefaultMaterialRenderAttribute(name_hash, GetAttributeVectorType(graphics_type), element_count);
+        info->m_NameHash = attribute.m_NameHash;
+        info->m_DataType = attribute.m_DataType;
+        info->m_VectorType = attribute.m_VectorType;
+        info->m_ElementCount = attribute.m_ElementCount;
+        info->m_Normalize = attribute.m_Normalize;
+        info->m_StepFunction = instancing_supported ? attribute.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        info->m_CoordinateSpace = attribute.m_CoordinateSpace;
+        info->m_SemanticType = attribute.m_SemanticType;
+        info->m_ValuePtr = 0;
+        info->m_ValueVectorType = attribute.m_VectorType;
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -330,6 +264,7 @@ namespace dmRender
         }
 
         Material* m                       = new Material;
+        m->m_RenderState                  = new MaterialRenderState;
         m->m_RenderContext                = render_context;
         m->m_Program                      = program;
         m->m_VertexDeclarationShared      = 0;
@@ -340,6 +275,19 @@ namespace dmRender
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
         CreateConstants(graphics_context, m);
+
+        // Native materials do not have a compiled resource. Seed their state
+        // from the program defaults; resource loading replaces this snapshot.
+        for (uint32_t i = 0; i < m->m_Constants.Size(); ++i)
+        {
+            HConstant constant = m->m_Constants[i].m_Constant;
+            AddMaterialRenderConstant(m->m_RenderState, constant->m_NameHash, constant->m_Type, constant->m_NumValues);
+        }
+        for (uint32_t i = 0; i < m->m_VertexAttributeInfos.Size(); ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& info = m->m_VertexAttributeInfos[i];
+            SetMaterialRenderAttribute(m->m_RenderState, MakeDefaultMaterialRenderAttribute(info.m_NameHash, info.m_VectorType, info.m_ElementCount));
+        }
 
         bool has_light_buffer;
         uint16_t light_buffer_set;
@@ -367,6 +315,7 @@ namespace dmRender
         {
             dmRender::DeleteConstant(material->m_Constants[i].m_Constant);
         }
+        delete material->m_RenderState;
         delete material;
     }
 
@@ -553,12 +502,37 @@ namespace dmRender
 
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
-        return GetProgramSamplerUnit(material->m_Samplers, name_hash);
+        if (name_hash == 0 || IsMaterialInternalSampler(name_hash))
+            return INVALID_SAMPLER_UNIT;
+        uint32_t unit = GetProgramSamplerUnit(material->m_Samplers, name_hash);
+        if (unit != INVALID_SAMPLER_UNIT)
+            return unit;
+        // Array fallback programs only expose the generated slice uniforms.
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            if (material->m_Samplers[i].m_LogicalNameHash == name_hash)
+                return i;
+        }
+        return INVALID_SAMPLER_UNIT;
+    }
+
+    uint32_t GetMaterialUserTextureCount(HMaterial material)
+    {
+        return RenderObject::MAX_TEXTURE_COUNT - material->m_HasSkinnedMatrixCache - material->m_HasMorphTargetsSampler;
+    }
+
+    uint32_t GetMaterialInternalTextureSlot(HMaterial material, dmhash_t name_hash)
+    {
+        if (name_hash == SAMPLER_POSE_MATRIX_CACHE && material->m_HasSkinnedMatrixCache)
+            return GetMaterialUserTextureCount(material);
+        if (name_hash == SAMPLER_MORPH_TARGETS && material->m_HasMorphTargetsSampler)
+            return RenderObject::MAX_TEXTURE_COUNT - 1;
+        return INVALID_SAMPLER_UNIT;
     }
 
     HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
-        if (unit < material->m_Samplers.Size())
+        if (unit < material->m_Samplers.Size() && material->m_Samplers[unit].m_NameHash)
         {
             return &material->m_Samplers[unit];
         }
@@ -578,6 +552,72 @@ namespace dmRender
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
     {
         return material->m_Program;
+    }
+
+    void SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash)
+    {
+        CopyMaterialRenderState(state, material->m_RenderState);
+        InvalidateMaterial(material);
+        material->m_RenderHash = render_hash;
+        material->m_RenderHashDirty = 0;
+    }
+
+    uint64_t GetMaterialRenderHash(HMaterial material)
+    {
+        if (material->m_RenderHashDirty)
+        {
+            material->m_RenderHash = HashMaterialRenderState(*material->m_RenderState);
+            material->m_RenderHashDirty = 0;
+        }
+        return material->m_RenderHash;
+    }
+
+    uint64_t GetMaterialInstancingHash(HMaterial material)
+    {
+        if (!material->m_InstancingHashDirty)
+        {
+            return material->m_InstancingHash;
+        }
+
+        uint64_t render_hash = GetMaterialRenderHash(material);
+        HashState64 state;
+        dmHashInit64(&state, false);
+        dmHashUpdateBuffer64(&state, &render_hash, sizeof(render_hash));
+
+        // The portable hash deliberately excludes executable identity and backend
+        // bindings. They still must agree before two materials can share a draw.
+        dmHashUpdateBuffer64(&state, &material->m_Program, sizeof(material->m_Program));
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& sampler = material->m_Samplers[i];
+            if (!sampler.m_NameHash || IsMaterialInternalSampler(sampler.m_NameHash))
+                continue;
+            dmHashUpdateBuffer64(&state, &i, sizeof(i));
+            dmHashUpdateBuffer64(&state, &sampler.m_NameHash, sizeof(sampler.m_NameHash));
+            dmHashUpdateBuffer64(&state, &sampler.m_Type, sizeof(sampler.m_Type));
+            dmHashUpdateBuffer64(&state, &sampler.m_UnitValueCount, sizeof(sampler.m_UnitValueCount));
+            // A native caller may bind the same name to more than one slot.
+            // Retain each physical slot's settings, not just its logical name.
+            dmHashUpdateBuffer64(&state, &sampler.m_UWrap, sizeof(sampler.m_UWrap));
+            dmHashUpdateBuffer64(&state, &sampler.m_VWrap, sizeof(sampler.m_VWrap));
+            dmHashUpdateBuffer64(&state, &sampler.m_WWrap, sizeof(sampler.m_WWrap));
+            dmHashUpdateBuffer64(&state, &sampler.m_MinFilter, sizeof(sampler.m_MinFilter));
+            dmHashUpdateBuffer64(&state, &sampler.m_MagFilter, sizeof(sampler.m_MagFilter));
+            dmHashUpdateBuffer64(&state, &sampler.m_MaxAnisotropy, sizeof(sampler.m_MaxAnisotropy));
+        }
+        material->m_InstancingHash = dmHashFinal64(&state);
+        material->m_InstancingHashDirty = 0;
+        return material->m_InstancingHash;
+    }
+
+    uint32_t GetMaterialVersion(HMaterial material)
+    {
+        return material->m_Version;
+    }
+
+    uint32_t GetMaterialAttributeVersion(HMaterial material)
+    {
+        return material->m_AttributeVersion;
     }
 
     void GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata)
@@ -605,7 +645,12 @@ namespace dmRender
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
     {
+        HConstant constant;
+        if (!GetProgramConstant(material->m_Constants, name_hash, constant) || GetConstantType(constant) == type)
+            return;
         SetProgramConstantType(material->m_Constants, name_hash, type);
+        SetMaterialRenderConstantType(material->m_RenderState, name_hash, type);
+        InvalidateMaterial(material);
     }
 
     bool GetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, HConstant& out_value)
@@ -736,6 +781,7 @@ namespace dmRender
             info.m_CoordinateSpace  = graphics_attribute_in.m_CoordinateSpace;
             info.m_StepFunction     = material->m_InstancingSupported ? graphics_attribute_in.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
             info.m_ValueVectorType  = graphics_attribute_in.m_VectorType;
+            SetMaterialRenderAttribute(material->m_RenderState, MakeMaterialRenderAttribute(graphics_attribute_in));
 
             update_attributes = true;
         }
@@ -819,6 +865,8 @@ namespace dmRender
         }
 
         CreateVertexDeclarations(GetGraphicsContext(material->m_RenderContext), material);
+        ++material->m_AttributeVersion;
+        InvalidateMaterial(material);
     }
 
     void GetMaterialProgramVertexAttributeInfos(HMaterial material, const dmGraphics::VertexAttributeInfo** attribute_infos, uint32_t* num_attribute_infos)
@@ -829,7 +877,28 @@ namespace dmRender
 
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
-        SetProgramRenderConstant(material->m_Constants, name_hash, values, count);
+        HConstant constant;
+        if (!GetProgramConstant(material->m_Constants, name_hash, constant))
+        {
+            return;
+        }
+
+        uint32_t num_values;
+        Vector4* current_values = GetConstantValues(constant, &num_values);
+        // Retain logical array values even when a backend optimizes away a tail.
+        bool state_changed = SetMaterialRenderConstantValues(material->m_RenderState, name_hash, (const dmMath::Vector4*)values, count);
+        count = dmMath::Min(count, num_values);
+
+        bool values_changed = count && memcmp(current_values, values, count * sizeof(Vector4)) != 0;
+        if (!values_changed && !state_changed)
+        {
+            return;
+        }
+        if (values_changed)
+        {
+            SetProgramRenderConstant(material->m_Constants, name_hash, values, count);
+        }
+        InvalidateMaterial(material);
     }
 
     bool GetMaterialHasSkinnedAttributes(HMaterial material)
@@ -865,6 +934,81 @@ namespace dmRender
         }
     }
 
+    static bool SamplerSettingsEqual(const Sampler& a, const Sampler& b)
+    {
+        return a.m_UWrap == b.m_UWrap && a.m_VWrap == b.m_VWrap && a.m_WWrap == b.m_WWrap &&
+            a.m_MinFilter == b.m_MinFilter && a.m_MagFilter == b.m_MagFilter && a.m_MaxAnisotropy == b.m_MaxAnisotropy;
+    }
+
+    static void UpdateMaterialSamplerRenderState(HMaterial material, const Sampler& source)
+    {
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& binding = material->m_Samplers[i];
+            if (binding.m_LogicalNameHash == source.m_LogicalNameHash && !SamplerSettingsEqual(binding, source))
+            {
+                // A native caller may change just one physical binding. Such a
+                // state has no authored equivalent; the per-slot instancing hash
+                // keeps it separate until the entire logical group agrees again.
+                return;
+            }
+        }
+        dmRenderDDF::MaterialRenderState::Sampler sampler = {};
+        sampler.m_NameHash = source.m_LogicalNameHash;
+        sampler.m_WrapU = source.m_UWrap;
+        sampler.m_WrapV = source.m_VWrap;
+        sampler.m_WrapW = source.m_WWrap;
+        sampler.m_FilterMin = source.m_MinFilter;
+        sampler.m_FilterMag = source.m_MagFilter;
+        sampler.m_MaxAnisotropy = source.m_MaxAnisotropy;
+        SetMaterialRenderSampler(material->m_RenderState, sampler);
+    }
+
+    static bool SetMaterialSamplerBinding(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy, bool update_render_state)
+    {
+        if (IsMaterialInternalSampler(name_hash) || unit >= material->m_Samplers.Size())
+            return false;
+        const Sampler& current_sampler = material->m_Samplers[unit];
+        if (current_sampler.m_NameHash == name_hash && name_hash != 0 &&
+            current_sampler.m_UWrap == u_wrap && current_sampler.m_VWrap == v_wrap && current_sampler.m_WWrap == w_wrap &&
+            current_sampler.m_MinFilter == min_filter && current_sampler.m_MagFilter == mag_filter &&
+            current_sampler.m_MaxAnisotropy == max_anisotropy)
+        {
+            return true;
+        }
+
+        dmhash_t logical_name_hash = current_sampler.m_NameHash == name_hash ? current_sampler.m_LogicalNameHash : name_hash;
+        // Descriptor order need not match reflection order, especially after
+        // internal samplers have been removed from the ordinary texture slots.
+        if (current_sampler.m_NameHash != name_hash)
+        {
+            bool found = false;
+            uint32_t count = dmGraphics::GetUniformCount(material->m_Program);
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                dmGraphics::Uniform uniform;
+                dmGraphics::GetUniform(material->m_Program, i, &uniform);
+                if (uniform.m_NameHash == name_hash && dmGraphics::IsTypeTextureType(uniform.m_Type) &&
+                    uniform.m_Location != dmGraphics::INVALID_UNIFORM_LOCATION)
+                {
+                    material->m_Samplers[unit].m_Type = dmGraphics::TypeToTextureType(uniform.m_Type);
+                    material->m_Samplers[unit].m_UnitValueCount = uniform.m_Count;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return false;
+        }
+        if (!SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy))
+            return false;
+        material->m_Samplers[unit].m_LogicalNameHash = logical_name_hash;
+        if (update_render_state)
+            UpdateMaterialSamplerRenderState(material, material->m_Samplers[unit]);
+        InvalidateMaterial(material);
+        return true;
+    }
+
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         return SetMaterialSampler(material, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
@@ -872,7 +1016,68 @@ namespace dmRender
 
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy);
+        return SetMaterialSamplerBinding(material, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy, true);
+    }
+
+    void SetMaterialSamplerLogicalName(HMaterial material, uint32_t unit, dmhash_t logical_name_hash)
+    {
+        Sampler& sampler = material->m_Samplers[unit];
+        dmhash_t previous_name_hash = sampler.m_LogicalNameHash;
+        if (previous_name_hash == logical_name_hash)
+            return;
+        sampler.m_LogicalNameHash = logical_name_hash;
+
+        // The physical setter may have seeded a native material before its alias
+        // ownership was known. Remove that provisional entry once nothing owns it.
+        bool previous_name_in_use = false;
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+            previous_name_in_use |= material->m_Samplers[i].m_LogicalNameHash == previous_name_hash;
+        dmArray<dmRenderDDF::MaterialRenderState::Sampler>& state_samplers = material->m_RenderState->m_Samplers;
+        for (uint32_t i = 0; !previous_name_in_use && i < state_samplers.Size(); ++i)
+        {
+            if (state_samplers[i].m_NameHash == previous_name_hash)
+            {
+                // Keep the canonical array in name order.
+                for (uint32_t j = i + 1; j < state_samplers.Size(); ++j)
+                    state_samplers[j - 1] = state_samplers[j];
+                state_samplers.SetSize(state_samplers.Size() - 1);
+                break;
+            }
+        }
+        UpdateMaterialSamplerRenderState(material, sampler);
+        InvalidateMaterial(material);
+    }
+
+    bool SetMaterialSamplerOptions(HMaterial material, dmhash_t name_hash, const SamplerInfo& options)
+    {
+        uint32_t unit = GetMaterialSamplerUnit(material, name_hash);
+        if (unit == INVALID_SAMPLER_UNIT)
+        {
+            return false;
+        }
+
+        dmhash_t logical_name_hash = material->m_Samplers[unit].m_LogicalNameHash;
+        bool changed = false;
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& sampler = material->m_Samplers[i];
+            if (sampler.m_LogicalNameHash == logical_name_hash &&
+                (sampler.m_UWrap != options.m_UWrap || sampler.m_VWrap != options.m_VWrap || sampler.m_WWrap != options.m_WWrap ||
+                 sampler.m_MinFilter != options.m_MinFilter || sampler.m_MagFilter != options.m_MagFilter ||
+                 sampler.m_MaxAnisotropy != options.m_MaxAnisotropy))
+            {
+                SetMaterialSamplerBinding(material, sampler.m_NameHash, i, options.m_UWrap, options.m_VWrap, options.m_WWrap,
+                                          options.m_MinFilter, options.m_MagFilter, options.m_MaxAnisotropy, false);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            UpdateMaterialSamplerRenderState(material, material->m_Samplers[unit]);
+        }
+
+        return true;
     }
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
@@ -906,7 +1111,12 @@ namespace dmRender
 
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
     {
+        if (material->m_VertexSpace == vertex_space)
+            return;
         material->m_VertexSpace = vertex_space;
+        material->m_RenderState->m_VertexSpace = vertex_space;
+        ++material->m_AttributeVersion;
+        InvalidateMaterial(material);
     }
 
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material)
@@ -917,6 +1127,8 @@ namespace dmRender
     void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters)
     {
         material->m_PbrParameters = *parameters;
+        material->m_RenderState->m_PbrParameters = *parameters;
+        InvalidateMaterial(material);
     }
 
     void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
@@ -967,11 +1179,20 @@ namespace dmRender
 
     void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags)
     {
-        material->m_TagListKey = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
+        uint32_t tag_list_key = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
+        if (material->m_TagListKey != tag_list_key)
+        {
+            material->m_TagListKey = tag_list_key;
+            ++material->m_Version;
+        }
     }
 
     void ClearMaterialTags(HMaterial material)
     {
+        if (material->m_TagListKey != 0)
+        {
+            ++material->m_Version;
+        }
         material->m_TagListKey = 0;
     }
 

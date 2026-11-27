@@ -1608,18 +1608,31 @@ namespace dmRender
         }
     }
 
-    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
+    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures, HMaterial material)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (uint32_t i = 0; i < num_bindings; ++i)
         {
             uint32_t sampler_index       = i;
-            dmGraphics::HTexture texture = textures[i];
+            dmGraphics::HTexture texture = i < RenderObject::MAX_TEXTURE_COUNT ? textures[i] : 0;
 
             // If a texture has been bound by a sampler hash, the material must have a valid sampler for it
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
             {
                 int32_t hash_sampler_index = GetProgramSamplerIndex(samplers, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (material && IsMaterialInternalSampler(render_context->m_TextureBindTable[i].m_Samplerhash))
+                {
+                    uint32_t slot = GetMaterialInternalTextureSlot(material, render_context->m_TextureBindTable[i].m_Samplerhash);
+                    hash_sampler_index = slot == INVALID_SAMPLER_UNIT ? -1 : (int32_t)slot;
+                }
+                else if (material && hash_sampler_index >= (int32_t)GetMaterialUserTextureCount(material))
+                {
+                    // Array aliases can address physical units beyond ordinary
+                    // texture storage, but must not overwrite internal entries.
+                    dmLogOnceWarning("Unable to bind texture to sampler '%s': no ordinary texture slot is available.",
+                        dmHashReverseSafe64(render_context->m_TextureBindTable[i].m_Samplerhash));
+                    continue;
+                }
                 if (hash_sampler_index >= 0)
                 {
                     sampler_index = hash_sampler_index;
@@ -1771,6 +1784,17 @@ namespace dmRender
             }
         }
 
+        // Render scripts can change material state after component update or
+        // between passes. Refresh keys and tags before selecting and sorting items.
+        for (uint32_t i = 0; i < context->m_SubmittedRenderItemDispatches.Size(); ++i)
+        {
+            RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[context->m_SubmittedRenderItemDispatches[i]];
+            if (dispatch.m_PrepareFn)
+            {
+                dispatch.m_PrepareFn(dispatch.m_Dispatch.m_UserData);
+            }
+        }
+
         bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
         PrepareRenderListDraw(context, predicate, frustum_matrix, frustum_num_planes, sort_order, dispatch_used);
 
@@ -1892,7 +1916,7 @@ namespace dmRender
             ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
         }
 
-        GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
+        GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures, 0);
 
         uint8_t next_texture_unit = 0;
         for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -1959,7 +1983,7 @@ namespace dmRender
         if (context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
-            GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures);
+            GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures, context_material);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -1991,7 +2015,7 @@ namespace dmRender
                     // Reset the override texture binding array. The new material may have a different
                     // resource layout than the current material.
                     memset(render_context_textures, 0, sizeof(render_context_textures));
-                    GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures);
+                    GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures, material);
                 }
             }
 
@@ -2001,6 +2025,27 @@ namespace dmRender
             }
 
             ApplyMaterialConstants(render_context, material, ro);
+
+            // Internal samplers have no array-emulation aliases. Ordinary
+            // textures can still expand to several physical texture units.
+            uint32_t user_texture_count = GetMaterialUserTextureCount(material);
+            bool valid_textures = true;
+            for (uint32_t j = user_texture_count; j < RenderObject::MAX_TEXTURE_COUNT; ++j)
+            {
+                dmGraphics::HTexture texture = render_context_textures[j] ? render_context_textures[j] : ro->m_Textures[j];
+                if (texture)
+                {
+                    uint32_t handle_count = dmGraphics::GetNumTextureHandles(context, texture);
+                    if (handle_count != 1)
+                    {
+                        dmLogOnceError("Internal model textures require a single GPU texture handle; texture-array emulation is not supported.");
+                        valid_textures = false;
+                        break;
+                    }
+                }
+            }
+            if (!valid_textures)
+                continue;
 
             if (ro->m_ConstantBuffer) // from components/scripts
             {
@@ -2015,6 +2060,8 @@ namespace dmRender
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
             uint8_t next_texture_unit = 0;
+            const uint32_t pose_slot = GetMaterialInternalTextureSlot(material, SAMPLER_POSE_MATRIX_CACHE);
+            const uint32_t morph_slot = GetMaterialInternalTextureSlot(material, SAMPLER_MORPH_TARGETS);
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
@@ -2026,12 +2073,33 @@ namespace dmRender
                 if (texture)
                 {
                     // A named scene texture may follow missing material maps.
-                    // Do not shift it into an earlier sampler's slot.
-                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
+                    // Preserve ordinary slots, but keep internal textures dense.
+                    if (i < user_texture_count)
+                    {
+                        next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
+                    }
                     uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
+                        Sampler draw_sampler;
+                        if (i == pose_slot || i == morph_slot)
+                        {
+                            // Storage positions follow the effective material, but
+                            // physical units remain dense when an internal texture
+                            // is absent. Never modify the shared material samplers.
+                            draw_sampler.m_NameHash = i == pose_slot ? SAMPLER_POSE_MATRIX_CACHE : SAMPLER_MORPH_TARGETS;
+                            draw_sampler.m_Location = GetMaterialConstantLocation(material, draw_sampler.m_NameHash);
+                            draw_sampler.m_Type = dmGraphics::GetTextureType(context, texture);
+                            draw_sampler.m_UWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+                            draw_sampler.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+                            draw_sampler.m_WWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+                            draw_sampler.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                            draw_sampler.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                            draw_sampler.m_MaxAnisotropy = 0.0f;
+                            draw_sampler.m_UnitValueCount = 1;
+                            sampler = &draw_sampler;
+                        }
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
                         ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
 
@@ -2093,7 +2161,10 @@ namespace dmRender
 
                 if (texture)
                 {
-                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
+                    if (i < user_texture_count)
+                    {
+                        next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
+                    }
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);

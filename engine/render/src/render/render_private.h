@@ -46,6 +46,8 @@ namespace dmRender
     struct Sampler
     {
         dmhash_t                     m_NameHash;
+        // Array fallback bindings share the authored sampler's logical name.
+        dmhash_t                     m_LogicalNameHash;
         dmGraphics::TextureType      m_Type;
         dmGraphics::TextureFilter    m_MinFilter;
         dmGraphics::TextureFilter    m_MagFilter;
@@ -58,6 +60,7 @@ namespace dmRender
 
         Sampler()
             : m_NameHash(0)
+            , m_LogicalNameHash(0)
             , m_Type(dmGraphics::TEXTURE_TYPE_2D)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
@@ -79,6 +82,8 @@ namespace dmRender
         uint16_t m_ValueCount;
     };
 
+    struct MaterialRenderState;
+
     struct MaterialUniformBufferBinding
     {
         dmGraphics::UniformBufferLayout m_Layout;
@@ -94,6 +99,10 @@ namespace dmRender
         {
             memset(this, 0, sizeof(*this));
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
+            m_Version = 1;
+            m_AttributeVersion = 1;
+            m_RenderHashDirty = 1;
+            m_InstancingHashDirty = 1;
         }
 
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
@@ -106,12 +115,17 @@ namespace dmRender
         dmArray<Sampler>                            m_Samplers;
         dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
+        MaterialRenderState*                        m_RenderState;
+        uint64_t                                    m_RenderHash;
+        uint64_t                                    m_InstancingHash;
         uint64_t                                    m_UniformBufferProgramVersion;
         dmRender::HRenderContext                    m_RenderContext;
         dmGraphics::HProgram                        m_Program;
         dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
         dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
         dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
+        uint32_t                                    m_Version;
+        uint32_t                                    m_AttributeVersion;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
@@ -123,6 +137,8 @@ namespace dmRender
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
         uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
+        uint8_t                                     m_RenderHashDirty : 1;
+        uint8_t                                     m_InstancingHashDirty : 1;
     };
 
     struct ComputeProgram
@@ -327,6 +343,9 @@ namespace dmRender
         // Callback metadata copied into the frame's RenderListDispatch table on submission.
         // Owns neither the callbacks nor their user data.
         RenderListDispatch m_Dispatch;
+
+        // Optional refresh of live item state before each draw is filtered and sorted.
+        RenderListPrepareFn m_PrepareFn;
 
         // Current enabled slots, densely packed and unsorted. Enable appends; disable
         // swaps out the slot using PersistentRenderItem::m_EnabledIndex for constant-time removal.
