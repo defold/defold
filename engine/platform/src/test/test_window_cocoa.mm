@@ -712,17 +712,23 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
         [view scrollWheel:pointer];
         [view scrollWheel:pointer];
         ASSERT_EQ(2, dmPlatform::GetMouseWheel(window));
-        NSPoint savedCursor = [NSEvent mouseLocation];
         dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
-        NSPoint centeredCursor = [NSEvent mouseLocation];
-        pointer.movement = NSMakePoint(7 + centeredCursor.x - savedCursor.x, -5 + savedCursor.y - centeredCursor.y);
         ASSERT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR_LOCK));
+        // Model the warp included in the first relative event independently of the physical mouse.
+        window->m_VirtualCursor = NSMakePoint(20, 20);
+        window->m_WarpDelta = NSMakePoint(13, -8);
+        pointer.movement = NSMakePoint(20, -13);
         int32_t x0, y0, x1, y1;
         dmPlatform::GetMousePosition(window, &x0, &y0);
         [view mouseMoved:pointer];
         dmPlatform::GetMousePosition(window, &x1, &y1);
         ASSERT_EQ((int)(7 * native.backingScaleFactor), x1 - x0);
         ASSERT_EQ((int)(-5 * native.backingScaleFactor), y1 - y0);
+        pointer.movement = NSMakePoint(3, 2);
+        [view mouseMoved:pointer];
+        dmPlatform::GetMousePosition(window, &x1, &y1);
+        ASSERT_EQ((int)(10 * native.backingScaleFactor), x1 - x0);
+        ASSERT_EQ((int)(-3 * native.backingScaleFactor), y1 - y0);
         [view setMarkedText:@"x" selectedRange:NSMakeRange(0, 1) replacementRange:empty];
         [native orderOut:nil];
         ASSERT_TRUE(WaitFor(&events.m_Focus, 0));
