@@ -1286,8 +1286,14 @@ namespace dmPlatform
                 XWindowAttributes attrs;
                 if (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.width == width && attrs.height == height)
                 {
+                    const Window xid = w->m_Xid;
                     const uint32_t count = w->m_ResizeCallbackCount;
                     LinuxUpdateSize(w, width, height, w->m_Scale);
+                    if (w->m_DeletePending || w->m_Xid != xid)
+                    {
+                        return;
+                    }
+
                     // A pending move must settle before clamping the final client position.
                     w->m_X11->m_ClampAfterResize = true;
                     if (!w->m_X11->m_ConfigureSerial)

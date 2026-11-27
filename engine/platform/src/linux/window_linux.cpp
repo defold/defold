@@ -338,7 +338,10 @@ namespace dmPlatform
         WindowPlacementSizeRequested(w);
         if (w->m_X11 && w->m_Shown)
         {
+            // A synchronous size acknowledgement can delete the window from its callback.
+            ++w->m_DispatchDepth;
             X11RequestWindowSize(w, width, height);
+            EndWindowDispatch(w);
             return;
         }
 

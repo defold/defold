@@ -222,6 +222,7 @@ static HWindow NewX11TestWindow()
 struct X11ResizeEvents
 {
     uint32_t m_Count, m_Width, m_Height;
+    HWindow* m_DeleteOnResize;
 };
 
 static void OnX11Resize(void* data, uint32_t width, uint32_t height)
@@ -230,6 +231,11 @@ static void OnX11Resize(void* data, uint32_t width, uint32_t height)
     ++events->m_Count;
     events->m_Width = width;
     events->m_Height = height;
+    if (events->m_DeleteOnResize)
+    {
+        dmPlatform::DeleteWindow(*events->m_DeleteOnResize);
+        *events->m_DeleteOnResize = 0;
+    }
 }
 
 // Polling the main X11 connection must also dispatch external resizes on a secondary window's connection.
@@ -366,7 +372,16 @@ TEST(LinuxWindow, X11ConstrainedResize)
     EXPECT_EQ(7u, events.m_Count);
     XSync(w->m_Display, False);
     EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
-    dmPlatform::DeleteWindow(w);
+
+    // Deleting from a synchronous acknowledgement releases the display once SetWindowSize returns.
+    const int fd = ConnectionNumber(w->m_Display);
+    events.m_DeleteOnResize = &w;
+    XResizeWindow(manager, w->m_Xid, 470, 310);
+    XSync(manager, False);
+    dmPlatform::SetWindowSize(w, 470, 310);
+    EXPECT_EQ(8u, events.m_Count);
+    EXPECT_EQ((HWindow)0, w);
+    EXPECT_EQ(-1, fcntl(fd, F_GETFD));
     XDestroyWindow(manager, parent);
     XCloseDisplay(manager);
 }
