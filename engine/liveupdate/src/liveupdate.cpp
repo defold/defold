@@ -43,6 +43,7 @@ namespace dmLiveUpdate
             case dmResource::RESULT_NOT_SUPPORTED:      return RESULT_SCHEME_MISMATCH;
             case dmResource::RESULT_INVALID_DATA:       return RESULT_BUNDLED_RESOURCE_MISMATCH;
             case dmResource::RESULT_DDF_ERROR:          return RESULT_FORMAT_ERROR;
+            case dmResource::RESULT_INVAL:              return RESULT_INVAL;
             default: break;
         }
         return RESULT_INVALID_RESOURCE;
@@ -137,6 +138,13 @@ namespace dmLiveUpdate
     // Called on the worker thread
     static int AddMountProcess(HJobContext context, HJob hjob, LiveUpdateCtx* jobctx, AddMountInfo* job)
     {
+        dmResourceMounts::SGetMountResult existing;
+        if (dmResource::RESULT_OK == dmResourceMounts::GetMountByNameHash(jobctx->m_ResourceMounts, job->m_NameHash, &existing))
+        {
+            dmLogError("Failed to add mount for '%s': the name '%s' is already in use", job->m_Uri, dmHashReverseSafe64(job->m_NameHash));
+            return RESULT_INVAL;
+        }
+
         dmURI::Parts uri;
         dmURI::Parse(job->m_Uri, &uri);
 
@@ -161,6 +169,8 @@ namespace dmLiveUpdate
             if (dmResource::RESULT_OK != result)
             {
                 dmLogError("Failed to add mount for '%s': %s", job->m_Uri, dmResource::ResultToString(result));
+                dmResourceProvider::Unmount(archive);
+                return ResourceResultToLiveupdateResult(result);
             }
         }
 
