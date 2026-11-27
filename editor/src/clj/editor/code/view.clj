@@ -2073,7 +2073,7 @@
 
 (defn- request-signature-help! [view-node]
   (let [resource (g/node-value (get-property view-node :resource-node) :resource)
-        cursor (data/cursor-range-start (first (get-property view-node :cursor-ranges)))
+        cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
         request [(get-property view-node :lines) cursor]]
     (g/user-data! view-node :signature-help-request request)
     (lsp/signature-help!
@@ -2082,7 +2082,7 @@
         (ui/run-later
           (when (and (identical? request (g/user-data view-node :signature-help-request))
                      (= request [(get-property view-node :lines)
-                                 (data/cursor-range-start (first (get-property view-node :cursor-ranges)))]))
+                                 (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]))
             (let [shown (get-property view-node :signature-help)
 
                   keep-selection
@@ -4380,7 +4380,7 @@
               (identical? canvas (some-> canvas .getScene ui/focus-owner)))
 
             cursor
-            (data/cursor-range-start (first (get-property view-node :cursor-ranges)))
+            (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
 
             font-size (get-property view-node :font-size)
             docs (get-property view-node :signature-help-docs)
