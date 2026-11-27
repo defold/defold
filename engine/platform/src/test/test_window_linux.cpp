@@ -305,7 +305,7 @@ TEST(LinuxWindow, X11PollSecondaryWindow)
     dmPlatform::DeleteWindow(main);
 }
 
-// An applied X11 resize is visible to drawable and client size queries before the next event poll.
+// An applied X11 resize updates size queries and preserves pointer coordinates before the next event poll.
 TEST(LinuxWindow, X11AppliedResizeBeforePoll)
 {
     HWindow w = NewX11TestWindow();
@@ -328,6 +328,7 @@ TEST(LinuxWindow, X11AppliedResizeBeforePoll)
     XSync(w->m_Display, False);
     dmPlatform::PollEvents(w);
     events.m_Count = 0;
+    XWarpPointer(w->m_Display, None, w->m_Xid, 0, 0, 0, 0, 200, 100);
 
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -339,6 +340,10 @@ TEST(LinuxWindow, X11AppliedResizeBeforePoll)
         ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &client_width, &client_height));
         EXPECT_EQ(width, client_width);
         EXPECT_EQ(height, client_height);
+        int32_t x, y;
+        dmPlatform::GetMousePosition(w, &x, &y);
+        EXPECT_EQ(200, x);
+        EXPECT_EQ(100, y);
     }
 
     XSync(w->m_Display, False);
