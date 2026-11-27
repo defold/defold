@@ -681,6 +681,59 @@ TEST(LinuxWindow, X11FullscreenHints)
     dmPlatform::DeleteWindow(w);
 }
 
+// Window managers and task switchers must be able to decode both the initial and updated X11 titles.
+TEST(LinuxWindow, X11WindowAndIconTitles)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_Title = "Étoiles 星";
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    const char* titles[] = { p.m_Title, "Café", "" };
+    const char* names[] = { "WM_NAME", "WM_ICON_NAME", "_NET_WM_NAME", "_NET_WM_ICON_NAME" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(titles); ++i)
+    {
+        if (i)
+        {
+            dmPlatform::SetWindowTitle(w, titles[i]);
+        }
+
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(names); ++j)
+        {
+            XTextProperty property = {};
+            ASSERT_TRUE(XGetTextProperty(w->m_Display, w->m_Xid, &property, XInternAtom(w->m_Display, names[j], False)));
+            if (j >= 2)
+            {
+                EXPECT_EQ(XInternAtom(w->m_Display, "UTF8_STRING", False), property.encoding);
+            }
+
+            if (*titles[i])
+            {
+                char** strings;
+                int count;
+                ASSERT_EQ(Success, Xutf8TextPropertyToTextList(w->m_Display, &property, &strings, &count));
+                ASSERT_EQ(1, count);
+                EXPECT_STREQ(titles[i], strings[0]);
+                XFreeStringList(strings);
+            }
+            else
+            {
+                EXPECT_EQ(0ul, property.nitems);
+            }
+
+            XFree(property.value);
+        }
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // Window managers match game launchers by the initial title and the optional X resource instance.
 TEST(LinuxWindow, X11WindowClass)
 {

@@ -537,9 +537,20 @@ namespace dmPlatform
             title = "";
         }
 
-        XStoreName(w->m_Display, w->m_Xid, title);
-        XChangeProperty(w->m_Display, w->m_Xid, AtomFor(w, "_NET_WM_NAME"), w->m_X11->m_Utf8, 8,
-                        PropModeReplace, (const unsigned char*)title, strlen(title));
+        XTextProperty utf8 = { (unsigned char*)title, w->m_X11->m_Utf8, 8, strlen(title) };
+        XTextProperty legacy = {};
+        char* text = (char*)title;
+        int result = Xutf8TextListToTextProperty(w->m_Display, &text, 1, XStdICCTextStyle, &legacy);
+        XTextProperty* name = result == Success ? &legacy : &utf8;
+        XSetWMName(w->m_Display, w->m_Xid, name);
+        XSetWMIconName(w->m_Display, w->m_Xid, name);
+        if (legacy.value)
+        {
+            XFree(legacy.value);
+        }
+
+        XSetTextProperty(w->m_Display, w->m_Xid, &utf8, AtomFor(w, "_NET_WM_NAME"));
+        XSetTextProperty(w->m_Display, w->m_Xid, &utf8, AtomFor(w, "_NET_WM_ICON_NAME"));
         XFlush(w->m_Display);
     }
 
