@@ -60,6 +60,7 @@ struct LinuxX11
     bool          m_RequestIsSize, m_ClampAfterResize;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
+    Window        m_ClipboardWindow;
     Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
     Atom          m_WorkArea, m_CurrentDesktop;
     dmArray<char> m_Text;
@@ -665,10 +666,10 @@ namespace dmPlatform
         LinuxX11* x = w->m_X11;
         if (e->type == SelectionRequest)
         {
-            return e->xselectionrequest.owner == w->m_Xid && e->xselectionrequest.selection == x->m_Clipboard;
+            return e->xselectionrequest.owner == x->m_ClipboardWindow && e->xselectionrequest.selection == x->m_Clipboard;
         }
 
-        return e->type == SelectionNotify && e->xselection.requestor == w->m_Xid &&
+        return e->type == SelectionNotify && e->xselection.requestor == x->m_ClipboardWindow &&
                e->xselection.selection == x->m_ClipboardManager && e->xselection.target == x->m_SaveTargets;
     }
 
@@ -676,14 +677,14 @@ namespace dmPlatform
     {
         Display* d = w->m_Display;
         LinuxX11* x = w->m_X11;
-        if (XGetSelectionOwner(d, x->m_Clipboard) != w->m_Xid || !XGetSelectionOwner(d, x->m_ClipboardManager))
+        if (XGetSelectionOwner(d, x->m_Clipboard) != x->m_ClipboardWindow || !XGetSelectionOwner(d, x->m_ClipboardManager))
         {
             return;
         }
 
         Atom formats[] = { x->m_Utf8, XA_STRING };
-        XChangeProperty(d, w->m_Xid, x->m_SaveTargets, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 2);
-        XConvertSelection(d, x->m_ClipboardManager, x->m_SaveTargets, x->m_SaveTargets, w->m_Xid, CurrentTime);
+        XChangeProperty(d, x->m_ClipboardWindow, x->m_SaveTargets, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 2);
+        XConvertSelection(d, x->m_ClipboardManager, x->m_SaveTargets, x->m_SaveTargets, x->m_ClipboardWindow, CurrentTime);
         XFlush(d);
         // A desktop clipboard manager reads the formats before acknowledging SAVE_TARGETS.
         const uint64_t deadline = dmTime::GetMonotonicTime() + 1000000;
@@ -710,13 +711,20 @@ namespace dmPlatform
 
     static void Clipboard(HWindow w, const char* text, unsigned length)
     {
-        w->m_X11->m_Text.EnsureSize(length);
-        if (length)
+        LinuxX11* x = w->m_X11;
+        if (!x->m_ClipboardWindow)
         {
-            memcpy(w->m_X11->m_Text.Begin(), text, length);
+            // Selection requests must still have an owner after the game window closes.
+            x->m_ClipboardWindow = XCreateSimpleWindow(w->m_Display, Root(w), 0, 0, 1, 1, 0, 0, 0);
         }
 
-        XSetSelectionOwner(w->m_Display, w->m_X11->m_Clipboard, w->m_Xid, CurrentTime);
+        x->m_Text.EnsureSize(length);
+        if (length)
+        {
+            memcpy(x->m_Text.Begin(), text, length);
+        }
+
+        XSetSelectionOwner(w->m_Display, x->m_Clipboard, x->m_ClipboardWindow, CurrentTime);
         XFlush(w->m_Display);
     }
 
@@ -860,6 +868,21 @@ namespace dmPlatform
                 check_layout = true;
             }
 
+            if (x->m_ClipboardWindow && e.xany.window == x->m_ClipboardWindow)
+            {
+                if (e.type == SelectionRequest && e.xselectionrequest.selection == x->m_Clipboard)
+                {
+                    Selection(w, e.xselectionrequest);
+                }
+                else if (e.type == SelectionClear && e.xselectionclear.selection == x->m_Clipboard &&
+                         XGetSelectionOwner(d, x->m_Clipboard) != x->m_ClipboardWindow)
+                {
+                    x->m_Text.SetSize(0);
+                }
+
+                continue;
+            }
+
             if (!w->m_Xid || e.xany.window != w->m_Xid)
             {
                 continue;
@@ -974,16 +997,6 @@ namespace dmPlatform
                         LinuxIconify(w, hidden || (state.Size() && state[0] == IconicState));
                     }
 
-                    break;
-                }
-                case SelectionRequest:
-                {
-                    Selection(w, e.xselectionrequest);
-                    break;
-                }
-                case SelectionClear:
-                {
-                    x->m_Text.SetSize(0);
                     break;
                 }
                 case ClientMessage:
@@ -1191,7 +1204,6 @@ namespace dmPlatform
 
         if (w->m_Xid)
         {
-            SaveClipboard(w);
             XDestroyWindow(w->m_Display, w->m_Xid);
             w->m_Xid = 0;
         }
@@ -1202,7 +1214,6 @@ namespace dmPlatform
             x->m_ColorMap = 0;
         }
 
-        x->m_Text.SetSize(0);
         x->m_ResizeRequests.Clear();
         x->m_ConfigureSerial = 0;
         x->m_ClampAfterResize = false;
@@ -1343,6 +1354,12 @@ namespace dmPlatform
     static void Disconnect(HWindow w)
     {
         LinuxX11* x = w->m_X11;
+        if (x->m_ClipboardWindow)
+        {
+            SaveClipboard(w);
+            XDestroyWindow(w->m_Display, x->m_ClipboardWindow);
+        }
+
         XFreeCursor(w->m_Display, x->m_Blank);
         XFreeCursor(w->m_Display, x->m_Arrow);
         XFreeCursor(w->m_Display, x->m_Hand);

@@ -627,7 +627,58 @@ static void* SaveClipboardSelection(void* data)
     return data;
 }
 
-// Closing the game transfers the full clipboard to the manager, including text larger than a core X11 request.
+// A separate X11 client can paste while the game window is closed and after it reopens without a clipboard manager.
+TEST(LinuxWindow, X11ClipboardSurvivesCloseAndReopen)
+{
+    if (!getenv("DM_TEST_X11_REMAP_KEYS"))
+    {
+        SKIP();
+    }
+
+    HWindow w = NewX11TestWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+    Display* client = XOpenDisplay(0);
+    ASSERT_NE((Display*)0, client);
+    ASSERT_EQ((Window)None, XGetSelectionOwner(client, XInternAtom(client, "CLIPBOARD_MANAGER", False)));
+    Window requestor = XCreateSimpleWindow(client, DefaultRootWindow(client), 0, 0, 1, 1, 0, 0, 0);
+    Atom clipboard = XInternAtom(client, "CLIPBOARD", False);
+    Atom utf8 = XInternAtom(client, "UTF8_STRING", False);
+    const char text[] = "Defold clipboard";
+    dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
+    WindowClose(w);
+
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        if (reopen)
+        {
+            ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+        }
+
+        XConvertSelection(client, clipboard, utf8, utf8, requestor, CurrentTime);
+        XSync(client, False);
+        WindowPollEvents(w);
+        XEvent reply;
+        ASSERT_TRUE(WaitForSelectionEvent(client, SelectionNotify, &reply));
+        ASSERT_EQ(utf8, reply.xselection.property);
+        Atom type;
+        int format;
+        unsigned long size, left;
+        unsigned char* bytes = 0;
+        ASSERT_EQ(Success, XGetWindowProperty(client, requestor, utf8, 0, sizeof(text), True, utf8, &type, &format, &size, &left, &bytes));
+        EXPECT_TRUE(type == utf8 && format == 8 && size == sizeof(text) - 1 && !left && !memcmp(bytes, text, size));
+        XFree(bytes);
+    }
+
+    WindowDelete(w);
+    EXPECT_EQ((Window)None, XGetSelectionOwner(client, clipboard));
+    XCloseDisplay(client);
+}
+
+// Disconnecting transfers the full clipboard to the manager, including text larger than a core X11 request.
 TEST(LinuxWindow, X11ClipboardManagerKeepsText)
 {
     // Only claim the manager selection on the harness's private X server.
@@ -2353,7 +2404,7 @@ static int InputTest()
             dmPlatform::SetLinuxLinkCursor(w, true);
             // The paste client opens a separate connection as soon as it sees COPIED.
             bool owned = w->m_WlDisplay ? g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) >= 0 :
-                         XGetSelectionOwner(w->m_Display, XInternAtom(w->m_Display, "CLIPBOARD", False)) == w->m_Xid;
+                         XGetSelectionOwner(w->m_Display, XInternAtom(w->m_Display, "CLIPBOARD", False)) != None;
             if (!owned)
             {
                 dmPlatform::DeleteWindow(w);
