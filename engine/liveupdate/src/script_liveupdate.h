@@ -100,6 +100,7 @@ namespace dmLiveUpdate
  * @note Mounts are active for the current session only
  * @note Names cannot be '_base' or '_builtin'
  * @note Priority must be >= 0
+ * @note If a mount with the same name already exists, the existing mount is kept and the callback receives `liveupdate.LIVEUPDATE_INVAL`. Use liveupdate.remove_mount first to replace a mount.
  *
  * @name liveupdate.add_mount
  * @param name [type:string|hash] Unique name of the mount
