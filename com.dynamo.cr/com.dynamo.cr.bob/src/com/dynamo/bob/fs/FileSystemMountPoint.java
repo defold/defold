@@ -54,6 +54,11 @@ public class FileSystemMountPoint implements IMountPoint {
         fileSystem.walk(path, walker, results);
     }
 
+    @Override
+    public void list(String path, IFileSystem.IWalker walker, Collection<String> results) {
+        fileSystem.list(path, walker, results);
+    }
+
     public static class MountedFileSystemResource implements IResource {
 
         private final IFileSystem rootFileSystem;

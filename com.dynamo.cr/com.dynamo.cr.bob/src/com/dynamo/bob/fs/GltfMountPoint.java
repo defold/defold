@@ -18,16 +18,14 @@ import com.dynamo.bob.fs.IFileSystem.IWalker;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 /**
  * Mount point that projects materials, images, and meshes from glTF files into Bob's
@@ -36,7 +34,6 @@ import java.util.TreeSet;
 public class GltfMountPoint implements IMountPoint {
 
     private final IFileSystem fileSystem;
-    private final SortedSet<String> containerPaths = new TreeSet<String>();
     private final Map<String, GltfContainer> containers = new HashMap<String, GltfContainer>();
     private final Map<String, String> errors = new HashMap<String, String>();
     private final Set<String> loadingContainers = new HashSet<String>();
@@ -101,13 +98,11 @@ public class GltfMountPoint implements IMountPoint {
 
             IResource sourceResource = fileSystem.get(normalizedPath);
             if (sourceResource == null || !sourceResource.exists() || !sourceResource.isFile()) {
-                containerPaths.remove(normalizedPath);
                 throw new IOException(String.format("glTF source does not exist: '%s'", normalizedPath));
             }
 
             container = GltfContainer.load(fileSystem, sourceResource);
             containers.put(normalizedPath, container);
-            containerPaths.add(normalizedPath);
             errors.remove(normalizedPath);
             return container;
         } finally {
@@ -121,23 +116,12 @@ public class GltfMountPoint implements IMountPoint {
 
     @Override
     public synchronized void mount() {
-        if (mounted) {
-            return;
-        }
-
-        containerPaths.clear();
-        containers.clear();
-        errors.clear();
-        loadingContainers.clear();
-
-        refreshContainerPaths();
         mounted = true;
     }
 
     @Override
     public synchronized void unmount() {
         mounted = false;
-        containerPaths.clear();
         containers.clear();
         errors.clear();
         loadingContainers.clear();
@@ -145,20 +129,17 @@ public class GltfMountPoint implements IMountPoint {
 
     @Override
     public void walk(String path, IWalker walker, Collection<String> results) {
-        List<String> paths;
-        synchronized (this) {
-            if (!mounted || discovering) {
-                return;
-            }
-            refreshContainerPaths();
-            paths = new ArrayList<String>(containerPaths);
-        }
+        walk(normalizeWalkPath(path), walker, results, true);
+    }
 
-        String normalizedWalkPath = normalizeWalkPath(path);
-        for (String containerPath : paths) {
-            if (!intersects(containerPath, normalizedWalkPath)) {
-                continue;
-            }
+    @Override
+    public void list(String path, IWalker walker, Collection<String> results) {
+        String directory = normalizeWalkPath(path);
+        walk(directory, FileSystemWalker.childrenOf(directory, walker), results, false);
+    }
+
+    private void walk(String normalizedWalkPath, IWalker walker, Collection<String> results, boolean recursive) {
+        for (String containerPath : findContainerPaths(normalizedWalkPath, recursive)) {
             if (containerPath.equals(normalizedWalkPath) && !walker.handleDirectory(containerPath, results)) {
                 continue;
             }
@@ -179,36 +160,63 @@ public class GltfMountPoint implements IMountPoint {
         }
     }
 
-    private void refreshContainerPaths() {
-        if (discovering) {
-            return;
+    private static String containerSearchPath(String path) {
+        for (int end = path.length(); end > 0; end = path.lastIndexOf('/', end - 1)) {
+            String prefix = path.substring(0, end);
+            if (isGltfPath(prefix)) {
+                return prefix;
+            }
         }
+        return path;
+    }
 
+    private synchronized Set<String> findContainerPaths(String walkPath, boolean recursive) {
+        if (!mounted || discovering || isBuildPath(walkPath)) {
+            return Set.of();
+        }
+        // For a virtual child, start at the model file. Other mounts can also supply concrete files below it.
+        String searchPath = containerSearchPath(walkPath);
+        // Only paths at or inside a model can have immediate virtual children.
+        if (!recursive && !isGltfPath(searchPath)) {
+            return Set.of();
+        }
+        Predicate<String> inScope = path -> path.equals(searchPath) || (recursive && isWithin(path, walkPath));
+        Set<String> paths = new TreeSet<>();
         discovering = true;
-        final SortedSet<String> discoveredPaths = new TreeSet<String>();
         try {
-            fileSystem.walk("", new FileSystemWalker() {
+            fileSystem.walk(searchPath, new FileSystemWalker() {
+                @Override
+                public boolean isCaseSensitive() {
+                    return true;
+                }
+
+                @Override
+                public boolean handleDirectory(String path, Collection<String> results) {
+                    String directory = normalizeWalkPath(path);
+                    return recursive && !isBuildPath(directory) && intersects(directory, walkPath);
+                }
+
                 @Override
                 public void handleFile(String path, Collection<String> results) {
                     String normalizedPath = normalizePath(path);
-                    if (!isGltfPath(normalizedPath) || isBuildPath(normalizedPath)) {
+                    if (!isGltfPath(normalizedPath) || !inScope.test(normalizedPath) || isBuildPath(normalizedPath)) {
                         return;
                     }
 
                     IResource resource = fileSystem.get(normalizedPath);
                     if (resource != null && resource.exists() && resource.isFile()) {
-                        discoveredPaths.add(normalizedPath);
+                        results.add(normalizedPath);
                     }
                 }
-            }, new ArrayList<String>());
+            }, paths);
         } finally {
             discovering = false;
         }
 
-        containerPaths.clear();
-        containerPaths.addAll(discoveredPaths);
-        containers.keySet().retainAll(discoveredPaths);
-        errors.keySet().retainAll(discoveredPaths);
+        Predicate<String> removed = path -> inScope.test(path) && !paths.contains(path);
+        containers.keySet().removeIf(removed);
+        errors.keySet().removeIf(removed);
+        return paths;
     }
 
     private boolean isBuildPath(String path) {

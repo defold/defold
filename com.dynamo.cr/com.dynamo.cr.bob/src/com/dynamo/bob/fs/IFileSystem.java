@@ -28,6 +28,11 @@ public interface IFileSystem {
      * Used to traverse the file system and any attached mount points.
      */
     public interface IWalker {
+        /** True to enforce case-sensitive lookup of the starting path. Otherwise the filesystem's case rules apply. */
+        default boolean isCaseSensitive() {
+            return false;
+        }
+
         /**
          * Inspect the directory described by the path.
          * @param path relative path of the directory
@@ -113,4 +118,9 @@ public interface IFileSystem {
      * @param results collection to write the results to
      */
     public void walk(String path, IWalker walker, Collection<String> results);
+
+    /** Visit the immediate files and directories under a path. */
+    default void list(String path, IWalker walker, Collection<String> results) {
+        walk(path, FileSystemWalker.childrenOf(path, walker), results);
+    }
 }

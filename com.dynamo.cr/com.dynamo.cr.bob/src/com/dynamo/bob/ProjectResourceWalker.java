@@ -100,14 +100,17 @@ class ProjectResourceWalker {
         // Make sure the path has Unix separators, since this is how
         // paths are specified game project relative internally.
         final String normalizedPath = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(path));
-        walkResources(normalizedPath, new FileSystemWalker() {
+        Predicate<String> ignored = makeIgnoredResourcePathPredicate();
+        if (isIgnoredResourcePath(ignored, normalizedPath)) {
+            return;
+        }
+        fileSystem.list(normalizedPath, new FileSystemWalker() {
             @Override
             public boolean handleDirectory(String dir, Collection<String> results) {
-                if (normalizedPath.equals(dir)) {
-                    return true;
+                if (!isIgnoredResourcePath(ignored, dir)) {
+                    results.add(FilenameUtils.getName(dir));
                 }
-                results.add(FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(dir)));
-                return false; // skip recursion
+                return false;
             }
 
             @Override

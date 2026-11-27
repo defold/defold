@@ -15,7 +15,6 @@
 package com.dynamo.bob.test.util;
 
 import com.dynamo.bob.fs.AbstractFileSystem;
-import com.dynamo.bob.fs.IMountPoint;
 import com.dynamo.bob.fs.IResource;
 import org.apache.commons.io.FilenameUtils;
 
@@ -102,7 +101,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
     }
 
     @Override
-    public void walk(String path, IWalker walker, Collection<String> results) {
+    protected void walkLocal(String path, IWalker walker, Collection<String> results) {
 
         List<String> paths = getResourcePaths();
         ListIterator<String> it = paths.listIterator(0);
@@ -129,9 +128,11 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
                 }
             }
         }
-        for (IMountPoint mountPoint : this.mountPoints) {
-            mountPoint.walk(path, walker, results);
-        }
+    }
+
+    @Override
+    public void list(String path, IWalker walker, Collection<String> results) {
+        listLocalAndMounts(path, walker, results);
     }
 
 }

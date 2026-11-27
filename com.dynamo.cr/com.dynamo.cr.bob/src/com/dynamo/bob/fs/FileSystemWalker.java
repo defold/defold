@@ -15,10 +15,45 @@
 package com.dynamo.bob.fs;
 
 import com.dynamo.bob.fs.IFileSystem.IWalker;
+import org.apache.commons.io.FilenameUtils;
 
 import java.util.Collection;
 
 public class FileSystemWalker implements IWalker{
+
+    static IWalker childrenOf(String path, IWalker visitor) {
+        String directory = FilenameUtils.normalizeNoEndSeparator(path, true);
+        return new IWalker() {
+            private boolean isChild(String entry) {
+                return entry != null && FilenameUtils.getFullPathNoEndSeparator(entry).equals(directory);
+            }
+
+            @Override
+            public boolean isCaseSensitive() {
+                return visitor.isCaseSensitive();
+            }
+
+            @Override
+            public boolean handleDirectory(String path, Collection<String> results) {
+                String entry = FilenameUtils.normalizeNoEndSeparator(path, true);
+                if (entry != null && entry.equals(directory)) {
+                    return true;
+                }
+                if (isChild(entry)) {
+                    visitor.handleDirectory(entry, results);
+                }
+                return false;
+            }
+
+            @Override
+            public void handleFile(String path, Collection<String> results) {
+                String entry = FilenameUtils.normalizeNoEndSeparator(path, true);
+                if (isChild(entry)) {
+                    visitor.handleFile(entry, results);
+                }
+            }
+        };
+    }
 
     @Override
     public boolean handleDirectory(String path, Collection<String> results) {

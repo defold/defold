@@ -17,6 +17,7 @@ package com.dynamo.bob.fs.test;
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.AbstractResource;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.GltfContainer;
@@ -26,17 +27,21 @@ import com.dynamo.bob.fs.GltfMeshResource;
 import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.GltfResource;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.Ktx2TextureGeneratorTest;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.Modelimporter;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.Library;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -49,6 +54,8 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -57,7 +64,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -74,13 +84,16 @@ public class GltfMountPointTest {
     private static final String GEOMETRY_BUFFER_BASE64 =
             "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA";
 
-    private IntermittentlyUnreadableFileSystem fileSystem;
+    private TestFileSystem fileSystem;
     private GltfMountPoint mountPoint;
     private byte[] png;
 
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
     @Before
     public void setUp() throws IOException {
-        fileSystem = new IntermittentlyUnreadableFileSystem();
+        fileSystem = new TestFileSystem();
         fileSystem.setRootDirectory(".");
         fileSystem.setBuildDirectory("build/default");
 
@@ -957,6 +970,188 @@ public class GltfMountPointTest {
         assertEquals("Chrome", second.getMaterialDesc().getName());
     }
 
+    // Listing ordinary directories must not trigger a second walk to discover glTF containers.
+    @Test
+    public void testDirectoryListingsSkipGltfDiscovery() throws Exception {
+        fileSystem.addDirectory("extension");
+        fileSystem.addDirectory("extension/src");
+        fileSystem.addFile("extension/src/deep/model.glb", glb("external.png"));
+        try (Project project = new Project(fileSystem)) {
+            project.mount(new ClassLoaderResourceScanner(), List.of());
+            fileSystem.walkPaths.clear();
+
+            List<String> directories = new ArrayList<>();
+            project.findResourceDirs("extension", directories);
+            assertEquals(List.of("src"), directories);
+            directories.clear();
+            project.findResourceDirs("extension/res/android", directories);
+            assertTrue(directories.isEmpty());
+            assertEquals(List.of("extension", "extension/res/android"), fileSystem.walkPaths);
+
+            project.findResourceDirs("models/robot.gltf", directories);
+            assertEquals(List.of("materials", "images", "meshes"), directories);
+        }
+    }
+
+    // Listing one level must include files and directories without leaking descendants from disk or a mounted model.
+    @Test
+    public void testListVisitsImmediateEntries() throws Exception {
+        Path root = temporaryFolder.newFolder("project").toPath();
+        Path nested = Files.createDirectories(root.resolve("models/nested"));
+        Files.writeString(nested.resolve("hidden.txt"), "");
+        Files.writeString(root.resolve("models/readme.txt"), "");
+        Path archive = temporaryFolder.newFile("models.zip").toPath();
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
+            zip.putNextEntry(new ZipEntry("models/Box.glb"));
+            zip.write(glb("external.png"));
+            zip.putNextEntry(new ZipEntry("models/library/"));
+            zip.putNextEntry(new ZipEntry("models/library/deeper/"));
+            zip.putNextEntry(new ZipEntry("models/nested/hidden-in-library.txt"));
+            zip.putNextEntry(new ZipEntry("models-other/"));
+            zip.putNextEntry(new ZipEntry("models-other/unrelated.txt"));
+        }
+
+        DefaultFileSystem disk = new DefaultFileSystem();
+        try (Project project = new Project(disk, root.toString(), "build/default")) {
+            disk.addMountPoint(new ZipMountPoint(disk, archive.toString()));
+            disk.addMountPoint(new GltfMountPoint(disk));
+            FileSystemWalker entries = new FileSystemWalker() {
+                @Override
+                public boolean handleDirectory(String path, Collection<String> results) {
+                    results.add(path);
+                    return true;
+                }
+            };
+            List<String> paths = new ArrayList<>();
+            disk.list("models", entries, paths);
+            Collections.sort(paths);
+            assertEquals(List.of("models/Box.glb", "models/library", "models/nested", "models/readme.txt"), paths);
+            paths.clear();
+            disk.list("models/Box.glb", entries, paths);
+            Collections.sort(paths);
+            assertEquals(List.of("models/Box.glb/images", "models/Box.glb/materials", "models/Box.glb/meshes"), paths);
+            paths.clear();
+            disk.list("models/Box.glb/materials", entries, paths);
+            assertEquals(List.of("models/Box.glb/materials/Paint_0.material"), paths);
+        }
+    }
+
+    // A scoped disk walk must match the case reported by a root walk, even on a case-insensitive filesystem.
+    @Test
+    public void testDiskWalkUsesStoredPathCase() throws Exception {
+        Path root = temporaryFolder.getRoot().toPath();
+        Files.write(Files.createDirectory(root.resolve("models")).resolve("Box.glb"), glb("external.png"));
+
+        DefaultFileSystem disk = new DefaultFileSystem();
+        try (Project project = new Project(disk, root.toString(), "build/default")) {
+            GltfMountPoint gltf = new GltfMountPoint(disk);
+            disk.addMountPoint(gltf);
+            List<String> paths = new ArrayList<>();
+            gltf.walk("MODELS", new FileSystemWalker(), paths);
+            project.findResourceDirs("models/box.glb", paths);
+            assertTrue(paths.isEmpty());
+
+            project.findResourceDirs("models/Box.glb", paths);
+            assertTrue(paths.contains("materials"));
+        }
+    }
+
+    // A staged model next to an absolute settings file must not shadow a library model or supply its materials.
+    @Test
+    public void testStagedSettingsDoNotShadowLibraryModel() throws Exception {
+        Path root = temporaryFolder.newFolder("project").toPath();
+        Path settings = Files.createDirectories(root.resolve("build/default/staging"));
+        Path models = Files.createDirectory(settings.resolve("models"));
+        Path settingsFile = Files.writeString(settings.resolve("game.settings"), "[project]\n");
+        Files.write(models.resolve("Box.glb"), glb("external.png"));
+
+        Path zip = temporaryFolder.newFile("library.zip").toPath();
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(zip))) {
+            output.putNextEntry(new ZipEntry("models/Box.glb"));
+            output.write(glbFromGltf(gltf("external.png").replace("\"Paint\"", "\"Chrome\"")));
+        }
+        Library.Archive archive = new Library.Archive(zip, "", Set.of("models"), null);
+        DefaultFileSystem disk = new DefaultFileSystem();
+        try (Project project = new Project(disk, root.toString(), "build/default")) {
+            project.addPropertyFile(settingsFile.toString());
+            project.mount(new ClassLoaderResourceScanner(), List.of(new Library.Result(zip.toUri(), archive, null)));
+
+            assertArrayEquals(Files.readAllBytes(settingsFile), project.getPropertyFilesAsResources().get(0).getContent());
+            String resourcePath = "models/Box.glb/materials/Chrome_0.material";
+            assertTrue(project.getResource(resourcePath) instanceof GltfMaterialResource);
+            List<String> paths = new ArrayList<>();
+            project.findResourcePaths("", paths);
+            assertFalse(paths.contains("models/Box.glb/materials/Paint_0.material"));
+            assertFalse(paths.contains("game.settings"));
+            assertTrue(paths.contains(resourcePath));
+            paths.clear();
+            disk.walk("models/Box.glb/materials", new FileSystemWalker(), paths);
+            assertEquals(List.of(resourcePath), paths);
+            paths.clear();
+            project.findResourceDirs("models/Box.glb", paths);
+            assertTrue(paths.contains("materials"));
+        }
+    }
+
+    // A nested model supplied by another mount must leave its ancestor's diagnostics and parsed container intact.
+    @Test
+    public void testNestedLibraryWalkRetainsAncestor() throws Exception {
+        String outer = "models/outer.glb";
+        String inner = outer + "/inner.glb";
+        MockFileSystem library = new MockFileSystem();
+        library.setBuildDirectory("build/default");
+        library.addFile(inner, glb("external.png"));
+        fileSystem.addFile(outer, new byte[0]);
+        fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, library));
+        fileSystem.addMountPoint(mountPoint);
+
+        assertNull(mountPoint.get(outer + "/materials/Paint_0.material"));
+        assertTrue(mountPoint.getErrors().containsKey(outer));
+        List<String> paths = new ArrayList<>();
+        mountPoint.walk(inner + "/materials", new FileSystemWalker(), paths);
+        assertEquals(List.of(inner + "/materials/Paint_0.material"), paths);
+        assertTrue(mountPoint.getErrors().containsKey(outer));
+
+        fileSystem.addFile(outer, glb("external.png"));
+        GltfContainer cached = mountPoint.getContainer(outer);
+        mountPoint.walk(inner + "/materials", new FileSystemWalker(), new ArrayList<>());
+        assertSame(cached, mountPoint.getContainer(outer));
+    }
+
+    // Scoped walks must search only the requested subtree and preserve cached models and errors in sibling folders.
+    @Test
+    public void testScopedWalkTracksLibraryContainers() throws Exception {
+        MockFileSystem library = new MockFileSystem();
+        library.setBuildDirectory("build/default");
+        fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, library));
+        fileSystem.addMountPoint(mountPoint);
+        GltfContainer robot = mountPoint.getContainer("models/robot.gltf");
+        fileSystem.addFile("library-other/broken.gltf", new byte[0]);
+        assertNull(mountPoint.get("library-other/broken.gltf/materials/Paint_0.material"));
+
+        String modelPath = "library/box.glb";
+        String materialPath = modelPath + "/materials/Paint_0.material";
+        library.addFile(modelPath, glb("external.png"));
+        List<String> paths = new ArrayList<>();
+        fileSystem.walkPaths.clear();
+        mountPoint.walk("/library/", new FileSystemWalker(), paths);
+        assertTrue(paths.contains(materialPath));
+        assertTrue(paths.stream().allMatch(path -> path.startsWith(modelPath + "/")));
+
+        paths.clear();
+        mountPoint.walk("/" + modelPath + "/materials/", new FileSystemWalker(), paths);
+        assertEquals(List.of(materialPath), paths);
+        library.get(modelPath).remove();
+        assertNull(mountPoint.get(materialPath));
+        paths.clear();
+        mountPoint.walk("library", new FileSystemWalker(), paths);
+        assertTrue(paths.isEmpty());
+        assertFalse(mountPoint.getErrors().containsKey(modelPath));
+        assertTrue(mountPoint.getErrors().containsKey("library-other/broken.gltf"));
+        assertSame(robot, mountPoint.getContainer("models/robot.gltf"));
+        assertEquals(List.of("library", modelPath, "library"), fileSystem.walkPaths);
+    }
+
     @Test
     public void testDebugOutputRedactsDataUriPayload() throws Exception {
         fileSystem.addMountPoint(mountPoint);
@@ -1177,8 +1372,15 @@ public class GltfMountPointTest {
         return result;
     }
 
-    private static final class IntermittentlyUnreadableFileSystem extends MockFileSystem {
+    private static final class TestFileSystem extends MockFileSystem {
         private boolean externalImageReadable = true;
+        private final List<String> walkPaths = new ArrayList<>();
+
+        @Override
+        protected void walkLocal(String path, IWalker walker, Collection<String> results) {
+            walkPaths.add(path);
+            super.walkLocal(path, walker, results);
+        }
 
         void setExternalImageReadable(boolean externalImageReadable) {
             this.externalImageReadable = externalImageReadable;

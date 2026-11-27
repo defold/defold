@@ -50,4 +50,9 @@ public interface IMountPoint {
      * @param results collection of encountered and stored paths
      */
     void walk(String path, IWalker walker, Collection<String> results);
+
+    /** Visit the immediate files and directories under a path within the mount. */
+    default void list(String path, IWalker walker, Collection<String> results) {
+        walk(path, FileSystemWalker.childrenOf(path, walker), results);
+    }
 }
