@@ -305,8 +305,7 @@
     (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                         :trigger-characters (set (:triggerCharacters completionProvider))})
     signatureHelpProvider
-    (assoc :signature-help {:trigger-characters (into (set (:triggerCharacters signatureHelpProvider))
-                                                      (:retriggerCharacters signatureHelpProvider))})))
+    (assoc :signature-help {:trigger-characters (set (:triggerCharacters signatureHelpProvider))})))
 
 (defn- lua-language-server-plugin-path []
   (str (path/of (system/defold-unpack-path)
