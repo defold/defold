@@ -541,7 +541,15 @@ namespace dmPlatform
         else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && wl->m_Keyboard)
         {
             KeyLeave(w, wl->m_Keyboard, 0, w->m_Surface);
-            wl_keyboard_release(wl->m_Keyboard);
+            if (wl_keyboard_get_version(wl->m_Keyboard) >= WL_KEYBOARD_RELEASE_SINCE_VERSION)
+            {
+                wl_keyboard_release(wl->m_Keyboard);
+            }
+            else
+            {
+                wl_keyboard_destroy(wl->m_Keyboard);
+            }
+
             wl->m_Keyboard = 0;
             ReleaseKeymap(wl);
         }
@@ -554,7 +562,15 @@ namespace dmPlatform
         else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && wl->m_Pointer)
         {
             WaylandReleaseCursor(w);
-            wl_pointer_release(wl->m_Pointer);
+            if (wl_pointer_get_version(wl->m_Pointer) >= WL_POINTER_RELEASE_SINCE_VERSION)
+            {
+                wl_pointer_release(wl->m_Pointer);
+            }
+            else
+            {
+                wl_pointer_destroy(wl->m_Pointer);
+            }
+
             wl->m_Pointer = 0;
             Leave(w, 0, 0, wl->m_PointerSurface);
         }
@@ -568,7 +584,7 @@ namespace dmPlatform
     void WaylandBindSeat(HWindow w, uint32_t name, uint32_t version)
     {
         LinuxWayland* wl = w->m_Wayland;
-        if (wl->m_Seat || version < 3)
+        if (wl->m_Seat)
         {
             return;
         }

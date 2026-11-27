@@ -747,7 +747,8 @@ namespace dmPlatform
             wp_fractional_scale_v1_add_listener(wl->m_Fractional, &g_Fractional, w);
         }
 
-        if (!wl->m_DecorManager && wl->m_Seat && !wl->m_Decor)
+        // libdecor's Cairo plugin requires wl_seat v3. Older seats use the built-in frame.
+        if (!wl->m_DecorManager && wl->m_Seat && wl_seat_get_version(wl->m_Seat) >= 3 && !wl->m_Decor)
         {
             static const bool available = LoadDecorBindings();
             if (available)

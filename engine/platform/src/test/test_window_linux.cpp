@@ -2027,6 +2027,50 @@ TEST(LinuxWindow, WaylandMinimizeRequest)
     dmPlatform::DeleteWindow(w);
 }
 
+// Seats predating the release requests must still supply a keyboard and pointer and disconnect cleanly.
+TEST(LinuxWindow, WaylandLegacySeat)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    LinuxWayland* wl = w->m_Wayland;
+    if (!wl || !wl->m_Seat)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    if (!wl->m_Keyboard || !wl->m_Pointer)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    uint32_t name = wl->m_SeatName;
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    dmPlatform::WaylandReleaseSeat(w);
+    for (uint32_t version = 1; version <= 2; ++version)
+    {
+        dmPlatform::WaylandBindSeat(w, name, version);
+        ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+        ASSERT_TRUE(wl->m_Keyboard);
+        ASSERT_TRUE(wl->m_Pointer);
+        EXPECT_EQ(version, wl_keyboard_get_version(wl->m_Keyboard));
+        EXPECT_EQ(version, wl_pointer_get_version(wl->m_Pointer));
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        dmPlatform::ShowWindow(w);
+        EXPECT_TRUE(wl->m_Toplevel);
+        EXPECT_FALSE(wl->m_Decor);
+        dmPlatform::CloseWindow(w);
+        dmPlatform::WaylandReleaseSeat(w);
+        ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // Only the content surface may deliver gameplay clicks, scrolling and client-relative positions.
 TEST(LinuxWindow, WaylandDecorationPointerEvents)
 {
