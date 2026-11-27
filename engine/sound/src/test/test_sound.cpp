@@ -100,6 +100,8 @@ extern unsigned char DOOR_OPENING_WAV[];
 extern uint32_t DOOR_OPENING_WAV_SIZE;
 extern unsigned char TONE_MONO_22050_OGG[];
 extern uint32_t TONE_MONO_22050_OGG_SIZE;
+extern unsigned char VORBIS_START_TRIM_OGG[];
+extern uint32_t VORBIS_START_TRIM_OGG_SIZE;
 extern unsigned char BOOSTER_ON_SFX_WAV[];
 extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
 extern unsigned char MONO_RESAMPLE_FRAMECOUNT_16000_OGG[];
@@ -1631,6 +1633,63 @@ TEST(SoundDecoder, VorbisStreamingMatchesReference)
     }
 
     stb_vorbis_close(reference);
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+// A 447-frame cut leaves one frame of the guitar's first long block. Playback and rewind must respect the cut.
+TEST(SoundDecoder, VorbisStartTrim)
+{
+    const uint32_t first_frame = 12992 + 447;
+    const uint32_t frame_count = 762;
+    float ref_left[frame_count], ref_right[frame_count];
+    float* expected[] = { ref_left, ref_right };
+    int error;
+    stb_vorbis* reference = stb_vorbis_open_memory(LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, &error, 0);
+    ASSERT_NE((stb_vorbis*)0, reference);
+    ASSERT_TRUE(stb_vorbis_seek(reference, first_frame));
+    ASSERT_EQ((int)frame_count, stb_vorbis_get_samples_float(reference, 2, expected, frame_count));
+    stb_vorbis_close(reference);
+
+    dmSound::InitializeParams params;
+    params.m_OutputDevice = "loopback";
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(VORBIS_START_TRIM_OGG, VORBIS_START_TRIM_OGG_SIZE, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+    dmSoundCodec::HDecodeStream stream;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(data, &stream));
+
+    float left[frame_count + 1], right[frame_count + 1];
+    char* out[] = { (char*)left, (char*)right };
+    const uint32_t skips[] = { 0, 31 };
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(skips); ++pass)
+    {
+        uint32_t bytes;
+        const uint32_t skip = skips[pass];
+        if (skip)
+        {
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, skip * sizeof(float), &bytes));
+            ASSERT_EQ(skip * sizeof(float), bytes);
+        }
+
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(left), &bytes));
+        ASSERT_EQ((frame_count - skip) * sizeof(float), bytes);
+        for (uint32_t i = 0; i < frame_count - skip; ++i)
+        {
+            ASSERT_NEAR(ref_left[skip + i] * 32767.0f, left[i], 0.5f);
+            ASSERT_NEAR(ref_right[skip + i] * 32767.0f, right[i], 0.5f);
+        }
+
+        ASSERT_EQ(frame_count, decoder->m_GetInternalStreamPosition(stream));
+        ASSERT_EQ(dmSoundCodec::RESULT_END_OF_STREAM, decoder->m_DecodeStream(stream, out, sizeof(left), &bytes));
+        ASSERT_EQ(0U, bytes);
+    }
+
     decoder->m_CloseStream(stream);
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());

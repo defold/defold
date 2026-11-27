@@ -305,3 +305,215 @@
      }
 
      /**** Floor curve synthesis and residue product (4.3.6).  The spec ****
+@@ -2755,12 +2817,8 @@
+
+     /* Deal with discarding samples from the first packet. */
+     if (handle->first_decode) {
+-        /* We don't support streams with nonzero start positions (what the
+-         * spec describes as "The granule (PCM) position of the first page
+-         * need not indicate that the stream started at position zero..."
+-         * in A.2), so we just omit the left half of the window.  The value
+-         * we calculate here is negative, but the addition below will bring
+-         * it up to zero again. */
++        /* The center of the first block is the nominal stream start.
++         * The second packet's granule can trim samples from that start. */
+         handle->current_loc = -(n/2 - left_start);
+         handle->current_loc_valid = true;
+         handle->first_decode = false;
+@@ -2973,8 +3031,8 @@
+     /* If this is the first frame, push left_start (the beginning of data
+      * to return) to the center of the window, since the left half of the
+      * window contains garbage. */
++    const int n = handle->blocksize[handle->mode_config[mode].blockflag];
+     if (first_decode) {
+-        const int n = handle->blocksize[handle->mode_config[mode].blockflag];
+         left_start = n/2;
+     }
+
+@@ -2987,19 +3045,39 @@
+     handle->cur_channel_buffer =
+         (handle->cur_channel_buffer + 1) % lenof(handle->channel_buffers);
+
+-    /* Return the final frame length, if requested. */
++    int samples = max(0, min(len, right_start) - left_start);
++    if (first_decode) {
++        handle->initial_blocksize = may_have_start_trim(handle) ? n : 0;
++        if (handle->initial_blocksize) {
++            samples = 0;
++        }
++    } else if (UNLIKELY(handle->initial_blocksize != 0)) {
++        const int first_n = handle->initial_blocksize;
++        handle->initial_blocksize = 0;
++        const int discard = start_trim(handle, first_n, n);
++        /* A long first block followed by a short one already produced
++         * samples beyond its center.  They precede the second block's PCM. */
++        const int prefix = first_n/4 - prev/2;
++        if (prefix || discard) {
++            const int keep = max(prefix - discard, 0);
++            const int skip = min(samples, max(discard - prefix, 0));
++            /* The first block's buffer is now free.  Return aligned PCM
++             * there even if the edit discards an odd number of samples. */
++            float **out = handle->channel_buffers[handle->cur_channel_buffer];
++            for (int i = 0; i < handle->channels; i++) {
++                if (keep) {
++                    memcpy(out[i], out[i] + first_n/2 + discard,
++                           keep * sizeof(float));
++                }
++                memcpy(out[i] + keep, handle->outputs[i] + skip,
++                       (samples - skip) * sizeof(float));
++                handle->outputs[i] = out[i];
++            }
++            samples += keep - skip;
++        }
++    }
+     if (len_ret) {
+-        if (len < right_start) {
+-            *len_ret = len - left_start;
+-            /* Watch out for trying to truncate into the first packet of
+-             * the stream (which is not returned). */
+-            if (*len_ret < 0) {
+-                *len_ret = 0;
+-            }
+-        } else {
+-            *len_ret = right_start - left_start;
+-            ASSERT(*len_ret >= 0);
+-        }
++        *len_ret = samples;
+     }
+     return true;
+ }
+--- a/src/decode/common.h
++++ b/src/decode/common.h
+@@ -227,6 +227,8 @@
+     /* Have we started decoding yet?  (This flag is set when the handle
+      * is created and cleared when the first frmae is decoded.) */
+     bool first_decode;
++    /* First block's size while waiting for the second packet's granule. */
++    int16_t initial_blocksize;
+
+     /* Stream configuration. */
+     int16_t blocksize[2];
+--- a/src/decode/packet.h
++++ b/src/decode/packet.h
+@@ -22,6 +22,26 @@
+ #define PAGEFLAG_continued_packet   1
+ #define PAGEFLAG_first_page         2
+ #define PAGEFLAG_last_page          4
++
++/* A start cut must be within the first two blocks' overlap.  The second
++ * packet ends its page (Vorbis I, A.2).  Most streams have a later first
++ * audio-page granule and can return the first frame immediately. */
++static inline bool may_have_start_trim(const stb_vorbis *f)
++{
++    return !(f->page_flag & PAGEFLAG_last_page)
++        && f->known_loc_for_packet < (unsigned int)f->blocksize[1]/2;
++}
++
++static inline int start_trim(const stb_vorbis *f, int first_n, int second_n)
++{
++    const int overlap = (first_n + second_n) / 4;
++    if (!(f->page_flag & PAGEFLAG_last_page)
++     && f->last_seg_index == f->end_seg_with_known_loc
++     && f->known_loc_for_packet < (unsigned int)overlap) {
++        return overlap - (int)f->known_loc_for_packet;
++    }
++    return 0;
++}
+
+ /*-----------------------------------------------------------------------*/
+
+--- a/src/decode/setup.c
++++ b/src/decode/setup.c
+@@ -1584,6 +1584,11 @@
+     /* Set up remaining state parameters for decoding. */
+     handle->previous_length = 0;
+     handle->first_decode = true;
++    if (handle->packet_mode) {
++        /* Packet submission has no Ogg timestamps unless the caller supplies them. */
++        handle->known_loc_for_packet = UINT64_MAX;
++        handle->end_seg_with_known_loc = -2;
++    }
+     if (handle->stream_len >= 0) {
+         handle->p_first.page_start =
+             (*handle->tell_callback)(handle->io_opaque);
+--- a/src/decode/seek.c
++++ b/src/decode/seek.c
+@@ -412,6 +412,7 @@
+     }
+
+     int left_start, left_end, right_start;
++    int frame = 0;  // Offset from the first complete frame.
+
+     /* Scan the first frame to get its window parameters, and shift
+      * first_sample so it points at the first sample returned from that
+@@ -430,13 +431,32 @@
+         if (first_sample == 0) {
+             left_start = left_end = handle->blocksize[mode->blockflag] / 2;
+         }
+-        first_sample -= (handle->blocksize[mode->blockflag] / 2) - left_start;
++        const int first_n = handle->blocksize[mode->blockflag];
++        first_sample -= first_n/2 - left_start;
++        if (page_start == handle->p_first.page_start && first_sample == 0
++         && may_have_start_trim(handle)) {
++            /* Decode returns the first two blocks together when the second
++             * granule could cut into the first block's output.  Scan the
++             * same interval so a seek uses the edited sample coordinates. */
++            const int prefix = right_start - left_start;
++            if (!scan_frame(handle, &left_start, &left_end, &right_start,
++                            &mode_index)) {
++                return error(handle, VORBIS_seek_failed);
++            }
++            const int second_n =
++                handle->blocksize[handle->mode_config[mode_index].blockflag];
++            right_start = max(0, prefix + right_start - left_start
++                                 - start_trim(handle, first_n, second_n));
++            left_start = left_end = 0;
++            if (target_sample >= (unsigned int)right_start) {
++                frame = 1;  // The next scan will visit the third packet.
++            }
++        }
+     }
+
+     /* Find the frame which, when decoded, will generate the target sample.
+      * (This will not necessarily be in the same page, but we only use the
+      * passed-in page data as an anchor, so that's not a problem.) */
+-    int frame = 0;  // Offset from the first complete frame.
+     /* frame_start is the position of the first fully decoded sample in
+      * frame number 'frame'. */
+     uint64_t frame_start = first_sample;
+@@ -489,6 +509,7 @@
+         }
+     }
+     handle->previous_length = 0;
++    handle->initial_blocksize = 0;
+     handle->first_decode = (first_sample == 0 && frames_to_skip == 0);
+     if (decode_one_frame) {
+         if (UNLIKELY(!vorbis_decode_packet(handle, NULL))) {
+--- a/src/decode/stb_vorbis.c
++++ b/src/decode/stb_vorbis.c
+@@ -10,10 +10,7 @@
+ /*
+  * This decoder implementation is based on the public-domain stb_vorbis.c
+  * decoder (version 0.99996) from <http://nothings.org/stb_vorbis/>.
+- * It shares the following limitations with that implementation:
+- *    - Lossless sample truncation at the beginning of the stream
+- *         (negative initial sample position) is ignored.
+- *    - Only a single Ogg bitstream per stream is supported.
++ * Like that implementation, it decodes one logical Ogg bitstream.
+  */
+
+ #include "include/nogg.h"
+--- a/README
++++ b/README
+@@ -118,8 +118,9 @@
+ Interleaved and concatenated bitstreams with different bitstream IDs are
+ properly detected but will be ignored during decoding.
+
+-libnogg does not support lossless deletion of samples from the beginning
+-of the stream (negative initial sample position).
++The Ogg reader honors lossless cuts at the beginning and end of a stream.
++Applications submitting bare Vorbis packets must handle container timestamps
++themselves.
+
+
+ Reporting bugs
