@@ -138,6 +138,43 @@ static void CountFocus(void* data, uint32_t focused)
     ++((unsigned*)data)[focused];
 }
 
+static void ReopenOnFocus(void* data, uint32_t focused)
+{
+    if (focused)
+    {
+        HWindow window = (HWindow)data;
+        dmPlatform::CloseWindow(window);
+        WindowCreateParams replacement;
+        WindowCreateParamsInitialize(&replacement);
+        replacement.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+        replacement.m_Hidden = true;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, replacement));
+    }
+}
+
+// A focus callback can replace the window during ShowWindow. The hidden replacement must keep its initial focus state.
+TEST(dmPlatform, WindowsShowPreservesHiddenReplacement)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_FocusCallback = ReopenOnFocus;
+    params.m_FocusCallbackUserData = window;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::PollEvents(window);
+    HWND original = dmPlatform::GetWindowsHWND(window);
+    dmPlatform::ShowWindow(window);
+    HWND replacement = dmPlatform::GetWindowsHWND(window);
+    EXPECT_NE(original, replacement);
+    EXPECT_TRUE(IsWindow(replacement));
+    EXPECT_FALSE(IsWindowVisible(replacement));
+    EXPECT_NE(replacement, GetFocus());
+    dmPlatform::DeleteWindow(window);
+}
+
 // Polling only the main window must deliver secondary focus and recenter its locked cursor.
 TEST(dmPlatform, WindowsPollSecondaryWindow)
 {

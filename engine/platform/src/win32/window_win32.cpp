@@ -465,15 +465,24 @@ namespace dmPlatform
 
     void ShowWindow(HWindow window)
     {
+        HWND hwnd = window->m_Window;
+        const bool focus = window->m_Params.m_FocusOnShow;
         // SW_SHOWNA keeps a minimized or maximized window in its current state.
-        ::ShowWindow(window->m_Window, window->m_Params.m_FocusOnShow ? SW_SHOW : SW_SHOWNA);
-        if (window->m_Params.m_FocusOnShow)
+        ::ShowWindow(hwnd, focus ? SW_SHOW : SW_SHOWNA);
+        // Each activation call can synchronously invoke a callback that closes or replaces the HWND.
+        if (focus && (HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window)
         {
-            SetForegroundWindow(window->m_Window);
-            SetFocus(window->m_Window);
+            SetForegroundWindow(hwnd);
+            if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window)
+            {
+                SetFocus(hwnd);
+            }
         }
 
-        WindowPlacementShown(window);
+        if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) == window)
+        {
+            WindowPlacementShown(window);
+        }
     }
 
     void HideWindow(HWindow window)
