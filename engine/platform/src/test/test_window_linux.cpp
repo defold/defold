@@ -349,6 +349,67 @@ TEST(LinuxWindow, X11AppliedResizeBeforePoll)
     dmPlatform::DeleteWindow(w);
 }
 
+struct X11CloseOnResize
+{
+    HWindow             m_Window;
+    WindowCreateParams* m_Replacement;
+    uint32_t            m_Count;
+};
+
+static void CloseX11WindowOnResize(void* data, uint32_t, uint32_t)
+{
+    X11CloseOnResize* action = (X11CloseOnResize*)data;
+    ++action->m_Count;
+    dmPlatform::CloseWindow(action->m_Window);
+    if (action->m_Replacement)
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action->m_Window, *action->m_Replacement));
+    }
+}
+
+// Coalesced resize acknowledgements end when the original X11 window closes, even if its handle is reused.
+TEST(LinuxWindow, X11CloseDuringCoalescedResize)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    X11ResizeEvents replacement_events = {};
+    WindowCreateParams replacement = p;
+    replacement.m_ResizeCallback = OnX11Resize;
+    replacement.m_ResizeCallbackUserData = &replacement_events;
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        X11CloseOnResize action = { w, reopen ? &replacement : 0, 0 };
+        p.m_ResizeCallback = CloseX11WindowOnResize;
+        p.m_ResizeCallbackUserData = &action;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        XSetWindowAttributes attributes = {};
+        attributes.override_redirect = True;
+        XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
+        dmPlatform::ShowWindow(w);
+        XSync(w->m_Display, False);
+        dmPlatform::PollEvents(w);
+        ASSERT_EQ(0u, action.m_Count);
+
+        dmPlatform::SetWindowSize(w, 481, 311);
+        dmPlatform::SetWindowSize(w, 481, 311);
+        XSync(w->m_Display, False);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(1u, action.m_Count);
+        EXPECT_EQ(0u, replacement_events.m_Count);
+        EXPECT_EQ(reopen != 0, w->m_Open);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // Each explicit resize must report the dimensions the manager accepts, including when it declines a request.
 TEST(LinuxWindow, X11ConstrainedResize)
 {

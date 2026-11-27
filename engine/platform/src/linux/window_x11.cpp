@@ -458,9 +458,15 @@ namespace dmPlatform
             }
         }
 
+        const uint32_t generation = w->m_OpenGeneration;
         LinuxUpdateSize(w, width, height, w->m_Scale);
         for (uint32_t i = 0; i < acknowledgements; ++i)
         {
+            if (!w->m_Open || w->m_DeletePending || w->m_OpenGeneration != generation)
+            {
+                break;
+            }
+
             NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
         }
     }
@@ -980,6 +986,10 @@ namespace dmPlatform
                     if (e.xconfigure.serial >= x->m_SizeReadSerial)
                     {
                         ReportSize(w, e.xconfigure.width, e.xconfigure.height, e.xconfigure.serial, e.xconfigure.send_event);
+                        if (w->m_DeletePending || e.xconfigure.window != w->m_Xid)
+                        {
+                            break;
+                        }
                     }
 
                     if (x->m_ConfigureSerial && e.xconfigure.serial >= x->m_ConfigureSerial)
