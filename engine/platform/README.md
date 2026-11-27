@@ -20,8 +20,8 @@ system polls it for events and reads the resulting input state.
 
 The SDK exposes an opaque `HWindow` and C functions in `<dmsdk/platform/window.h>`.
 The C entry points forward to the engine's C++ `dmPlatform` interface. Each backend
-defines the state behind the handle. Android, iOS, and web use one C++ adapter, and
-the two mobile backends also share a C implementation of window and input state.
+defines the state behind the handle. Android and iOS share their window lifecycle
+and input handling. Web implements the same engine interface for the browser canvas.
 [SDK header](src/dmsdk/platform/window.h) · [C entry points](src/window.cpp) ·
 [Engine interface](src/window.hpp) · [Shared mobile implementation](src/mobile_shared/README.md)
 

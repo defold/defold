@@ -25,7 +25,7 @@ void dmNativeResetTouches(NativeTouch* states)
     }
 }
 
-int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, int cancel_all)
+uint32_t dmNativeReadTouches(NativeTouch* states, WindowTouchData* output, uint32_t capacity, int cancel_all)
 {
     int cancelled = 0;
     if (cancel_all)
@@ -36,7 +36,7 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
         }
     }
 
-    int count = 0;
+    uint32_t count = 0;
     for (int i = 0; i < NATIVE_MAX_TOUCH; ++i)
     {
         NativeTouch* touch = &states[i];
@@ -55,7 +55,13 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
             continue;
         }
 
-        output[count] = *touch;
+        output[count].m_TapCount = touch->TapCount;
+        output[count].m_Phase = touch->Phase;
+        output[count].m_X = touch->X;
+        output[count].m_Y = touch->Y;
+        output[count].m_DX = touch->DX;
+        output[count].m_DY = touch->DY;
+        output[count].m_Id = touch->Id;
         // Consume movement once so frames without a new touch event report zero delta.
         touch->DX = 0;
         touch->DY = 0;
@@ -74,7 +80,7 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
         }
         else if (touch->Phase == NATIVE_PHASE_TAPPED)
         {
-            output[count].Phase = NATIVE_PHASE_BEGAN;
+            output[count].m_Phase = NATIVE_PHASE_BEGAN;
             touch->Phase = NATIVE_PHASE_ENDED;
         }
 

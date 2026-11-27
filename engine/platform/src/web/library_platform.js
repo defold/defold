@@ -30,7 +30,7 @@ var LibraryDefoldPlatform = {
     NATIVE_PHASE_ENDED: 3,
     NATIVE_PHASE_CANCELLED: 4,
 
-    // Named keys follow the mobile/browser key values in window_mobile_web_backend.h. Printable letters
+    // Named keys follow the mobile/browser key values in window_mobile_web_constants.h. Printable letters
     // use the layout-dependent DOM value, while punctuation uses the physical key.
     namedKeys: {
       Escape: 257, ArrowUp: 283, ArrowDown: 284, ArrowLeft: 285, ArrowRight: 286,
@@ -613,13 +613,12 @@ var LibraryDefoldPlatform = {
 
   dmNativeSetWindowSize: function(width, height) {
     Browser.setCanvasSize(width, height);
+    DefoldPlatform.prevWidth = width;
+    DefoldPlatform.prevHeight = height;
     if (DefoldPlatform.callbacks.resize) {
       {{{ makeDynCall('vii', 'DefoldPlatform.callbacks.resize') }}}(width, height);
     }
   },
-
-  dmNativeSetWindowPos: function() {},
-  dmNativeIconifyWindow: function() {},
 
   dmNativeSwapBuffers__deps: ['dmNativeSetWindowSize'],
   dmNativeSwapBuffers: function() {
@@ -635,21 +634,14 @@ var LibraryDefoldPlatform = {
 
     if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height ||
         Module['canvas'].width != width || Module['canvas'].height != height) {
-      DefoldPlatform.prevWidth = width;
-      DefoldPlatform.prevHeight = height;
       _dmNativeSetWindowSize(width, height);
     }
   },
 
-  dmNativeSwapInterval: function(interval) {},
-
   dmNativeGetWindowParam: function(param) { return DefoldPlatform.params[param] || 0; },
 
   dmNativeSetWindowSizeCallback: function(callback) { DefoldPlatform.callbacks.resize = callback; },
-  dmNativeSetWindowCloseCallback: function() {},
   dmNativeSetWindowFocusCallback: function(callback) { DefoldPlatform.callbacks.focus = callback; },
-  dmNativeSetWindowIconifyCallback: function() {},
-  dmNativePollEvents: function() {},
 
   dmNativeGetKey: function(key) { return DefoldPlatform.keys[key] || 0; },
   dmNativeGetMouseButton: function(button) {
@@ -677,7 +669,6 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.callbacks.character = callback;
     return 1;
   },
-  dmNativeSetMarkedTextCallback: function() { return 1; },
   dmNativeSetGamepadCallback: function(callback) {
     DefoldPlatform.callbacks.gamepad = callback;
     try {
@@ -689,7 +680,6 @@ var LibraryDefoldPlatform = {
       return 0;
     }
   },
-  dmNativeSetDeviceChangedCallback: function() { return 1; },
 
   dmNativeGetJoystickParam: function(slot, param) {
     var known = DefoldPlatform.joys[slot];
@@ -718,7 +708,6 @@ var LibraryDefoldPlatform = {
     return count;
   },
 
-  dmNativeGetJoystickHats: function() { return 0; },
   dmNativeGetJoystickDeviceId: function(slot, output) {
     var known = DefoldPlatform.joys[slot];
     setValue(output, known ? known.id : 0, '*');
@@ -737,30 +726,9 @@ var LibraryDefoldPlatform = {
     }
   },
 
-  dmNativeResetKeyboard: function() {
-  },
-
   dmNativeSetTouchCallback: function(cbfun) {
     DefoldPlatform.callbacks.touch = cbfun;
     return 1;
-  },
-
-  dmNativeGetAcceleration: function(x, y, z) {
-      return 0;
-  },
-
-  dmNativeGetWindowRefreshRate: function() {
-    return 0;
-  },
-
-  dmNativeGetDefaultFramebuffer: function() {
-	  return 0;
-  },
-
-  dmNativeAccelerometerEnable: function() {
-  },
-
-  dmNativeSetWindowBackgroundColor: function(color) {
   },
 
   dmNativeGetDisplayScaleFactor: function() {

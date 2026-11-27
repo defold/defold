@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_mobile_web_backend.h"
+#include "joystick_guid.h"
 #include <string.h>
 
 static unsigned short dmNativeCrc16ForByte(unsigned char value)

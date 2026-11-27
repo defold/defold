@@ -110,6 +110,11 @@ extern "C"
         g_Window = 0;
     }
 
+    EMSCRIPTEN_KEEPALIVE void TestSetSize(uint32_t width, uint32_t height)
+    {
+        dmPlatform::SetWindowSize(g_Window, width, height);
+    }
+
     EMSCRIPTEN_KEEPALIVE void TestFrame()
     {
         dmPlatform::PollEvents(g_Window);

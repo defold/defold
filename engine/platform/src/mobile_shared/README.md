@@ -1,12 +1,10 @@
 # Shared mobile window implementation
 
-Android, iOS, and web implement the same C interface for the C++ window adapter.
-The adapter owns a single `HWindow`. On open it passes the creation parameters
-to `dmNativeOpenWindow`, reads back the native dimensions, and installs callbacks
-that translate native events into engine callbacks with their original user data.
-Android and iOS implement the common part of that interface here. Web supplies
-its own C and JavaScript implementation. [C++ adapter](../window_mobile_web.cpp) ·
-[Native interface](../window_mobile_web_backend.h)
+Android and iOS use the same C++ window adapter. It owns a single `HWindow`,
+passes creation parameters to the native backend, and installs engine callbacks
+with their user data. Web implements the engine interface for the browser canvas.
+[Mobile adapter](../window_mobile_web.cpp) · [Native interface](../window_mobile_web_backend.h) ·
+[Web backend](../web/README.md)
 
 ## Window lifetime
 

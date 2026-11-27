@@ -148,6 +148,16 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
     expect((await state(page)).closes).toBe(1);
 });
 
+// A programmatic resize must notify once, including the next frame's canvas-size check.
+test("setting the window size delivers one resize callback", async ({ page }) => {
+    await openWindow(page);
+    const initial = await state(page);
+    await page.evaluate(() => Module._TestSetSize(750, 510));
+    expect(await state(page)).toMatchObject({ width: 750, height: 510, resizes: initial.resizes + 1 });
+    await page.evaluate(() => Module._TestFrame());
+    expect((await state(page)).resizes).toBe(initial.resizes + 1);
+});
+
 // A canvas bound to WebGPU must be replaced before WebGL fallback, preserving layout, focus, input, and rendering.
 test("WebGPU canvas can fall back to WebGL", async ({ page }) => {
     expect(await page.evaluate(() => Module._TestOpenWebGPU())).toBe(0);

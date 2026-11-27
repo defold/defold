@@ -107,10 +107,8 @@ TEST_F(MobileInput, Reset)
     dmNativeWin.opened = 1;
     ASSERT_EQ(0, dmNativeGetKey('A'));
     ASSERT_EQ(0, dmNativeGetMouseButton(NATIVE_MOUSE_BUTTON_LAST));
-    NativeTouch touches[NATIVE_MAX_TOUCH];
-    int count = -1;
-    ASSERT_EQ(1, dmNativeGetTouch(touches, NATIVE_MAX_TOUCH, &count));
-    ASSERT_EQ(0, count);
+    WindowTouchData touches[NATIVE_MAX_TOUCH];
+    ASSERT_EQ(0u, dmNativeGetTouch(touches, NATIVE_MAX_TOUCH));
     ASSERT_EQ(NATIVE_PHASE_IDLE, dmNativeInput.Touch[NATIVE_MAX_TOUCH - 1].Phase);
     ASSERT_EQ(NATIVE_MAX_TOUCH - 1, dmNativeInput.Touch[NATIVE_MAX_TOUCH - 1].Id);
 }

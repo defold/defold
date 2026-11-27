@@ -15,6 +15,8 @@
 #ifndef DM_PLATFORM_WINDOW_TOUCH_H
 #define DM_PLATFORM_WINDOW_TOUCH_H
 
+#include "window.h"
+
 #define NATIVE_MAX_TOUCH (11)
 #define NATIVE_PHASE_BEGAN (0)
 #define NATIVE_PHASE_MOVED (1)
@@ -41,7 +43,7 @@ extern "C" {
 #endif
 void dmNativeResetTouches(NativeTouch* states);
 // Mobile cancellation releases the remaining touches on the following update.
-int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, int cancel_all);
+uint32_t dmNativeReadTouches(NativeTouch* states, WindowTouchData* output, uint32_t capacity, int cancel_all);
 #ifdef __cplusplus
 }
 #endif

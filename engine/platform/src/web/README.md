@@ -1,12 +1,11 @@
 # Web window backend
 
-The game window is the HTML canvas in `Module['canvas']`. The shared C++ window
-adapter calls a C interface compiled into WebAssembly. Its web implementation
-passes graphics options to JavaScript and keeps touch slots in C. Emscripten
-links the DOM implementation with `--js-library`. Web builds also install it at
-`lib/<platform>/js/library_platform.js`.
-[C++ adapter](../window_mobile_web.cpp) · [WebAssembly interface](window_web.c) ·
-[JavaScript library](library_platform.js) · [Build rules](../../CMakeLists.txt)
+The game window is the HTML canvas in `Module['canvas']`. The WebAssembly
+backend implements `dmPlatform`, owns the canvas window handle and touch slots,
+and calls JavaScript to access the DOM. Emscripten links these bindings with
+`--js-library`. Web builds also install them at `lib/<platform>/js/library_platform.js`.
+[Web window implementation](window_web.cpp) · [JavaScript library](library_platform.js) ·
+[Build rules](../../CMakeLists.txt)
 
 ## Opening and resizing the canvas
 
@@ -30,7 +29,7 @@ events as they arrive, so the native poll function has no event queue to drain.
 The backend maps CSS touch coordinates to canvas pixels and accumulates
 movement until the engine reads it. A tap that begins and ends between reads is
 delivered across two reads. Controller queries use the browser's Gamepad API.
-[DOM input](library_platform.js) · [Touch accumulation](window_web.c) ·
+[DOM input](library_platform.js) · [Touch accumulation](window_web.cpp) ·
 [Touch reader](../window_touch.c)
 
 `run_test_library_platform_js` exercises the JavaScript library with Bun or Node.

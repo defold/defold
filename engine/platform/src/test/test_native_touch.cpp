@@ -20,15 +20,15 @@
 TEST(NativeTouch, TapReportsBeganThenEnded)
 {
     NativeTouch states[NATIVE_MAX_TOUCH] = {};
-    NativeTouch output[NATIVE_MAX_TOUCH] = {};
+    WindowTouchData output[NATIVE_MAX_TOUCH] = {};
     states[0].Reference = &states[0];
     states[0].Phase = NATIVE_PHASE_TAPPED;
     states[0].Id = 7;
     ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, 0));
-    ASSERT_EQ(NATIVE_PHASE_BEGAN, output[0].Phase);
-    ASSERT_EQ(7, output[0].Id);
+    ASSERT_EQ(NATIVE_PHASE_BEGAN, output[0].m_Phase);
+    ASSERT_EQ(7, output[0].m_Id);
     ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, 0));
-    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
+    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].m_Phase);
     ASSERT_EQ(0, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, 0));
 }
 
@@ -38,16 +38,16 @@ TEST(NativeTouch, CancellationPreservesPlatformSemantics)
     for (int cancel_all = 0; cancel_all < 2; ++cancel_all)
     {
         NativeTouch states[NATIVE_MAX_TOUCH] = {};
-        NativeTouch output[NATIVE_MAX_TOUCH] = {};
+        WindowTouchData output[NATIVE_MAX_TOUCH] = {};
         states[0].Reference = &states[0];
         states[0].Phase = NATIVE_PHASE_CANCELLED;
         states[1].Reference = &states[1];
         states[1].Phase = NATIVE_PHASE_STATIONARY;
         ASSERT_EQ(2, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-        ASSERT_EQ(NATIVE_PHASE_CANCELLED, output[0].Phase);
-        ASSERT_EQ(NATIVE_PHASE_STATIONARY, output[1].Phase);
+        ASSERT_EQ(NATIVE_PHASE_CANCELLED, output[0].m_Phase);
+        ASSERT_EQ(NATIVE_PHASE_STATIONARY, output[1].m_Phase);
         ASSERT_EQ(cancel_all ? 2 : 1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-        ASSERT_EQ(cancel_all ? NATIVE_PHASE_ENDED : NATIVE_PHASE_STATIONARY, output[0].Phase);
+        ASSERT_EQ(cancel_all ? NATIVE_PHASE_ENDED : NATIVE_PHASE_STATIONARY, output[0].m_Phase);
         ASSERT_EQ(cancel_all ? 0 : 1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
     }
 }
@@ -56,44 +56,44 @@ TEST(NativeTouch, CancellationPreservesPlatformSemantics)
 TEST(NativeTouch, CancellationBeyondCapacityReleasesAllTouches)
 {
     NativeTouch states[NATIVE_MAX_TOUCH] = {};
-    NativeTouch output[2] = {};
+    WindowTouchData output[2] = {};
     states[0].Reference = &states[0];
     states[0].Phase = NATIVE_PHASE_STATIONARY;
     states[0].Id = 7;
     states[NATIVE_MAX_TOUCH - 1].Reference = &states[NATIVE_MAX_TOUCH - 1];
     states[NATIVE_MAX_TOUCH - 1].Phase = NATIVE_PHASE_CANCELLED;
     states[NATIVE_MAX_TOUCH - 1].Id = 8;
-    output[1].Id = 12345;
+    output[1].m_Id = 12345;
 
     ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
-    ASSERT_EQ(NATIVE_PHASE_STATIONARY, output[0].Phase);
-    ASSERT_EQ(7, output[0].Id);
+    ASSERT_EQ(NATIVE_PHASE_STATIONARY, output[0].m_Phase);
+    ASSERT_EQ(7, output[0].m_Id);
     ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
-    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
-    ASSERT_EQ(7, output[0].Id);
+    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].m_Phase);
+    ASSERT_EQ(7, output[0].m_Id);
     ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 1));
-    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
-    ASSERT_EQ(8, output[0].Id);
+    ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].m_Phase);
+    ASSERT_EQ(8, output[0].m_Id);
     ASSERT_EQ(0, dmNativeReadTouches(states, output, 1, 1));
-    ASSERT_EQ(12345, output[1].Id);
+    ASSERT_EQ(12345, output[1].m_Id);
 }
 
 // Verifies a small output buffer is respected and touches that did not fit keep their pending phase.
 TEST(NativeTouch, CapacityPreservesPendingTouches)
 {
     NativeTouch states[NATIVE_MAX_TOUCH] = {};
-    NativeTouch output[2] = {};
+    WindowTouchData output[2] = {};
     for (int i = 0; i < 2; ++i)
     {
         states[i].Reference = &states[i];
         states[i].Phase = NATIVE_PHASE_BEGAN;
     }
 
-    output[1].Id = 12345;
+    output[1].m_Id = 12345;
     ASSERT_EQ(0, dmNativeReadTouches(states, output, 0, 0));
     ASSERT_EQ(NATIVE_PHASE_BEGAN, states[0].Phase);
     ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, 0));
-    ASSERT_EQ(12345, output[1].Id);
+    ASSERT_EQ(12345, output[1].m_Id);
     ASSERT_EQ(NATIVE_PHASE_STATIONARY, states[0].Phase);
     ASSERT_EQ(NATIVE_PHASE_BEGAN, states[1].Phase);
 }
@@ -107,7 +107,7 @@ TEST(NativeTouch, DeltasAreConsumedOnce)
         for (int phase_index = 0; phase_index < 2; ++phase_index)
         {
             NativeTouch states[NATIVE_MAX_TOUCH] = {};
-            NativeTouch output[NATIVE_MAX_TOUCH] = {};
+            WindowTouchData output[NATIVE_MAX_TOUCH] = {};
             NativeTouch* touch = &states[0];
             touch->Reference = touch;
             touch->Phase = phases[phase_index];
@@ -118,18 +118,18 @@ TEST(NativeTouch, DeltasAreConsumedOnce)
             touch->DY = -2;
 
             ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-            ASSERT_EQ(phases[phase_index], output[0].Phase);
-            ASSERT_EQ(3, output[0].DX);
-            ASSERT_EQ(-2, output[0].DY);
+            ASSERT_EQ(phases[phase_index], output[0].m_Phase);
+            ASSERT_EQ(3, output[0].m_DX);
+            ASSERT_EQ(-2, output[0].m_DY);
 
             for (int frame = 0; frame < 2; ++frame)
             {
                 ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-                ASSERT_EQ(7, output[0].Id);
-                ASSERT_EQ(103, output[0].X);
-                ASSERT_EQ(198, output[0].Y);
-                ASSERT_EQ(0, output[0].DX);
-                ASSERT_EQ(0, output[0].DY);
+                ASSERT_EQ(7, output[0].m_Id);
+                ASSERT_EQ(103, output[0].m_X);
+                ASSERT_EQ(198, output[0].m_Y);
+                ASSERT_EQ(0, output[0].m_DX);
+                ASSERT_EQ(0, output[0].m_DY);
             }
 
             touch->Phase = NATIVE_PHASE_MOVED;
@@ -138,11 +138,11 @@ TEST(NativeTouch, DeltasAreConsumedOnce)
             touch->DX = 4;
             touch->DY = -1;
             ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-            ASSERT_EQ(NATIVE_PHASE_MOVED, output[0].Phase);
-            ASSERT_EQ(107, output[0].X);
-            ASSERT_EQ(197, output[0].Y);
-            ASSERT_EQ(4, output[0].DX);
-            ASSERT_EQ(-1, output[0].DY);
+            ASSERT_EQ(NATIVE_PHASE_MOVED, output[0].m_Phase);
+            ASSERT_EQ(107, output[0].m_X);
+            ASSERT_EQ(197, output[0].m_Y);
+            ASSERT_EQ(4, output[0].m_DX);
+            ASSERT_EQ(-1, output[0].m_DY);
         }
     }
 }
@@ -153,7 +153,7 @@ TEST(NativeTouch, CapacityPreservesPendingDeltas)
     for (int cancel_all = 0; cancel_all < 2; ++cancel_all)
     {
         NativeTouch states[NATIVE_MAX_TOUCH] = {};
-        NativeTouch output[NATIVE_MAX_TOUCH] = {};
+        WindowTouchData output[NATIVE_MAX_TOUCH] = {};
         for (int i = 0; i < 2; ++i)
         {
             states[i].Reference = &states[i];
@@ -164,16 +164,16 @@ TEST(NativeTouch, CapacityPreservesPendingDeltas)
 
         ASSERT_EQ(0, dmNativeReadTouches(states, output, 0, cancel_all));
         ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, cancel_all));
-        ASSERT_EQ(3, output[0].DX);
-        ASSERT_EQ(-2, output[0].DY);
+        ASSERT_EQ(3, output[0].m_DX);
+        ASSERT_EQ(-2, output[0].m_DY);
         ASSERT_EQ(1, dmNativeReadTouches(states, output, 1, cancel_all));
-        ASSERT_EQ(0, output[0].DX);
-        ASSERT_EQ(0, output[0].DY);
+        ASSERT_EQ(0, output[0].m_DX);
+        ASSERT_EQ(0, output[0].m_DY);
         ASSERT_EQ(2, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-        ASSERT_EQ(0, output[0].DX);
-        ASSERT_EQ(0, output[0].DY);
-        ASSERT_EQ(6, output[1].DX);
-        ASSERT_EQ(-4, output[1].DY);
+        ASSERT_EQ(0, output[0].m_DX);
+        ASSERT_EQ(0, output[0].m_DY);
+        ASSERT_EQ(6, output[1].m_DX);
+        ASSERT_EQ(-4, output[1].m_DY);
     }
 }
 
@@ -183,19 +183,19 @@ TEST(NativeTouch, TapDeltaIsConsumedOnce)
     for (int cancel_all = 0; cancel_all < 2; ++cancel_all)
     {
         NativeTouch states[NATIVE_MAX_TOUCH] = {};
-        NativeTouch output[NATIVE_MAX_TOUCH] = {};
+        WindowTouchData output[NATIVE_MAX_TOUCH] = {};
         states[0].Reference = &states[0];
         states[0].Phase = NATIVE_PHASE_TAPPED;
         states[0].DX = 3;
         states[0].DY = -2;
         ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-        ASSERT_EQ(NATIVE_PHASE_BEGAN, output[0].Phase);
-        ASSERT_EQ(3, output[0].DX);
-        ASSERT_EQ(-2, output[0].DY);
+        ASSERT_EQ(NATIVE_PHASE_BEGAN, output[0].m_Phase);
+        ASSERT_EQ(3, output[0].m_DX);
+        ASSERT_EQ(-2, output[0].m_DY);
         ASSERT_EQ(1, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
-        ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].Phase);
-        ASSERT_EQ(0, output[0].DX);
-        ASSERT_EQ(0, output[0].DY);
+        ASSERT_EQ(NATIVE_PHASE_ENDED, output[0].m_Phase);
+        ASSERT_EQ(0, output[0].m_DX);
+        ASSERT_EQ(0, output[0].m_DY);
         ASSERT_EQ(0, dmNativeReadTouches(states, output, NATIVE_MAX_TOUCH, cancel_all));
     }
 }

@@ -36,11 +36,12 @@ endforeach()
 # Select platform sources (centralized)
 set(_platform_mobile_web_sources
     "${PLAT_SRC_DIR}/window.cpp"
-    "${PLAT_SRC_DIR}/window_mobile_web.cpp"
+    "${PLAT_SRC_DIR}/window_mobile_web_constants.cpp"
     "${PLAT_SRC_DIR}/window_touch.c"
     "${PLAT_SRC_DIR}/joystick_guid.c")
 set(_platform_mobile_sources
     ${_platform_mobile_web_sources}
+    "${PLAT_SRC_DIR}/window_mobile_web.cpp"
     "${PLAT_SRC_DIR}/mobile_shared/window.c"
     "${PLAT_SRC_DIR}/mobile_shared/window_init.c"
     "${PLAT_SRC_DIR}/mobile_shared/window_input.c"
@@ -163,7 +164,7 @@ elseif(TARGET_PLATFORM_OS STREQUAL "ios")
         "${PLAT_SRC_DIR}/ios/app/ViewController.m")
 elseif(TARGET_PLATFORM_OS STREQUAL "web")
     set(PLATFORM_USE_WEB ON)
-    set(_platform_sources ${_platform_mobile_web_sources} "${PLAT_SRC_DIR}/web/window_web.c")
+    set(_platform_sources ${_platform_mobile_web_sources} "${PLAT_SRC_DIR}/web/window_web.cpp")
 else()
     message(FATAL_ERROR "No window backend configured for ${TARGET_PLATFORM}")
 endif()

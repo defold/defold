@@ -27,7 +27,7 @@
 #include <platform/platform_window_constants.h>
 
 #if defined(ANDROID) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
-#include "window_mobile_web_backend.h"
+#include "joystick_guid.h"
 #endif
 
 class HIDTest : public jc_test_base_class

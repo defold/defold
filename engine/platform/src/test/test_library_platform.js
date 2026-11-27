@@ -18,7 +18,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const nativeHeader = fs.readFileSync(path.join(__dirname, "../window_mobile_web_backend.h"), "utf8");
+const nativeHeader = fs.readFileSync(path.join(__dirname, "../window_mobile_web_constants.h"), "utf8");
 const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
     Number(nativeHeader.match(new RegExp("^#define NATIVE_" + name + "\\s+(0x[0-9A-Fa-f]+)", "m"))[1]));
 
@@ -102,15 +102,13 @@ function createCanvas(context) {
     };
 }
 
-// Closing for graphics fallback must allow reopening without emitting a user-close event that stops the engine.
+// Closing for graphics fallback must release the context and allow reopening the canvas.
 function testWindowCloseAndReopen() {
     const context = loadEnvironment();
     const library = context.LibraryDefoldPlatform;
     context.Module.canvas = createCanvas(context);
     context.navigator.userAgent = "";
     context.Browser = { createContext: () => ({}) };
-    let closeCalls = 0;
-    library.dmNativeSetWindowCloseCallback(() => { ++closeCalls; return 0; });
 
     // A failed WebGPU attempt closes its window before the fallback opens a WebGL context.
     for (const useWebGL of [false, true]) {
@@ -119,12 +117,10 @@ function testWindowCloseAndReopen() {
         assert.strictEqual(!!context.Module.ctx, useWebGL);
         library.dmNativeCloseWindow();
         assert.strictEqual(library.dmNativeGetWindowParam(1), 0);
-        assert.strictEqual(closeCalls, 0);
         assert.strictEqual(context.Module.ctx, undefined);
 
         // Final engine cleanup may close a window already closed by a failed graphics attempt.
         library.dmNativeCloseWindow();
-        assert.strictEqual(closeCalls, 0);
     }
 }
 

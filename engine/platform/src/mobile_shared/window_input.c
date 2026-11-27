@@ -158,8 +158,7 @@ void dmNativeSetMarkedText(char* text)
     }
 }
 
-int dmNativeGetTouch(NativeTouch* output, int capacity, int* count)
+uint32_t dmNativeGetTouch(WindowTouchData* output, uint32_t capacity)
 {
-    *count = dmNativeReadTouches(dmNativeInput.Touch, output, capacity, 1);
-    return 1;
+    return dmNativeReadTouches(dmNativeInput.Touch, output, capacity, 1);
 }
