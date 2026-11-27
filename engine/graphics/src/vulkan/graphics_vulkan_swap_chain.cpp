@@ -100,13 +100,27 @@ namespace dmGraphics
         uint32_t image_ix;
         VkResult res = vkAcquireNextImageKHR(vk_device, m_SwapChain, UINT64_MAX,
             vk_image_available, VK_NULL_HANDLE, &image_ix);
-        m_ImageIndex = (uint8_t) image_ix;
+        if (res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR)
+        {
+            m_ImageIndex = (uint8_t) image_ix;
+        }
         return res;
     }
 
     bool SwapChain::HasMultiSampling()
     {
         return m_SampleCountFlag > VK_SAMPLE_COUNT_1_BIT;
+    }
+
+    VkExtent2D GetSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t width, uint32_t height)
+    {
+        if (capabilities.currentExtent.width != UINT32_MAX && capabilities.currentExtent.height != UINT32_MAX)
+        {
+            return capabilities.currentExtent;
+        }
+
+        VkExtent2D extent = { width, height };
+        return extent;
     }
 
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
@@ -137,21 +151,9 @@ namespace dmGraphics
             }
         }
 
-        VkExtent2D vk_current_extent = capabilities.m_SurfaceCapabilities.currentExtent;
-        VkExtent2D vk_extent         = {};
-
-        if (vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.height == 0xFFFFFFFF)
-        {
-            // Clamp swap buffer extent to our wanted width / height.
-            vk_extent.width  = *wantedWidth;
-            vk_extent.height = *wantedHeight;
-        }
-        else
-        {
-            vk_extent     = vk_current_extent;
-            *wantedWidth  = vk_extent.width;
-            *wantedHeight = vk_extent.height;
-        }
+        VkExtent2D vk_extent = GetSwapChainExtent(capabilities.m_SurfaceCapabilities, *wantedWidth, *wantedHeight);
+        *wantedWidth  = vk_extent.width;
+        *wantedHeight = vk_extent.height;
 
         // From the docs:
         // ==============
@@ -365,12 +367,20 @@ namespace dmGraphics
         swapChain->m_LastPresentId = 0;
     }
 
-    void GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
+    void GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities,
+                                  const VkSurfaceCapabilitiesKHR* surface_capabilities)
     {
         uint32_t format_count        = 0;
         uint32_t present_modes_count = 0;
 
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_device, surface, &capabilities.m_SurfaceCapabilities);
+        if (surface_capabilities)
+        {
+            capabilities.m_SurfaceCapabilities = *surface_capabilities;
+        }
+        else
+        {
+            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_device, surface, &capabilities.m_SurfaceCapabilities);
+        }
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
 

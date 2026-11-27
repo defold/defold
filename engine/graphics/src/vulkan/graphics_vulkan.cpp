@@ -1096,7 +1096,8 @@ namespace dmGraphics
         return res;
     }
 
-    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
+    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx,
+                          const VkSurfaceCapabilitiesKHR* surface_capabilities)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
@@ -1129,7 +1130,7 @@ namespace dmGraphics
 
         // Update swap chain capabilities
         SwapChainCapabilities swap_chain_capabilities;
-        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
+        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities, surface_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
         const bool want_vsync = context->m_SwapInterval != 0;
@@ -1163,6 +1164,50 @@ namespace dmGraphics
 
         // Flush once again to make sure all transitions are complete
         SynchronizeDevice(&context->m_LogicalDevice);
+        context->m_SwapChainNeedsRecheck = 0;
+    }
+
+    static bool RecheckSwapChain(VulkanContext* context, bool out_of_date)
+    {
+        uint32_t width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        uint32_t height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        if (width == 0 || height == 0)
+        {
+            return false;
+        }
+
+        bool force_rebuild = out_of_date || context->m_SwapIntervalChanged;
+        bool window_size_changed = width != context->m_WindowWidth || height != context->m_WindowHeight;
+        if (!force_rebuild && !window_size_changed && !context->m_SwapChainNeedsRecheck)
+        {
+            return false;
+        }
+
+        VkSurfaceCapabilitiesKHR capabilities;
+        VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, &capabilities);
+        if (result != VK_SUCCESS)
+        {
+            dmLogOnceWarning("Failed to query Vulkan surface capabilities: %s", VkResultToStr(result));
+            return false;
+        }
+
+        VkExtent2D extent = GetSwapChainExtent(capabilities, width, height);
+        if (extent.width == 0 || extent.height == 0)
+        {
+            return false;
+        }
+
+        if (!force_rebuild && extent.width == context->m_WindowWidth && extent.height == context->m_WindowHeight)
+        {
+            context->m_SwapChainNeedsRecheck = 0;
+            return false;
+        }
+
+        SwapChainChanged(context, &width, &height, 0, 0, &capabilities);
+#if ANDROID
+        SyncAndroidVulkanWindowSize(context);
+#endif
+        return true;
     }
 
     static void DestroyResourceImmediately(VulkanContext* context, ResourceToDestroy* resource)
@@ -2051,15 +2096,17 @@ namespace dmGraphics
         }
     }
 
+    static void MarkSwapChainSuboptimal(VulkanContext* context)
+    {
+        context->m_SwapChainNeedsRecheck = 1;
+        dmLogOnceDebug("Vulkan swapchain is suboptimal. Rechecking surface size before the next frame.");
+    }
+
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         NativeBeginFrame(_context);
-
-        if (context->m_SwapIntervalChanged)
-        {
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-        }
+        RecheckSwapChain(context, false);
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t frameInFlight = context->m_CurrentFrameInFlight;
@@ -2081,26 +2128,19 @@ namespace dmGraphics
 
         // Acquire next swap chain image
         VkResult res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
-        if (res != VK_SUCCESS)
+        if (res == VK_ERROR_OUT_OF_DATE_KHR && RecheckSwapChain(context, true))
         {
-            if (res == VK_ERROR_OUT_OF_DATE_KHR)
-            {
-                context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
-                context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
-                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-                res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
-                CHECK_VK_ERROR(res);
-            }
-            else if (res == VK_SUBOPTIMAL_KHR)
-            {
-                // Presenting the swap chain will still work but not optimally, but we should still notify.
-                dmLogOnceWarning("Vulkan swapchain is out of date, reason: VK_SUBOPTIMAL_KHR.");
-            }
-            else
-            {
-                dmLogOnceError("Vulkan swapchain is out of date, reason: %s.", VkResultToStr(res));
-                return;
-            }
+            res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
+        }
+
+        if (res == VK_SUBOPTIMAL_KHR)
+        {
+            MarkSwapChainSuboptimal(context);
+        }
+        else if (res != VK_SUCCESS)
+        {
+            dmLogOnceError("Failed to acquire a Vulkan swapchain image: %s", VkResultToStr(res));
+            return;
         }
 
         // Only reset after a successful acquire. If we bail before submitting, the fence must stay signaled.
@@ -2263,7 +2303,11 @@ namespace dmGraphics
         {
             dmLogOnceWarning("Vulkan swapchain is out of date, reason: VK_ERROR_OUT_OF_DATE_KHR.");
         }
-        else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+        else if (res == VK_SUBOPTIMAL_KHR)
+        {
+            MarkSwapChainSuboptimal(context);
+        }
+        else if (res != VK_SUCCESS)
         {
             CHECK_VK_ERROR(res);
         }

@@ -625,6 +625,7 @@ namespace dmGraphics
 #endif
         uint32_t                        m_SwapInterval;
         uint32_t                        m_SwapIntervalChanged  : 1;
+        uint32_t                        m_SwapChainNeedsRecheck : 1;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_ImageAvailableConsumed : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
@@ -655,7 +656,7 @@ namespace dmGraphics
     // Implemented in graphics_vulkan.cpp
     VkResult CreateMainFrameBuffers(VulkanContext* context);
     VkResult DestroyMainFrameBuffers(VulkanContext* context);
-    void     SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+    void     SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx, const VkSurfaceCapabilitiesKHR* surface_capabilities = 0);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
@@ -721,7 +722,8 @@ namespace dmGraphics
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice, uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
-    void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+    VkExtent2D GetSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t width, uint32_t height);
+    void       GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities, const VkSurfaceCapabilitiesKHR* surface_capabilities = 0);
 
     bool InitializeVulkan(HContext context);
     void InitializeVulkanTexture(VulkanTexture* t);

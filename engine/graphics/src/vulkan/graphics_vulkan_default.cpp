@@ -95,30 +95,13 @@ namespace dmGraphics
 
     void NativeBeginFrame(HContext _context)
     {
-        VulkanContext* context = (VulkanContext*) _context;
 #if ANDROID
+        VulkanContext* context = (VulkanContext*) _context;
         AndroidVulkanBeginFrame(context);
-#endif
         uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
-
-#if ANDROID
-        if (AndroidVulkanHandleWindowSurfaceChange(context, window_width, window_height))
-        {
-            return;
-        }
+        AndroidVulkanHandleWindowSurfaceChange(context, window_width, window_height);
 #endif
-
-        if (window_width != context->m_WindowWidth || window_height != context->m_WindowHeight)
-        {
-            context->m_WindowWidth  = (uint32_t) window_width;
-            context->m_WindowHeight = (uint32_t) window_height;
-
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-#if ANDROID
-            SyncAndroidVulkanWindowSize(context);
-#endif
-        }
     }
 
     bool NativeInitializeContext(HContext _context)

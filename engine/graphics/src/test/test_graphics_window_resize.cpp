@@ -26,6 +26,11 @@ extern "C" void GraphicsAdapterDX12();
 extern "C" void GraphicsAdapterVulkan();
 #endif
 
+#if defined(VK_NO_PROTOTYPES)
+#include <dlib/time.h>
+#include <glfw/glfw3.h>
+#endif
+
 using namespace dmGraphics;
 
 struct WindowResizeTest : public jc_test_base_class
@@ -112,6 +117,22 @@ struct WindowResizeTest : public jc_test_base_class
         Clear(m_Context, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, 31, 73, 149, 255, 1.0f, 0);
         Flip(m_Context);
     }
+
+#if defined(VK_NO_PROTOTYPES)
+    void WaitForResize(uint32_t width, uint32_t height)
+    {
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while ((GetWindowWidth(m_Context) != width || GetWindowHeight(m_Context) != height) &&
+               dmTime::GetMonotonicTime() < deadline)
+        {
+            glfwWaitEventsTimeout(0.01);
+        }
+
+        ASSERT_EQ(width, GetWindowWidth(m_Context));
+        ASSERT_EQ(height, GetWindowHeight(m_Context));
+    }
+
+#endif
 };
 
 // Guards editor resize requests: the native window and swap chain must resize,
@@ -123,6 +144,10 @@ TEST_F(WindowResizeTest, ResizeWindowPreservesLogicalSize)
     {
         m_CallbackCount = 0;
         ResizeWindow(m_Context, sizes[i][0], sizes[i][1]);
+#if defined(VK_NO_PROTOTYPES)
+        WaitForResize(sizes[i][0], sizes[i][1]);
+        DrawFrame();
+#endif
         ASSERT_GT(m_CallbackCount, 0u);
         ASSERT_EQ(sizes[i][0], m_CallbackWidth);
         ASSERT_EQ(sizes[i][1], m_CallbackHeight);
@@ -138,12 +163,128 @@ TEST_F(WindowResizeTest, ResizeWindowPreservesLogicalSize)
 TEST_F(WindowResizeTest, SetWindowSizeUpdatesLogicalSize)
 {
     SetWindowSize(m_Context, 480, 320);
+#if defined(VK_NO_PROTOTYPES)
+    WaitForResize(480, 320);
+#endif
     DrawFrame();
     ASSERT_EQ(480u, GetWidth(m_Context));
     ASSERT_EQ(320u, GetHeight(m_Context));
     ASSERT_EQ(480u, GetWindowWidth(m_Context));
     ASSERT_EQ(320u, GetWindowHeight(m_Context));
 }
+
+#if defined(VK_NO_PROTOTYPES)
+static PFN_vkAcquireNextImageKHR g_AcquireNextImage;
+static PFN_vkQueuePresentKHR g_QueuePresent;
+static PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR g_GetSurfaceCapabilities;
+static PFN_vkCreateSwapchainKHR g_CreateSwapchain;
+static uint32_t g_SwapchainCreations;
+static bool g_ZeroSurfaceExtent;
+
+static VkResult VKAPI_CALL AcquireSuboptimal(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout,
+                                             VkSemaphore semaphore, VkFence fence, uint32_t* image_index)
+{
+    vkAcquireNextImageKHR = g_AcquireNextImage;
+    VkResult result = g_AcquireNextImage(device, swapchain, timeout, semaphore, fence, image_index);
+    return result == VK_SUCCESS ? VK_SUBOPTIMAL_KHR : result;
+}
+
+static VkResult VKAPI_CALL PresentSuboptimal(VkQueue queue, const VkPresentInfoKHR* present_info)
+{
+    vkQueuePresentKHR = g_QueuePresent;
+    VkResult result = g_QueuePresent(queue, present_info);
+    return result == VK_SUCCESS ? VK_SUBOPTIMAL_KHR : result;
+}
+
+static VkResult VKAPI_CALL GetSurfaceCapabilities(VkPhysicalDevice device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* capabilities)
+{
+    VkResult result = g_GetSurfaceCapabilities(device, surface, capabilities);
+    if (result == VK_SUCCESS && g_ZeroSurfaceExtent)
+    {
+        capabilities->currentExtent.width = 0;
+        capabilities->currentExtent.height = 0;
+    }
+
+    return result;
+}
+
+static VkResult VKAPI_CALL CountSwapchainCreation(VkDevice device, const VkSwapchainCreateInfoKHR* create_info,
+                                                  const VkAllocationCallbacks* allocator, VkSwapchainKHR* swapchain)
+{
+    ++g_SwapchainCreations;
+    return g_CreateSwapchain(device, create_info, allocator, swapchain);
+}
+
+struct VulkanWindowResizeTest : public WindowResizeTest
+{
+    void SetUp()
+    {
+        WindowResizeTest::SetUp();
+        g_AcquireNextImage = vkAcquireNextImageKHR;
+        g_QueuePresent = vkQueuePresentKHR;
+        g_GetSurfaceCapabilities = vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+        g_CreateSwapchain = vkCreateSwapchainKHR;
+        g_SwapchainCreations = 0;
+        g_ZeroSurfaceExtent = false;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR = GetSurfaceCapabilities;
+        vkCreateSwapchainKHR = CountSwapchainCreation;
+    }
+
+    void TearDown()
+    {
+        vkAcquireNextImageKHR = g_AcquireNextImage;
+        vkQueuePresentKHR = g_QueuePresent;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR = g_GetSurfaceCapabilities;
+        vkCreateSwapchainKHR = g_CreateSwapchain;
+        WindowResizeTest::TearDown();
+    }
+
+};
+
+// A suboptimal acquire still begins the frame. Defer recreation at zero extent and rebuild once at the new size.
+TEST_F(VulkanWindowResizeTest, SuboptimalAcquireDefersRebuild)
+{
+    VulkanContext* context = (VulkanContext*) m_Context;
+    vkAcquireNextImageKHR = AcquireSuboptimal;
+    BeginFrame(m_Context);
+    EXPECT_TRUE(context->m_FrameBegun);
+    EXPECT_TRUE(context->m_SwapChainNeedsRecheck);
+    EXPECT_EQ(0u, g_SwapchainCreations);
+    Flip(m_Context);
+
+    g_ZeroSurfaceExtent = true;
+    DrawFrame();
+    EXPECT_TRUE(context->m_SwapChainNeedsRecheck);
+    EXPECT_EQ(0u, g_SwapchainCreations);
+
+    g_ZeroSurfaceExtent = false;
+    dmPlatform::SetWindowSize(m_Window, 480, 320);
+    WaitForResize(480, 320);
+    DrawFrame();
+    CheckSize(480, 320);
+    EXPECT_EQ(1u, g_SwapchainCreations);
+    DrawFrame();
+    EXPECT_FALSE(context->m_SwapChainNeedsRecheck);
+    EXPECT_EQ(1u, g_SwapchainCreations);
+}
+
+// A suboptimal present schedules a recheck. Repeated reports at the same size must not recreate the swap chain.
+TEST_F(VulkanWindowResizeTest, SuboptimalPresentKeepsMatchingSwapchain)
+{
+    VulkanContext* context = (VulkanContext*) m_Context;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        vkQueuePresentKHR = PresentSuboptimal;
+        DrawFrame();
+        EXPECT_TRUE(context->m_SwapChainNeedsRecheck);
+        EXPECT_EQ(0u, g_SwapchainCreations);
+    }
+
+    DrawFrame();
+    EXPECT_FALSE(context->m_SwapChainNeedsRecheck);
+    EXPECT_EQ(0u, g_SwapchainCreations);
+}
+#endif
 
 #if defined(DM_TEST_WINDOW_DX12)
 // Verifies native DX12 contexts expose storage buffers and can allocate the
