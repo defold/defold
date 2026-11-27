@@ -1467,6 +1467,36 @@ public class FontRendererTest {
         }
     }
 
+    // Curved wave text uses the current time for its bounds in either query order and after seeking to zero.
+    @Test
+    public void testArcBoundsUseCurrentAnimationTime() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            properties.arcRadius = 200.0f;
+            properties.arcAngle = 90.0f;
+            renderer.setProperties(properties);
+            renderer.setMarkup("<wave fit=span hz=1 amplitude=20>Arc</wave>");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+
+            FontRenderer.Arc initial = renderer.getArc();
+            assertNotNull(initial);
+
+            renderer.setAnimationTime(0.25);
+            FontRenderer.Arc boundsBeforeVertices = renderer.getArc();
+            assertTrue(getVertices(renderer, IDENTITY).vertexCount > 0);
+            FontRenderer.Arc boundsAfterVertices = renderer.getArc();
+            assertFalse(initial.max.equals(boundsAfterVertices.max));
+            assertEquals(boundsAfterVertices.min, boundsBeforeVertices.min);
+            assertEquals(boundsAfterVertices.max, boundsBeforeVertices.max);
+
+            renderer.setAnimationTime(0);
+            FontRenderer.Arc reset = renderer.getArc();
+            assertEquals(initial.min, reset.min);
+            assertEquals(initial.max, reset.max);
+        }
+    }
+
     // Inner-line glyph corners must not widen the guide beyond the authored angle.
     @Test
     public void testArcGuideRetainsRequestedAngle() throws Exception {

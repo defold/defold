@@ -2111,6 +2111,10 @@ static bool ResolveVectorFaceGlyph(void* context, const TextGlyph& text_glyph, F
 
 static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, const Matrix4& transform, FontLayoutVertexConfig* config)
 {
+    // Each entry supplies an absolute clock, including zero for stopped text.
+    // Keep time out of the retained-layout hash so playback does not reshape.
+    layout->m_ElapsedTime = renderer->m_AnimationTime;
+
     const FontcProperties& properties = renderer->m_Properties;
     memset(config, 0, sizeof(*config));
     config->m_Layout = layout;
@@ -2425,6 +2429,7 @@ FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* output)
     {
         return FONT_RENDERER_RESULT_TEXT_ERROR;
     }
+
     FontLayoutVertexConfig config;
     GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
     FontTextArc arc;
@@ -2532,9 +2537,6 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     transform.setCol3(Vector4(world_transform[12], world_transform[13], world_transform[14], world_transform[15]));
 
     FontLayoutVertexConfig config;
-    // Each entry supplies an absolute clock, including zero for stopped text.
-    // Keep time out of the retained-layout hash so playback does not reshape.
-    layout->m_ElapsedTime = renderer->m_AnimationTime;
     GetLayoutVertexConfig(renderer, layout, transform, &config);
     FontLayoutVertexMetrics metrics;
 

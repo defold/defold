@@ -264,6 +264,7 @@ struct TextLayout
 
     uint16_t                           m_NumValidGlyphs; // TODO: Remove non renderable glyphs
     bool                               m_UseRichText;
+    bool                               m_HasAnimatedEffects;
 
     // Used for creating a cell in the glyph image cache texture
     float m_MaxGlyphWidth;
@@ -385,7 +386,7 @@ void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, co
 // GPU renderers resolve gradients separately; static tint and position effects remain CPU-side.
 void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients);
 
-// Reports whether resolved text spans contain time-dependent effects.
+// Returns the cached animation flag for the effects used by the final glyphs.
 bool TextLayoutHasAnimatedEffects(HTextLayout layout);
 
 // Reports whether the layout needs an outline vertex layer.

@@ -23,6 +23,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.vertex2 :as vtx]
             [editor.scene :as scene]
+            [editor.scene-selection :as scene-selection]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
@@ -181,8 +182,8 @@
                   ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)
                   (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
 
-  ;; Label and clipped GUI previews must render and pick moving glyphs at the
-  ;; supplied clock, remain still when paused, and restore the initial pose.
+  ;; Label and clipped GUI previews must pick moving glyphs only where they
+  ;; appear at the supplied clock, remain still when paused, and reset to zero.
   (deftest animated-text-preview-and-picking
     (test-util/with-loaded-project
       (let [font-node
@@ -212,7 +213,7 @@
            (g/set-property label-node :color [1.0 0.0 1.0 1.0])])
         (doseq [[path node] [["/fonts/vector_preview.go" label-node]
                              ["/fonts/vector_preview.gui" text-node]]]
-          (test-util/prop! node :text "<wave fit=span hz=1 amplitude=16>AA</wave>")
+          (test-util/prop! node :text "<wave fit=span hz=1 amplitude=48>AA</wave>")
           (let [[resource-node view]
                 (test-util/open-scene-view! project app-view path 512 256)
 
@@ -230,19 +231,32 @@
                 ((:update-fn updatable) (:initial-state updatable) {:dt 0.125})]
             (try
               (is (< 10 (count initial)))
-              (test-util/prop! view :updatable-states {(:node-id updatable) state})
-              (let [animated (pixels view)
-                    moved-pixels (set/difference animated initial)]
-                (is (< 10 (count animated)))
-                (is (false? (= initial animated)))
-                (is (= animated (pixels view)))
-                (is (not (coll/empty? moved-pixels)))
-                (when-not (coll/empty? moved-pixels)
-                  (let [[x y]
-                        (nth (vec moved-pixels) (quot (count moved-pixels) 2))]
-                    (test-util/mouse-click! view x y)
-                    (is (test-util/selected? app-view picking-node)))))
-              (test-util/prop! view :updatable-states {})
+              (test-util/with-prop [view :updatable-states {(:node-id updatable) state}]
+                (let [animated (pixels view)
+
+                      ;; Leave a pixel for antialiasing.
+                      picking-clearance
+                      (inc (quot scene-selection/min-pick-size 2))
+
+                      picking-point
+                      (coll/first-where
+                        (fn [[x y]]
+                          (coll/not-any?
+                            (fn [[initial-x initial-y]]
+                              (and (<= (abs (- x initial-x)) picking-clearance)
+                                   (<= (abs (- y initial-y)) picking-clearance)))
+                            initial))
+                        animated)]
+                  (is (< 10 (count animated)))
+                  (is (not= initial animated))
+                  (is (= animated (pixels view)))
+                  (when (is (some? picking-point) path)
+                    (let [[x y] picking-point]
+                      (test-util/with-prop [view :updatable-states {}]
+                        (test-util/mouse-click! view x y)
+                        (is (not (test-util/selected? app-view picking-node)) path))
+                      (test-util/mouse-click! view x y)
+                      (is (test-util/selected? app-view picking-node) path)))))
               (is (= initial (pixels view)))
               (finally
                 ((:dispose-preview-fn (workspace/get-view-type workspace :scene)) view)

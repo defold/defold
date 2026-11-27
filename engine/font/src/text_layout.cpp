@@ -1104,12 +1104,15 @@ static void RefreshDecorations(HTextLayout layout)
     }
 }
 
+static bool ComputeHasAnimatedEffects(HTextLayout layout);
+
 bool TextLayoutRefreshObjectStyles(HTextLayout layout)
 {
     const bool changed = RefreshObjectStyles(layout, true);
 
     if (changed)
     {
+        layout->m_HasAnimatedEffects = ComputeHasAnimatedEffects(layout);
         RefreshDecorations(layout);
         TextLayoutInitializeDecorationGeometry(layout, false);
     }
@@ -1152,13 +1155,14 @@ void TextLayoutInitializeObjectStyles(HTextLayout layout)
     if (layout->m_Objects.Empty() && !layout->m_BaseStyleName)
     {
         layout->m_NamedStyleRevision = FontCollectionGetNamedStyleRevision(layout->m_FontCollection);
-        RefreshDecorations(layout);
-
-        return;
+    }
+    else
+    {
+        layout->m_NamedStyleRevision = 0xffffffff;
+        RefreshObjectStyles(layout, false);
     }
 
-    layout->m_NamedStyleRevision = 0xffffffff;
-    RefreshObjectStyles(layout, false);
+    layout->m_HasAnimatedEffects = ComputeHasAnimatedEffects(layout);
     RefreshDecorations(layout);
 }
 
@@ -1979,17 +1983,27 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
     }
 }
 
-bool TextLayoutHasAnimatedEffects(HTextLayout layout)
+static bool ComputeHasAnimatedEffects(HTextLayout layout)
 {
-    for (uint32_t i = 0; i < layout->m_ResolvedSpans.Size(); ++i)
+    if (layout->m_SpanEffects.Empty())
     {
-        const TextResolvedSpan& span = layout->m_ResolvedSpans[i];
-        if (span.m_TextLength == 0)
+        return false;
+    }
+
+    // Style resolution can leave spans that no glyph uses.
+    uint16_t previous_span_index = MARKUP_INVALID_INDEX;
+    for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
+    {
+        const uint16_t span_index = layout->m_Glyphs[i].m_MarkupSpanIndex;
+        if (span_index == previous_span_index || span_index >= layout->m_ResolvedSpans.Size())
         {
             continue;
         }
 
-        const TextEffect* gradient_effect = 0;
+        previous_span_index = span_index;
+
+        const TextResolvedSpan& span = layout->m_ResolvedSpans[span_index];
+        const TextEffect*       gradient_effect = 0;
         for (uint32_t j = 0; j < span.m_EffectCount; ++j)
         {
             const TextEffect& effect = layout->m_Effects[layout->m_SpanEffects[span.m_EffectIndex + j]];
@@ -2006,13 +2020,23 @@ bool TextLayoutHasAnimatedEffects(HTextLayout layout)
         }
 
         // Match rendering precedence: only the last gradient affects a span.
-        if (gradient_effect && gradient_effect->m_Gradient.m_Hz != 0.0f)
+        if (gradient_effect)
         {
-            return true;
+            const TextGradientEffect& gradient = gradient_effect->m_Gradient;
+            if (gradient.m_Hz != 0.0f &&
+                (gradient.m_Mode != TEXT_GRADIENT_MODE_SPATIAL || gradient.m_Color.m_Type != FONT_COLOR_EFFECT_COLOR))
+            {
+                return true;
+            }
         }
     }
 
     return false;
+}
+
+bool TextLayoutHasAnimatedEffects(HTextLayout layout)
+{
+    return layout->m_HasAnimatedEffects;
 }
 
 bool TextLayoutHasMarkupOutline(HTextLayout layout)

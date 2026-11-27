@@ -6048,6 +6048,72 @@ TEST_F(FontTest, LayoutSolidObjectStylesPreserveSpanCapacity)
     TextLayoutRelease(layout);
 }
 
+// Verifies that overridden gradients and fixed colors do not enable playback, while a visible animated gradient still does.
+TEST_F(FontTest, LayoutReportsOnlyRenderedAnimatedEffects)
+{
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "default", "<gradient type=linear color0=#FF0000 color1=#0000FF hz=1>"));
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "solid", "<color=#FF0000>"));
+
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = dmHashString64("default");
+
+    const struct
+    {
+        const char* m_Markup;
+        bool        m_Animated;
+    } cases[] = {
+        { "<link style=solid>A</link>", false },
+        { "<gradient type=color color0=#FF0000 hz=1>A</gradient>", false },
+        { "<link style=solid>A</link>B", true },
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        HMarkup markup = 0;
+        ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(cases[i].m_Markup, strlen(cases[i].m_Markup), &markup, 0));
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        MarkupDestroy(markup);
+        EXPECT_EQ(cases[i].m_Animated, TextLayoutHasAnimatedEffects(layout));
+        TextLayoutRelease(layout);
+    }
+}
+
+// Verifies that replacing a named style or changing an object's override refreshes playback eligibility on the same layout.
+TEST_F(FontTest, LayoutRefreshesAnimatedEffectsAfterStyleChanges)
+{
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "link", "<color=#FF0000>"));
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "wave", "<wave hz=1 amplitude=8>"));
+
+    const char source[] = "<link id=target>A</link>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    EXPECT_FALSE(TextLayoutHasAnimatedEffects(layout));
+
+    const dmhash_t target = dmHashString64("target");
+    ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, target, dmHashString64("wave")));
+    EXPECT_TRUE(TextLayoutHasAnimatedEffects(layout));
+    ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, target, 0));
+    EXPECT_FALSE(TextLayoutHasAnimatedEffects(layout));
+
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "link", "<wave hz=1 amplitude=8>"));
+    TextLayoutUpdate(layout, 0.0f);
+    EXPECT_TRUE(TextLayoutHasAnimatedEffects(layout));
+    ASSERT_TRUE(SetTestResourceStyle(m_FontCollection, "link", "<color=#FF0000>"));
+    TextLayoutUpdate(layout, 0.0f);
+    EXPECT_FALSE(TextLayoutHasAnimatedEffects(layout));
+    TextLayoutRelease(layout);
+}
+
 // Verifies named base and link styles override non-white RGB while preserving inline overrides, guarding against style tint multiplication.
 TEST_F(FontTest, LayoutNamedStyleOverridesBaseRgb)
 {
