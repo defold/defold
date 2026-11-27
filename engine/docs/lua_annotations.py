@@ -918,52 +918,47 @@ def _render_namespace(
 
 
 def _render_function(name, variants, metadata, reference_namespaces):
-    unique = []
-    identities = set()
+    groups = {}
     for source_path, element in variants:
-        identity = _function_identity(element, metadata)
-        if identity not in identities:
-            identities.add(identity)
-            unique.append((source_path, element))
+        groups.setdefault(_function_identity(element, metadata), []).append((source_path, element))
 
-    source_path, primary = unique[0]
-    lines = _element_doc_lines(
-        primary,
-        (element for _, element in variants[1:]))
-    reference_url = _reference_url(
-        reference_namespaces.get(source_path),
-        primary)
-    stub_parameter_names = _function_stub_parameter_names(primary)
-    if len(stub_parameter_names) != len(primary.parameters):
-        lines.append("---@overload %s" % _function_signature(primary, metadata))
-    for _, overload in unique[1:]:
-        lines.append("---@overload %s" % _function_signature(overload, metadata))
-    for overload in metadata.get("function_overloads", {}).get(name, []):
-        lines.append("---@overload %s" % normalize_type(overload, metadata))
-    generic = metadata.get("generics", {}).get(name)
-    if generic:
-        lines.append("---@generic T: %s" % generic)
-    for parameter in primary.parameters[:len(stub_parameter_names)]:
-        param_name = _normalize_parameter_name(parameter.name)
-        if parameter.is_optional and param_name != "...":
-            param_name += "?"
-        doc = lua_doc_text(parameter.doc).replace("\n", " ")
-        lines.append("---@param %s %s%s" % (
-            param_name,
-            _correlated_type(name, _parameter_type(parameter, metadata), metadata),
-            " " + doc if doc else ""))
-    for return_value in primary.returnvalues:
-        if return_value.name == "...":
-            lines.append("---@return ...")
-            continue
-        doc = lua_doc_text(return_value.doc).replace("\n", " ")
-        name_part = " %s" % return_value.name if return_value.name else ""
-        lines.append("---@return %s%s%s" % (
-            _correlated_type(name, _return_type(return_value, metadata), metadata),
-            name_part,
-            " " + doc if doc else ""))
-    _append_reference_link(lines, reference_url)
-    lines.append("function %s(%s) end" % (name, _function_stub_parameters(primary)))
+    lines = []
+    for index, ((source_path, element), *duplicates) in enumerate(groups.values()):
+        if index:
+            lines.append("")
+        lines.extend(_element_doc_lines(element, (other for _, other in duplicates)))
+        stub_parameter_names = _function_stub_parameter_names(element)
+        if len(stub_parameter_names) != len(element.parameters):
+            lines.append("---@overload %s" % _function_signature(element, metadata))
+        if index == 0:
+            for overload in metadata.get("function_overloads", {}).get(name, []):
+                lines.append("---@overload %s" % normalize_type(overload, metadata))
+        generic = metadata.get("generics", {}).get(name)
+        if generic:
+            lines.append("---@generic T: %s" % generic)
+        for parameter in element.parameters[:len(stub_parameter_names)]:
+            param_name = _normalize_parameter_name(parameter.name)
+            if parameter.is_optional and param_name != "...":
+                param_name += "?"
+            doc = lua_doc_text(parameter.doc).replace("\n", " ")
+            lines.append("---@param %s %s%s" % (
+                param_name,
+                _correlated_type(name, _parameter_type(parameter, metadata), metadata),
+                " " + doc if doc else ""))
+        for return_value in element.returnvalues:
+            if return_value.name == "...":
+                lines.append("---@return ...")
+                continue
+            doc = lua_doc_text(return_value.doc).replace("\n", " ")
+            name_part = " %s" % return_value.name if return_value.name else ""
+            lines.append("---@return %s%s%s" % (
+                _correlated_type(name, _return_type(return_value, metadata), metadata),
+                name_part,
+                " " + doc if doc else ""))
+        _append_reference_link(
+            lines,
+            _reference_url(reference_namespaces.get(source_path), element))
+        lines.append("function %s(%s) end" % (name, _function_stub_parameters(element)))
     return lines
 
 

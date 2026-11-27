@@ -221,8 +221,9 @@ class TestLuaAnnotations(unittest.TestCase):
 
             self.assertEqual(["editor.lua", "go.lua", "meta.lua"], names)
             go_lua = (output / "go.lua").read_text(encoding="utf-8")
-            self.assertEqual(1, go_lua.count("function go.play("))
-            self.assertIn("---@overload fun(value:number)", go_lua)
+            self.assertEqual(2, go_lua.count("function go.play("))
+            self.assertIn("---@param value string", go_lua)
+            self.assertIn("---@param value number", go_lua)
             self.assertNotIn("function init", go_lua)
             self.assertIn(
                 "---@enum defold_enum.go.PLAYBACK: integer",
@@ -279,7 +280,7 @@ class TestLuaAnnotations(unittest.TestCase):
                 metadata)
 
             vmath_lua = (output / "vmath.lua").read_text(encoding="utf-8")
-            self.assertEqual(1, vmath_lua.count("---**Examples:**"))
+            self.assertEqual(2, vmath_lua.count("---**Examples:**"))
             self.assertIn(
                 "---<span class=\"icon-attention\"></span> Create a vector:\n"
                 "---\n"
@@ -295,14 +296,17 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---```",
                 vmath_lua)
             self.assertNotIn("[icon:", vmath_lua)
-            self.assertEqual(1, vmath_lua.count("---[Open in Browser]"))
+            self.assertEqual(2, vmath_lua.count("---[Open in Browser]"))
             self.assertIn(
                 "---[Open in Browser](https://defold.com/ref/"
                 "vmath-lua#vmath.vector3:value)",
                 vmath_lua)
             self.assertLess(
-                vmath_lua.index("---**Examples:**"),
-                vmath_lua.index("---@overload"))
+                vmath_lua.index("Create a vector:"),
+                vmath_lua.index("function vmath.vector3"))
+            self.assertLess(
+                vmath_lua.index("function vmath.vector3"),
+                vmath_lua.index("Copy a vector:"))
             self.assertLess(
                 vmath_lua.index("---@return"),
                 vmath_lua.index("---[Open in Browser]"))
@@ -578,7 +582,9 @@ class TestLuaAnnotations(unittest.TestCase):
                 output,
                 metadata)
             go_lua = (output / "go.lua").read_text(encoding="utf-8")
-            self.assertIn("---@overload fun(value?:string)", go_lua)
+            self.assertEqual(2, go_lua.count("function go.lookup("))
+            self.assertIn("---@param value string Value", go_lua)
+            self.assertIn("---@param value? string Value", go_lua)
 
     def test_metadata_function_overloads_are_rendered_and_validated(self):
         lookup = function("go.lookup", "string", "number")

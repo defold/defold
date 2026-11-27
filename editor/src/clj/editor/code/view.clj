@@ -20,15 +20,20 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.popup :as fx.popup]
+            [cljfx.fx.rectangle :as fx.rectangle]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-item :as fx.tree-item]
             [cljfx.fx.v-box :as fx.v-box]
@@ -92,8 +97,8 @@
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event EventHandler]
-           [javafx.geometry HPos Point2D Rectangle2D VPos]
-           [javafx.scene Node Parent Scene]
+           [javafx.geometry Bounds HPos Point2D Rectangle2D VPos]
+           [javafx.scene Group Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox Tab TextField TreeItem TreeView]
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
@@ -1683,6 +1688,9 @@
                                                                 (remove (:ignored-completion-trigger-characters grammar #{})))
                                                               [completion-trigger-characters
                                                                (:completion-trigger-characters grammar)])))
+  (property signature-help-trigger-characters g/Any (default #{}) (dynamic visible (g/constantly false)))
+  (property signature-help g/Any (dynamic visible (g/constantly false)))
+  (property signature-help-docs g/Bool (default false) (dynamic visible (g/constantly false)))
   (property document-symbols g/Any (default []) (dynamic visible (g/constantly false)))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -2063,6 +2071,40 @@
 (defn- hide-hover! [view-node]
   (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
 
+(defn- hide-signature-help! [view-node]
+  (g/user-data! view-node :signature-help-request nil)
+  (set-properties! view-node nil {:signature-help nil}))
+
+(defn- request-signature-help! [view-node]
+  (let [resource
+        (g/node-value (get-property view-node :resource-node) :resource)
+
+        cursor
+        (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+
+        request [(get-property view-node :lines) cursor]]
+    (g/user-data! view-node :signature-help-request request)
+    (lsp/signature-help!
+      (lsp/get-lsp) resource cursor
+      (fn on-signature-help-result [result]
+        (ui/run-later
+          (when (and (identical? request (g/user-data view-node :signature-help-request))
+                     (= request [(get-property view-node :lines)
+                                 (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]))
+            (let [^Canvas canvas (get-property view-node :canvas)]
+              (if-not (and result (identical? canvas (some-> canvas .getScene ui/focus-owner)))
+                (hide-signature-help! view-node)
+                (let [shown (get-property view-node :signature-help)
+
+                      keep-selection
+                      (and (:selected shown)
+                           (= (mapv :label (:signatures shown))
+                              (mapv :label (:signatures result))))]
+                  (set-properties! view-node nil
+                                   {:signature-help (if keep-selection
+                                                      (assoc result :selected (:selected shown))
+                                                      result)}))))))))))
+
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
     (get-property view-node :completions-showing evaluation-context)))
@@ -2331,7 +2373,8 @@
                                                       regions)
                                                 ;; no triggers: remove introduced regions
                                                 (into [] (remove introduced-region?) regions)))
-                              (data/frame-cursor layout))))))))
+                              (data/frame-cursor layout)))
+         (request-signature-help! view-node))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props
@@ -2723,6 +2766,13 @@
   (active? [editable] editable)
   (run [view-node] (show-suggestions! view-node :explicit true)))
 
+(handler/defhandler :code.show-signature-help :code-view
+  (active? [editable] editable)
+  (run [view-node]
+    (if (get-property view-node :signature-help)
+      (set-properties! view-node nil {:signature-help-docs (not (get-property view-node :signature-help-docs))})
+      (request-signature-help! view-node))))
+
 ;; -----------------------------------------------------------------------------
 
 (defn- insert-text! [view-node prefs typed]
@@ -2788,7 +2838,23 @@
         (hide-hover! view-node)
         (if (and show-suggestions (implies-completions? view-node))
           (show-suggestions! view-node :typed typed)
-          (hide-suggestions! view-node))))))
+          (hide-suggestions! view-node))))
+    (when (contains? (get-property view-node :signature-help-trigger-characters) typed)
+      (request-signature-help! view-node))))
+
+(defn- move-or-page-signature-help! [view-node direction]
+  (let [{:keys [active selected signatures] :as signature-help}
+        (get-property view-node :signature-help)]
+    (if-not (and (some-> ^PopupWindow (g/user-data view-node :signature-help-window) .isShowing)
+                 (< 1 (count signatures))
+                 (not (suggestions-visible? view-node)))
+      (move! view-node :navigation direction)
+      (let [step (if (= direction :up) -1 1)
+
+            next-index
+            (mod (+ (long (or selected active)) step) (count signatures))]
+        (set-properties! view-node nil
+                         {:signature-help (assoc signature-help :selected next-index)})))))
 
 (defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
@@ -2802,8 +2868,8 @@
                   KeyCode/END   (move! view-node :navigation :end)
                   KeyCode/LEFT  (move! view-node :navigation :left)
                   KeyCode/RIGHT (move! view-node :navigation :right)
-                  KeyCode/UP    (move! view-node :navigation :up)
-                  KeyCode/DOWN  (move! view-node :navigation :down)
+                  KeyCode/UP    (move-or-page-signature-help! view-node :up)
+                  KeyCode/DOWN  (move-or-page-signature-help! view-node :down)
                   KeyCode/ENTER (when editable
                                   (insert-text! view-node prefs "\r"))
                   ::unhandled))
@@ -3878,6 +3944,9 @@
       (suggestions-visible? view-node)
       (hide-suggestions! view-node)
 
+      (get-property view-node :signature-help)
+      (hide-signature-help! view-node)
+
       (bar-ui-visible?)
       (do (set-bar-ui-type! :hidden)
           (focus-code-editor! view-node))
@@ -4086,6 +4155,167 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
+(defn- signature-help-popup-placement
+  [^Canvas canvas ^Rect caret font-size signature-count docs]
+  (let [width (.getWidth canvas)
+        height (.getHeight canvas)
+        caret-top (.y caret)
+        caret-bottom (+ caret-top (.h caret))]
+    (when (<= 0.0 caret-top caret-bottom height)
+      (let [preferred-height
+            (+ (* 1.5 (double font-size) (+ 3.0 (double signature-count)))
+               (if docs 400.0 0.0))
+
+            space-below (- height caret-bottom)
+
+            above
+            (and (< space-below preferred-height) (< space-below caret-top))
+
+            x
+            (-> (.x caret)
+                (min (- width (min 240.0 width)))
+                (max 0.0))
+
+            max-width (Math/floor (min 600.0 (- width x)))
+            max-height (Math/floor (if above caret-top space-below))]
+        (when (and (pos? max-width) (pos? max-height))
+          (when-let [anchor (.localToScreen canvas x (if above (- caret-top max-height) caret-bottom))]
+            {:anchor-x (.getX anchor)
+             :anchor-y (.getY anchor)
+             :above above
+             :max-width max-width
+             :max-height max-height}))))))
+
+(def ^:private prop-signature-help-bottom
+  (fx/make-binding-prop
+    (fn bind-signature-help-bottom [^Group group bottom]
+      (let [layout-y (.layoutYProperty group)]
+        (b/bind! layout-y
+                 (b/map (fn signature-help-card-y [^Bounds bounds]
+                          (- (double bottom) (.getHeight bounds)))
+                        (.layoutBoundsProperty group)))
+        (fn unbind-signature-help-bottom [] (b/unbind! layout-y))))
+    fx.lifecycle/scalar))
+
+(defn- signature-help-popup-view
+  [{:keys [canvas signature-help docs hint project font-name font-size
+           view-node anchor-x anchor-y above max-width max-height]}]
+  (let [{:keys [signatures]} signature-help
+        active (or (:selected signature-help) (:active signature-help))
+        {:keys [doc parameter-doc]} (signatures active)
+
+        markdown
+        (fn [{:keys [type value]}]
+          (case type
+            :plaintext (plaintext->markdown value)
+            :markdown value))
+
+        doc-content
+        (when docs
+          (some->> (coll/into-> [parameter-doc doc] []
+                     (keep #(some-> % markdown))
+                     (remove string/blank?))
+                   coll/not-empty
+                   (coll/join-to-string "\n\n<hr>\n\n")))
+
+        signature-text
+        (fn signature-text [text style-class bold]
+          {:fx/type fx.text/lifecycle
+           :text text
+           :style-class style-class
+           :font {:family font-name :size font-size :weight (if bold :bold :normal)}})
+
+        signature-labels
+        (coll/into-> signatures []
+          (map-indexed
+            (fn [index {:keys [label start end]}]
+              (let [selected (= index active)
+
+                    runs
+                    (if-not (and selected start)
+                      [(signature-text label (if selected "signature-help-text" "signature-help-dim") false)]
+                      [(signature-text (subs label 0 start) "signature-help-text" false)
+                       (signature-text (subs label start end) "signature-help-parameter" true)
+                       (signature-text (subs label end) "signature-help-text" false)])]
+                (cond->> runs
+                  (pos? (long index))
+                  (into [(signature-text "\n" "signature-help-dim" false)])))))
+          cat)
+
+        card
+        {:fx/type fx.stack-pane/lifecycle
+         :id "signature-help-card"
+         :min-width 0.0
+         :min-height 0.0
+         :max-width max-width
+         :max-height max-height
+         :children
+         [{:fx/type fx.region/lifecycle
+           :style-class "hover-background"}
+          {:fx/type fx.v-box/lifecycle
+           :children
+           (let [children
+                 (cond-> [{:fx/type fx.text-flow/lifecycle
+                           :padding 6
+                           :max-width max-width
+                           :children signature-labels}]
+                   doc-content
+                   (conj {:fx/type markdown-view/view
+                          :content doc-content
+                          :project project
+                          :focus-traversable false
+                          :max-width max-width
+                          :min-height 0.0
+                          :max-height 400.0})
+
+                   hint
+                   (conj {:fx/type fx.text-flow/lifecycle
+                          :padding (if above
+                                     {:left 6 :right 6 :top 4}
+                                     {:left 6 :right 6 :bottom 4})
+                          :children [{:fx/type fx.text/lifecycle
+                                      :text (str hint ": Toggle docs")
+                                      :style-class "signature-help-dim"}]}))]
+             (if above (vec (rseq children)) children))}]}]
+    {:fx/type fxui/with-popup-window
+     :desc {:fx/type ui/ext-value :value canvas}
+     :popup
+     {:fx/type fx/ext-on-instance-lifecycle
+      :showing true
+      :on-window true
+      :anchor-x anchor-x
+      :anchor-y anchor-y
+      :on-created (fn store-signature-help-window [window]
+                    (g/user-data! view-node :signature-help-window window))
+      :on-deleted (fn clear-signature-help-window [_]
+                    (g/user-data! view-node :signature-help-window nil))
+      :desc
+      {:fx/type fx.popup/lifecycle
+       :anchor-location :window-top-left
+       :auto-fix false
+       :auto-hide true
+       :consume-auto-hiding-events false
+       :hide-on-escape false
+       :on-auto-hide (fn dismiss-signature-help [_] (hide-signature-help! view-node))
+       :content
+       [(assoc (if-not above
+                 card
+                 ;; Keep the window bounds fixed while the card grows up.
+                 {:fx/type fx.pane/lifecycle
+                  :min-width max-width
+                  :pref-width max-width
+                  :max-width max-width
+                  :min-height max-height
+                  :pref-height max-height
+                  :max-height max-height
+                  :pick-on-bounds false
+                  :clip {:fx/type fx.rectangle/lifecycle :width max-width :height max-height}
+                  :children [{:fx/type fx.group/lifecycle
+                              :managed false
+                              prop-signature-help-bottom max-height
+                              :children [card]}]})
+          :stylesheets [(str (io/resource "editor.css"))])]}}}))
+
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -4147,6 +4377,55 @@
                :window-x (some-> scene .getWindow .getX)
                :window-y (some-> scene .getWindow .getY)
                :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))))
+
+    (when editable
+      (let [signature-help (get-property view-node :signature-help)
+
+            signature-help-request
+            (g/user-data view-node :signature-help-request)
+
+            {:keys [^Canvas canvas layout lines]} canvas-repaint-info
+
+            focused
+            (when (or signature-help signature-help-request)
+              (identical? canvas (some-> canvas .getScene ui/focus-owner)))
+
+            cursor
+            (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+
+            font-size (get-property view-node :font-size)
+            docs (get-property view-node :signature-help-docs)
+
+            placement
+            (when (and focused signature-help)
+              (let [caret
+                    (data/cursor-rect layout lines (data/adjust-cursor lines cursor))]
+                (signature-help-popup-placement
+                  canvas
+                  caret
+                  font-size
+                  (count (:signatures signature-help))
+                  (and docs (coll/any? (some-fn :doc :parameter-doc) (:signatures signature-help))))))]
+        (when (or signature-help signature-help-request)
+          (cond
+            (not focused)
+            (hide-signature-help! view-node)
+
+            (not= [lines cursor] signature-help-request)
+            (request-signature-help! view-node)))
+        (ui/advance-graph-user-data-component!
+          view-node :signature-help-popup
+          (when placement
+            (assoc placement
+              :fx/type signature-help-popup-view
+              :canvas canvas
+              :signature-help signature-help
+              :docs docs
+              :hint (keymap/display-text (g/node-value view-node :keymap) :code.show-signature-help nil)
+              :project (g/node-value view-node :project)
+              :font-name (get-property view-node :font-name)
+              :font-size font-size
+              :view-node view-node)))))
 
     ;; Repaint hovered regions
     (ui/advance-graph-user-data-component!
@@ -4708,6 +4987,7 @@
                              (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
                              (dispose-repainter!)
+                             (ui/advance-graph-user-data-component! view-node :signature-help-popup nil)
                              (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
