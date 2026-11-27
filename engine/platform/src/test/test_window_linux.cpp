@@ -1206,7 +1206,7 @@ TEST(LinuxWindow, X11IconicState)
     dmPlatform::DeleteWindow(w);
 }
 
-// A live XKB remap on the test runner's private X server must change the reported physical key.
+// Install the test's level-five keysym so live XKB remapping also works with older default keymaps.
 TEST(LinuxWindow, X11PhysicalKeymapChanges)
 {
     if (!getenv("DM_TEST_X11_REMAP_KEYS"))
@@ -1221,13 +1221,18 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     Display* display = w->m_Display;
     KeyCode q = XKeysymToKeycode(display, XK_q), other = XKeysymToKeycode(display, XK_w);
-    KeyCode level5 = XKeysymToKeycode(display, XK_ISO_Level5_Shift);
+    KeyCode level5 = XKeysymToKeycode(display, XK_e);
     ASSERT_NE(0, q);
     ASSERT_NE(0, other);
     ASSERT_NE(0, level5);
     XkbDescPtr keyboard = XkbGetMap(display, 0, XkbUseCoreKbd);
     ASSERT_TRUE(keyboard);
     ASSERT_EQ(Success, XkbGetNames(display, XkbKeyNamesMask, keyboard));
+    int symbol_count;
+    KeySym* original_symbols = XGetKeyboardMapping(display, level5, 1, &symbol_count);
+    ASSERT_TRUE(original_symbols);
+    KeySym level5_symbol = XK_ISO_Level5_Shift;
+    XChangeKeyboardMapping(display, level5, 1, &level5_symbol, 1);
     XkbKeyNameRec* names = keyboard->names->keys;
     XkbKeyNameRec original = names[q], original_other = names[other], original_level5 = names[level5];
     names[q] = names[other];
@@ -1268,7 +1273,9 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     names[other] = original_other;
     names[level5] = original_level5;
     EXPECT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
+    XChangeKeyboardMapping(display, level5, symbol_count, original_symbols, 1);
     XSync(display, False);
+    XFree(original_symbols);
     XkbFreeKeyboard(keyboard, XkbAllComponentsMask, True);
     dmPlatform::DeleteWindow(w);
 }
