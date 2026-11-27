@@ -3079,6 +3079,8 @@ static int InputTest()
 {
     HWindow w = dmPlatform::NewWindow();
     WindowCreateParams p = Params();
+    // Older compositors grant focus during OpenWindow, before callbacks are enabled.
+    p.m_Hidden = true;
     p.m_Fullscreen = true;
     if (w && w->m_Wayland)
     {
