@@ -2080,7 +2080,9 @@
       (lsp/get-lsp) resource cursor
       (fn on-signature-help-result [result]
         (ui/run-later
-          (when (identical? request (g/user-data view-node :signature-help-request))
+          (when (and (identical? request (g/user-data view-node :signature-help-request))
+                     (= request [(get-property view-node :lines)
+                                 (data/cursor-range-start (first (get-property view-node :cursor-ranges)))]))
             (let [shown (get-property view-node :signature-help)
 
                   keep-selection
@@ -4370,10 +4372,11 @@
 
     (when editable
       (let [signature-help (get-property view-node :signature-help)
+            signature-help-request (g/user-data view-node :signature-help-request)
             {:keys [^Canvas canvas layout lines]} canvas-repaint-info
 
             focused
-            (when signature-help
+            (when (or signature-help signature-help-request)
               (identical? canvas (some-> canvas .getScene ui/focus-owner)))
 
             cursor
@@ -4392,12 +4395,12 @@
                   font-size
                   (count (:signatures signature-help))
                   (and docs (coll/any? (some-fn :doc :parameter-doc) (:signatures signature-help))))))]
-        (when signature-help
+        (when (or signature-help signature-help-request)
           (cond
             (not focused)
             (hide-signature-help! view-node)
 
-            (not= [lines cursor] (g/user-data view-node :signature-help-request))
+            (and signature-help (not= [lines cursor] signature-help-request))
             (request-signature-help! view-node)))
         (ui/advance-graph-user-data-component!
           view-node :signature-help-popup
