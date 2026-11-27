@@ -249,9 +249,9 @@ namespace dmPlatform
         BIND(xdg_activation_v1, m_Activation, 1u)
         BIND(xdg_session_manager_v1, m_SessionManager, 1u)
 #undef BIND
-        if (!strcmp(type, "wl_data_device_manager") && version >= 2 && !wl->m_DataManager)
+        if (!strcmp(type, "wl_data_device_manager") && !wl->m_DataManager)
         {
-            wl->m_DataManager = (wl_data_device_manager*)wl_registry_bind(registry, name, &wl_data_device_manager_interface, 2);
+            wl->m_DataManager = (wl_data_device_manager*)wl_registry_bind(registry, name, &wl_data_device_manager_interface, dmMath::Min(version, 2u));
             WaylandInitDataDevice(w);
         }
         else if (!strcmp(type, "wl_seat"))
@@ -310,7 +310,7 @@ namespace dmPlatform
         }
     }
 
-    static const wl_registry_listener g_Registry = { Global, Remove };
+    const wl_registry_listener g_WaylandRegistryListener = { Global, Remove };
 
     static bool UsePlayerSizeForRestoredWindow(HWindow w)
     {
@@ -983,7 +983,7 @@ namespace dmPlatform
         }
 
         wl->m_Registry = wl_display_get_registry(w->m_WlDisplay);
-        wl_registry_add_listener(wl->m_Registry, &g_Registry, w);
+        wl_registry_add_listener(wl->m_Registry, &g_WaylandRegistryListener, w);
         if (g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) < 0 || !wl->m_Shell || !wl->m_Compositor)
         {
             Disconnect(w);

@@ -2027,6 +2027,51 @@ TEST(LinuxWindow, WaylandMinimizeRequest)
     dmPlatform::DeleteWindow(w);
 }
 
+static void AnnounceLegacyClipboard(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version)
+{
+    if (!strcmp(interface, "wl_data_device_manager"))
+    {
+        version = 1;
+    }
+    else if (strcmp(interface, "wl_seat"))
+    {
+        return;
+    }
+
+    dmPlatform::g_WaylandRegistryListener.global(data, registry, name, interface, version);
+}
+
+// A v1 data-device manager must supply a clipboard device and disconnect without sending a v2 release.
+TEST(LinuxWindow, WaylandLegacyClipboard)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    LinuxWayland* wl = w->m_Wayland;
+    if (!wl || !wl->m_Seat)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    dmPlatform::WaylandReleaseSeat(w);
+    if (wl->m_DataManager)
+    {
+        wl_data_device_manager_destroy(wl->m_DataManager);
+        wl->m_DataManager = 0;
+    }
+
+    wl_registry* registry = wl_display_get_registry(w->m_WlDisplay);
+    const wl_registry_listener listener = { AnnounceLegacyClipboard, dmPlatform::g_WaylandRegistryListener.global_remove };
+    wl_registry_add_listener(registry, &listener, w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    ASSERT_TRUE(wl->m_DataDevice);
+    EXPECT_EQ(1u, wl_data_device_get_version(wl->m_DataDevice));
+    dmPlatform::WaylandReleaseSeat(w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    wl_registry_destroy(registry);
+    dmPlatform::DeleteWindow(w);
+}
+
 // Seats predating the release requests must still supply a keyboard and pointer and disconnect cleanly.
 TEST(LinuxWindow, WaylandLegacySeat)
 {

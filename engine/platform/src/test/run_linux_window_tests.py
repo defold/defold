@@ -230,7 +230,7 @@ def run(args, directory):
                                                     x11, directory))
             wait_ready(compositor, ['test', '-S', directory / nested['WAYLAND_DISPLAY']], nested)
             # A compositor with a seat also exercises libdecor during the initial map.
-            for case in ('WaylandFirstSwapAfterOpen', 'WaylandCloseDuringShow', 'WaylandLegacySeat'):
+            for case in ('WaylandFirstSwapAfterOpen', 'WaylandCloseDuringShow', 'WaylandLegacySeat', 'WaylandLegacyClipboard'):
                 subprocess.run([args.native, '--test-filter', f'LinuxWindow.{case}'],
                                cwd=directory, env=nested, check=True, timeout=30)
             input_test(args.native, nested, x11, directory, True)

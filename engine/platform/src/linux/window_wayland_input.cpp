@@ -611,7 +611,14 @@ namespace dmPlatform
 
         if (wl->m_DataDevice)
         {
-            wl_data_device_release(wl->m_DataDevice);
+            if (wl_data_device_get_version(wl->m_DataDevice) >= WL_DATA_DEVICE_RELEASE_SINCE_VERSION)
+            {
+                wl_data_device_release(wl->m_DataDevice);
+            }
+            else
+            {
+                wl_data_device_destroy(wl->m_DataDevice);
+            }
         }
 
         wl->m_DataSource = 0;
