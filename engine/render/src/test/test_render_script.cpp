@@ -184,6 +184,11 @@ protected:
 
     void SetUp() override
     {
+        SetUp(false);
+    }
+
+    void SetUp(bool disable_depth_stencil)
+    {
         dmGraphics::InstallAdapter();
 
         WindowCreateParams win_params;
@@ -191,6 +196,7 @@ protected:
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         win_params.m_ContextAlphabits = 8;
+        win_params.m_DisableDepthStencil = disable_depth_stencil;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
@@ -199,6 +205,7 @@ protected:
         graphics_context_params.m_Width = 20;
         graphics_context_params.m_Height = 10;
         graphics_context_params.m_Window = m_Window;
+        graphics_context_params.m_DisableDepthStencil = disable_depth_stencil;
 
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
@@ -1130,17 +1137,77 @@ TEST_F(dmRenderScriptTest, TestStencilBufferCleared)
 
 
     const char* script_stencil_clear =
-    "function update(self)\n"
-    "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0})\n"
-    "end\n";
+        "function update(self)\n"
+        "    if self.cleared then return end\n"
+        "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0})\n"
+        "    self.cleared = true\n"
+        "end\n";
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_stencil_clear));
     render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     ASSERT_EQ(0u, m_Context->m_StencilBufferCleared);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
     ASSERT_EQ(1u, m_Context->m_StencilBufferCleared);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(0u, m_Context->m_StencilBufferCleared);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+struct ColorOnlyRenderScriptTest : public dmRenderScriptTest
+{
+    void SetUp() override
+    {
+        dmRenderScriptTest::SetUp(true);
+    }
+
+};
+
+// The first GUI clipper clears stale offscreen stencil after the render script clears a color-only backbuffer.
+TEST_F(ColorOnlyRenderScriptTest, OffscreenGuiStencilClear)
+{
+    dmGraphics::RenderTargetCreationParams params = {};
+    params.m_StencilTexture = 1;
+    params.m_StencilBufferCreationParams.m_Width = params.m_StencilBufferParams.m_Width = 1;
+    params.m_StencilBufferCreationParams.m_Height = params.m_StencilBufferParams.m_Height = 1;
+    params.m_StencilBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, dmGraphics::BUFFER_TYPE_STENCIL_BIT, params);
+    ASSERT_NE((dmGraphics::HRenderTarget)0, target);
+
+    const char* script =
+        "function update(self)\n"
+        "    render.set_render_target('offscreen')\n"
+        "    render.clear({[graphics.BUFFER_TYPE_STENCIL_BIT] = 7})\n"
+        "    render.set_render_target()\n"
+        "    render.clear({[graphics.BUFFER_TYPE_STENCIL_BIT] = 0})\n"
+        "    render.set_render_target('offscreen')\n"
+        "end";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "offscreen", target, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(m_GraphicsContext, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
+    ASSERT_NE((dmGraphics::HTexture)0, texture);
+    const uint32_t* stencil = (const uint32_t*)dmGraphics::TestGetTextureData(m_GraphicsContext, texture);
+    ASSERT_NE((const uint32_t*)0, stencil);
+    ASSERT_EQ(7u, *stencil);
+
+    dmRender::SetMaterialTags(m_FontMaterial, 0, 0);
+    dmRender::RenderObject clipper;
+    clipper.m_Material = m_FontMaterial;
+    clipper.m_VertexCount = 3;
+    clipper.m_SetStencilTest = 1;
+    clipper.m_StencilTestParams.m_ClearBuffer = 1;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &clipper));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    EXPECT_EQ(0u, *stencil);
+
+    dmRender::ClearRenderObjects(m_Context);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+    dmGraphics::SetRenderTarget(m_GraphicsContext, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::DeleteRenderTarget(m_GraphicsContext, target);
 }
 
 TEST_F(dmRenderScriptTest, TestLuaTransform)
