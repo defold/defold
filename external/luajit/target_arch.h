@@ -64,6 +64,8 @@ LJ_ARCH x86
 LJ_ARCH arm64
 #elif LJ_TARGET_ARM
 LJ_ARCH arm
+#elif LJ_TARGET_WASM32
+LJ_ARCH wasm32
 #else
 #error Unsupported LuaJIT target architecture
 #endif

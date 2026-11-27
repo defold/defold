@@ -5,7 +5,12 @@ string(REGEX MATCH "LJ_BITS ([0-9]+)" unused "${arch_config}")
 set(target_pointer_size "${CMAKE_MATCH_1}")
 
 # These generators run on the host and must not inherit the target SDK.
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+if(arch_config MATCHES "LJ_ARCH wasm32" OR
+    (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND target_pointer_size STREQUAL "32"))
+  # Web targets need 32-bit generators even on ARM64 hosts without a native
+  # 32-bit compiler. Node preserves the target struct layout on every host.
+  include("${CMAKE_CURRENT_LIST_DIR}/emscripten.cmake")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
   # Discover the native Windows compiler, headers and libraries outside a VS shell.
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/cmake")
   include(functions)
@@ -13,10 +18,6 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Vi
     set(DEFOLD_WINDOWS_ARCH x86)
   endif()
   include(sdk_windows)
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND target_pointer_size STREQUAL "32")
-  # Modern macOS cannot run 32-bit native programs. Use the Web SDK to build
-  # 32-bit generators that run in Node, preserving LuaJIT's target struct layout.
-  include("${CMAKE_CURRENT_LIST_DIR}/emscripten.cmake")
 endif()
 project(luajit_host LANGUAGES C)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
@@ -62,14 +63,18 @@ add_custom_command(OUTPUT "${LUAJIT_GENERATED_DIR}/luajit.h"
     "${LUAJIT_SOURCE_DIR}/.relver" "${LUAJIT_GENERATED_DIR}/luajit.h"
   DEPENDS minilua "${src}/host/genversion.lua" "${src}/luajit_rolling.h" "${LUAJIT_SOURCE_DIR}/.relver"
   VERBATIM)
-add_custom_command(OUTPUT "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h"
-  COMMAND minilua "${LUAJIT_SOURCE_DIR}/dynasm/dynasm.lua" -LN ${dasm_flags}
-    -o "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h" "${src}/vm_${dasm_arch}.dasc"
-  DEPENDS minilua "${src}/vm_${dasm_arch}.dasc" "${LUAJIT_ARCH_FILE}"
-  VERBATIM)
+set(buildvm_arch_header)
+if(NOT dasm_arch STREQUAL "wasm32")
+  set(buildvm_arch_header "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h")
+  add_custom_command(OUTPUT "${buildvm_arch_header}"
+    COMMAND minilua "${LUAJIT_SOURCE_DIR}/dynasm/dynasm.lua" -LN ${dasm_flags}
+      -o "${buildvm_arch_header}" "${src}/vm_${dasm_arch}.dasc"
+    DEPENDS minilua "${src}/vm_${dasm_arch}.dasc" "${LUAJIT_ARCH_FILE}"
+    VERBATIM)
+endif()
 add_executable(buildvm "${src}/host/buildvm.c" "${src}/host/buildvm_asm.c"
   "${src}/host/buildvm_peobj.c" "${src}/host/buildvm_lib.c" "${src}/host/buildvm_fold.c"
-  "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h" "${LUAJIT_GENERATED_DIR}/luajit.h")
+  ${buildvm_arch_header} "${LUAJIT_GENERATED_DIR}/luajit.h")
 target_include_directories(buildvm PRIVATE "${LUAJIT_GENERATED_DIR}/host"
   "${LUAJIT_GENERATED_DIR}" "${src}")
 target_compile_definitions(buildvm PRIVATE ${LUAJIT_DEFINITIONS})
@@ -82,10 +87,13 @@ set(lib_sources)
 foreach(lib IN ITEMS base math bit string table io os package debug jit ffi buffer)
   list(APPEND lib_sources "${src}/lib_${lib}.c")
 endforeach()
-set(outputs "${LUAJIT_VM_FILE}")
-add_custom_command(OUTPUT "${LUAJIT_VM_FILE}"
-  COMMAND buildvm -m "${LUAJIT_VM_MODE}" -o "${LUAJIT_VM_FILE}"
-  DEPENDS buildvm VERBATIM)
+set(outputs)
+if(LUAJIT_VM_FILE)
+  list(APPEND outputs "${LUAJIT_VM_FILE}")
+  add_custom_command(OUTPUT "${LUAJIT_VM_FILE}"
+    COMMAND buildvm -m "${LUAJIT_VM_MODE}" -o "${LUAJIT_VM_FILE}"
+    DEPENDS buildvm VERBATIM)
+endif()
 foreach(mode IN ITEMS bcdef ffdef libdef recdef vmdef folddef)
   set(inputs ${lib_sources})
   set(output "${LUAJIT_GENERATED_DIR}/lj_${mode}.h")

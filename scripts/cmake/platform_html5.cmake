@@ -13,6 +13,7 @@ target_compile_definitions(defold_sdk INTERFACE
   DM_NO_SYSTEM_FUNCTION
   JC_TEST_NO_DEATH_TEST
   PTHREADS_DEBUG
+  LUA_BYTECODE_ENABLE_32
   DM_HOSTFS=\"/node_vfs/\"
   DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER)
 
@@ -23,6 +24,8 @@ target_compile_options(defold_sdk INTERFACE
   -fno-exceptions
   $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
   -Wno-nontrivial-memcall
+  -mtail-call
+  -sSUPPORT_LONGJMP=wasm
   -sDISABLE_EXCEPTION_CATCHING=1)
 
 # Threading: wasm_pthread-web uses pthreads
@@ -52,6 +55,8 @@ set(_DEFOLD_EM_LINK_OPTS
   -Wno-warn-absolute-paths
   --emit-symbol-map
   -lidbfs.js
+  -mtail-call
+  -sSUPPORT_LONGJMP=wasm
   -sDISABLE_EXCEPTION_CATCHING=1
   -sALLOW_UNIMPLEMENTED_SYSCALLS=0
   -sEXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]
@@ -64,18 +69,13 @@ set(_DEFOLD_EM_LINK_OPTS
   -sSTACK_SIZE=5MB
 )
 
-# Browser minimum versions; keep in sync with share/extender/build_input.yml.
-if(_DEFOLD_WITH_PTHREAD)
-  list(APPEND _DEFOLD_EM_LINK_OPTS
-    -sMIN_FIREFOX_VERSION=79
-    -sMIN_SAFARI_VERSION=150000
-    -sMIN_CHROME_VERSION=75)
-else()
-  # dmloader.js requires Promise.finally and AbortController for optional WASM streaming.
-  list(APPEND _DEFOLD_EM_LINK_OPTS
-    -sMIN_FIREFOX_VERSION=58
-    -sMIN_SAFARI_VERSION=110100
-    -sMIN_CHROME_VERSION=66)
+# The interpreter requires Wasm tail calls. Keep these minimums in sync with
+# share/extender/build_input.yml.
+list(APPEND _DEFOLD_EM_LINK_OPTS
+  -sMIN_FIREFOX_VERSION=121
+  -sMIN_SAFARI_VERSION=180200
+  -sMIN_CHROME_VERSION=112)
+if(NOT _DEFOLD_WITH_PTHREAD)
   # Emscripten 4.0.6's legacy browser lowering miscompiles float-to-int boundaries.
   # Keep this workaround until the SDK and browser baseline are updated.
   target_compile_options(defold_sdk INTERFACE -mno-nontrapping-fptoint)

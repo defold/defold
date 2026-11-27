@@ -170,22 +170,51 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
     }
 
+    // Both web runtimes load non-GC64 LuaJIT bytecode for every Lua resource type.
     @Test
-    public void testCompressedLuaSourceForHTML5() throws Exception {
+    public void testLuaJITBytecode32ForHTML5() throws Exception {
+        ParseUtil.addParser("luac", LuaModule::parseFrom);
+        ParseUtil.addParser("gui_scriptc", LuaModule::parseFrom);
         Project p = getProject();
-        p.setOption("platform", "wasm-web");
+        for (String platform : new String[]{"wasm-web", "wasm_pthread-web"}) {
+            p.setOption("platform", platform);
+            for (String extension : new String[]{".lua", ".script", ".gui_script", ".render_script"}) {
+                String path = "/test_" + platform + extension;
+                LuaModule luaModule = (LuaModule)build(path, "function foo() print('foo') end").get(0);
+                LuaSource luaSource = luaModule.getSource();
+                assertEquals(0, luaSource.getScript().size());
+                assertTrue(luaSource.getBytecode().size() > 5);
+                assertEquals(0x1b, luaSource.getBytecode().byteAt(0));
+                assertEquals('L', luaSource.getBytecode().byteAt(1));
+                assertEquals('J', luaSource.getBytecode().byteAt(2));
+                assertEquals(2, luaSource.getBytecode().byteAt(3));
+                assertEquals(0, luaSource.getBytecode().byteAt(4) & 0x08); // BCDUMP_F_FR2: GC64.
+                assertEquals(0, luaSource.getBytecode32().size());
+                assertEquals(0, luaSource.getBytecode64().size());
+                assertEquals(0, luaSource.getDelta().size());
+                assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.ENCRYPTED));
+                assertFalse(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
+            }
+        }
+    }
 
-        final String path = "/test.script";
-        final String scriptSource = "function foo() print('foo') end";
-        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
-        LuaSource luaSource = luaModule.getSource();
-        assertNotNull(luaSource.getScript());
-        assertTrue(luaSource.getScript().size() > 0);
-        assertEquals(0, luaSource.getBytecode().size());
-        assertEquals(0, luaSource.getBytecode64().size());
-        assertEquals(0, luaSource.getDelta().size());
-        assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.ENCRYPTED));
-        assertFalse(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
+    // The explicit source override remains available on both web targets.
+    @Test
+    public void testUseUncompressedLuaSourceForHTML5() throws Exception {
+        Project p = getProject();
+        p.setOption("use-uncompressed-lua-source", "true");
+        for (String platform : new String[]{"wasm-web", "wasm_pthread-web"}) {
+            p.setOption("platform", platform);
+            String path = "/source_" + platform + ".script";
+            LuaModule luaModule = (LuaModule)build(path, "function foo() print('foo') end").get(0);
+            LuaSource luaSource = luaModule.getSource();
+            assertTrue(luaSource.getScript().size() > 0);
+            assertEquals(0, luaSource.getBytecode().size());
+            assertEquals(0, luaSource.getBytecode32().size());
+            assertEquals(0, luaSource.getBytecode64().size());
+            assertEquals(0, luaSource.getDelta().size());
+            assertTrue(p.getOutputFlags("build" + path + "c").contains(Task.OutputFlags.UNCOMPRESSED));
+        }
     }
 
     // Verifies that every Lua output declares its archive flags before compilation, including cached and skipped builds.

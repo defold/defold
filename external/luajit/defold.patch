@@ -20,7 +20,7 @@ diff -ruwN --exclude=.git repo_a/src/luajit_rolling.h repo_b/src/luajit_rolling.
  #define LUAJIT_VERSION_NUM	20199  /* Deprecated. */
 -#define LUAJIT_VERSION_SYM	luaJIT_version_2_1_ROLLING
 +#define LUAJIT_VERSION_SYM	dm_luaJIT_version_2_1_ROLLING
- #define LUAJIT_COPYRIGHT	"Copyright (C) 2005-2025 Mike Pall"
+ #define LUAJIT_COPYRIGHT	"Copyright (C) 2005-2026 Mike Pall"
  #define LUAJIT_URL		"https://luajit.org/"
  
 diff -ruwN --exclude=.git repo_a/src/lua.h repo_b/src/lua.h
