@@ -1425,7 +1425,7 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         valid &= CheckCaptureReadPixelsTargets(context, resources);
         valid &= CheckCaptureBackbuffer(context, resources);
     }
-    else if (strcmp(name, "stencil") == 0)
+    else if (strcmp(name, "clear") == 0)
     {
         if (GetInstalledAdapterFamily() == ADAPTER_FAMILY_OPENGL)
         {
@@ -1695,14 +1695,15 @@ static int CaptureMain(int argc, char** argv)
     remove(filename);
 
     CaptureContext capture = {};
-    // The stencil case clips offscreen and then draws to a color-only backbuffer.
-    if (!InitializeCapture(*backend, strcmp(name, "stencil") == 0, &capture))
+    // Use a color-only window for the clear case. The stencil preview clips directly on the backbuffer.
+    const bool clear_case = strcmp(name, "clear") == 0;
+    if (!InitializeCapture(*backend, clear_case, &capture))
     {
         FinalizeCapture(&capture);
         return 1;
     }
 
-    if (strcmp(name, "clear") == 0)
+    if (clear_case)
     {
         ReportTextureCaseSupport(capture.m_Context, backend->m_Family);
     }
