@@ -2072,8 +2072,12 @@
   (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
 
 (defn- request-signature-help! [view-node]
-  (let [resource (g/node-value (get-property view-node :resource-node) :resource)
-        cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+  (let [resource
+        (g/node-value (get-property view-node :resource-node) :resource)
+
+        cursor
+        (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+
         request [(get-property view-node :lines) cursor]]
     (g/user-data! view-node :signature-help-request request)
     (lsp/signature-help!
@@ -2844,7 +2848,9 @@
                  (not (suggestions-visible? view-node)))
       (move! view-node :navigation direction)
       (let [step (if (= direction :up) -1 1)
-            next-index (mod (+ (long (or selected active)) step) (count signatures))]
+
+            next-index
+            (mod (+ (long (or selected active)) step) (count signatures))]
         (set-properties! view-node nil
                          {:signature-help (assoc signature-help :selected next-index)})))))
 
@@ -4372,7 +4378,10 @@
 
     (when editable
       (let [signature-help (get-property view-node :signature-help)
-            signature-help-request (g/user-data view-node :signature-help-request)
+
+            signature-help-request
+            (g/user-data view-node :signature-help-request)
+
             {:keys [^Canvas canvas layout lines]} canvas-repaint-info
 
             focused

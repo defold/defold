@@ -547,7 +547,8 @@
                 (a/go
                   (try
                     ;; LSP lifecycle: initialization
-                    (let [{:keys [capabilities serverInfo]} (lsp.jsonrpc/unwrap-response (<! (initialize jsonrpc project)))]
+                    (let [{:keys [capabilities serverInfo]}
+                          (lsp.jsonrpc/unwrap-response (<! (initialize jsonrpc project)))]
                       (>! out (on-initialized (cond-> (lsp-capabilities->editor-capabilities capabilities)
                                                 (:name serverInfo)
                                                 (assoc :server-name (:name serverInfo)))))
@@ -875,7 +876,7 @@
       "textDocument/signatureHelp"
       {:textDocument {:uri (resource-uri resource)}
        :position (editor-cursor->lsp-position cursor)})
-    (bound-fn [result _]
+    (bound-fn signature-help-result->editor [result _]
       (when-let [signatures (coll/not-empty (:signatures result))]
         (let [active-signature (:activeSignature result)
 
@@ -896,9 +897,10 @@
                          (fn [[ranges from] {parameter-label :label}]
                            (if-not (string? parameter-label)
                              [(conj ranges parameter-label) (second parameter-label)]
-                             (let [matcher (re-matcher
-                                             (re-pattern (str "(?<!\\w)" (Pattern/quote parameter-label) "(?!\\w)"))
-                                             label)]
+                             (let [matcher
+                                   (re-matcher
+                                     (re-pattern (str "(?<!\\w)" (Pattern/quote parameter-label) "(?!\\w)"))
+                                     label)]
                                (if (.find matcher (int from))
                                  [(conj ranges [(.start matcher) (.end matcher)]) (.end matcher)]
                                  [(conj ranges nil) from]))))

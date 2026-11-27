@@ -119,19 +119,18 @@
 
 (defn- set-view-node-completion-trigger-characters-tx [state resource view-node]
   {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
-  (concat
-    (g/set-property
-      view-node
-      :completion-trigger-characters
-      (combined-completion-trigger-characters state resource))
-    (g/set-property
-      view-node
-      :signature-help-trigger-characters
-      (coll/into-> (:server->server-state state) #{}
-        (filter
-          (fn [[server {:keys [status]}]]
-            (and (= :running status) (server-handles-resource? server resource))))
-        (mapcat #(-> % val :capabilities :signature-help :trigger-characters))))))
+  [(g/set-property
+     view-node
+     :completion-trigger-characters
+     (combined-completion-trigger-characters state resource))
+   (g/set-property
+     view-node
+     :signature-help-trigger-characters
+     (coll/into-> (:server->server-state state) #{}
+       (filter
+         (fn [[server {:keys [status]}]]
+           (and (= :running status) (server-handles-resource? server resource))))
+       (mapcat #(-> % val :capabilities :signature-help :trigger-characters))))])
 
 (s/def ::extension string?)
 (s/def ::extensions (s/coll-of ::extension :kind set? :min-count 1))
@@ -1210,7 +1209,7 @@
 (defn signature-help! [lsp resource cursor result-callback]
   (if-not (resource/file-resource? resource)
     (do (result-callback nil) nil)
-    (lsp (bound-fn [state]
+    (lsp (bound-fn send-signature-help-request [state]
            (let [ch (a/chan 1)]
              (a/go (result-callback (<! ch)))
              (send-requests!
