@@ -72,6 +72,8 @@ namespace dmPlatform
     bool      Win32UpdateDisplayLayout();
     void      Win32AdjustFrame(RECT* rect, DWORD style, DWORD ex_style, UINT dpi);
     bool      Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result);
+    // Returns whether the original HWND still exists after notifying the marked-text listener.
+    bool      Win32DispatchImeText(HWindow window, char* composition, char* committed);
     void      Win32UpdateCursor(HWindow window, bool focused);
     void      Win32CenterCursor(HWindow window);
     void      Win32JoysticksChanged();

@@ -562,6 +562,51 @@ TEST(dmPlatform, WindowsInputMessages)
     dmPlatform::DeleteWindow(window);
 }
 
+struct MarkedTextAction
+{
+    HWindow  m_Window;
+    uint32_t m_Calls;
+    bool     m_Delete;
+};
+
+static void StopMarkedText(void* data, char* text)
+{
+    MarkedTextAction* action = (MarkedTextAction*)data;
+    ++action->m_Calls;
+    EXPECT_STREQ("composing", text);
+    if (action->m_Delete)
+    {
+        dmPlatform::DeleteWindow(action->m_Window);
+        action->m_Window = 0;
+    }
+    else
+    {
+        dmPlatform::SetKeyboardMarkedTextCallback(action->m_Window, 0, 0);
+    }
+}
+
+// The first IME notification can remove its listener or delete the window before the committed text is delivered.
+TEST(dmPlatform, WindowsImeCallbackCanUnregisterOrDeleteWindow)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    for (int remove_window = 0; remove_window < 2; ++remove_window)
+    {
+        MarkedTextAction action = { dmPlatform::NewWindow(), 0, remove_window != 0 };
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action.m_Window, params));
+        dmPlatform::SetKeyboardMarkedTextCallback(action.m_Window, StopMarkedText, &action);
+        char composition[] = "composing", committed[] = "committed";
+        EXPECT_EQ(!action.m_Delete, dmPlatform::Win32DispatchImeText(action.m_Window, composition, committed));
+        EXPECT_EQ(1u, action.m_Calls);
+        if (action.m_Window)
+        {
+            dmPlatform::DeleteWindow(action.m_Window);
+        }
+    }
+}
+
 // A second mouse press must preserve the first button and keep capture until the last release.
 TEST(dmPlatform, WindowsMouseButtonChord)
 {

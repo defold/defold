@@ -216,12 +216,12 @@ namespace dmPlatform
         Character(window, code);
     }
 
-    static void MarkedText(HWindow window, HIMC ime, DWORD kind)
+    static char* ReadMarkedText(HIMC ime, DWORD kind, dmArray<char>& text)
     {
         LONG bytes = ImmGetCompositionStringW(ime, kind, 0, 0);
         if (bytes < 0)
         {
-            return;
+            return 0;
         }
 
         dmArray<WCHAR> wide;
@@ -229,17 +229,37 @@ namespace dmPlatform
         LONG size = ImmGetCompositionStringW(ime, kind, wide.Begin(), bytes);
         if (size < 0 || size > bytes)
         {
-            return;
+            return 0;
         }
 
         wide.Begin()[size / sizeof(WCHAR)] = 0;
         int count = WideCharToMultiByte(CP_UTF8, 0, wide.Begin(), -1, 0, 0, 0, 0);
-        dmArray<char> text;
         text.SetCapacity(count);
         if (count && WideCharToMultiByte(CP_UTF8, 0, wide.Begin(), -1, text.Begin(), count, 0, 0))
         {
-            window->m_Callbacks.m_Marked(window->m_Callbacks.m_MarkedData, text.Begin());
+            return text.Begin();
         }
+
+        return 0;
+    }
+
+    bool Win32DispatchImeText(HWindow window, char* composition, char* committed)
+    {
+        HWND hwnd = window->m_Window;
+        char* strings[] = { composition, committed };
+        for (unsigned i = 0; i < DM_ARRAY_SIZE(strings); ++i)
+        {
+            if (strings[i] && window->m_Callbacks.m_Marked)
+            {
+                window->m_Callbacks.m_Marked(window->m_Callbacks.m_MarkedData, strings[i]);
+                if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     static POINT CursorPosition(HWND hwnd)
@@ -398,20 +418,16 @@ namespace dmPlatform
             {
                 if (window->m_Callbacks.m_Marked)
                 {
-                    HIMC ime = ImmGetContext(window->m_Window);
+                    HWND hwnd = window->m_Window;
+                    HIMC ime = ImmGetContext(hwnd);
                     if (ime)
                     {
-                        if (lp & GCS_COMPSTR)
-                        {
-                            MarkedText(window, ime, GCS_COMPSTR);
-                        }
-
-                        if (lp & GCS_RESULTSTR)
-                        {
-                            MarkedText(window, ime, GCS_RESULTSTR);
-                        }
-
-                        ImmReleaseContext(window->m_Window, ime);
+                        dmArray<char> composition, committed;
+                        char* marked = (lp & GCS_COMPSTR) ? ReadMarkedText(ime, GCS_COMPSTR, composition) : 0;
+                        char* result_text = (lp & GCS_RESULTSTR) ? ReadMarkedText(ime, GCS_RESULTSTR, committed) : 0;
+                        ImmReleaseContext(hwnd, ime);
+                        // Only a live HWND should receive default processing to generate WM_CHAR.
+                        return !Win32DispatchImeText(window, marked, result_text);
                     }
                 }
 
@@ -419,13 +435,8 @@ namespace dmPlatform
             }
             case WM_IME_ENDCOMPOSITION:
             {
-                if (window->m_Callbacks.m_Marked)
-                {
-                    char empty[] = "";
-                    window->m_Callbacks.m_Marked(window->m_Callbacks.m_MarkedData, empty);
-                }
-
-                break;
+                char empty[] = "";
+                return !Win32DispatchImeText(window, empty, 0);
             }
             case WM_LBUTTONDOWN:
             case WM_LBUTTONUP:
