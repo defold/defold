@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -645,10 +646,8 @@ public class ExtenderUtil {
         return true;
     }
 
-    // Migrate legacy app manifest settings before upload, even without opening
-    // the editor.
     @SuppressWarnings("unchecked")
-    private static boolean migrateVorbisContext(Object value, String platform) {
+    private static boolean migrateVorbisContext(Object value, boolean expandArchiveExclusions) {
         if (!(value instanceof Map<?, ?>)) {
             return false;
         }
@@ -656,7 +655,7 @@ public class ExtenderUtil {
         boolean modified = false;
         for (String key : List.of("symbols", "excludeSymbols", "libs", "engineLibs", "excludeLibs")) {
             if (context.get(key) instanceof List<?> items) {
-                List<?> migrated = AppManifestMigration.migrateVorbisItems(key, items, platform);
+                List<?> migrated = AppManifestMigration.migrateVorbisItems(key, items, expandArchiveExclusions);
                 if (!items.equals(migrated)) {
                     context.put(key, migrated);
                     modified = true;
@@ -666,6 +665,50 @@ public class ExtenderUtil {
         return modified;
     }
 
+    private static boolean selectsScalarVorbis(Object value) {
+        return value instanceof Map<?, ?> context && (AppManifestMigration.selectsScalarVorbis(context.get("libs"))
+                || AppManifestMigration.selectsScalarVorbis(context.get("engineLibs")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migratePlatformVorbisExclusions(Map<?, ?> platforms) {
+        Map<String, List<?>> exclusions = new LinkedHashMap<>();
+        Map<String, List<?>> selections = new HashMap<>();
+        for (var entry : platforms.entrySet()) {
+            if (entry.getKey() instanceof String name && entry.getValue() instanceof Map<?, ?> platform
+                    && platform.get("context") instanceof Map<?, ?> context) {
+                if (context.get("excludeSymbols") instanceof List<?> items) {
+                    exclusions.put(name, items);
+                }
+                if (context.get("symbols") instanceof List<?> items) {
+                    selections.put(name, items);
+                }
+            }
+        }
+        boolean modified = false;
+        for (var entry : AppManifestMigration.migrateVorbisExclusions(exclusions, selections).entrySet()) {
+            String name = entry.getKey();
+            Object value = platforms.containsKey(name) ? platforms.get(name) : Map.of();
+            if (!(value instanceof Map<?, ?> platform)) {
+                continue;
+            }
+            Object contextValue = platform.containsKey("context") ? platform.get("context") : Map.of();
+            if (!(contextValue instanceof Map<?, ?> context)
+                    || (context.containsKey("excludeSymbols") && !(context.get("excludeSymbols") instanceof List<?>))) {
+                continue;
+            }
+            // YAML aliases can share a map between platforms with different decoder defaults.
+            Map<Object, Object> migratedContext = new LinkedHashMap<>(context);
+            migratedContext.put("excludeSymbols", entry.getValue());
+            Map<Object, Object> migratedPlatform = new LinkedHashMap<>(platform);
+            migratedPlatform.put("context", migratedContext);
+            ((Map<Object, Object>) platforms).put(name, migratedPlatform);
+            modified = true;
+        }
+        return modified;
+    }
+
+    // Migrate legacy app manifest settings before upload, even without opening the editor.
     private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
@@ -679,15 +722,20 @@ public class ExtenderUtil {
 
         Map<?, ?> manifest = (Map<?, ?>) manifestValue;
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
-        modified |= migrateVorbisContext(manifest.get("context"), "common");
         modified |= migrateRecordExclusions(manifest.get("context"), null);
         Object platformsValue = manifest.get("platforms");
-        if (platformsValue instanceof Map<?, ?>) {
-            for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
+        // Old archive exclusions covered the entire codec. A manifest that explicitly
+        // includes the scalar archive can exclude decoder_ogg to select just that variant.
+        boolean expandArchiveExclusions = !selectsScalarVorbis(manifest.get("context"));
+        if (platformsValue instanceof Map<?, ?> platforms) {
+            expandArchiveExclusions &= platforms.values().stream().noneMatch(value ->
+                    value instanceof Map<?, ?> platform && selectsScalarVorbis(platform.get("context")));
+            modified |= migratePlatformVorbisExclusions(platforms);
+            for (Map.Entry<?, ?> platform : platforms.entrySet()) {
                 Object platformValue = platform.getValue();
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
-                    modified |= migrateVorbisContext(context, String.valueOf(platform.getKey()));
+                    modified |= migrateVorbisContext(context, expandArchiveExclusions);
                     modified |= addBullet3DCompatibilityExclusions(context);
                     if (List.of("android", "armv7-android", "arm64-android", "x86_64-android",
                             "ios", "arm64-ios", "arm64_sim-ios", "web", "wasm-web", "wasm_pthread-web").contains(platform.getKey())) {
@@ -714,6 +762,7 @@ public class ExtenderUtil {
                 }
             }
         }
+        modified |= migrateVorbisContext(manifest.get("context"), expandArchiveExclusions);
         return modified
                 ? new Yaml().dump(manifestValue).getBytes(StandardCharsets.UTF_8)
                 : content;

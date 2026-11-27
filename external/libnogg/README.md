@@ -2,7 +2,9 @@
 
 Defold uses libnogg 1.18 to decode Vorbis packets and libogg to read Ogg pages. The sound adapter supports mono and stereo, pauses when streamed data runs out, and trims each logical stream at its final granule position. Chained streams must share a sample rate and channel count.
 
-ARM64 builds use NEON and x86-64 builds use SSE2. HTML5 uses the scalar decoder by default. Set `-DDEFOLD_ENABLE_FEATURES=simd` in a CMake build to use Wasm SIMD128. The web SDK includes both archives. To select the SIMD decoder in an app manifest, add `decoder_ogg_simd` to `libs` and `decoder_ogg` to `excludeLibs` in the web context.
+The stock engine and Extender use `decoder_ogg_nosimd` by default on every platform. This archive uses the portable C decoder. Its HTML5 build explicitly disables Wasm SIMD128. Both decoder archives are included in the SDK.
+
+Set `-DDEFOLD_ENABLE_FEATURES=simd` in a CMake build to select `decoder_ogg`. It uses NEON on ARM64 and NEON-enabled ARMv7 Android, SSE2 on x86-64, and SIMD128 on HTML5. To opt in through an app manifest, add `decoder_ogg` to `libs` and `decoder_ogg_nosimd` to `excludeLibs` in the desired platform context. Both archives provide the same `AudioDecoderVorbis` registration.
 
 ## Source and patch
 

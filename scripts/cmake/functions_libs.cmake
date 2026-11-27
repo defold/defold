@@ -14,6 +14,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   crashext
   crashext_null
   decoder_ogg
+  decoder_ogg_nosimd
   decoder_opus
   decoder_wav
   ddf
@@ -422,13 +423,13 @@ function(defold_get_font_libraries out_var)
 endfunction()
 
 function(defold_get_sound_libraries out_mixer out_vorbis)
+  defold_feature_enabled(simd _with_simd)
   set(_mixer sound)
-  set(_vorbis decoder_ogg)
-  if(TARGET_PLATFORM MATCHES "web$")
-    defold_feature_enabled(simd _with_simd)
-    if(_with_simd)
-      set(_vorbis decoder_ogg_simd)
-    else()
+  if(_with_simd)
+    set(_vorbis decoder_ogg)
+  else()
+    set(_vorbis decoder_ogg_nosimd)
+    if(TARGET_PLATFORM MATCHES "web$")
       set(_mixer sound_nosimd)
     endif()
   endif()

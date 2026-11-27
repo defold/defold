@@ -14,11 +14,14 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.Platform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,8 +37,10 @@ public final class AppManifestMigration {
             new HashMap<>(Map.of("dmglfw", "platform", "dmglfw_vulkan", "platform_vulkan")));
 
     private static final Set<String> TREMOLO_LIBRARIES = Set.of("tremolo", "libtremolo", "libtremolo.a", "tremolo.lib", "libtremolo.lib");
-    private static final Set<String> STB_ONLY_PLATFORMS = Set.of("web", "wasm-web", "wasm_pthread-web", "win32", "x86-win32", "x86_64-win32",
-            "linux", "arm64-linux", "x86_64-linux");
+    private static final List<String> STB_ONLY_FAMILIES = List.of("web", "win32", "linux");
+    private static final String STB = "AudioDecoderStbVorbis";
+    private static final String TREMOLO = "AudioDecoderTremolo";
+    private static final String VORBIS = "AudioDecoderVorbis";
 
     static {
         Map<String, String> names = new HashMap<>();
@@ -50,6 +55,7 @@ public final class AppManifestMigration {
                 "ddf",
                 "ddf_noasan",
                 "decoder_ogg",
+                "decoder_ogg_nosimd",
                 "decoder_opus",
                 "decoder_wav",
                 "dlib",
@@ -156,32 +162,120 @@ public final class AppManifestMigration {
                 && !removals.contains("graphics_vulkan") && !removals.contains("GraphicsAdapterVulkan");
     }
 
-    // Extender registered both implementations on Apple and Android. Excluding one
-    // there selected the other, while excluding both disabled Vorbis altogether.
-    public static List<?> migrateVorbisItems(String key, List<?> items, String platform) {
-        if ("symbols".equals(key) || "excludeSymbols".equals(key)) {
-            boolean stb = items.contains("AudioDecoderStbVorbis");
-            boolean tremolo = items.contains("AudioDecoderTremolo");
-            if (!stb && !tremolo) {
-                return items;
+    private static List<?> replaceVorbisSymbols(List<?> items, boolean addVorbis) {
+        addVorbis &= !items.contains(VORBIS);
+        if (!items.contains(STB) && !items.contains(TREMOLO) && !addVorbis) {
+            return items;
+        }
+        List<Object> result = new ArrayList<>(items.size());
+        for (Object item : items) {
+            if (STB.equals(item) || TREMOLO.equals(item)) {
+                if (addVorbis) {
+                    result.add(VORBIS);
+                    addVorbis = false;
+                }
+            } else {
+                result.add(item);
             }
-            boolean replace = "symbols".equals(key) || (stb && (tremolo || STB_ONLY_PLATFORMS.contains(platform)));
-            List<Object> result = new ArrayList<>(items.size());
-            for (Object item : items) {
-                if ("AudioDecoderStbVorbis".equals(item) || "AudioDecoderTremolo".equals(item)) {
-                    if (replace && !items.contains("AudioDecoderVorbis")) {
-                        result.add("AudioDecoderVorbis");
-                        replace = false;
-                    }
-                } else {
-                    result.add(item);
+        }
+        if (addVorbis) {
+            result.add(VORBIS);
+        }
+        return result;
+    }
+
+    // Extender merges platforms.common, the OS family, and the architecture in that order.
+    // Apple and Android registered both decoders. Web, Windows, and Linux registered only stb by default.
+    public static Map<String, List<?>> migrateVorbisExclusions(Map<String, List<?>> exclusions, Map<String, List<?>> selections) {
+        List<?> common = exclusions.getOrDefault("common", List.of());
+        Set<String> platforms = new LinkedHashSet<>(exclusions.keySet());
+        if (common.contains(STB) && !common.contains(TREMOLO) && !common.contains(VORBIS)) {
+            platforms.addAll(STB_ONLY_FAMILIES);
+        }
+        // An architecture can explicitly link Tremolo on an otherwise stb-only family.
+        // In that case only its siblings may inherit the new exclusion.
+        Set<String> splitFamilies = new HashSet<>();
+        for (var entry : selections.entrySet()) {
+            String target = entry.getKey();
+            String family = vorbisFamily(target);
+            if (!target.equals(family) && STB_ONLY_FAMILIES.contains(family) && entry.getValue().contains(TREMOLO)
+                    && vorbisDisabled(family, exclusions, selections) && !vorbisDisabled(target, exclusions, selections)) {
+                splitFamilies.add(family);
+            }
+        }
+        if (!splitFamilies.isEmpty()) {
+            for (Platform platform : Platform.values()) {
+                String target = platform.getExtenderPair();
+                if (splitFamilies.contains(vorbisFamily(target))) {
+                    platforms.add(target);
                 }
             }
-            return result;
+        }
+        Map<String, List<?>> changes = new LinkedHashMap<>();
+        for (String platform : platforms) {
+            String family = vorbisFamily(platform);
+            String parent = platform.equals(family) ? "common" : family;
+            List<?> local = exclusions.getOrDefault(platform, List.of());
+            boolean exclude = !splitFamilies.contains(platform) && vorbisDisabled(platform, exclusions, selections)
+                    && (platform.equals("common") || splitFamilies.contains(parent) || !vorbisDisabled(parent, exclusions, selections)
+                        || excludesVorbis(local, STB_ONLY_FAMILIES.contains(family)));
+            List<?> migrated = replaceVorbisSymbols(local, exclude);
+            if (!local.equals(migrated)) {
+                changes.put(platform, migrated);
+            }
+        }
+        return changes;
+    }
+
+    private static String vorbisFamily(String platform) {
+        return platform.substring(platform.indexOf('-') + 1);
+    }
+
+    private static boolean vorbisDisabled(String platform, Map<String, List<?>> exclusions, Map<String, List<?>> selections) {
+        String family = vorbisFamily(platform);
+        boolean excludeStb = false;
+        boolean excludeTremolo = false;
+        boolean hasTremolo = !STB_ONLY_FAMILIES.contains(family);
+        for (String scope : List.of("common", family, platform)) {
+            List<?> excluded = exclusions.getOrDefault(scope, List.of());
+            excludeStb |= excluded.contains(STB);
+            excludeTremolo |= excluded.contains(TREMOLO);
+            hasTremolo |= selections.getOrDefault(scope, List.of()).contains(TREMOLO);
+        }
+        return excludeStb && (!hasTremolo || excludeTremolo);
+    }
+
+    private static boolean excludesVorbis(Collection<?> symbols, boolean stbOnly) {
+        return symbols.contains(VORBIS) || (symbols.contains(STB) && (stbOnly || symbols.contains(TREMOLO)));
+    }
+
+    public static boolean selectsScalarVorbis(Object libraries) {
+        if (libraries instanceof List<?> items) {
+            for (Object item : items) {
+                if ("decoder_ogg_nosimd".equals(WINDOWS_LIBRARY_NAMES.get(item)) || "libdecoder_ogg_nosimd.a".equals(item)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static List<?> migrateVorbisItems(String key, List<?> items, boolean expandArchiveExclusions) {
+        if ("symbols".equals(key) || "excludeSymbols".equals(key)) {
+            boolean select = "symbols".equals(key) && (items.contains(STB) || items.contains(TREMOLO));
+            return replaceVorbisSymbols(items, select || excludesVorbis(items, false));
         }
         if ("libs".equals(key) || "engineLibs".equals(key) || "excludeLibs".equals(key)) {
             List<Object> result = new ArrayList<>(items);
             result.removeIf(item -> item instanceof String && TREMOLO_LIBRARIES.contains(item));
+            if (expandArchiveExclusions && "excludeLibs".equals(key) && !selectsScalarVorbis(items)) {
+                for (Object item : items) {
+                    if ("decoder_ogg".equals(WINDOWS_LIBRARY_NAMES.get(item)) || "libdecoder_ogg.a".equals(item)) {
+                        result.add(((String) item).replace("decoder_ogg", "decoder_ogg_nosimd"));
+                        break;
+                    }
+                }
+            }
             return result;
         }
         return items;

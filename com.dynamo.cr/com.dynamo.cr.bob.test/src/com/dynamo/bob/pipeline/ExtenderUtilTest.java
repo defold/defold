@@ -641,7 +641,7 @@ public class ExtenderUtilTest {
                 project.getResource("vorbis.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
         byte[] migrated = resource.getContent();
         Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
-        assertEquals(Map.of("excludeSymbols", List.of("AudioDecoderVorbis", "ResourceTypeOgg"), "excludeLibs", List.of("decoder_ogg")),
+        assertEquals(Map.of("excludeSymbols", List.of("AudioDecoderVorbis", "ResourceTypeOgg"), "excludeLibs", List.of("decoder_ogg", "decoder_ogg_nosimd")),
                 manifest.get("context"));
         assertEquals(Map.of(
                 "osx", Map.of("context", Map.of("symbols", List.of("AudioDecoderVorbis"), "excludeSymbols", List.of(), "libs", List.of("custom"))),
@@ -650,9 +650,65 @@ public class ExtenderUtilTest {
         assertArrayEquals(migrated, resource.getContent());
     }
 
+    // A shared stb exclusion disabled Vorbis on stb-only targets and could combine with a target's Tremolo exclusion.
+    @Test
+    public void testInheritedVorbisExclusions() throws Exception {
+        String source = """
+                platforms:
+                  common: {context: {excludeSymbols: [AudioDecoderStbVorbis, KeepCommon]}}
+                  web: {context: {libs: [custom]}}
+                  arm64-ios: {context: {excludeSymbols: [AudioDecoderTremolo, KeepIos]}}
+                  osx: {context: {symbols: [AudioDecoderTremolo]}}
+                  android: {context: {symbols: [AudioDecoderStbVorbis]}}
+                  arm64-android: {context: {excludeSymbols: [AudioDecoderTremolo]}}
+                """;
+        createFile(fileSystem, "inherited.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        ExtenderUtil.FSAppManifestResource resource = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("inherited.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null);
+        byte[] migrated = resource.getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        assertEquals(Map.of(
+                "common", Map.of("context", Map.of("excludeSymbols", List.of("KeepCommon"))),
+                "web", Map.of("context", Map.of("libs", List.of("custom"), "excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "win32", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "linux", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "arm64-ios", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis", "KeepIos"))),
+                "osx", Map.of("context", Map.of("symbols", List.of("AudioDecoderVorbis"))),
+                "android", Map.of("context", Map.of("symbols", List.of("AudioDecoderVorbis"))),
+                "arm64-android", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis")))), manifest.get("platforms"));
+        createFile(fileSystem, "inherited.appmanifest", migrated);
+        assertArrayEquals(migrated, resource.getContent());
+    }
+
+    // A YAML alias can apply the same stb exclusion to a single-decoder and a dual-decoder target.
+    @Test
+    public void testAliasedVorbisExclusions() throws Exception {
+        String source = """
+                platforms:
+                  web: &shared {context: {excludeSymbols: [AudioDecoderStbVorbis]}}
+                  ios: *shared
+                  arm64-ios: {context: {excludeSymbols: [AudioDecoderTremolo]}}
+                  linux: *shared
+                  arm64-linux: {context: {symbols: [AudioDecoderTremolo]}}
+                """;
+        createFile(fileSystem, "aliased.appmanifest", source.getBytes(StandardCharsets.UTF_8));
+        byte[] migrated = new ExtenderUtil.FSAppManifestResource(
+                project.getResource("aliased.appmanifest"), project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent();
+        Map<?, ?> manifest = new Yaml().load(new String(migrated, StandardCharsets.UTF_8));
+        assertEquals(Map.of(
+                "web", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "ios", Map.of("context", Map.of("excludeSymbols", List.of())),
+                "arm64-ios", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis"))),
+                "linux", Map.of("context", Map.of("excludeSymbols", List.of())),
+                "arm64-linux", Map.of("context", Map.of("symbols", List.of("AudioDecoderVorbis"))),
+                "x86_64-linux", Map.of("context", Map.of("excludeSymbols", List.of("AudioDecoderVorbis")))), manifest.get("platforms"));
+    }
+
     @Test
     public void testUnchangedAppManifestsPreserveTheirContent() throws Exception {
         for (String manifestYaml : List.of(
+                "platforms: {web: {context: {libs: [decoder_ogg], excludeLibs: [decoder_ogg_nosimd]}}}",
+                "platforms: {common: {context: {excludeLibs: [decoder_ogg]}}, web: {context: {libs: [decoder_ogg_nosimd]}}}",
                 "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}\n",
                 "platforms: [",
                 "platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}",

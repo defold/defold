@@ -112,7 +112,7 @@ defold_add_library(sound_null STATIC
 sound_configure_target(sound_null)
 set_target_properties(sound_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
 
-set(SOUND_INSTALL_TARGETS decoder_wav decoder_ogg decoder_opus sound sound_null)
+set(SOUND_INSTALL_TARGETS decoder_wav decoder_ogg decoder_ogg_nosimd decoder_opus sound sound_null)
 if(TARGET sound_openal)
   list(APPEND SOUND_INSTALL_TARGETS sound_openal)
 endif()
@@ -121,7 +121,7 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   sound_configure_target(sound_nosimd)
   sound_apply_simd_flags(sound_nosimd ON)
   set_target_properties(sound_nosimd PROPERTIES DEFOLD_SDK_HEADERS_TARGET sound_sdk_headers)
-  list(APPEND SOUND_INSTALL_TARGETS sound_nosimd decoder_ogg_simd)
+  list(APPEND SOUND_INSTALL_TARGETS sound_nosimd)
 endif()
 
 if(TARGET_PLATFORM MATCHES "web$")

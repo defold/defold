@@ -1055,7 +1055,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libtremolo.a', 'libutf8_range.a', 'libutf8_validity.a'),
              ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
-              'libdecoder_ogg.a', 'libopus.a')),
+              'libdecoder_ogg.a', 'libdecoder_ogg_nosimd.a', 'libopus.a')),
             ('arm64-macos',
              ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
               'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.dylib',
@@ -1063,7 +1063,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libtremolo.a', 'libutf8_range.a', 'libutf8_validity.a'),
              ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
-              'libdecoder_ogg.a', 'libopus.a')),
+              'libdecoder_ogg.a', 'libdecoder_ogg_nosimd.a', 'libopus.a')),
             ('x86_64-win32',
              ('libprotoc.lib', 'libprotobuf.lib', 'basis_encoder.lib', 'texc.lib',
               'libspirv-cross-msl.lib', 'absl_cord.lib', 'absl_cordz_info.lib', 'dxcompiler.lib', 'dxcompiler.dll',
@@ -1071,7 +1071,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libogg.dll', 'liboggz.dll', 'ogg.lib', 'oggz.lib', 'libspirv-cross-c.lib', 'libspirv-cross-reflect.lib',
               'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'libtremolo.lib', 'utf8_range.lib', 'utf8_validity.lib'),
              ('engine.lib', 'basis_transcoder.lib', 'model_ddf.lib', 'dlib.lib', 'graphics_null.lib',
-              'decoder_ogg.lib', 'libopus.lib')),
+              'decoder_ogg.lib', 'decoder_ogg_nosimd.lib', 'libopus.lib')),
         )
         for platform, excluded_libraries, required_libraries in cases:
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:

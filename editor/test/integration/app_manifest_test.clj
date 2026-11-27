@@ -430,8 +430,37 @@
       (let [manifest
             (yaml/load (resource-node/save-data-content (g/node-value node :save-data)) keyword)]
         (doseq [platform app-manifest/all-platforms]
+          (is (= ["decoder_ogg" "decoder_ogg_nosimd"]
+                 (get-in manifest [:platforms platform :context :excludeLibs])))
           (is (= ["AudioDecoderVorbis" "ResourceTypeOgg"]
                  (get-in manifest [:platforms platform :context :excludeSymbols]))))))))
+
+;; Saving and reloading must preserve the effect of inherited Vorbis exclusions.
+(deftest inherited-vorbis-exclusions-load-migration-test
+  (let [content
+        (test-util/with-temp-project-content
+          {"/legacy.appmanifest"
+           ["platforms:"
+            "  common: {context: {excludeSymbols: [AudioDecoderStbVorbis]}}"
+            "  android: {context: {excludeSymbols: [AudioDecoderTremolo]}}"]}
+          (let [node (test-util/resource-node project "/legacy.appmanifest")
+                save-data (g/node-value node :save-data)
+                content (resource-node/save-data-content save-data)
+                manifest (yaml/load content keyword)]
+            (is (true? (:dirty save-data)))
+            (is (= {:common {:context {:excludeSymbols []}}
+                    :web {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :win32 {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :linux {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :android {:context {:excludeSymbols ["AudioDecoderVorbis"]}}}
+                   (:platforms manifest)))
+            content))]
+    (test-util/with-temp-project-content
+      {"/current.appmanifest" (data/string->lines content)}
+      (let [node (test-util/resource-node project "/current.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (false? (:dirty save-data)))
+        (is (= content (resource-node/save-data-content save-data)))))))
 
 (deftest toggle-test
   (testing "contains toggles"
