@@ -80,15 +80,15 @@ struct LinuxGL
     EGL_FUNCTIONS(FIELD)
 #undef FIELD
     GLXFBConfig m_XConfig;
-    GLXContext m_XMain, m_XAux;
-    GLXPbuffer m_XPbuffer;
-    EGLDisplay m_EDisplay;
-    EGLConfig  m_EConfig;
-    void*      m_EClient;
-    EGLContext m_EMain, m_EAux;
-    EGLSurface m_ESurface, m_EPbuffer;
-    EGLenum    m_Api;
-    bool       m_PresentOpaque, m_Accelerated;
+    GLXContext  m_XMain, m_XAux;
+    GLXDrawable m_XAuxDrawable;
+    EGLDisplay  m_EDisplay;
+    EGLConfig   m_EConfig;
+    void*       m_EClient;
+    EGLContext  m_EMain, m_EAux;
+    EGLSurface  m_ESurface, m_EPbuffer;
+    EGLenum     m_Api;
+    bool        m_XAuxIsWindow, m_PresentOpaque, m_Accelerated;
 };
 
 namespace dmPlatform
@@ -393,6 +393,30 @@ namespace dmPlatform
         return create ? create(w->m_Display, g->m_XConfig, share, True, attrs) : 0;
     }
 
+    static GLXDrawable CreateGLXAuxDrawable(HWindow w)
+    {
+        LinuxGL* g = w->m_GL;
+        Display* d = w->m_Display;
+        int drawable_types = 0;
+        if (g->m_glXGetFBConfigAttrib(d, g->m_XConfig, GLX_DRAWABLE_TYPE, &drawable_types) == Success && (drawable_types & GLX_PBUFFER_BIT))
+        {
+            int attrs[] = { GLX_PBUFFER_WIDTH, 1, GLX_PBUFFER_HEIGHT, 1, None };
+            GLXPbuffer pbuffer = g->m_glXCreatePbuffer(d, g->m_XConfig, attrs);
+            XSync(d, False);
+            if (pbuffer && !g_ContextError)
+            {
+                return pbuffer;
+            }
+        }
+
+        // An unmapped child inherits the main drawable's visual and depth on window-only formats.
+        g_ContextError = 0;
+        g->m_XAuxIsWindow = true;
+        Window window = XCreateSimpleWindow(d, w->m_Xid, 0, 0, 1, 1, 0, 0, 0);
+        XSync(d, False);
+        return g_ContextError ? None : window;
+    }
+
     static bool CreateGLX(HWindow w, int major, int minor)
     {
         LinuxGL* g = w->m_GL;
@@ -407,12 +431,10 @@ namespace dmPlatform
         XSync(d, False);
         const int main_error = g_ContextError;
         ok = ok && !main_error;
-        int drawable_types = 0;
-        if (ok && g->m_glXGetFBConfigAttrib(d, g->m_XConfig, GLX_DRAWABLE_TYPE, &drawable_types) == Success && (drawable_types & GLX_PBUFFER_BIT))
+        if (ok)
         {
-            int attrs[] = { GLX_PBUFFER_WIDTH, 1, GLX_PBUFFER_HEIGHT, 1, None };
-            g->m_XPbuffer = g->m_glXCreatePbuffer(d, g->m_XConfig, attrs);
-            if (g->m_XPbuffer)
+            g->m_XAuxDrawable = CreateGLXAuxDrawable(w);
+            if (g->m_XAuxDrawable)
             {
                 g->m_XAux = CreateContext(w, major, minor, g->m_XMain);
             }
@@ -617,9 +639,16 @@ namespace dmPlatform
                 g->m_glXDestroyContext(w->m_Display, g->m_XMain);
             }
 
-            if (g->m_XPbuffer)
+            if (g->m_XAuxDrawable)
             {
-                g->m_glXDestroyPbuffer(w->m_Display, g->m_XPbuffer);
+                if (g->m_XAuxIsWindow)
+                {
+                    XDestroyWindow(w->m_Display, g->m_XAuxDrawable);
+                }
+                else
+                {
+                    g->m_glXDestroyPbuffer(w->m_Display, g->m_XAuxDrawable);
+                }
             }
         }
 
@@ -714,7 +743,7 @@ namespace dmPlatform
             return 0;
         }
 
-        if (g->m_XAux && g->m_glXMakeContextCurrent(w->m_Display, g->m_XPbuffer, g->m_XPbuffer, g->m_XAux))
+        if (g->m_XAux && g->m_glXMakeContextCurrent(w->m_Display, g->m_XAuxDrawable, g->m_XAuxDrawable, g->m_XAux))
         {
             return g->m_XAux;
         }

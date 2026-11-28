@@ -46,6 +46,25 @@
 
 static bool g_TestHardwareRenderer;
 static __typeof__(&glXGetProcAddressARB) g_GLXGetProcAddress;
+static bool g_TestWindowOnlyGLX, g_TestGLXPbufferError;
+static __typeof__(&glXGetFBConfigAttrib) g_GLXGetFBConfigAttrib;
+
+static int WindowOnlyGLXConfig(Display* display, GLXFBConfig config, int attribute, int* value)
+{
+    int result = g_GLXGetFBConfigAttrib(display, config, attribute, value);
+    if (result == Success && attribute == GLX_DRAWABLE_TYPE)
+    {
+        *value &= ~GLX_PBUFFER_BIT;
+    }
+
+    return result;
+}
+
+static GLXPbuffer RejectedGLXPbuffer(Display* display, GLXFBConfig, const int*)
+{
+    // Like a rejected pbuffer, this returns an XID before the server delivers the error.
+    return XCreateSimpleWindow(display, None, 0, 0, 1, 1, 0, 0, 0);
+}
 
 static Bool QueryAcceleratedGLXRenderer(int attribute, unsigned* value)
 {
@@ -169,6 +188,17 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
     }
 
     void* symbol = __real_dlsym(handle, name);
+    if (symbol && g_TestWindowOnlyGLX && !strcmp(name, "glXGetFBConfigAttrib"))
+    {
+        g_GLXGetFBConfigAttrib = (__typeof__(g_GLXGetFBConfigAttrib)) symbol;
+        return (void*)WindowOnlyGLXConfig;
+    }
+
+    if (symbol && g_TestGLXPbufferError && !strcmp(name, "glXCreatePbuffer"))
+    {
+        return (void*)RejectedGLXPbuffer;
+    }
+
     if (symbol && g_TestHardwareRenderer && !strcmp(name, "glXGetProcAddressARB"))
     {
         g_GLXGetProcAddress = (__typeof__(g_GLXGetProcAddress)) symbol;
@@ -2917,6 +2947,71 @@ TEST(LinuxWindow, RendererAcceleration)
     }
 }
 
+static void CheckSharedTextureUpload(HWindow w)
+{
+#define GL_PROC(type, name) type name = (type)dmPlatform::GetProcAddress(w,#name); ASSERT_TRUE(name != 0)
+    GL_PROC(__typeof__(&::glGenTextures), glGenTextures);
+    GL_PROC(__typeof__(&::glBindTexture), glBindTexture);
+    GL_PROC(__typeof__(&::glTexImage2D), glTexImage2D);
+    GL_PROC(__typeof__(&::glTexParameteri), glTexParameteri);
+    GL_PROC(__typeof__(&::glFinish), glFinish);
+    GL_PROC(__typeof__(&::glReadPixels), glReadPixels);
+    GL_PROC(__typeof__(&::glDeleteTextures), glDeleteTextures);
+    GL_PROC(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
+    GL_PROC(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer);
+    GL_PROC(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D);
+    GL_PROC(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
+    GL_PROC(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers);
+#undef GL_PROC
+    const uint8_t pixel[] = { 17, 63, 129, 255 };
+    TextureUpload upload = { w, 0, pixel, glGenTextures, glBindTexture, glTexParameteri, glTexImage2D, glFinish };
+    pthread_t worker;
+    ASSERT_EQ(0, pthread_create(&worker, 0, UploadTexture, &upload));
+    ASSERT_EQ(0, pthread_join(worker, 0));
+    EXPECT_EQ((uintptr_t)0, upload.m_ProcBeforeAcquire);
+    EXPECT_NE((uintptr_t)0, upload.m_ProcWhileCurrent);
+    EXPECT_EQ((uintptr_t)0, upload.m_ProcAfterRelease);
+    GLuint texture = upload.m_Texture;
+    ASSERT_NE(0u, texture);
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    ASSERT_EQ((GLenum)GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+    uint8_t actual[4] = {};
+    glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, actual);
+    ASSERT_EQ(0, memcmp(pixel, actual, 4));
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteTextures(1, &texture);
+}
+
+// GLX must share textures with the worker even if the window's format or driver cannot provide a pbuffer.
+TEST(LinuxWindow, X11SharedContextWithoutPbuffer)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        g_TestWindowOnlyGLX = cycle == 0;
+        g_TestGLXPbufferError = cycle == 1;
+        WindowResult result = dmPlatform::OpenWindow(w, p);
+        g_TestWindowOnlyGLX = g_TestGLXPbufferError = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, result);
+        ASSERT_TRUE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT));
+        CheckSharedTextureUpload(w);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
 // A texture uploaded on the resource worker must be readable by the render context after resize and reopen.
 // The worker can resolve GL functions only while its auxiliary context is current.
 TEST(LinuxWindow, SharedOpenGLContext)
@@ -2934,41 +3029,7 @@ TEST(LinuxWindow, SharedOpenGLContext)
         dmPlatform::SetSwapInterval(w, 0);
         ASSERT_TRUE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT));
         ASSERT_EQ(w->m_X11 != 0 && p.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL, dmPlatform::GetX11GLXContext(w) != 0);
-#define GL_PROC(type, name) type name = (type)dmPlatform::GetProcAddress(w,#name); ASSERT_TRUE(name != 0)
-        GL_PROC(__typeof__(&::glGenTextures), glGenTextures);
-        GL_PROC(__typeof__(&::glBindTexture), glBindTexture);
-        GL_PROC(__typeof__(&::glTexImage2D), glTexImage2D);
-        GL_PROC(__typeof__(&::glTexParameteri), glTexParameteri);
-        GL_PROC(__typeof__(&::glFinish), glFinish);
-        GL_PROC(__typeof__(&::glReadPixels), glReadPixels);
-        GL_PROC(__typeof__(&::glDeleteTextures), glDeleteTextures);
-        GL_PROC(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
-        GL_PROC(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer);
-        GL_PROC(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D);
-        GL_PROC(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
-        GL_PROC(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers);
-#undef GL_PROC
-        const uint8_t pixel[] = { 17, 63, 129, 255 };
-        TextureUpload upload = { w, 0, pixel, glGenTextures, glBindTexture, glTexParameteri, glTexImage2D, glFinish };
-        pthread_t worker;
-        ASSERT_EQ(0, pthread_create(&worker, 0, UploadTexture, &upload));
-        ASSERT_EQ(0, pthread_join(worker, 0));
-        EXPECT_EQ((uintptr_t)0, upload.m_ProcBeforeAcquire);
-        EXPECT_NE((uintptr_t)0, upload.m_ProcWhileCurrent);
-        EXPECT_EQ((uintptr_t)0, upload.m_ProcAfterRelease);
-        GLuint texture = upload.m_Texture;
-        ASSERT_NE(0u, texture);
-        GLuint fbo = 0;
-        glGenFramebuffers(1, &fbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-        ASSERT_EQ((GLenum)GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
-        uint8_t actual[4] = {};
-        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, actual);
-        ASSERT_EQ(0, memcmp(pixel, actual, 4));
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glDeleteFramebuffers(1, &fbo);
-        glDeleteTextures(1, &texture);
+        CheckSharedTextureUpload(w);
         dmPlatform::SwapBuffers(w);
         if (scale)
         {
