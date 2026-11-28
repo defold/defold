@@ -45,7 +45,11 @@ namespace dmPlatform
         { "SCLK", XK_Scroll_Lock, KEY_SCROLLLOCK }, { "PAUS", XK_Pause, KEY_PAUSE }, { "NMLK", XK_Num_Lock, KEY_NUMLOCK },
         { "KPDV", XK_KP_Divide, KEY_KPSLASH }, { "KPMU", XK_KP_Multiply, KEY_KPASTERISK },
         { "KPSU", XK_KP_Subtract, KEY_KPMINUS }, { "KPAD", XK_KP_Add, KEY_KPPLUS },
-        { "KPEN", XK_KP_Enter, KEY_KPENTER }, { "KPDL", XK_KP_Decimal, KEY_KPDOT }, { "KPEQ", XK_KP_Equal, KEY_KPEQUAL },
+        { "KPEN", XK_KP_Enter, KEY_KPENTER }, { "KPDL", XK_KP_Delete, KEY_KPDOT }, { "KPEQ", XK_KP_Equal, KEY_KPEQUAL },
+        { "KP0", XK_KP_Insert, KEY_KP0 }, { "KP1", XK_KP_End, KEY_KP1 }, { "KP2", XK_KP_Down, KEY_KP2 },
+        { "KP3", XK_KP_Page_Down, KEY_KP3 }, { "KP4", XK_KP_Left, KEY_KP4 }, { "KP5", XK_KP_Begin, KEY_KP5 },
+        { "KP6", XK_KP_Right, KEY_KP6 }, { "KP7", XK_KP_Home, KEY_KP7 }, { "KP8", XK_KP_Up, KEY_KP8 },
+        { "KP9", XK_KP_Page_Up, KEY_KP9 },
     };
 
     static int PhysicalKey(const char* name)
@@ -65,11 +69,6 @@ namespace dmPlatform
             {
                 return PLATFORM_KEY_F1 + number - 1;
             }
-        }
-
-        if (name[0] == 'K' && name[1] == 'P' && name[2] >= '0' && name[2] <= '9' && !name[3])
-        {
-            return PLATFORM_KEY_KP_0 + name[2] - '0';
         }
 
         for (const X11Key& key : KEYS)
@@ -105,7 +104,7 @@ namespace dmPlatform
             return PLATFORM_KEY_KP_0 + symbol - XK_KP_0;
         }
 
-        if (symbol == XK_KP_Separator)
+        if (symbol == XK_KP_Decimal || symbol == XK_KP_Separator)
         {
             return PLATFORM_KEY_KP_DECIMAL;
         }

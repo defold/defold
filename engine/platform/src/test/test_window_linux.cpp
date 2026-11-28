@@ -1308,7 +1308,7 @@ TEST(LinuxWindow, X11IconicState)
     dmPlatform::DeleteWindow(w);
 }
 
-// Install the test's level-five keysym so live XKB remapping also works with older default keymaps.
+// Live XKB remapping must recognize physical keys and recover modifiers and keypad keys from their symbols.
 TEST(LinuxWindow, X11PhysicalKeymapChanges)
 {
     if (!getenv("DM_TEST_X11_REMAP_KEYS"))
@@ -1369,6 +1369,26 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
         XPutBackEvent(display, &key);
         dmPlatform::PollEvents(w);
         EXPECT_EQ(0, dmPlatform::GetKey(w, right_alt));
+    }
+
+    // The unknown physical name now exposes only the Num Lock-off symbol.
+    KeySym keypad[] = { XK_KP_Insert, XK_KP_End, XK_KP_Down, XK_KP_Page_Down, XK_KP_Left, XK_KP_Begin,
+                        XK_KP_Right, XK_KP_Home, XK_KP_Up, XK_KP_Page_Up, XK_KP_Delete };
+    key.xkey.keycode = level5;
+    for (size_t i = 0; i < sizeof(keypad) / sizeof(keypad[0]); ++i)
+    {
+        XChangeKeyboardMapping(display, level5, 1, &keypad[i], 1);
+        XSync(display, False);
+        dmPlatform::PollEvents(w);
+        int expected = i == 10 ? dmPlatform::PLATFORM_KEY_KP_DECIMAL : dmPlatform::PLATFORM_KEY_KP_0 + i;
+        key.type = KeyPress;
+        XPutBackEvent(display, &key);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(1, dmPlatform::GetKey(w, expected));
+        key.type = KeyRelease;
+        XPutBackEvent(display, &key);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ(0, dmPlatform::GetKey(w, expected));
     }
 
     names[q] = original;
