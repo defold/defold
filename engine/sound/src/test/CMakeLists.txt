@@ -109,26 +109,21 @@ foreach(_opus IN LISTS SOUND_TEST_OPUS)
 endforeach()
 defold_add_library(embedded_opus STATIC ${SOUND_TEST_OPUS_EMBEDS})
 
+defold_get_sound_libraries(_sound_test_mixer _sound_test_vorbis_lib)
 set(SOUND_TEST_LIBS
   testmain
   dlib
   profile_null
-  sound
+  ${_sound_test_mixer}
   embedded_wavs
   embedded_oggs
   embedded_opus
   opus
   decoder_wav
-  decoder_ogg
+  ${_sound_test_vorbis_lib}
   decoder_opus)
 
-set(SOUND_TEST_EXPORTS DefaultSoundDevice AudioDecoderWav AudioDecoderStbVorbis AudioDecoderOpus)
-if(NOT TARGET_PLATFORM_OS STREQUAL "win32" AND
-   NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
-  list(APPEND SOUND_TEST_EXPORTS AudioDecoderTremolo)
-  list(APPEND SOUND_TEST_LIBS tremolo)
-  set(SOUND_TEST_HAS_TREMOLO ON)
-endif()
+set(SOUND_TEST_EXPORTS DefaultSoundDevice AudioDecoderWav AudioDecoderVorbis AudioDecoderOpus)
 
 set(SOUND_RUN_TESTS ON)
 if(TARGET_PLATFORM MATCHES "linux$" AND NOT EXISTS "/dev/snd/controlC0")
@@ -163,22 +158,28 @@ function(sound_configure_test target run_test)
     RUN_GROUP sound RUN_PRIORITY ${_run_priority})
 endfunction()
 
-if(SOUND_TEST_HAS_TREMOLO)
-  set(_sound_perf_export_file "${SOUND_TEST_GEN_DIR}/test_sound_perf_exported_symbols.cpp")
-  defold_create_exported_symbols_file("${_sound_perf_export_file}" "${SOUND_TEST_EXPORTS}")
-  defold_add_executable(test_sound_perf "${SOUND_TEST_ROOT}/test_sound_perf.cpp" "${_sound_perf_export_file}")
-  sound_configure_test(test_sound_perf OFF)
+set(_sound_perf_export_file "${SOUND_TEST_GEN_DIR}/test_sound_perf_exported_symbols.cpp")
+defold_create_exported_symbols_file("${_sound_perf_export_file}" "${SOUND_TEST_EXPORTS};NullSoundDevice")
+defold_add_executable(test_sound_perf "${SOUND_TEST_ROOT}/test_sound_perf.cpp"
+  "${SOUND_SRC_DIR}/devices/device_null.cpp" "${_sound_perf_export_file}")
+if(TARGET_PLATFORM MATCHES "web$")
+  _defold_configure_wasm_test(test_sound_perf)
 endif()
+sound_configure_test(test_sound_perf OFF)
 
 set(_sound_export_file "${SOUND_TEST_GEN_DIR}/test_sound_exported_symbols.cpp")
 set(_sound_exports ${SOUND_TEST_EXPORTS} LoopBackDevice)
 defold_create_exported_symbols_file("${_sound_export_file}" "${_sound_exports}")
-set(_sound_test_sources "${SOUND_TEST_ROOT}/test_sound.cpp")
+set(_sound_test_sources "${SOUND_TEST_ROOT}/test_sound.cpp" "${SOUND_TEST_ROOT}/stb_vorbis/stb_vorbis.c")
 if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$")
   list(APPEND _sound_test_sources "${SOUND_TEST_ROOT}/test_sound_avaudio.mm")
 endif()
 defold_add_executable(test_sound ${_sound_test_sources} "${_sound_export_file}")
-sound_apply_simd_flags(test_sound OFF)
+if(_sound_test_mixer STREQUAL sound_nosimd)
+  sound_apply_simd_flags(test_sound ON)
+else()
+  sound_apply_simd_flags(test_sound OFF)
+endif()
 sound_configure_test(test_sound ${SOUND_RUN_TESTS})
 
 if(TARGET_PLATFORM_OS STREQUAL "win32")
@@ -211,7 +212,7 @@ defold_register_test_target(test_sound_null OFF "${SOUND_ROOT}")
 if(TARGET_PLATFORM MATCHES "linux$")
   set(_sound_openal_export_file "${SOUND_TEST_GEN_DIR}/test_sound_openal_exported_symbols.cpp")
   defold_create_exported_symbols_file("${_sound_openal_export_file}" "${SOUND_TEST_EXPORTS}")
-  defold_add_executable(test_sound_openal "${SOUND_TEST_ROOT}/test_sound.cpp" "${_sound_openal_export_file}")
+  defold_add_executable(test_sound_openal ${_sound_test_sources} "${_sound_openal_export_file}")
   target_compile_definitions(test_sound_openal PRIVATE DM_TEST_SOUND_USE_OPENAL)
   target_link_libraries(test_sound_openal PRIVATE sound_openal)
   sound_configure_test(test_sound_openal OFF)

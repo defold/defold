@@ -58,19 +58,6 @@ FetchContent_Declare(msan_glfw
 FetchContent_MakeAvailable(msan_glfw)
 install(TARGETS glfw ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
-FetchContent_Declare(msan_tremolo
-  URL https://codeload.github.com/defold/defold-tremolo/tar.gz/b0cb4d1
-  URL_HASH SHA256=cfa310d701dd2411e131d042026e10b02fc0a4b4df59a369d2df4d8cc9dcf662)
-FetchContent_MakeAvailable(msan_tremolo)
-set(_tremolo_sources bitwise.c codebook.c dsp.c floor0.c floor1.c floor_lookup.c
-  framing.c mapping0.c mdct.c misc.c res012.c treminfo.c vorbisfile.c)
-list(TRANSFORM _tremolo_sources PREPEND "${msan_tremolo_SOURCE_DIR}/Tremolo/")
-add_library(tremolo STATIC ${_tremolo_sources})
-target_compile_definitions(tremolo PRIVATE ONLY_C _GNU_SOURCE)
-target_compile_options(tremolo PRIVATE -funsigned-char)
-target_link_libraries(tremolo PRIVATE defold_sdk)
-install(TARGETS tremolo ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
-
 # FetchContent subprojects are excluded from the default build, but these
 # archives must be ready before the external install step.
 add_custom_target(msan_packages ALL DEPENDS ${_astc_target} glfw

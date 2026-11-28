@@ -154,9 +154,9 @@ public:
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
-        params.m_OutputDevice = "default";
-        params.m_FrameCount = 2048;//512;//GetParam().m_BufferFrameCount;
-        params.m_UseThread = true; // all our desktop platforms support this
+        params.m_OutputDevice = "null";
+        params.m_FrameCount = 2048;
+        params.m_UseThread = false;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         assert(r == dmSound::RESULT_OK);
@@ -194,24 +194,49 @@ public:
 };
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
-TEST_F(dmSoundTest, MeasureStdb)
+// Measures decoding the seven mono and stereo Vorbis fixtures.
+TEST_F(dmSoundTest, MeasureVorbis)
 {
-    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
+    RunSuite("VorbisDecoder", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
 }
 
-TEST_F(dmSoundTest, MeasureStdbSkip)
+// Measures the cost of advancing an inaudible Vorbis voice with libnogg.
+TEST_F(dmSoundTest, MeasureVorbisSkip)
 {
-    RunSuite("VorbisDecoderStb", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
+    RunSuite("VorbisDecoder", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
 }
 
-TEST_F(dmSoundTest, MeasureTremolo)
+// Measure restarting a short loop, including the first audio block after each rewind.
+TEST_F(dmSoundTest, MeasureVorbisRestart)
 {
-    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, false);
-}
+    dmSound::InitializeParams params;
+    params.m_OutputDevice = "null";
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(AMBIENCE_OGG, AMBIENCE_OGG_SIZE, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+    dmSoundCodec::HDecodeStream stream;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(data, &stream));
 
-TEST_F(dmSoundTest, MeasureTremoloSkip)
-{
-    RunSuite("VorbisDecoderTremolo", dmSound::SOUND_DATA_TYPE_OGG_VORBIS, true);
+    float left[512], right[512];
+    char* out[] = { (char*)left, (char*)right };
+    const unsigned iterations = 300;
+    uint64_t start = dmTime::GetMonotonicTime();
+    for (unsigned i = 0; i < iterations; ++i)
+    {
+        uint32_t bytes;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(left), &bytes));
+        ASSERT_EQ(sizeof(left), bytes);
+    }
+
+    printf("Vorbis reset and 512 stereo frames: %.1f us per iteration\n", (double)(dmTime::GetMonotonicTime() - start) / iterations);
+
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
 }
 
 TEST_F(dmSoundTest, MeasureOpus)

@@ -85,7 +85,7 @@ Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
 This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
 in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
 used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
-GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+and GLFW libraries. The build requires native Linux, Clang 20, and network
 access for the pinned sources on its first run.
 
 Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with

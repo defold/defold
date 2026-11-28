@@ -1032,15 +1032,14 @@ namespace dmSound
         uint32_t buffer_size = SAMPLES_PER_FRAME / BUFFERS_PER_FRAME * sound_instance->m_Channels * sound_instance->m_BitsPerSample / 8;
         char *buffer_ptr = original_ptr;
         uint32_t total_decoded = 0;
-        uint32_t decoded = 0;
         do {
+            uint32_t decoded = 0;
             if (sound->m_DirectStreamingFormat[sound_data.m_Type]) {
                 // this is a supported streaming format; we can directly read from the stream and pipe that data to OpenAL
                 Result read_result = SoundDataRead(&sound_data, sound_instance->m_StreamOffset, buffer_size - total_decoded, buffer_ptr, &decoded);
                 sound_instance->m_StreamOffset += decoded;
-                if (read_result == Result::RESULT_OK) {
-                    r = dmSoundCodec::Result::RESULT_OK;
-                } else if (read_result == Result::RESULT_PARTIAL_DATA) {
+                if (read_result == RESULT_OK || read_result == RESULT_PARTIAL_DATA || read_result == RESULT_NO_DATA)
+                {
                     r = dmSoundCodec::Result::RESULT_OK;
                 } else if (read_result == Result::RESULT_END_OF_STREAM) {
                     r = dmSoundCodec::RESULT_END_OF_STREAM;
@@ -1050,7 +1049,7 @@ namespace dmSound
                 }
             } else {
                 // decode PCM
-                r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size, &decoded);
+                r = dmSoundCodec::Decode(sound->m_CodecContext, sound_instance->m_Decoder, &buffer_ptr, buffer_size - total_decoded, &decoded);
             }
             if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                 if (sound_instance->m_Looping && sound_instance->m_Loopcounter != 0) {
@@ -1300,9 +1299,14 @@ namespace dmSound
             if (instance.m_Playing) {
                 // feed new buffers and handle looping
                 while (instance.m_BufferCount < sound->m_BuffersPerSource) {
+                    uint8_t buffer_count = instance.m_BufferCount;
                     dmSoundCodec::Result r = Feed(&instance);
                     if (r == dmSoundCodec::RESULT_OK) {
-                        // noop
+                        // A streamed resource can run out of data until the next update.
+                        if (instance.m_BufferCount == buffer_count)
+                        {
+                            break;
+                        }
                     } else if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                         break;
                     } else {

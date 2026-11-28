@@ -413,6 +413,60 @@
             (is (coll/not-any? #{"EngineRecord"}
                                (get-in manifest [:platforms platform :context :excludeSymbols])))))))))
 
+;; Older Ogg exclusions can be cleared and saved with the current decoder.
+(deftest vorbis-exclusion-load-migration-test
+  (test-util/with-temp-project-content
+    {"/legacy.appmanifest"
+     (coll/into-> app-manifest/all-platforms
+       ["platforms:"]
+       (map (fn [platform]
+              (str "  " (name platform) ": {context: {excludeLibs: [decoder_ogg], "
+                   "excludeSymbols: [AudioDecoderStbVorbis, AudioDecoderTremolo, ResourceTypeOgg]}}"))))}
+    (let [node (test-util/resource-node project "/legacy.appmanifest")]
+      (is (true? (g/node-value node :exclude-sound-decoder-ogg)))
+      (g/set-property! node :exclude-sound-decoder-ogg false)
+      (is (false? (g/node-value node :exclude-sound-decoder-ogg)))
+      (g/set-property! node :exclude-sound-decoder-ogg true)
+      (let [manifest
+            (yaml/load (resource-node/save-data-content (g/node-value node :save-data)) keyword)]
+        (doseq [platform app-manifest/all-platforms]
+          (is (= ["decoder_ogg" "decoder_ogg_nosimd"]
+                 (get-in manifest [:platforms platform :context :excludeLibs])))
+          (is (= ["AudioDecoderVorbis" "ResourceTypeOgg"]
+                 (get-in manifest [:platforms platform :context :excludeSymbols]))))))))
+
+;; Saving and reloading must preserve the effect of inherited Vorbis exclusions.
+(deftest inherited-vorbis-exclusions-load-migration-test
+  (let [content
+        (test-util/with-temp-project-content
+          {"/legacy.appmanifest"
+           ["platforms:"
+            "  common: {context: {excludeSymbols: [AudioDecoderStbVorbis]}}"
+            "  web: {context: {libs: [decoder_ogg]}}"
+            "  wasm_pthread-web: {context: {excludeLibs: [decoder_ogg_nosimd]}}"
+            "  osx: {context: {excludeSymbols: ['AudioDecoder.*Vorbis']}}"
+            "  android: {context: {excludeSymbols: ['AudioDecoderTrem.*']}}"]}
+          (let [node (test-util/resource-node project "/legacy.appmanifest")
+                save-data (g/node-value node :save-data)
+                content (resource-node/save-data-content save-data)
+                manifest (yaml/load content keyword)]
+            (is (true? (:dirty save-data)))
+            (is (= {:common {:context {:excludeSymbols []}}
+                    :web {:context {:excludeSymbols ["AudioDecoderVorbis"] :libs ["decoder_ogg_nosimd" "decoder_ogg"]}}
+                    :wasm_pthread-web {:context {:excludeLibs ["decoder_ogg_nosimd"]}}
+                    :win32 {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :linux {:context {:excludeSymbols ["AudioDecoderVorbis"]}}
+                    :osx {:context {:excludeSymbols ["AudioDecoder.*Vorbis"] :includeSymbols ["AudioDecoderVorbis"]}}
+                    :android {:context {:excludeSymbols ["AudioDecoderTrem.*" "AudioDecoderVorbis"]}}}
+                   (:platforms manifest)))
+            content))]
+    (test-util/with-temp-project-content
+      {"/current.appmanifest" (data/string->lines content)}
+      (let [node (test-util/resource-node project "/current.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (false? (:dirty save-data)))
+        (is (= content (resource-node/save-data-content save-data)))))))
+
 (deftest toggle-test
   (testing "contains toggles"
     (let [toggle (app-manifest/contains-toggle :common :libs "foo")]

@@ -14,6 +14,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   crashext
   crashext_null
   decoder_ogg
+  decoder_ogg_nosimd
   decoder_opus
   decoder_wav
   ddf
@@ -157,7 +158,7 @@ function(defold_target_link_libraries target platform)
     if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
       defold_import_basisu("${_lib}" "${platform}")
     endif()
-    if(WITH_MSAN AND _lib MATCHES "^(harfbuzz|sheenbidi|unibreak|skribidi|opus|ogg|tremolo|openh264|box2d|box2d_nosimd|box2d_defold|astcenc|spirv-cross-.*)$")
+    if(WITH_MSAN AND _lib MATCHES "^(harfbuzz|sheenbidi|unibreak|skribidi|opus|ogg|openh264|box2d|box2d_nosimd|box2d_defold|astcenc|spirv-cross-.*)$")
       defold_import_external("${_lib}" "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/lib${_lib}.a")
     endif()
     set(_vendor_libs)
@@ -419,6 +420,21 @@ function(defold_get_font_libraries out_var)
     list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_sound_libraries out_mixer out_vorbis)
+  defold_feature_enabled(simd _with_simd)
+  set(_mixer sound)
+  if(_with_simd)
+    set(_vorbis decoder_ogg)
+  else()
+    set(_vorbis decoder_ogg_nosimd)
+    if(TARGET_PLATFORM MATCHES "web$")
+      set(_mixer sound_nosimd)
+    endif()
+  endif()
+  set(${out_mixer} ${_mixer} PARENT_SCOPE)
+  set(${out_vorbis} ${_vorbis} PARENT_SCOPE)
 endfunction()
 
 function(defold_get_font_gen_library out_var)

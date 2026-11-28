@@ -33,7 +33,8 @@
 #include "../sound_codec.h"
 #include "../sound_decoder.h"
 #include "../sound_pfb.h"
-#include "../stb_vorbis/stb_vorbis.h"
+#include "stb_vorbis/stb_vorbis.h"
+#include "test/explosion_low_mono.ogg.embed.h"
 
 #include "test/mono_tone_2000_22050_5512.wav.embed.h"
 #include "test/mono_tone_2000_22050_44100.wav.embed.h"
@@ -1523,9 +1524,285 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
+struct StreamingVorbisTestData
+{
+    const uint8_t* m_Bytes;
+    uint32_t       m_Size;
+    uint32_t       m_Available;
+};
+
+static dmSound::Result ReadStreamingVorbis(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* read)
+{
+    StreamingVorbisTestData* data = (StreamingVorbisTestData*)context;
+    *read = 0;
+    if (offset >= data->m_Size)
+    {
+        return dmSound::RESULT_END_OF_STREAM;
+    }
+
+    if (offset >= data->m_Available)
+    {
+        return dmSound::RESULT_NO_DATA;
+    }
+
+    *read = dmMath::Min(137U, dmMath::Min(size, data->m_Available - offset));
+    memcpy(out, data->m_Bytes + offset, *read);
+    return *read == size ? dmSound::RESULT_OK : dmSound::RESULT_PARTIAL_DATA;
+}
+
+#if !defined(DM_TEST_SOUND_USE_OPENAL)
+// A partial Ogg page must survive starvation. Compare both channels through EOS,
+// then rewind and skip an uneven number of frames before resuming playback.
+TEST(SoundDecoder, VorbisStreamingMatchesReference)
+{
+    dmArray<uint8_t> ogg;
+    ASSERT_TRUE(MakeOggWithLargeVorbisComment(LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, ogg));
+    uint32_t page_offset, page_size;
+    ASSERT_TRUE(GetOggPage(ogg.Begin(), ogg.Size(), 2, &page_offset, &page_size));
+    StreamingVorbisTestData input = { ogg.Begin(), ogg.Size(), page_offset + page_size / 2 };
+
+    dmSound::InitializeParams params;
+    params.m_OutputDevice = "loopback";
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadStreamingVorbis, &input, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+    ASSERT_STREQ("VorbisDecoder", decoder->m_Name);
+    dmSoundCodec::HDecodeStream stream;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(data, &stream));
+
+    float left[257], right[257], ref_left[257], ref_right[257];
+    char* out[] = { (char*)left, (char*)right };
+    float* expected[] = { ref_left, ref_right };
+    uint32_t bytes;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(left), &bytes));
+    ASSERT_EQ(0U, bytes);
+    ASSERT_EQ(0, decoder->m_GetInternalStreamPosition(stream));
+
+    input.m_Available = input.m_Size;
+    int error;
+    stb_vorbis* reference = stb_vorbis_open_memory(ogg.Begin(), ogg.Size(), &error, 0);
+    ASSERT_NE((stb_vorbis*)0, reference);
+    uint32_t frames = 0;
+    float max_error = 0;
+    for (;;)
+    {
+        uint32_t count = (uint32_t)stb_vorbis_get_samples_float(reference, 2, expected, DM_ARRAY_SIZE(left));
+        dmSoundCodec::Result result = decoder->m_DecodeStream(stream, out, sizeof(left), &bytes);
+        ASSERT_EQ(count * sizeof(float), bytes);
+        if (count == 0)
+        {
+            ASSERT_EQ(dmSoundCodec::RESULT_END_OF_STREAM, result);
+            break;
+        }
+
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, result);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            max_error = dmMath::Max(max_error, dmMath::Abs(left[i] - ref_left[i] * 32767.0f));
+            max_error = dmMath::Max(max_error, dmMath::Abs(right[i] - ref_right[i] * 32767.0f));
+        }
+
+        frames += count;
+    }
+
+    ASSERT_EQ(116307U, frames);
+    ASSERT_EQ(frames, decoder->m_GetInternalStreamPosition(stream));
+    ASSERT_LT(max_error, 0.5f);
+
+    input.m_Available = 0;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, 37 * sizeof(float), &bytes));
+    ASSERT_EQ(0U, bytes);
+    ASSERT_EQ(0, decoder->m_GetInternalStreamPosition(stream));
+    input.m_Available = input.m_Size;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, 37 * sizeof(float), &bytes));
+    ASSERT_EQ(37 * sizeof(float), bytes);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(left), &bytes));
+    ASSERT_EQ(sizeof(left), bytes);
+    ASSERT_TRUE(stb_vorbis_seek(reference, 37));
+    ASSERT_EQ(257, stb_vorbis_get_samples_float(reference, 2, expected, DM_ARRAY_SIZE(left)));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(left); ++i)
+    {
+        ASSERT_NEAR(ref_left[i] * 32767.0f, left[i], 0.5f);
+        ASSERT_NEAR(ref_right[i] * 32767.0f, right[i], 0.5f);
+    }
+
+    stb_vorbis_close(reference);
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+// A chain can stall between streams and switch codebooks even when their identification headers match.
+TEST(SoundDecoder, VorbisChainedStreams)
+{
+    dmArray<uint8_t> ogg;
+    ogg.SetCapacity(CLICK_TRACK_OGG_SIZE + EXPLOSION_LOW_MONO_OGG_SIZE);
+    ogg.PushArray(CLICK_TRACK_OGG, CLICK_TRACK_OGG_SIZE);
+    ogg.PushArray(EXPLOSION_LOW_MONO_OGG, EXPLOSION_LOW_MONO_OGG_SIZE);
+    uint8_t* second_page = ogg.Begin() + CLICK_TRACK_OGG_SIZE;
+    uint32_t page_offset, page_size;
+    ASSERT_TRUE(GetOggPage(second_page, EXPLOSION_LOW_MONO_OGG_SIZE, 0, &page_offset, &page_size));
+    // These mono clips differ only in nominal bitrate in their 30-byte identification packets.
+    uint8_t* identification = second_page + 27 + second_page[26];
+    memcpy(identification, CLICK_TRACK_OGG + 27 + CLICK_TRACK_OGG[26], 30);
+    WriteLE32(second_page + 22, 0);
+    WriteLE32(second_page + 22, OggCrc(second_page, page_size));
+    StreamingVorbisTestData input = { ogg.Begin(), ogg.Size(), CLICK_TRACK_OGG_SIZE + 100 };
+
+    dmSound::InitializeParams params;
+    params.m_OutputDevice = "loopback";
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadStreamingVorbis, &input, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+    dmSoundCodec::HDecodeStream stream;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(data, &stream));
+
+    uint32_t bytes;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, UINT32_MAX, &bytes));
+    ASSERT_EQ(176400U * sizeof(float), bytes);
+    input.m_Available = input.m_Size;
+    float samples[128], expected[128];
+    char* out[] = { (char*)samples };
+    float* reference_out[] = { expected };
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(samples), &bytes));
+    ASSERT_EQ(sizeof(samples), bytes);
+    int error;
+    stb_vorbis* reference = stb_vorbis_open_memory(EXPLOSION_LOW_MONO_OGG, EXPLOSION_LOW_MONO_OGG_SIZE, &error, 0);
+    ASSERT_NE((stb_vorbis*)0, reference);
+    ASSERT_EQ(128, stb_vorbis_get_samples_float(reference, 1, reference_out, DM_ARRAY_SIZE(expected)));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(samples); ++i)
+    {
+        ASSERT_NEAR(expected[i] * 32767.0f, samples[i], 0.5f);
+    }
+
+    stb_vorbis_close(reference);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, UINT32_MAX, &bytes));
+    ASSERT_EQ((279300U - 128U) * sizeof(float), bytes);
+    ASSERT_EQ(dmSoundCodec::RESULT_END_OF_STREAM, decoder->m_SkipInStream(stream, sizeof(float), &bytes));
+    ASSERT_EQ(176400 + 279300, decoder->m_GetInternalStreamPosition(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, UINT32_MAX, &bytes));
+    ASSERT_EQ((176400U + 279300U) * sizeof(float), bytes);
+
+    // The same codebooks with a different sample rate must still be rejected on rewind.
+    input.m_Bytes = second_page;
+    input.m_Size = input.m_Available = EXPLOSION_LOW_MONO_OGG_SIZE;
+    WriteLE32(identification + 12, 22050);
+    WriteLE32(second_page + 22, 0);
+    WriteLE32(second_page + 22, OggCrc(second_page, page_size));
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+    ASSERT_EQ(dmSoundCodec::RESULT_UNSUPPORTED, decoder->m_DecodeStream(stream, out, sizeof(samples), &bytes));
+    ASSERT_EQ(0U, bytes);
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+#else
+struct StarvedVorbisTestData
+{
+    StreamingVorbisTestData m_Stream;
+    uint32_t                m_StarvedReads;
+};
+
+static dmSound::Result ReadVorbisAfterStall(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* read)
+{
+    StarvedVorbisTestData* data = (StarvedVorbisTestData*)context;
+    if (offset == data->m_Stream.m_Available && ++data->m_StarvedReads == 2)
+    {
+        data->m_Stream.m_Available = data->m_Stream.m_Size;
+    }
+
+    return ReadStreamingVorbis(&data->m_Stream, offset, size, out, read);
+}
+
+// OpenAL must yield on an empty read and resume the same stream on the next update.
+TEST(SoundDecoder, VorbisOpenALResumesAfterStarvation)
+{
+    StarvedVorbisTestData input = { { LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, 0 }, 0 };
+    uint32_t page_size;
+    ASSERT_TRUE(GetOggPage(input.m_Stream.m_Bytes, input.m_Stream.m_Size, 2, &input.m_Stream.m_Available, &page_size));
+
+    dmSound::InitializeParams params;
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    dmSound::HSoundInstance instance;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundDataStreaming(ReadVorbisAfterStall, &input, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(data, &instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    EXPECT_EQ(1U, input.m_StarvedReads);
+    EXPECT_TRUE(dmSound::IsPlaying(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    EXPECT_EQ(2U, input.m_StarvedReads);
+    EXPECT_TRUE(dmSound::IsPlaying(instance));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Stop(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+// OpenAL devices without float32 support can play stereo Vorbis as interleaved PCM16.
+TEST(SoundDecoder, VorbisInterleavedPCM16)
+{
+    dmSound::InitializeParams params;
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+    dmSound::HSoundData data;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &data, 0));
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+    dmSoundCodec::HDecodeStream stream;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(data, &stream));
+    dmSoundCodec::Info info;
+    decoder->m_GetStreamInfo(stream, &info);
+    ASSERT_TRUE(info.m_IsInterleaved);
+    ASSERT_EQ(16U, info.m_BitsPerSample);
+    ASSERT_EQ(2U, info.m_Channels);
+
+    int error;
+    stb_vorbis* reference = stb_vorbis_open_memory(LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, &error, 0);
+    ASSERT_NE((stb_vorbis*)0, reference);
+    int16_t DM_ALIGNED(16) samples[515];
+    int16_t expected[514];
+    const uint32_t skip_frames[] = { 0, 37, 0 };
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(skip_frames); ++pass)
+    {
+        // Exercise aligned stereo, an unaligned source after skipping, and an unaligned destination.
+        int16_t* dst = pass == 2 ? samples + 1 : samples;
+        char* out[] = { (char*)dst };
+        uint32_t bytes;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_ResetStream(stream));
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_SkipInStream(stream, skip_frames[pass] * 4, &bytes));
+        ASSERT_EQ(skip_frames[pass] * 4, bytes);
+        ASSERT_TRUE(stb_vorbis_seek(reference, skip_frames[pass]));
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, out, sizeof(expected), &bytes));
+        ASSERT_EQ(sizeof(expected), bytes);
+        ASSERT_EQ(257, stb_vorbis_get_samples_short_interleaved(reference, 2, expected, DM_ARRAY_SIZE(expected)));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+        {
+            ASSERT_NEAR(expected[i], dst[i], 2);
+        }
+    }
+
+    stb_vorbis_close(reference);
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+#endif
+
 // Regression for Ogg/Vorbis files whose metadata pushes the setup headers past
-// the initial STB Vorbis input block.
-TEST(SoundDecoder, StbVorbisLargeStartupComment)
+// the first input block.
+TEST(SoundDecoder, VorbisLargeStartupComment)
 {
     dmArray<uint8_t> ogg;
     ASSERT_TRUE(MakeOggWithLargeVorbisComment(MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, ogg));
@@ -1541,7 +1818,7 @@ TEST(SoundDecoder, StbVorbisLargeStartupComment)
     dmSound::HSoundData sound_data = 0;
     ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(ogg.Begin(), ogg.Size(), dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sound_data, dmHashString64("large_startup_comment_ogg")));
 
-    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindDecoderByName("VorbisDecoderStb");
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS);
     ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
 
     dmSoundCodec::HDecodeStream stream = 0;
@@ -2976,6 +3253,16 @@ int main(int argc, char **argv)
     dmExportedSymbols();
 
 #if defined(__EMSCRIPTEN__)
+    // Decoder and loopback tests can run under Node when selected explicitly.
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strncmp(argv[i], "--test-filter=", 14) == 0 || strcmp(argv[i], "--test-filter") == 0)
+        {
+            jc_test_init(&argc, argv);
+            return jc_test_run_all();
+        }
+    }
+
     printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
     return 0;
 #endif
