@@ -31,6 +31,9 @@
 
 #if defined(DM_GRAPHICS_DAWN)
 #include "../webgpu/graphics_webgpu_private.h"
+#if defined(DM_PLATFORM_MACOS)
+#include "../../../platform/src/platform_window_glfw3_private.h"
+#endif
 #endif
 
 #if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
@@ -439,6 +442,13 @@ struct WebGPUViewportTest : ITest
 struct WebGPURenderingTest : ClearBackbufferTest
 {
     dmGraphics::HProgram         m_Program;
+#if defined(DM_PLATFORM_MACOS)
+    // Screen coordinates are used to restore the native window after zero-size requests.
+    int32_t  m_ZeroSizeWindowWidth;
+    int32_t  m_ZeroSizeWindowHeight;
+    uint32_t m_ZeroSizeLastSubmittedPass;
+#endif
+
     dmGraphics::HUniformLocation m_Color;
     uint64_t                     m_BenchmarkTime;
     uint32_t                     m_BenchmarkFrames;
@@ -468,6 +478,18 @@ struct WebGPURenderingTest : ClearBackbufferTest
         m_BenchmarkTime = 0;
         m_BenchmarkFrames = 0;
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+#if defined(DM_PLATFORM_MACOS)
+        // "webgpu zero-size-startup" defers surface configuration until the first valid frame (#9196).
+        if (HasArgument("zero-size-startup"))
+        {
+            ASSERT_EQ((dmGraphics::WebGPURenderTarget*)0, context->m_MainRenderTarget);
+            ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+            ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+            ASSERT_EQ((dmGraphics::HTexture)0, dmGraphics::WebGPUGetActiveSwapChainTexture(engine->m_GraphicsContext));
+            dmPlatform::SetWindowSize(engine->m_Window, engine->m_Window->m_WidthScreen, engine->m_Window->m_HeightScreen);
+        }
+
+#endif
         wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
 
         dmGraphics::ShaderDesc shader_desc = {};
@@ -484,11 +506,47 @@ struct WebGPURenderingTest : ClearBackbufferTest
         m_Color = GetUniformLocation(m_Program, "color");
     }
 
+    // Run with "webgpu zero-size-window" to verify invalid resizes preserve Dawn resources and rendering recovers (#9196).
+    void BeforeFrame(EngineCtx* engine) override
+    {
+        if (!HasArgument("zero-size-window") || engine->m_WasRun != 4)
+        {
+            return;
+        }
+
+        dmGraphics::HContext graphics_context = engine->m_GraphicsContext;
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*) graphics_context;
+        uint32_t width = dmGraphics::GetWidth(graphics_context);
+        uint32_t height = dmGraphics::GetHeight(graphics_context);
+        uint32_t surface_width = context->m_MainRenderTarget->m_Width;
+        uint32_t surface_height = context->m_MainRenderTarget->m_Height;
+        const uint32_t sizes[][2] = { { 0, 0 }, { width, 0 }, { 0, height } };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+        {
+            // Zero-size requests must bypass Dawn surface configuration.
+            dmGraphics::ResizeWindow(graphics_context, sizes[i][0], sizes[i][1]);
+            ASSERT_EQ(surface_width, context->m_MainRenderTarget->m_Width);
+            ASSERT_EQ(surface_height, context->m_MainRenderTarget->m_Height);
+            dmGraphics::SetWindowSize(graphics_context, sizes[i][0], sizes[i][1]);
+            ASSERT_EQ(width, dmGraphics::GetWidth(graphics_context));
+            ASSERT_EQ(height, dmGraphics::GetHeight(graphics_context));
+        }
+
+        dmGraphics::ResizeWindow(graphics_context, width, height);
+    }
+
     void Execute(EngineCtx* engine) override
     {
         const uint64_t start = dmTime::GetMonotonicTime();
         ClearBackbufferTest::Execute(engine);
         dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (HasArgument("zero-size-startup") && engine->m_WasRun == 1)
+        {
+            dmGraphics::HTexture texture = dmGraphics::WebGPUGetActiveSwapChainTexture(context);
+            ASSERT_NE((dmGraphics::HTexture)0, texture);
+            ASSERT_NE((WGPUTexture)0, dmGraphics::WebGPUGetTexture(context, texture));
+        }
+
         dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
         dmGraphics::EnableProgram(context, m_Program);
         // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
@@ -553,12 +611,84 @@ struct WebGPURenderingTest : ClearBackbufferTest
         {
             ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
         }
+
+        bool test_invalid_frame = HasArgument("zero-size-frame") || HasArgument("zero-size-pulse") || HasArgument("zero-size-flush");
+        if (test_invalid_frame && engine->m_WasRun >= 4 && engine->m_WasRun <= 8 && engine->m_WasRun % 2 == 0)
+        {
+            dmGraphics::WebGPUContext* webgpu = (dmGraphics::WebGPUContext*) context;
+            ASSERT_NE((WGPUCommandEncoder) 0, webgpu->m_CommandEncoder);
+            m_ZeroSizeWindowWidth = engine->m_Window->m_WidthScreen;
+            m_ZeroSizeWindowHeight = engine->m_Window->m_HeightScreen;
+            m_ZeroSizeLastSubmittedPass = webgpu->m_LastSubmittedRenderPass;
+            dmGraphics::HTexture surface_texture = webgpu->m_MainRenderTarget->m_Multisample == 1 ? webgpu->m_MainRenderTarget->m_Base.m_TextureColor[0] : webgpu->m_MainRenderTarget->m_TextureResolve[0];
+            dmGraphics::WebGPUTexture* texture = dmGraphics::GetAssetFromContainer<dmGraphics::WebGPUTexture>(webgpu->m_BaseContext.m_AssetHandleContainer, surface_texture);
+            // Browser canvas resizing destroys the acquired texture before the frame can finish.
+            wgpuTextureDestroy(texture->m_Texture);
+            dmPlatform::SetWindowSize(engine->m_Window, engine->m_WasRun == 6 ? m_ZeroSizeWindowWidth : 0, engine->m_WasRun == 8 ? m_ZeroSizeWindowHeight : 0);
+            // macOS clamps zero-size requests; inject the reported size after drawing to exercise frame discard.
+            engine->m_Window->m_Width = engine->m_WasRun == 6 ? webgpu->m_MainRenderTarget->m_Width : 0;
+            engine->m_Window->m_Height = engine->m_WasRun == 8 ? webgpu->m_MainRenderTarget->m_Height : 0;
+            if (HasArgument("zero-size-pulse"))
+            {
+                dmPlatform::SetWindowSize(engine->m_Window, m_ZeroSizeWindowWidth, m_ZeroSizeWindowHeight);
+            }
+
+            if (HasArgument("zero-size-flush"))
+            {
+                uint32_t value = 1;
+                dmGraphics::HStorageBuffer buffer = dmGraphics::NewStorageBuffer(context, sizeof(value), &value, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                dmGraphics::SetStorageBufferSubData(context, buffer, 0, sizeof(value), &value);
+                dmGraphics::DeleteStorageBuffer(context, buffer);
+            }
+
+            // No draw, clear, or readback may use the expired surface while this frame is stale.
+            ClearBackbufferTest::Execute(engine);
+            dmGraphics::EnableProgram(context, m_Program);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DisableProgram(context);
+            uint32_t pixel = 0x12345678;
+            dmGraphics::ReadPixels(context, 0, 0, 1, 1, &pixel, sizeof(pixel));
+            ASSERT_EQ(0x12345678u, pixel);
+        }
+
 #endif
         if (HasArgument("bind-group-benchmark") && engine->m_WasRun > 32)
         {
             m_BenchmarkTime += dmTime::GetMonotonicTime() - start;
             ++m_BenchmarkFrames;
         }
+    }
+
+    // On macOS, zero-size-frame/pulse/flush verify discard, same-frame restoration, and intermediate submissions.
+    void AfterFlip(EngineCtx* engine) override
+    {
+#if defined(DM_PLATFORM_MACOS)
+        if (!HasArgument("zero-size-frame") && !HasArgument("zero-size-pulse") && !HasArgument("zero-size-flush"))
+        {
+            return;
+        }
+
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*) engine->m_GraphicsContext;
+        if (engine->m_WasRun >= 4 && engine->m_WasRun <= 8 && engine->m_WasRun % 2 == 0)
+        {
+            dmPlatform::SetWindowSize(engine->m_Window, m_ZeroSizeWindowWidth, m_ZeroSizeWindowHeight);
+            ASSERT_FALSE(context->m_FrameBegun);
+            ASSERT_EQ((WGPUCommandEncoder) 0, context->m_CommandEncoder);
+            ASSERT_EQ((WGPURenderPassEncoder) 0, context->m_CurrentRenderPass.m_Encoder);
+            ASSERT_EQ((dmGraphics::WebGPURenderTarget*) 0, context->m_CurrentRenderTarget);
+            ASSERT_EQ(m_ZeroSizeLastSubmittedPass, context->m_LastSubmittedRenderPass);
+            ASSERT_TRUE(context->m_SurfaceNeedsConfigure);
+            dmGraphics::HTexture surface_texture = context->m_MainRenderTarget->m_Multisample == 1 ? context->m_MainRenderTarget->m_Base.m_TextureColor[0] : context->m_MainRenderTarget->m_TextureResolve[0];
+            dmGraphics::WebGPUTexture* texture = dmGraphics::GetAssetFromContainer<dmGraphics::WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, surface_texture);
+            ASSERT_EQ((WGPUTexture) 0, texture->m_Texture);
+            ASSERT_EQ((WGPUTextureView) 0, texture->m_TextureView);
+        }
+        else if (engine->m_WasRun >= 5 && engine->m_WasRun <= 9 && engine->m_WasRun % 2 != 0)
+        {
+            ASSERT_FALSE(context->m_SurfaceNeedsConfigure);
+        }
+
+#endif
     }
 
     void OnGraphicsClosing(EngineCtx* engine) override
@@ -2922,6 +3052,14 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Height                  = 512;
     graphics_context_params.m_JobContext              = engine->m_JobContext;
 
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+    if (HasArgument("zero-size-startup") && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        engine->m_Window->m_Width = 0;
+        engine->m_Window->m_Height = 0;
+    }
+
+#endif
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     if (!engine->m_GraphicsContext)
     {

@@ -1244,7 +1244,7 @@ static void WebGPUSetSwapInterval(HContext _context, uint32_t swap_interval)
         context->m_PresentMode = present_mode;
         // Reconfigure in BeginFrame, after the current surface texture has
         // been presented and released.
-        context->m_SwapIntervalChanged = 1;
+        context->m_SurfaceNeedsConfigure = 1;
     }
 }
 #endif
@@ -1292,7 +1292,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
             : WGPUCompositeAlphaMode_Premultiplied;
 #endif
         wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
-        context->m_SwapIntervalChanged = 0;
+        context->m_SurfaceNeedsConfigure = 0;
     }
 
     // A presentation-mode change does not require new render attachments.
@@ -1489,7 +1489,17 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 
         if (surface_initialized)
         {
-            WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
+#if defined(__EMSCRIPTEN__)
+            dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
+            // Emscripten applies these dimensions to the canvas, so preserve an initially invalid surface.
+            uint32_t width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+            uint32_t height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+            if (width != 0 && height != 0)
+            {
+                WebGPUConfigure(context, width, height);
+            }
+
             dmLogInfo("WebGPU: Created device");
         }
     }
@@ -1579,8 +1589,6 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_BaseContext.m_Window = params.m_Window;
     context->m_BaseContext.m_DisableDepthStencil = params.m_DisableDepthStencil;
     assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
-    context->m_OriginalWidth   = params.m_Width;
-    context->m_OriginalHeight  = params.m_Height;
     context->m_BaseContext.m_Width  = params.m_Width;
     context->m_BaseContext.m_Height = params.m_Height;
     context->m_BaseContext.m_PrintDeviceInfo = params.m_PrintDeviceInfo;
@@ -2036,20 +2044,34 @@ static void WebGPUEndComputePass(WebGPUContext* context)
     }
 }
 
+static bool WebGPUIsFrameValid(WebGPUContext* context)
+{
+    HWindow window = context->m_BaseContext.m_Window;
+    return context->m_WindowResizeGeneration == dmPlatform::GetWindowResizeGeneration(window) &&
+           dmPlatform::GetWindowWidth(window) != 0 && dmPlatform::GetWindowHeight(window) != 0;
+}
+
 static void WebGPUSubmitCommandEncoder(WebGPUContext* context)
 {
     TRACE_CALL;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
     if (context->m_CommandEncoder)
     {
         WebGPUEndComputePass(context);
         WebGPUEndRenderPass(context);
 
-        const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
-        wgpuQueueSubmit(context->m_Queue, 1, &buffer);
-        wgpuCommandBufferRelease(buffer);
+        if (!context->m_FrameBegun || WebGPUIsFrameValid(context))
+        {
+            const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
+            wgpuQueueSubmit(context->m_Queue, 1, &buffer);
+            wgpuCommandBufferRelease(buffer);
+            context->m_LastSubmittedRenderPass = context->m_RenderPasses;
+        }
+
         wgpuCommandEncoderRelease(context->m_CommandEncoder);
         context->m_CommandEncoder = NULL;
-        context->m_LastSubmittedRenderPass = context->m_RenderPasses;
     }
 }
 
@@ -2521,6 +2543,11 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+    if (context->m_FrameBegun && !WebGPUIsFrameValid(context))
+    {
+        return;
+    }
+
     // Attachment load ops apply at pass start. A stencil-only draw inside the
     // active pass avoids closing it and reloading the color and depth attachments.
     if (flags == BUFFER_TYPE_STENCIL_BIT && WebGPUClearStencilInPass(context, stencil))
@@ -2594,20 +2621,42 @@ static void WebGPUBeginFrame(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
+    if (GetWindowWidth(_context) == 0 || GetWindowHeight(_context) == 0)
+    {
+        return;
+    }
+
     ++context->m_BindGroupCacheFrame;
     WebGPUPruneBindGroups(context);
     {
         const uint32_t window_width = GetWindowWidth(_context);
         const uint32_t window_height = GetWindowHeight(_context);
-        if (!context->m_MainRenderTarget || context->m_SwapIntervalChanged || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
+        if (!context->m_MainRenderTarget || context->m_SurfaceNeedsConfigure || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
+        {
             WebGPUConfigure(context, window_width, window_height);
+#if defined(__EMSCRIPTEN__)
+            // Configuration writes the canvas attributes before a texture is acquired.
+            dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+            if (GetWindowWidth(_context) == 0 || GetWindowHeight(_context) == 0)
+            {
+                return;
+            }
+
+#endif
+        }
+
         WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUSurfaceTexture surfaceColorTexture = WGPU_SURFACE_TEXTURE_INIT;
 #else
         WGPUSurfaceTexture surfaceColorTexture = {};
 #endif
+        context->m_WindowResizeGeneration = dmPlatform::GetWindowResizeGeneration(context->m_BaseContext.m_Window);
         wgpuSurfaceGetCurrentTexture(context->m_Surface, &surfaceColorTexture);
+        context->m_FrameBegun = 1;
         // Each acquired canvas texture begins a new presentation frame. Opaque
         // HTML5 surfaces need alpha initialized before the first main-target
         // pass; alphaMode:opaque only affects presentation, not destination-
@@ -2713,13 +2762,32 @@ static void WebGPUFlip(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+    if (!context->m_FrameBegun)
+    {
+        return;
+    }
+
     if (context->m_BaseContext.m_VerifyGraphicsCalls && context->m_HasValidationError)
+    {
         dmLogFatal("WebGPU validation failed; see the preceding uncaptured error");
+    }
+
     WebGPUSubmitCommandEncoder(context);
+    bool frame_valid = WebGPUIsFrameValid(context);
+    if (!frame_valid)
+    {
+        wgpuSurfaceUnconfigure(context->m_Surface);
+        context->m_SurfaceNeedsConfigure = 1;
+    }
+
     context->m_CurrentRenderTarget = NULL;
     {
 #if !defined(__EMSCRIPTEN__)
-        wgpuSurfacePresent(context->m_Surface);
+        if (frame_valid)
+        {
+            wgpuSurfacePresent(context->m_Surface);
+        }
+
 #endif
         {
             WebGPUTexture* texture;
@@ -2774,6 +2842,7 @@ static void WebGPUFlip(HContext _context)
             }
         }
     }
+    context->m_FrameBegun = 0;
 #if defined(__EMSCRIPTEN__)
     dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
 #endif
@@ -3962,6 +4031,11 @@ static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint3
     assert(_context);
     assert(index_buffer);
     WebGPUContext* context                         = (WebGPUContext*)_context;
+    if (context->m_FrameBegun && !WebGPUIsFrameValid(context))
+    {
+        return;
+    }
+
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, (WebGPUBuffer*)index_buffer, type);
     wgpuRenderPassEncoderDrawIndexed(context->m_CurrentRenderPass.m_Encoder, count, dmMath::Max(1u, instance_count), first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4), 0, 0);
@@ -3972,6 +4046,11 @@ static void WebGPUDraw(HContext _context, PrimitiveType prim_type, uint32_t firs
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context                         = (WebGPUContext*)_context;
+    if (context->m_FrameBegun && !WebGPUIsFrameValid(context))
+    {
+        return;
+    }
+
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, NULL, TYPE_BYTE);
     wgpuRenderPassEncoderDraw(context->m_CurrentRenderPass.m_Encoder, count, dmMath::Max(1u, instance_count), first, 0);
@@ -4648,6 +4727,14 @@ static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t w
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*) _context;
+#if defined(__EMSCRIPTEN__)
+    dmPlatform::PollEvents(context->m_BaseContext.m_Window);
+#endif
+    if (context->m_FrameBegun && !WebGPUIsFrameValid(context))
+    {
+        return;
+    }
+
     WebGPURenderTarget* rt = context->m_CurrentRenderTarget;
     HTexture color_handle = 0;
     if (rt)
@@ -5834,6 +5921,11 @@ WGPUTextureView dmGraphics::WebGPUGetTextureView(HContext _context, HTexture _te
 HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
 {
     WebGPUContext* context = (WebGPUContext*) _context;
+    if (!context->m_MainRenderTarget)
+    {
+        return 0;
+    }
+
     if (context->m_MainRenderTarget->m_Multisample == 1)
         return context->m_MainRenderTarget->m_Base.m_TextureColor[0];
     else

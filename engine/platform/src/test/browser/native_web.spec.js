@@ -148,6 +148,60 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
     expect((await state(page)).closes).toBe(1);
 });
 
+// Synchronous buffer mutations must notify native code even when zero-size pulses restore the original dimensions.
+test("canvas mutations invalidate frames before the browser microtask", async ({ page }) => {
+    await openWindow(page);
+    let previous = await state(page);
+    for (const mutation of ["zero", "restore", "pulse", "attribute", "same-value"]) {
+        const current = await page.evaluate(mutation => {
+            const canvas = Module.canvas;
+            if (mutation === "zero") {
+                canvas.width = 0;
+                canvas.height = 0;
+            } else if (mutation === "restore") {
+                canvas.width = 640;
+                canvas.height = 480;
+            } else if (mutation === "pulse") {
+                canvas.width = 0;
+                canvas.height = 0;
+                canvas.width = 640;
+                canvas.height = 480;
+            } else if (mutation === "attribute") {
+                canvas.setAttribute("width", "0");
+                canvas.setAttribute("width", "640");
+            } else {
+                canvas.width = canvas.width;
+            }
+            Module._TestFrame();
+            Module._TestSnapshot();
+            return Module.testState;
+        }, mutation);
+        expect(current).toMatchObject({ resizes: previous.resizes + 1,
+            width: mutation === "zero" ? 0 : 640, height: mutation === "zero" ? 0 : 480 });
+        await page.evaluate(() => Module._TestFrame());
+        expect((await state(page)).resizes).toBe(current.resizes);
+        previous = current;
+    }
+    expect(await page.evaluate(() => Module._TestRender())).toBe(1);
+    await page.evaluate(() => Module._TestClose());
+});
+
+// Microtask-delivered resize records must survive until polling, while CSS-only changes do not invalidate the buffer.
+test("canvas mutation notifications are consumed once", async ({ page }) => {
+    await openWindow(page);
+    const initial = await state(page);
+    await page.evaluate(() => { Module.canvas.width = Module.canvas.width; });
+    await page.evaluate(() => Module._TestFrame());
+    expect((await state(page)).resizes).toBe(initial.resizes + 1);
+    await page.evaluate(() => {
+        Module.canvas.style.width = "300px";
+        Module.canvas.setAttribute("data-test", "unchanged-buffer");
+    });
+    await page.evaluate(() => Module._TestFrame());
+    expect((await state(page)).resizes).toBe(initial.resizes + 1);
+    await page.evaluate(() => Module._TestClose());
+});
+
 // A canvas bound to WebGPU must be replaced before WebGL fallback, preserving layout, focus, input, and rendering.
 test("WebGPU canvas can fall back to WebGL", async ({ page }) => {
     expect(await page.evaluate(() => Module._TestOpenWebGPU())).toBe(0);

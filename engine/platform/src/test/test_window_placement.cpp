@@ -131,7 +131,68 @@ protected:
         SetStateEnvironment(m_PreviousEnvironment);
         free(m_PreviousEnvironment);
     }
+
 };
+
+class MousePositionTest : public jc_test_base_class
+{
+    protected:
+    dmWindow m_Window;
+
+    void SetUp()
+    {
+        memset(&m_Window, 0, sizeof(m_Window));
+        m_Window.m_MouseScaleX = 1.0f;
+        m_Window.m_MouseScaleY = 1.0f;
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
+        int result = glfwInit();
+        glfwInitHint(GLFW_PLATFORM, GLFW_ANY_PLATFORM);
+        ASSERT_EQ(GLFW_TRUE, result);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        m_Window.m_Window = glfwCreateWindow(400, 300, "Defold mouse position test", 0, 0);
+        ASSERT_NE((GLFWwindow*)0, m_Window.m_Window);
+        glfwFocusWindow(m_Window.m_Window);
+    }
+
+    void TearDown()
+    {
+        if (m_Window.m_Window)
+        {
+            glfwDestroyWindow(m_Window.m_Window);
+        }
+
+        glfwTerminate();
+    }
+
+};
+
+// Zero-size resizes retain the last valid cursor scale and preserve positions outside the window.
+TEST_F(MousePositionTest, ZeroSizeMousePosition)
+{
+    const int sizes[][3] = { { 0, 0, 1 }, { 400, 300, 2 }, { 0, 0, 3 }, { 800, 0, 4 }, { 0, 600, 5 }, { 300, 200, 3 }, { 0, 0, 2 } };
+    const int positions[][2] = { { 37, 53 }, { -17, 329 } };
+    int expected_scale = 1;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        m_Window.m_WidthScreen = sizes[i][0];
+        m_Window.m_HeightScreen = sizes[i][1];
+        m_Window.m_Width = sizes[i][0] * sizes[i][2];
+        m_Window.m_Height = sizes[i][1] * sizes[i][2];
+        if (sizes[i][0] != 0 && sizes[i][1] != 0)
+        {
+            expected_scale = sizes[i][2];
+        }
+
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(positions); ++j)
+        {
+            glfwSetCursorPos(m_Window.m_Window, positions[j][0], positions[j][1]);
+            int32_t x, y;
+            dmPlatform::GetMousePosition(&m_Window, &x, &y);
+            ASSERT_EQ(positions[j][0] * expected_scale, x);
+            ASSERT_EQ(positions[j][1] * expected_scale, y);
+        }
+    }
+}
 
 // A null graphics fallback must fail cleanly on GLFW and leave the wrapper reusable for a rendering adapter.
 TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)

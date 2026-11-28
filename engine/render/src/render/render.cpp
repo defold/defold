@@ -148,6 +148,9 @@ namespace dmRender
     {
         RenderContext* context = new RenderContext();
         context->m_GraphicsContext = graphics_context;
+        context->m_LastWindowWidth = dmMath::Max(1u, dmGraphics::GetWidth(graphics_context));
+        context->m_LastWindowHeight = dmMath::Max(1u, dmGraphics::GetHeight(graphics_context));
+        SetCameraWindowSize(context, dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
         context->m_Execution = execution;
         context->m_GraphicsService = service;
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
@@ -260,6 +263,15 @@ namespace dmRender
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
         context->m_RendererInitialized = true;
+    }
+
+    void SetCameraWindowSize(HRenderContext render_context, uint32_t width, uint32_t height)
+    {
+        if (width != 0 && height != 0)
+        {
+            render_context->m_LastWindowWidth = width;
+            render_context->m_LastWindowHeight = height;
+        }
     }
 
     bool IsRendererInitialized(HRenderContext render_context)

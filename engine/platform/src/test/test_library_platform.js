@@ -32,6 +32,13 @@ function loadEnvironment() {
         console,
         Module: {},
         MainLoop: { currentFrameNumber: 1 },
+        MutationObserver: class {
+            constructor(callback) { this.callback = callback; this.records = []; }
+            observe(target, options) { this.target = target; this.options = options; }
+            takeRecords() { return this.records.splice(0); }
+            disconnect() { this.target = null; this.records.length = 0; }
+            deliver() { this.callback(this.takeRecords()); }
+        },
         navigator: { getGamepads: () => [] },
         window: {
             addEventListener(type, callback) {
@@ -83,6 +90,7 @@ function createCanvas(context) {
     const listeners = new Map();
     return {
         id: "canvas", width: 640, height: 480, tabIndex: 0,
+        getBoundingClientRect() { return { left: 0, top: 0, right: this.width, bottom: this.height }; },
         addEventListener(type, listener) {
             if (!listeners.has(type)) listeners.set(type, new Set());
             listeners.get(type).add(listener);
@@ -426,7 +434,15 @@ function loadResizeEnvironment(settings = {}, scaleMode = "stretch") {
     Object.assign(context.window, { innerWidth: 900, innerHeight: 700, devicePixelRatio: 3 });
     context.document.getElementById = id => id === "canvas" ? canvas : container;
     context.Module.canvas = canvas;
-    context.Browser = { setCanvasSize: (width, height) => Object.assign(canvas, { width, height }) };
+    context.canvasSizeRequests = [];
+    context.Browser = { setCanvasSize(width, height) {
+        context.canvasSizeRequests.push([width, height]);
+        if (width && height) {
+            canvas.widthNative = width;
+            canvas.heightNative = height;
+        }
+        Object.assign(canvas, { width: canvas.widthNative, height: canvas.heightNative });
+    } };
     context._dmNativeSetWindowSize = (width, height) => context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
     context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0,
         settings["display.high_dpi"] ?? true, false, 2);
@@ -756,6 +772,117 @@ function testLoaderResizeCanvas() {
             resize();
             assert.strictEqual(writes.length, 4);
         }
+    }
+}
+
+// Transient invalid browser geometry must retain the last valid canvas and allow subsequent resizes (#9196).
+function testLoaderInvalidResize() {
+    for (const scaleMode of ["stretch", "fit", "downscale_fit", "no_scale"]) {
+        const context = loadResizeEnvironment({}, scaleMode);
+        context.resize();
+        const previous = [context.Module.canvas.width, context.Module.canvas.height];
+        const resizeCount = context.resizes.length;
+        for (const [width, height] of [[0, 0], [900, 0], [0, 700], [-1, 700], [NaN, 700], [900, Infinity]]) {
+            Object.assign(context.window, { innerWidth: width, innerHeight: height });
+            context.resize();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], previous);
+            assert.strictEqual(context.resizes.length, resizeCount);
+        }
+        Object.assign(context.window, { innerWidth: 300, innerHeight: 200 });
+        const getPixelRatio = context.Module.getPixelRatio;
+        for (const dpi of [0, -1, NaN, Infinity]) {
+            context.Module.getPixelRatio = () => dpi;
+            context.resize();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], previous);
+            assert.strictEqual(context.resizes.length, resizeCount);
+        }
+        context.Module.getPixelRatio = getPixelRatio;
+        context.resize();
+        if (scaleMode !== "no_scale") assert.strictEqual(context.resizes.length, resizeCount + 1);
+        assert.ok(context.Module.canvas.width > 0 && context.Module.canvas.height > 0);
+    }
+}
+
+// Custom canvases must report zero through resize events, then recover during event polling without buffer swaps.
+function testZeroSizeCanvasPolling() {
+    for (const fullscreen of [false, true]) {
+        const context = loadResizeEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context._dmNativeSwapBuffers = () => library.dmNativeSwapBuffers();
+        context.resize();
+        context.DefoldPlatform.isFullscreen = fullscreen;
+        for (const [width, height] of [[0, 0], [400, 0], [0, 300], [400, 300]]) {
+            if (fullscreen) Object.assign(context.window, { innerWidth: width / 3, innerHeight: height / 3 });
+            else Object.assign(context.Module.canvas, { width, height });
+            const requests = context.canvasSizeRequests.length;
+            library.dmNativePollEvents();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], [width, height]);
+            assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
+            if (!fullscreen) assert.strictEqual(context.canvasSizeRequests.length, requests);
+            const count = context.resizes.length;
+            library.dmNativePollEvents();
+            assert.strictEqual(context.resizes.length, count);
+        }
+    }
+}
+
+// Explicit zero-size requests must bypass Emscripten's cached-size fallback, including one zero axis.
+function testZeroSizeCanvasRequests() {
+    const context = loadResizeEnvironment();
+    context.resize();
+    for (const [width, height] of [[0, 0], [400, 0], [0, 300], [400, 300]]) {
+        context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
+        assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], [width, height]);
+        assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
+    }
+}
+
+// Attribute writes must invalidate an acquired frame even if polling sees the original dimensions again.
+function testCanvasResizeMutations() {
+    for (const delivered of [false, true]) {
+        const context = loadResizeEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context.resize();
+        const canvas = context.Module.canvas;
+        const observer = context.DefoldPlatform.canvasResizeObserver;
+        assert.strictEqual(observer.target, canvas);
+        assert.deepStrictEqual(Array.from(observer.options.attributeFilter), ["width", "height"]);
+        const initial = context.resizes.length;
+        observer.records.push({ attributeName: "width" }, { attributeName: "height" });
+        if (delivered) observer.deliver();
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 1);
+        assert.deepStrictEqual(context.resizes.at(-1), [canvas.width, canvas.height]);
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 1);
+
+        // Explicit requests already notify native code and must consume their own mutation records.
+        observer.records.push({ attributeName: "width" });
+        library.dmNativeSetWindowSize(canvas.width, canvas.height);
+        library.dmNativeSwapBuffers();
+        assert.strictEqual(context.resizes.length, initial + 2);
+    }
+}
+
+// Closing or terminating must detach the observer before a reboot or graphics fallback replaces the canvas.
+function testCanvasResizeObserverLifecycle() {
+    for (const teardown of ["dmNativeCloseWindow", "dmNativeTerminate"]) {
+        const context = loadEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context.Module.canvas = createCanvas(context);
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        const previous = context.DefoldPlatform.canvasResizeObserver;
+        previous.records.push({ attributeName: "width" });
+        previous.deliver();
+        library[teardown]();
+        assert.strictEqual(previous.target, null);
+        assert.strictEqual(context.DefoldPlatform.canvasResizeObserver, null);
+        assert.strictEqual(context.DefoldPlatform.canvasResized, false);
+        library.dmNativeInitJS();
+        context.Module.canvas = createCanvas(context);
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        assert.notStrictEqual(context.DefoldPlatform.canvasResizeObserver, previous);
+        assert.strictEqual(context.DefoldPlatform.canvasResizeObserver.target, context.Module.canvas);
     }
 }
 
@@ -2983,6 +3110,63 @@ function mouseEvent(context, button = 0) {
     return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
 }
 
+// Zero canvas dimensions retain the last valid input scale without clamping positions or losing releases (#9196).
+function testZeroSizePointerCoordinates() {
+    for (const [width, height, backingWidth, backingHeight] of [
+        [0, 0, 200, 300], [100, 0, 200, 300], [0, 100, 200, 300],
+        [100, 100, 0, 0], [100, 100, 0, 300], [100, 100, 200, 0], [200, 100, 800, 0]
+    ]) {
+        const context = loadPointerEnvironment();
+        const platform = context.DefoldPlatform;
+        Object.assign(context.Module.canvas, { width: 200, height: 300 });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [140, 240]);
+        context.Browser.calculateMouseEvent = () => assert.fail("invalid canvas must use the cached mouse scale");
+        Object.assign(context.Module.canvas, { width: backingWidth, height: backingHeight });
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: width, bottom: height });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [140, 240]);
+        const buttons = [];
+        platform.mouseButtonFunc = (button, status) => buttons.push(status);
+        platform.onMousemove(mouseEvent(context));
+        platform.onMouseButtonChanged(mouseEvent(context), 0);
+        assert.strictEqual(context.Browser.mouseX, 140);
+        assert.strictEqual(context.Browser.mouseY, 240);
+        assert.deepStrictEqual(buttons, [0]);
+        const touches = [];
+        platform.touchFunc = (id, x, y, phase) => touches.push([x, y, phase]);
+        const touch = { identifier: 1, clientX: 70, clientY: 80 };
+        platform.onTouchMove(touchEvent(context, [touch]));
+        platform.onTouchEnd(touchEvent(context, [touch], []));
+        assert.deepStrictEqual(touches, [
+            [140, 240, platform.NATIVE_PHASE_MOVED],
+            [140, 240, platform.NATIVE_PHASE_ENDED]
+        ]);
+        Object.assign(context.Module.canvas, { width: 100, height: 100 });
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 100, bottom: 100 });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [70, 80]);
+    }
+    const context = loadPointerEnvironment();
+    Object.assign(context.Module.canvas, { width: 0, height: 0 });
+    context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0, bottom: 0 });
+    assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [70, 80]);
+    for (const [width, height] of [[NaN, 100], [100, Infinity]]) {
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: width, bottom: height });
+        assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [0, 0]);
+    }
+    Object.assign(context.Module.canvas, { width: 100, height: 100 });
+    context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0.5, bottom: 100 });
+    assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(1, 80)), [200, 80]);
+    context.Module.canvas.width = 0;
+    context.Browser.pointerLock = true;
+    const platform = context.DefoldPlatform;
+    context.Browser.calculateMouseEvent = () => {
+        context.Browser.mouseX += 3;
+        context.Browser.mouseY -= 4;
+    };
+    platform.onMousemove(mouseEvent(context));
+    assert.strictEqual(context.Browser.mouseX, 3);
+    assert.strictEqual(context.Browser.mouseY, -4);
+}
+
 // Verifies primary-touch emulation tracks its origin, ignores secondary touches, and clears the held marker on end and cancellation.
 function testTouchMouseSources() {
     for (const finish of ["onTouchEnd", "onTouchCancel"]) {
@@ -3066,7 +3250,8 @@ async function runTests() {
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
                        testRemappedModifierKeys,
                        testPunctuationPhysicalKeyCodes,
-                       testLoaderResizeCanvas, testLoaderProgressView,
+                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testZeroSizeCanvasRequests,
+                       testCanvasResizeMutations, testCanvasResizeObserverLifecycle, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
                        testLoaderArchiveConcurrency, testLoaderArchiveRetryReleasesSlot, testLoaderArchiveQueuedCancellation,
@@ -3101,7 +3286,7 @@ async function runTests() {
                        testLoaderInitialSyncRetryBudget, testLoaderPersistentSyncRetryBudget,
                        testLoaderPixelRatioBounds, testLoaderPixelRatioScaleModes,
                        testLoaderPixelRatioChanges, testLoaderFullscreenPixelRatio,
-                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+                       testTouchMouseSources, testMixedTouchAndMouseSources, testZeroSizePointerCoordinates]) {
         // Pending promises alone do not keep Node alive. Treat a missing completion
         // signal as a failure rather than silently exiting before the suite finishes.
         const unfinished = () => {

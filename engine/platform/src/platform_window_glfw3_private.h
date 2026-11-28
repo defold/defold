@@ -45,12 +45,15 @@ struct dmWindow
     double                         m_MouseScrollY;
     float                          m_XScale;
     float                          m_YScale;
+    float                          m_MouseScaleX;
+    float                          m_MouseScaleY;
     int32_t                        m_Width;
     int32_t                        m_Height;
     int32_t                        m_WidthScreen;
     int32_t                        m_HeightScreen;
-    uint32_t                       m_Samples               : 8;
-    uint32_t                       m_HighDPI               : 1;
+    uint32_t                       m_ResizeGeneration;
+    uint32_t                       m_Samples : 8;
+    uint32_t                       m_HighDPI : 1;
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_WindowOpened          : 1;
     uint32_t                       m_FullscreenWindowed    : 1;

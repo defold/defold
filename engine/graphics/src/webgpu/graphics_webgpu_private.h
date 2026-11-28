@@ -284,6 +284,7 @@ namespace dmGraphics
         WebGPUStencilClearPipelineRequest* m_StencilClearPipelineRequest;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
+        uint32_t                           m_WindowResizeGeneration;
 
         // Current state
         PipelineState                      m_CurrentPipelineState;
@@ -293,8 +294,6 @@ namespace dmGraphics
         WebGPUProgram*                     m_CurrentProgram;
         WebGPURenderTarget*                m_CurrentRenderTarget;
 
-        uint32_t            m_OriginalWidth;
-        uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_ApplyRenderTargetLoadOps : 1;
@@ -303,7 +302,8 @@ namespace dmGraphics
         uint32_t            m_OpaqueSurface : 1;
         uint32_t            m_InitializeOpaqueSurface : 1;
         uint32_t            m_ImmediatePresentModeSupported : 1;
-        uint32_t            m_SwapIntervalChanged : 1;
+        uint32_t            m_SurfaceNeedsConfigure : 1;
+        uint32_t            m_FrameBegun : 1;
         uint32_t            m_Float32Filterable : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];

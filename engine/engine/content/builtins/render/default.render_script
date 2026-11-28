@@ -62,22 +62,12 @@ end
 local function update_state(state)
     state.window_width = render.get_window_width()
     state.window_height = render.get_window_height()
-    state.valid = state.window_width > 0 and state.window_height > 0
-    if not state.valid then
-        return false
-    end
-    -- Make sure state updated only once when resize window
-    if state.window_width == state.prev_window_width and state.window_height == state.prev_window_height then
-        return true
-    end
-    state.prev_window_width = state.window_width
-    state.prev_window_height = state.window_height
     state.width = render.get_width()
     state.height = render.get_height()
     for _, camera in pairs(state.cameras) do
         update_camera(camera, state)
     end
-    return true
+    state.cameras_dirty = false
 end
 
 local function init_camera(camera, projection_fn, near, far, zoom)
@@ -121,6 +111,7 @@ local function create_state()
         state.clear_buffers[graphics.BUFFER_TYPE_STENCIL_BIT] = 0
     end
     state.cameras = {}
+    state.cameras_dirty = true
     return state
 end
 
@@ -175,15 +166,12 @@ function init(self)
     -- Create a special camera that wraps camera components (if they exist)
     -- It will take precedence over any other camera, and not change from messages
     local camera_component = create_camera(state, "camera_component")
-    update_state(state)
 end
 
 function update(self)
     local state = self.state
-    if not state.valid then
-        if not update_state(state) then
-            return
-        end
+    if state.cameras_dirty then
+        update_state(state)
     end
 
     local predicates = self.predicates
@@ -254,21 +242,22 @@ function on_message(self, message_id, message)
     if message_id == MSG_CLEAR_COLOR then
         update_clear_color(state, message.color)
     elseif message_id == MSG_WINDOW_RESIZED then
-        update_state(state)
+        state.cameras_dirty = true
     elseif message_id == MSG_SET_VIEW_PROJ then
         camera.view = message.view
         self.camera_projection = message.projection or vmath.matrix4()
-        update_camera(camera, state)
+        state.cameras_dirty = true
     elseif message_id == MSG_SET_CAMERA_PROJ then
         camera.projection_fn = function() return self.camera_projection end
+        state.cameras_dirty = true
     elseif message_id == MSG_USE_STRETCH_PROJ then
         init_camera(camera, get_stretch_projection, message.near, message.far)
-        update_camera(camera, state)
+        state.cameras_dirty = true
     elseif message_id == MSG_USE_FIXED_PROJ then
         init_camera(camera, get_fixed_projection, message.near, message.far, message.zoom)
-        update_camera(camera, state)
+        state.cameras_dirty = true
     elseif message_id == MSG_USE_FIXED_FIT_PROJ then
         init_camera(camera, get_fixed_fit_projection, message.near, message.far)
-        update_camera(camera, state)
+        state.cameras_dirty = true
     end
 end

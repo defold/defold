@@ -55,8 +55,9 @@ struct dmWindow
     dmArray<WindowReservedArea>    m_PendingReservedAreas;
     int32_t                        m_Width;
     int32_t                        m_Height;
-    uint32_t                       m_Samples               : 8;
-    uint32_t                       m_WindowOpened          : 1;
+    uint32_t                       m_ResizeGeneration;
+    uint32_t                       m_Samples : 8;
+    uint32_t                       m_WindowOpened : 1;
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_SwapBufferSupported   : 1;
     uint32_t                       m_HighDPI               : 1;
@@ -122,6 +123,7 @@ namespace dmPlatform
         assert(g_Window);
         g_Window->m_Width  = (uint32_t) width;
         g_Window->m_Height = (uint32_t) height;
+        ++g_Window->m_ResizeGeneration;
 
         if (g_Window->m_ObserveReservedAreas)
             UpdateReservedAreas(g_Window);
@@ -303,6 +305,7 @@ namespace dmPlatform
         dmNativeGetWindowSize(&window_width, &window_height);
         window->m_Width  = window_width;
         window->m_Height = window_height;
+        ++window->m_ResizeGeneration;
 
         // The callback is not called from dmNative when the size is set manually
         if (window->m_ResizeCallback)
@@ -323,6 +326,11 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
+    }
+
+    uint32_t GetWindowResizeGeneration(HWindow window)
+    {
+        return window->m_ResizeGeneration;
     }
 
     static void SetSafeAreaFull(HWindow window, WindowSafeArea* out)

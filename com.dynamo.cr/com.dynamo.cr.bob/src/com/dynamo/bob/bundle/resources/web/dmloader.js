@@ -100,7 +100,8 @@ var CUSTOM_PARAMETERS = {
         var dpi = Module["getPixelRatio"]({{display.high_dpi}});
         var fullscreen = !!(document.fullscreenElement || document.fullScreen || document.mozFullScreen ||
                             document.webkitIsFullScreen || document.msIsFullScreen);
-        if (innerWidth <= 0 || innerHeight <= 0) {
+        if (!Number.isFinite(innerWidth) || !Number.isFinite(innerHeight) || !Number.isFinite(dpi) ||
+            innerWidth <= 0 || innerHeight <= 0 || dpi <= 0) {
             return;
         }
         if (CUSTOM_PARAMETERS.resize_window_prev_inner_width == innerWidth &&
@@ -110,10 +111,6 @@ var CUSTOM_PARAMETERS = {
         {
             return;
         }
-        CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
-        CUSTOM_PARAMETERS.resize_window_prev_inner_height = innerHeight;
-        CUSTOM_PARAMETERS.resize_window_prev_pixel_ratio = dpi;
-        CUSTOM_PARAMETERS.resize_window_prev_fullscreen = fullscreen;
         var width = {{display.width}};
         var height = {{display.height}};
         var targetRatio = width / height;
@@ -168,11 +165,18 @@ var CUSTOM_PARAMETERS = {
         app_container.style.marginLeft = margin_left + "px";
         app_container.style.marginTop = margin_top + "px";
     {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+        // Fullscreen uses the whole viewport, matching the browser backend.
+        var canvasWidth = Math.floor((fullscreen ? window.innerWidth : width) * dpi);
+        var canvasHeight = Math.floor((fullscreen ? window.innerHeight : height) * dpi);
+        if (!Number.isFinite(canvasWidth) || !Number.isFinite(canvasHeight) || canvasWidth <= 0 || canvasHeight <= 0) {
+            return;
+        }
+        CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
+        CUSTOM_PARAMETERS.resize_window_prev_inner_height = innerHeight;
+        CUSTOM_PARAMETERS.resize_window_prev_pixel_ratio = dpi;
+        CUSTOM_PARAMETERS.resize_window_prev_fullscreen = fullscreen;
         app_container.style.width = width + "px";
         app_container.style.height = height + buttonHeight + "px";
-        // Fullscreen uses the whole viewport, matching the browser backend.
-        var canvasWidth = Math.max(1, Math.floor((fullscreen ? window.innerWidth : width) * dpi));
-        var canvasHeight = Math.max(1, Math.floor((fullscreen ? window.innerHeight : height) * dpi));
         if (game_canvas.width != canvasWidth) game_canvas.width = canvasWidth;
         if (game_canvas.height != canvasHeight) game_canvas.height = canvasHeight;
     }

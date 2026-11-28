@@ -163,6 +163,7 @@ struct Engine
     uint32_t                                    m_PendingWindowResizeWidth;
     uint32_t                                    m_PendingWindowResizeHeight;
     bool                                        m_HasPendingWindowResize;
+    bool                                        m_WindowDrawable;
     float                                       m_MaxTimeStep;
 
     float                                       m_ThrottleCooldownMax;

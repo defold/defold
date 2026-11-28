@@ -129,7 +129,8 @@ namespace dmInput
     };
 
     // Logical game dimensions and current physical window dimensions in pixels.
-    // Physical dimensions must be nonzero.
+    // Zero physical dimensions retain the last complete size for position conversion,
+    // or use the logical dimensions before the first positive size is available.
     struct WindowMetrics
     {
         uint32_t m_LogicalWidth;
@@ -152,9 +153,12 @@ namespace dmInput
     };
 
     HContext NewContext(const NewContextParams& params);
-    void DeleteContext(HContext context);
-    void Update(HContext context);
-    void SetRepeat(HContext context, float delay, float interval);
+    void     DeleteContext(HContext context);
+    void     Update(HContext context);
+    void     SetRepeat(HContext context, float delay, float interval);
+    // Remember complete physical dimensions for position conversion, including resizes
+    // between binding updates. A zero dimension leaves the previous conversion size intact.
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height);
 
     HBinding NewBinding(HContext context);
     void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf);

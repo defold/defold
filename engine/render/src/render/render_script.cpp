@@ -3796,6 +3796,17 @@ bail:
         context.m_Instance = instance;
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
         dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)&context);
+        dmGraphics::HContext graphics_context = instance->m_RenderContext->m_GraphicsContext;
+        if (dmGraphics::GetWindowWidth(graphics_context) == 0 || dmGraphics::GetWindowHeight(graphics_context) == 0)
+        {
+            // No update follows while the surface is unavailable, so release message command storage here.
+            ClearRenderScriptCommands(instance);
+            if (instance->m_ScratchFrame)
+            {
+                ResetRenderFrame(instance->m_ScratchFrame);
+            }
+        }
+
         return context.m_Result;
     }
 
@@ -3815,6 +3826,13 @@ bail:
         {
             ResetRenderFrame(frame);
             return RENDER_SCRIPT_RESULT_FAILED;
+        }
+
+        dmGraphics::HContext graphics_context = instance->m_RenderContext->m_GraphicsContext;
+        if (dmGraphics::GetWindowWidth(graphics_context) == 0 || dmGraphics::GetWindowHeight(graphics_context) == 0)
+        {
+            ResetRenderFrame(frame);
+            return RENDER_SCRIPT_RESULT_OK;
         }
 
         const RenderFrameView& view = *GetRenderFrameView(frame);
@@ -3846,7 +3864,14 @@ bail:
         instance->m_RecordingFrame = frame;
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
-        RenderScriptResult script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        dmGraphics::HContext graphics_context = instance->m_RenderContext->m_GraphicsContext;
+        RenderScriptResult script_result = RENDER_SCRIPT_RESULT_OK;
+        // A render timer can invalidate the surface before the update callback runs.
+        if (dmGraphics::GetWindowWidth(graphics_context) != 0 && dmGraphics::GetWindowHeight(graphics_context) != 0)
+        {
+            script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        }
+
         RenderFrameResult result = instance->m_RecordingResult;
         if (script_result == RENDER_SCRIPT_RESULT_FAILED)
         {

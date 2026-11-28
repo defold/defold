@@ -28,9 +28,10 @@ struct dmWindow
     WindowCreateParams m_CreateParams;
     uint32_t           m_WindowWidth;
     uint32_t           m_WindowHeight;
-    uint32_t           m_WindowOpened             : 1;
-    uint32_t           m_StateCursor              : 1;
-    uint32_t           m_StateCursorLock          : 1;
+    uint32_t           m_ResizeGeneration;
+    uint32_t           m_WindowOpened : 1;
+    uint32_t           m_StateCursor : 1;
+    uint32_t           m_StateCursorLock : 1;
     uint32_t           m_StateCursorAccelerometer : 1;
     uint32_t           m_StateKeyboard            : 3;
 };
@@ -103,6 +104,11 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return window->m_WindowHeight;
+    }
+
+    uint32_t GetWindowResizeGeneration(HWindow window)
+    {
+        return window->m_ResizeGeneration;
     }
 
     bool GetSafeArea(HWindow window, WindowSafeArea* out)
@@ -242,6 +248,7 @@ namespace dmPlatform
     {
         window->m_WindowWidth  = width;
         window->m_WindowHeight = height;
+        ++window->m_ResizeGeneration;
 
         if (window->m_CreateParams.m_ResizeCallback)
         {

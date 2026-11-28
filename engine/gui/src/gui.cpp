@@ -315,17 +315,18 @@ namespace dmGui
         context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
         context->m_DefaultProjectWidth = params->m_DefaultProjectWidth;
         context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
-        context->m_PhysicalWidth = params->m_PhysicalWidth;
-        context->m_PhysicalHeight = params->m_PhysicalHeight;
-        context->m_AdjustWidth = params->m_PhysicalWidth;
-        context->m_AdjustHeight = params->m_PhysicalHeight;
+        bool valid_size = params->m_PhysicalWidth != 0 && params->m_PhysicalHeight != 0;
+        context->m_PhysicalWidth = valid_size ? params->m_PhysicalWidth : dmMath::Max(1u, params->m_DefaultProjectWidth);
+        context->m_PhysicalHeight = valid_size ? params->m_PhysicalHeight : dmMath::Max(1u, params->m_DefaultProjectHeight);
+        context->m_AdjustWidth = context->m_PhysicalWidth;
+        context->m_AdjustHeight = context->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
         context->m_AdjustOffsetX = 0.0f;
         context->m_AdjustOffsetY = 0.0f;
         context->m_UseSafeAreaAdjust = false;
         context->m_SafeAreaMode = SAFE_AREA_NONE;
-        context->m_WindowWidth = params->m_PhysicalWidth;
-        context->m_WindowHeight = params->m_PhysicalHeight;
+        context->m_WindowWidth = context->m_PhysicalWidth;
+        context->m_WindowHeight = context->m_PhysicalHeight;
         context->m_WindowInsetLeft = 0;
         context->m_WindowInsetTop = 0;
         context->m_WindowInsetRight = 0;
@@ -392,6 +393,11 @@ namespace dmGui
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height)
     {
+        if (width == 0 || height == 0)
+        {
+            return;
+        }
+
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
         if (!context->m_UseSafeAreaAdjust)
@@ -470,8 +476,8 @@ namespace dmGui
             inset_bottom = 0;
         }
 
-        *out_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
-        *out_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+        *out_width = (uint32_t) dmMath::Max(1, (int32_t)window_width - inset_left - inset_right);
+        *out_height = (uint32_t) dmMath::Max(1, (int32_t)window_height - inset_top - inset_bottom);
         *out_offset_x = (float) inset_left;
         *out_offset_y = (float) inset_bottom;
     }
@@ -533,7 +539,7 @@ namespace dmGui
     void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
                               int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom)
     {
-        if (!context)
+        if (!context || window_width == 0 || window_height == 0)
         {
             return;
         }

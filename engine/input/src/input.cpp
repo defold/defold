@@ -59,6 +59,8 @@ namespace dmInput
         context->m_RepeatInterval = params.m_RepeatInterval;
         context->m_PressedThreshold = 0.9f;
         context->m_GamepadDeadZone = params.m_GamepadDeadZone;
+        context->m_LastWindowWidth = 0;
+        context->m_LastWindowHeight = 0;
         return context;
     }
 
@@ -99,6 +101,15 @@ namespace dmInput
     {
         context->m_RepeatDelay = delay;
         context->m_RepeatInterval = interval;
+    }
+
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    {
+        if (width != 0 && height != 0)
+        {
+            context->m_LastWindowWidth = width;
+            context->m_LastWindowHeight = height;
+        }
     }
 
     HBinding NewBinding(HContext context)
@@ -1618,10 +1629,19 @@ namespace dmInput
         data.m_ConvertPosition = window_metrics != 0;
         if (window_metrics)
         {
-            data.m_WidthRatio = (1.0f / window_metrics->m_PhysicalWidth) * window_metrics->m_LogicalWidth;
-            data.m_HeightRatio = (1.0f / window_metrics->m_PhysicalHeight) * window_metrics->m_LogicalHeight;
+            SetWindowSize(binding->m_Context, window_metrics->m_PhysicalWidth, window_metrics->m_PhysicalHeight);
+            uint32_t physical_width = binding->m_Context->m_LastWindowWidth;
+            uint32_t physical_height = binding->m_Context->m_LastWindowHeight;
+            if (physical_width == 0)
+            {
+                physical_width = dmMath::Max(1u, window_metrics->m_LogicalWidth);
+                physical_height = dmMath::Max(1u, window_metrics->m_LogicalHeight);
+            }
+
+            data.m_WidthRatio = (1.0f / physical_width) * window_metrics->m_LogicalWidth;
+            data.m_HeightRatio = (1.0f / physical_height) * window_metrics->m_LogicalHeight;
             data.m_Height = window_metrics->m_LogicalHeight;
-            data.m_ScreenHeight = (float)window_metrics->m_PhysicalHeight - 1.0f; // mouse position uses [0; size - 1] instead of [1, size]
+            data.m_ScreenHeight = (float)physical_height - 1.0f; // mouse position uses [0; size - 1] instead of [1, size]
         }
         ForEachActive(binding, CollectInputAction, &data);
     }

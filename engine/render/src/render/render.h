@@ -278,6 +278,12 @@ namespace dmRender
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
 
     /**
+     * Set window dimensions for camera calculations without resizing the platform window.
+     * Camera calculations retain the last complete positive size, including when no cameras exist.
+     */
+    void SetCameraWindowSize(HRenderContext render_context, uint32_t width, uint32_t height);
+
+    /**
      * Drain owned graphics work and release drawing/Lua state while Lua is alive.
      * Component lifetimes and frame queues must already be shut down. The graphics
      * service and core context remain available for cleanup. Safe before initialization.

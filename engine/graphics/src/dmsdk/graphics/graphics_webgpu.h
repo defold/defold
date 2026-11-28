@@ -54,7 +54,16 @@ namespace dmGraphics
     WGPUQueue               WebGPUGetQueue(HContext context);
     WGPUTextureView         WebGPUGetTextureView(HContext context, HTexture texture);
     WGPUTexture             WebGPUGetTexture(HContext context, HTexture texture);
+
+    /*#
+     * Get the swap chain texture handle. Returns zero if the backbuffer has not
+     * been created yet, for example when the window starts with a zero dimension.
+     * @name WebGPUGetActiveSwapChainTexture
+     * @param context [type:dmGraphics::HContext] the WebGPU graphics context
+     * @return swapchain [type:dmGraphics::HTexture] the swap chain texture handle, or zero
+     */
     HTexture                WebGPUGetActiveSwapChainTexture(HContext context);
+
     WGPUCommandEncoder      WebGPUGetActiveCommandEncoder(HContext context);
     // Ends the current render passes, letting someone else use the encoder to post new render passes
     void                    WebGPURenderPassEnd(HContext context);

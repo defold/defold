@@ -46,6 +46,9 @@ namespace dmPlatform
 
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
+    // Changes on every resize notification or request, including repeated dimensions.
+    // Graphics backends use this to detect invalidation of an acquired surface texture.
+    uint32_t       GetWindowResizeGeneration(HWindow window);
     // Actual client dimensions in SetWindowSize units; never inferred from display scale.
     // Backends without separate client metrics fall back to their existing window width/height.
     bool           GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height);

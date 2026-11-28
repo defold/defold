@@ -376,6 +376,46 @@ TEST_F(dmGraphicsTest, TestWindowState)
     ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED));
 }
 
+// Zero-size requests expose the reported size while preserving backend buffers and reference dimensions.
+TEST_F(dmGraphicsTest, ZeroSizeWindowResize)
+{
+    uint32_t width = dmGraphics::GetWidth(m_Context);
+    uint32_t height = dmGraphics::GetHeight(m_Context);
+    void* color_buffer = m_NullContext->m_MainFrameBuffer.m_ColorBuffer[0];
+    const uint32_t sizes[][2] = { { 0, 0 }, { WIDTH, 0 }, { 0, HEIGHT } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        dmGraphics::SetWindowSize(m_Context, sizes[i][0], sizes[i][1]);
+        ASSERT_EQ(sizes[i][0], dmGraphics::GetWindowWidth(m_Context));
+        ASSERT_EQ(sizes[i][1], dmGraphics::GetWindowHeight(m_Context));
+        ASSERT_EQ(width, dmGraphics::GetWidth(m_Context));
+        ASSERT_EQ(height, dmGraphics::GetHeight(m_Context));
+        ASSERT_EQ(color_buffer, m_NullContext->m_MainFrameBuffer.m_ColorBuffer[0]);
+        dmGraphics::ResizeWindow(m_Context, sizes[i][0], sizes[i][1]);
+        ASSERT_EQ(sizes[i][0], m_ResizeData.m_Width);
+        ASSERT_EQ(sizes[i][1], m_ResizeData.m_Height);
+    }
+
+    dmGraphics::SetWindowSize(m_Context, WIDTH * 2, HEIGHT * 2);
+    ASSERT_EQ(WIDTH * 2, dmGraphics::GetWindowWidth(m_Context));
+    ASSERT_EQ(HEIGHT * 2, dmGraphics::GetWindowHeight(m_Context));
+}
+
+// Resize generations retain a zero-size interval even when the window returns to identical dimensions.
+TEST_F(dmGraphicsTest, WindowResizeGeneration)
+{
+    uint32_t original = dmPlatform::GetWindowResizeGeneration(m_Window);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, 0);
+    uint32_t invalid = dmPlatform::GetWindowResizeGeneration(m_Window);
+    ASSERT_NE(original, invalid);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, HEIGHT);
+    uint32_t restored = dmPlatform::GetWindowResizeGeneration(m_Window);
+    ASSERT_NE(invalid, restored);
+    ASSERT_NE(original, restored);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, HEIGHT);
+    ASSERT_NE(restored, dmPlatform::GetWindowResizeGeneration(m_Window));
+}
+
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
     ASSERT_EQ(m_NullContext->m_BaseContext.m_Width, dmGraphics::GetWidth(m_Context));

@@ -462,6 +462,61 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+// Message-handler commands must not fill the queue or grow constant snapshots while zero-size frames skip updates.
+TEST_F(dmRenderScriptTest, ZeroSizeMessageCommands)
+{
+    const char* source =
+        "function init(self)\n"
+        "    self.predicate = render.predicate({ 'tile' })\n"
+        "    self.constants = render.constant_buffer()\n"
+        "    self.constants.color = vmath.vector4(1)\n"
+        "end\n"
+        "function update(self, dt)\n"
+        "    assert(dt ~= 5, 'update must wait for a drawable window')\n"
+        "    render.set_view(vmath.matrix4_translation(vmath.vector3(dt, 0, 0)))\n"
+        "    render.set_projection(vmath.matrix4())\n"
+        "end\n"
+        "function on_message(self, id)\n"
+        "    render.set_viewport(0, 0, 10, 10)\n"
+        "    render.set_view(vmath.matrix4())\n"
+        "    render.set_projection(vmath.matrix4())\n"
+        "    render.draw(self.predicate, { constants = self.constants, frustum = vmath.matrix4() })\n"
+        "    render.draw_debug3d({ frustum = vmath.matrix4() })\n"
+        "    if id == hash('fail') then error('test callback failure') end\n"
+        "end\n";
+    dmRender::HRenderScript script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(source));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+    uint32_t command_capacity = instance->m_CommandCapacity;
+    dmPlatform::SetWindowSize(m_Window, 0, 0);
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(&receiver);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
+    for (uint32_t frame = 0; frame <= command_capacity; ++frame)
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmHashString64("frame"), 0, 0, 0, 0, 0));
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(instance));
+        ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+        ASSERT_EQ(0u, dmRender::GetRenderFrameUsage(instance->m_ScratchFrame).m_TableCount);
+        ASSERT_EQ(0u, dmRender::GetRenderFrameUsage(instance->m_ScratchFrame).m_ReferenceCount);
+    }
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmHashString64("fail"), 0, 0, 0, 0, 0));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::DispatchRenderScriptInstance(instance));
+    ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+    ASSERT_EQ(0u, dmRender::GetRenderFrameUsage(instance->m_ScratchFrame).m_TableCount);
+    ASSERT_EQ(0u, dmRender::GetRenderFrameUsage(instance->m_ScratchFrame).m_ReferenceCount);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 5.0f));
+    ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    ASSERT_EQ((const dmRender::RenderFrameView*)0, dmRender::GetRenderFrameView(instance->m_ScratchFrame));
+    dmPlatform::SetWindowSize(m_Window, 20, 10);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 7.0f));
+    ASSERT_EQ(7.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, script);
+}
+
 TEST_F(dmRenderScriptTest, TestRenderScriptUserMessage)
 {
     const char* script =

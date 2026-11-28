@@ -21,6 +21,9 @@ namespace dmRender
     /*# Camera API documentation
      *
      * Camera functions, messages and constants.
+     * Window-dependent projections retain their previous value while a window dimension is zero.
+     * New cameras and coordinate conversions use the last valid window size,
+     * or the project display dimensions if the window has not had a valid size yet.
      *
      * @document
      * @name Camera
@@ -339,7 +342,8 @@ namespace dmRender
 
     /*# get aspect ratio
     * Gets the effective aspect ratio of the camera. If auto aspect ratio is enabled,
-    * returns the aspect ratio calculated from the current render target dimensions.
+    * returns the aspect ratio calculated from the last valid window dimensions.
+    * Uses the project display dimensions if no valid window size has been observed yet.
     * Otherwise returns the manually set aspect ratio.
     *
     * @name camera.get_aspect_ratio

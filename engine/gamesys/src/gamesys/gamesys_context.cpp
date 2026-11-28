@@ -134,6 +134,15 @@ namespace dmGameSystem
                     result = dmRender::RecordDefaultRenderCommands(render_context, frame, info, clear_color);
                 }
             }
+
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+            if (result == dmRender::RENDER_FRAME_OK &&
+                (dmGraphics::GetWindowWidth(graphics_context) == 0 || dmGraphics::GetWindowHeight(graphics_context) == 0))
+            {
+                // PostUpdate cancels the unsubmitted frame and releases its captured resources.
+                return true;
+            }
+
             if (result != dmRender::RENDER_FRAME_OK)
             {
                 // Do not publish a valid-looking prefix after Lua/allocation failure.
