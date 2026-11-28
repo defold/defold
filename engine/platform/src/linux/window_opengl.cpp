@@ -72,6 +72,8 @@ struct LinuxGL
 {
     void*                              m_WaylandEGL;
     wl_egl_window*                     m_Native;
+    wl_egl_window*                     m_AuxNative;
+    wl_surface*                        m_AuxWlSurface;
     __typeof__(&wl_egl_window_create)  m_CreateNative;
     __typeof__(&wl_egl_window_destroy) m_DestroyNative;
     __typeof__(&wl_egl_window_resize)  m_ResizeNative;
@@ -82,13 +84,14 @@ struct LinuxGL
     GLXFBConfig m_XConfig;
     GLXContext  m_XMain, m_XAux;
     GLXDrawable m_XAuxDrawable;
+    Window      m_XAuxWindow;
     EGLDisplay  m_EDisplay;
     EGLConfig   m_EConfig;
     void*       m_EClient;
     EGLContext  m_EMain, m_EAux;
-    EGLSurface  m_ESurface, m_EPbuffer;
+    EGLSurface  m_ESurface, m_EAuxSurface;
     EGLenum     m_Api;
-    bool        m_XAuxIsWindow, m_PresentOpaque, m_Accelerated;
+    bool        m_EConfigHasPbuffer, m_PresentOpaque, m_Accelerated;
 };
 
 namespace dmPlatform
@@ -338,6 +341,7 @@ namespace dmPlatform
             return false;
         }
 
+        g->m_EConfigHasPbuffer = best.m_Pbuffer;
         return true;
     }
 
@@ -373,6 +377,23 @@ namespace dmPlatform
         return 0;
     }
 
+    static void BeginXErrorTrap(Display* d)
+    {
+        pthread_mutex_lock(&g_ContextLock);
+        XSync(d, False);
+        g_Creating = d;
+        g_ContextError = 0;
+        g_PreviousError = XSetErrorHandler(ContextError);
+    }
+
+    static void EndXErrorTrap(Display* d)
+    {
+        XSync(d, False);
+        XSetErrorHandler(g_PreviousError);
+        g_Creating = 0;
+        pthread_mutex_unlock(&g_ContextLock);
+    }
+
     static GLXContext CreateContext(HWindow w, int major, int minor, GLXContext share)
     {
         LinuxGL* g = w->m_GL;
@@ -393,6 +414,16 @@ namespace dmPlatform
         return create ? create(w->m_Display, g->m_XConfig, share, True, attrs) : 0;
     }
 
+    static Window CreateX11AuxWindow(HWindow w)
+    {
+        // The unmapped child inherits the main window's visual and depth.
+        g_ContextError = 0;
+        Window window = XCreateSimpleWindow(w->m_Display, w->m_Xid, 0, 0, 1, 1, 0, 0, 0);
+        XSync(w->m_Display, False);
+        w->m_GL->m_XAuxWindow = g_ContextError ? None : window;
+        return w->m_GL->m_XAuxWindow;
+    }
+
     static GLXDrawable CreateGLXAuxDrawable(HWindow w)
     {
         LinuxGL* g = w->m_GL;
@@ -409,23 +440,14 @@ namespace dmPlatform
             }
         }
 
-        // An unmapped child inherits the main drawable's visual and depth on window-only formats.
-        g_ContextError = 0;
-        g->m_XAuxIsWindow = true;
-        Window window = XCreateSimpleWindow(d, w->m_Xid, 0, 0, 1, 1, 0, 0, 0);
-        XSync(d, False);
-        return g_ContextError ? None : window;
+        return CreateX11AuxWindow(w);
     }
 
     static bool CreateGLX(HWindow w, int major, int minor)
     {
         LinuxGL* g = w->m_GL;
         Display* d = w->m_Display;
-        pthread_mutex_lock(&g_ContextLock);
-        XSync(d, False);
-        g_Creating = d;
-        g_ContextError = 0;
-        g_PreviousError = XSetErrorHandler(ContextError);
+        BeginXErrorTrap(d);
         g->m_XMain = CreateContext(w, major, minor, 0);
         bool ok = g->m_XMain && g->m_glXMakeContextCurrent(d, w->m_Xid, w->m_Xid, g->m_XMain);
         XSync(d, False);
@@ -440,10 +462,7 @@ namespace dmPlatform
             }
         }
 
-        XSync(d, False);
-        XSetErrorHandler(g_PreviousError);
-        g_Creating = 0;
-        pthread_mutex_unlock(&g_ContextLock);
+        EndXErrorTrap(d);
         if (!ok)
         {
             char reason[256];
@@ -512,6 +531,52 @@ namespace dmPlatform
 
         return (Extension(device_extensions, "EGL_EXT_device_drm_render_node") && query_string(device, EGL_DRM_RENDER_NODE_FILE_EXT)) ||
                (Extension(device_extensions, "EGL_EXT_device_drm") && query_string(device, EGL_DRM_DEVICE_FILE_EXT));
+    }
+
+    static void DestroyAuxWindow(HWindow w)
+    {
+        LinuxGL* g = w->m_GL;
+        if (g->m_XAuxWindow)
+        {
+            XDestroyWindow(w->m_Display, g->m_XAuxWindow);
+            g->m_XAuxWindow = None;
+        }
+
+        if (g->m_AuxNative)
+        {
+            g->m_DestroyNative(g->m_AuxNative);
+            g->m_AuxNative = 0;
+        }
+
+        if (g->m_AuxWlSurface)
+        {
+            wl_surface_destroy(g->m_AuxWlSurface);
+            g->m_AuxWlSurface = 0;
+        }
+    }
+
+    static EGLSurface CreateEGLAuxWindowSurface(HWindow w)
+    {
+        LinuxGL* g = w->m_GL;
+        EGLNativeWindowType native = 0;
+        if (w->m_X11)
+        {
+            BeginXErrorTrap(w->m_Display);
+            native = (EGLNativeWindowType)CreateX11AuxWindow(w);
+            EndXErrorTrap(w->m_Display);
+        }
+        else
+        {
+            // A surface without a shell role stays invisible to the compositor.
+            g->m_AuxWlSurface = wl_compositor_create_surface(w->m_Wayland->m_Compositor);
+            if (g->m_AuxWlSurface)
+            {
+                g->m_AuxNative = g->m_CreateNative(g->m_AuxWlSurface, 1, 1);
+                native = (EGLNativeWindowType)g->m_AuxNative;
+            }
+        }
+
+        return native ? g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, 0) : EGL_NO_SURFACE;
     }
 
     bool LinuxOpenGL(HWindow w)
@@ -594,11 +659,27 @@ namespace dmPlatform
         }
 
         g->m_Accelerated = EGLRendererAccelerated(g);
-        int pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
-        g->m_EPbuffer = g->m_eglCreatePbufferSurface(g->m_EDisplay, g->m_EConfig, pbuffer);
-        if (g->m_EPbuffer || Extension(extensions, "EGL_KHR_surfaceless_context"))
+        g->m_EAux = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, g->m_EMain, attrs);
+        if (!g->m_EAux)
         {
-            g->m_EAux = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, g->m_EMain, attrs);
+            return true;
+        }
+
+        if (g->m_EConfigHasPbuffer)
+        {
+            const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
+            g->m_EAuxSurface = g->m_eglCreatePbufferSurface(g->m_EDisplay, g->m_EConfig, pbuffer);
+        }
+
+        if (!g->m_EAuxSurface && !Extension(extensions, "EGL_KHR_surfaceless_context"))
+        {
+            g->m_EAuxSurface = CreateEGLAuxWindowSurface(w);
+            if (!g->m_EAuxSurface)
+            {
+                DestroyAuxWindow(w);
+                g->m_eglDestroyContext(g->m_EDisplay, g->m_EAux);
+                g->m_EAux = EGL_NO_CONTEXT;
+            }
         }
 
         return true;
@@ -639,16 +720,9 @@ namespace dmPlatform
                 g->m_glXDestroyContext(w->m_Display, g->m_XMain);
             }
 
-            if (g->m_XAuxDrawable)
+            if (g->m_XAuxDrawable && !g->m_XAuxWindow)
             {
-                if (g->m_XAuxIsWindow)
-                {
-                    XDestroyWindow(w->m_Display, g->m_XAuxDrawable);
-                }
-                else
-                {
-                    g->m_glXDestroyPbuffer(w->m_Display, g->m_XAuxDrawable);
-                }
+                g->m_glXDestroyPbuffer(w->m_Display, g->m_XAuxDrawable);
             }
         }
 
@@ -670,9 +744,9 @@ namespace dmPlatform
                 g->m_eglDestroyContext(g->m_EDisplay, g->m_EMain);
             }
 
-            if (g->m_EPbuffer)
+            if (g->m_EAuxSurface)
             {
-                g->m_eglDestroySurface(g->m_EDisplay, g->m_EPbuffer);
+                g->m_eglDestroySurface(g->m_EDisplay, g->m_EAuxSurface);
             }
 
             if (g->m_ESurface)
@@ -683,6 +757,7 @@ namespace dmPlatform
             g->m_eglTerminate(g->m_EDisplay);
         }
 
+        DestroyAuxWindow(w);
         if (g->m_EClient)
         {
             dlclose(g->m_EClient);
@@ -748,7 +823,7 @@ namespace dmPlatform
             return g->m_XAux;
         }
 
-        if (g->m_EAux && g->m_eglBindAPI(g->m_Api) && g->m_eglMakeCurrent(g->m_EDisplay, g->m_EPbuffer, g->m_EPbuffer, g->m_EAux))
+        if (g->m_EAux && g->m_eglBindAPI(g->m_Api) && g->m_eglMakeCurrent(g->m_EDisplay, g->m_EAuxSurface, g->m_EAuxSurface, g->m_EAux))
         {
             return g->m_EAux;
         }

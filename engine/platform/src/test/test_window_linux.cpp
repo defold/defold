@@ -106,6 +106,30 @@ static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress
 
 extern "C" void* __real_dlsym(void* handle, const char* name);
 static bool g_NoEGLExtensions;
+static bool g_TestWindowOnlyEGL, g_RejectEGLPbuffer, g_RejectEGLAuxWindow;
+static unsigned g_EGLWindowSurfaces;
+
+static EGLBoolean EGLAPIENTRY WindowOnlyEGLConfig(EGLDisplay display, EGLConfig config, EGLint attribute, EGLint* value)
+{
+    EGLBoolean result = eglGetConfigAttrib(display, config, attribute, value);
+    if (result && attribute == EGL_SURFACE_TYPE)
+    {
+        *value &= ~EGL_PBUFFER_BIT;
+    }
+
+    return result;
+}
+
+static EGLSurface EGLAPIENTRY RejectedEGLPbuffer(EGLDisplay, EGLConfig, const EGLint*)
+{
+    return EGL_NO_SURFACE;
+}
+
+static EGLSurface EGLAPIENTRY MainEGLWindowOnly(EGLDisplay display, EGLConfig config, EGLNativeWindowType native, const EGLint* attrs)
+{
+    return ++g_EGLWindowSurfaces == 1 ? eglCreateWindowSurface(display, config, native, attrs) : EGL_NO_SURFACE;
+}
+
 static const char* EGLAPIENTRY NoEGLExtensions(EGLDisplay display, EGLint query)
 {
     return query == EGL_EXTENSIONS ? "" : eglQueryString(display, query);
@@ -180,6 +204,21 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
     if (g_NoEGLExtensions && !strcmp(name, "eglQueryString"))
     {
         return (void*)NoEGLExtensions;
+    }
+
+    if (g_TestWindowOnlyEGL && !strcmp(name, "eglGetConfigAttrib"))
+    {
+        return (void*)WindowOnlyEGLConfig;
+    }
+
+    if (g_RejectEGLPbuffer && !strcmp(name, "eglCreatePbufferSurface"))
+    {
+        return (void*)RejectedEGLPbuffer;
+    }
+
+    if (g_RejectEGLAuxWindow && !strcmp(name, "eglCreateWindowSurface"))
+    {
+        return (void*)MainEGLWindowOnly;
     }
 
     if (!strcmp(name, "XGetXCBConnection") && getenv("DM_TEST_X11_NO_XCB"))
@@ -3026,6 +3065,40 @@ TEST(LinuxWindow, X11SharedContextWithoutPbuffer)
         ASSERT_EQ(WINDOW_RESULT_OK, result);
         ASSERT_TRUE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT));
         CheckSharedTextureUpload(w);
+        dmPlatform::CloseWindow(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
+// X11 and Wayland must still share worker uploads when EGL requires a window surface for each context.
+TEST(LinuxWindow, EGLSharedContextWithoutPbuffer)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    p.m_Hidden = true;
+    for (int cycle = 0; cycle < 3; ++cycle)
+    {
+        g_TestWindowOnlyEGL = cycle != 1;
+        g_RejectEGLAuxWindow = cycle == 2;
+        g_EGLWindowSurfaces = 0;
+        g_RejectEGLPbuffer = g_NoEGLExtensions = true;
+        WindowResult result = dmPlatform::OpenWindow(w, p);
+        g_TestWindowOnlyEGL = g_RejectEGLPbuffer = g_NoEGLExtensions = g_RejectEGLAuxWindow = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, result);
+        ASSERT_EQ(cycle != 2, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT) != 0);
+        if (cycle == 2)
+        {
+            EXPECT_EQ(2u, g_EGLWindowSurfaces);
+            EXPECT_NE((EGLContext)EGL_NO_CONTEXT, eglGetCurrentContext());
+        }
+        else
+        {
+            CheckSharedTextureUpload(w);
+        }
+
         dmPlatform::CloseWindow(w);
     }
 
