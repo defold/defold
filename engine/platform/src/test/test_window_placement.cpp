@@ -729,6 +729,50 @@ TEST_F(WindowPlacementTest, HiddenWindowPreservesState)
     ASSERT_EQ(351, saved.m_Rect.m_Height);
 }
 
+#if defined(__MACH__)
+static void ReopenHiddenOnFocus(void* data, uint32_t focused)
+{
+    if (focused)
+    {
+        HWindow window = (HWindow)data;
+        dmPlatform::CloseWindow(window);
+        WindowCreateParams replacement;
+        WindowCreateParamsInitialize(&replacement);
+        replacement.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+        replacement.m_Hidden = true;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, replacement));
+    }
+}
+
+// A Cocoa focus callback can reopen the handle during ShowWindow. The hidden replacement must not save its placement.
+TEST_F(WindowPlacementTest, CocoaShowPreservesHiddenReplacement)
+{
+    // Activate the app first so showing the next window delivers focus synchronously.
+    m_Params.m_FocusOnShow = true;
+    m_Params.m_Hidden = false;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+    while (!dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_ACTIVE) && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(m_Window);
+    }
+
+    ASSERT_TRUE(dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_ACTIVE));
+    dmPlatform::CloseWindow(m_Window);
+
+    m_Params.m_Hidden = true;
+    m_Params.m_FocusCallback = ReopenHiddenOnFocus;
+    m_Params.m_FocusCallbackUserData = m_Window;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    dmPlatform::PollEvents(m_Window);
+    uint64_t original = dmPlatform::GetNativeWindowId(m_Window).m_Id;
+    dmPlatform::ShowWindow(m_Window);
+    ASSERT_NE(original, dmPlatform::GetNativeWindowId(m_Window).m_Id);
+    DestroyWindow();
+    EXPECT_FALSE(dmSys::Exists(m_Path));
+}
+#endif
+
 // Verifies a fullscreen reboot never overwrites the last normal rectangle.
 TEST_F(WindowPlacementTest, FullscreenPreservesNormalGeometry)
 {

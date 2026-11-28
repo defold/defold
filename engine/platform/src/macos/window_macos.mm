@@ -461,17 +461,31 @@ namespace dmPlatform
 
     void ShowWindow(HWindow window)
     {
-        if (window->m_Params.m_FocusOnShow)
+        @autoreleasepool
         {
-            [NSApp activateIgnoringOtherApps:YES];
-            [window->m_Window makeKeyAndOrderFront:nil];
-        }
-        else
-        {
-            [window->m_Window orderFront:nil];
-        }
+            // A focus callback can delete the handle or reopen it with a different native window.
+            NSWindow* native = [[window->m_Window retain] autorelease];
+            DMWindowDelegate* delegate = [[window->m_Delegate retain] autorelease];
+            if (window->m_Params.m_FocusOnShow)
+            {
+                [NSApp activateIgnoringOtherApps:YES];
+                if (native.delegate != delegate)
+                {
+                    return;
+                }
 
-        WindowPlacementShown(window);
+                [native makeKeyAndOrderFront:nil];
+            }
+            else
+            {
+                [native orderFront:nil];
+            }
+
+            if (delegate && native.delegate == delegate)
+            {
+                WindowPlacementShown(window);
+            }
+        }
     }
 
     void HideWindow(HWindow window)
