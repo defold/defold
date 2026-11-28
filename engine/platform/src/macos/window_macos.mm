@@ -344,6 +344,29 @@ namespace dmPlatform
         }
     }
 
+    static bool OrderWindowFront(HWindow window)
+    {
+        // Either window's focus callback can delete the handle or reopen it with a different native window.
+        NSWindow* native = [[window->m_Window retain] autorelease];
+        DMWindowDelegate* delegate = [[window->m_Delegate retain] autorelease];
+        if (window->m_Params.m_FocusOnShow)
+        {
+            [NSApp activateIgnoringOtherApps:YES];
+            if (native.delegate != delegate)
+            {
+                return false;
+            }
+
+            [native makeKeyAndOrderFront:nil];
+        }
+        else
+        {
+            [native orderFront:nil];
+        }
+
+        return delegate && native.delegate == delegate;
+    }
+
     WindowResult OpenWindow(HWindow window, const WindowCreateParams& params)
     {
         @autoreleasepool
@@ -422,10 +445,10 @@ namespace dmPlatform
             }
 
             UpdateWindowMetrics(window, false);
-            if (!params.m_Hidden && params.m_FocusOnShow)
+            if (!params.m_Hidden && params.m_FocusOnShow && !OrderWindowFront(window))
             {
-                [NSApp activateIgnoringOtherApps:YES];
-                [native makeKeyAndOrderFront:nil];
+                // The focus listener may have closed or deleted the handle.
+                return WINDOW_RESULT_OK;
             }
 
             window->m_Ready = true;
@@ -466,25 +489,7 @@ namespace dmPlatform
     {
         @autoreleasepool
         {
-            // A focus callback can delete the handle or reopen it with a different native window.
-            NSWindow* native = [[window->m_Window retain] autorelease];
-            DMWindowDelegate* delegate = [[window->m_Delegate retain] autorelease];
-            if (window->m_Params.m_FocusOnShow)
-            {
-                [NSApp activateIgnoringOtherApps:YES];
-                if (native.delegate != delegate)
-                {
-                    return;
-                }
-
-                [native makeKeyAndOrderFront:nil];
-            }
-            else
-            {
-                [native orderFront:nil];
-            }
-
-            if (delegate && native.delegate == delegate)
+            if (OrderWindowFront(window))
             {
                 WindowPlacementShown(window);
             }

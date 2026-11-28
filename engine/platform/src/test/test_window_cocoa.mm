@@ -189,6 +189,62 @@ TEST_F(CocoaWindowTest, PollSecondaryWindow)
     }
 }
 
+struct CloseOpeningWindow
+{
+    HWindow m_Opening;
+    int     m_Focused;
+    bool    m_Delete;
+};
+
+static void CloseOpeningWindowOnBlur(void* data, uint32_t focused)
+{
+    CloseOpeningWindow* action = (CloseOpeningWindow*)data;
+    action->m_Focused = focused;
+    if (!focused && action->m_Opening)
+    {
+        HWindow opening = action->m_Opening;
+        action->m_Opening = 0;
+        if (action->m_Delete)
+        {
+            dmPlatform::DeleteWindow(opening);
+        }
+        else
+        {
+            dmPlatform::CloseWindow(opening);
+        }
+    }
+}
+
+// Losing focus to an opening window can close or delete it before AppKit returns to OpenWindow.
+TEST_F(CocoaWindowTest, FocusLossCanCloseOpeningWindow)
+{
+    params.m_Hidden = false;
+    const WindowCreateParams secondary_params = params;
+    CloseOpeningWindow action = {};
+    params.m_FocusCallback = CloseOpeningWindowOnBlur;
+    params.m_FocusCallbackUserData = &action;
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
+    for (int i = 0; i < 2; ++i)
+    {
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&action.m_Focused, 1));
+        HWindow secondary = dmPlatform::NewWindow();
+        action.m_Opening = secondary;
+        action.m_Delete = i == 1;
+        WindowResult result = WindowOpen(secondary, &secondary_params);
+        ASSERT_EQ((HWindow)0, action.m_Opening);
+        if (!action.m_Delete)
+        {
+            ASSERT_EQ(0u, WindowGetStateParam(secondary, WINDOW_STATE_OPENED));
+            dmPlatform::DeleteWindow(secondary);
+        }
+
+        EXPECT_EQ(WINDOW_RESULT_OK, result);
+    }
+
+    dmPlatform::CloseWindow(window);
+}
+
 // If another window becomes key before the rebooted engine polls, both focus changes must reach the game.
 TEST_F(CocoaWindowTest, FocusLostBeforeFirstPoll)
 {
