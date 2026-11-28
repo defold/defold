@@ -18,6 +18,12 @@ set(PHYSICS_COMMON_SOURCES
 set(PHYSICS_BULLET_SOURCES
   "${PHYSICS_SRC_DIR}/physics_3d.cpp"
   "${PHYSICS_SRC_DIR}/debug_draw_3d.cpp")
+if(DEFOLD_WITH_BOX3D)
+  add_subdirectory("${DEFOLD_HOME}/external/box3d" "${CMAKE_CURRENT_BINARY_DIR}/box3d")
+  set(PHYSICS_3D_SOURCES "${PHYSICS_SRC_DIR}/physics_box3d.cpp")
+else()
+  set(PHYSICS_3D_SOURCES ${PHYSICS_BULLET_SOURCES})
+endif()
 set(PHYSICS_NULL_2D_SOURCE "${PHYSICS_SRC_DIR}/physics_2d_null.cpp")
 set(PHYSICS_NULL_3D_SOURCE "${PHYSICS_SRC_DIR}/physics_3d_null.cpp")
 file(GLOB PHYSICS_BOX2D_SOURCES CONFIGURE_DEPENDS "${PHYSICS_SRC_DIR}/box2d/*.cpp")
@@ -42,7 +48,7 @@ endif()
 
 defold_add_library(physics STATIC
   ${PHYSICS_COMMON_SOURCES}
-  ${PHYSICS_BULLET_SOURCES}
+  ${PHYSICS_3D_SOURCES}
   ${PHYSICS_FULL_2D_SOURCES})
 physics_configure_library(physics)
 if(PHYSICS_WITH_BOX2D_V3)
@@ -53,7 +59,12 @@ else()
   target_include_directories(physics PUBLIC "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
 endif()
 defold_target_link_libraries(physics "${TARGET_PLATFORM}" SCOPE PUBLIC ${PHYSICS_DEPENDENCIES} ${PHYSICS_FULL_2D_LIB})
-defold_target_link_bullet3d(physics "${TARGET_PLATFORM}" SCOPE PUBLIC)
+if(DEFOLD_WITH_BOX3D)
+  defold_get_box3d_library(PHYSICS_BOX3D_LIB)
+  target_link_libraries(physics PUBLIC ${PHYSICS_BOX3D_LIB})
+else()
+  defold_target_link_bullet3d(physics "${TARGET_PLATFORM}" SCOPE PUBLIC)
+endif()
 
 defold_add_library(physics_null STATIC
   "${PHYSICS_SRC_DIR}/physics_common.cpp"

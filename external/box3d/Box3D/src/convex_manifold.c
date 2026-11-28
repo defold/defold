@@ -1296,6 +1296,52 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 #define NF ( B3_MAX_HULL_FACES + 4 )
 #define NV ( B3_MAX_HULL_VERTICES + 4 )
 
+// Check the actual edges and face normals. A right prism has rim edges in its cap
+// planes and longitudinal edges parallel to its extrusion axis.
+static bool b3IsRightPrism( const b3HullData* hull, int axis )
+{
+	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+	int vertexStride = ( hull->vertexCount + 3 ) & ~3;
+	int normalStride = ( hull->faceCount + 3 ) & ~3;
+	const float* vertices = b3GetHullSoaVertices( hull );
+	const float* normals = b3GetHullSoaNormals( hull );
+	int u = ( axis + 1 ) % 3;
+	int v = ( axis + 2 ) % 3;
+	const float* height = vertices + axis * vertexStride;
+	const float* vertexU = vertices + u * vertexStride;
+	const float* vertexV = vertices + v * vertexStride;
+	const float* axial = normals + axis * normalStride;
+	const float* normalU = normals + u * normalStride;
+	const float* normalV = normals + v * normalStride;
+
+	for ( int i = 0; i < hull->edgeCount; i += 2 )
+	{
+		int a = edges[i].origin;
+		int b = edges[i + 1].origin;
+		int f = edges[i].face;
+		int g = edges[i + 1].face;
+		if ( axial[f] == 0.0f && axial[g] == 0.0f )
+		{
+			// Two side faces meet along the extrusion axis.
+			if ( vertexU[a] != vertexU[b] || vertexV[a] != vertexV[b] )
+			{
+				return false;
+			}
+		}
+		else
+		{
+			// A rim edge joins a cap to a side face.
+			int cap = axial[f] != 0.0f ? f : g;
+			int side = cap == f ? g : f;
+			if ( axial[side] != 0.0f || normalU[cap] != 0.0f || normalV[cap] != 0.0f || height[a] != height[b] )
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 // SIMD separating axis test based on an implementation developed by Cairn Overturf.
 // See his article: https://cairno.substack.com/p/improvements-to-the-separating-axis
 b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn )
@@ -1344,6 +1390,12 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3Vec3 cB = b3AABB_Center( hullB->aabb );
 	b3Vec3 hB = b3AABB_Extents( hullB->aabb );
 
+	// Copies of the same hull at equal orientations use the same support vertex
+	// on both sweeps. Translation only affects the plane separation.
+	bool sameOrientation = xfB.q.v.x == 0.0f && xfB.q.v.y == 0.0f && xfB.q.v.z == 0.0f;
+	bool reuseSupport = hullA == hullB && sameOrientation;
+	uint8_t supportVertices[B3_MAX_HULL_FACES];
+
 	// Test A's face planes against B's vertices.
 	for ( int i = 0; i < faceCountA; ++i )
 	{
@@ -1354,6 +1406,10 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		float support;
 		int vertexIndex;
 		b3GetSupportWide( direction, vxB, vyB, vzB, soaVertexCountB, biasB, &support, &vertexIndex );
+		if ( reuseSupport )
+		{
+			supportVertices[i] = (uint8_t)vertexIndex;
+		}
 		float separation = planeSeparation - support;
 		if ( separation > res.faceA.separation )
 		{
@@ -1386,10 +1442,18 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		b3Plane plane = planesB[i];
 		b3Vec3 direction = b3Neg( b3MulMV( R, plane.normal ) );
 		float planeSeparation = b3Dot( direction, xfB.p ) - plane.offset;
-		float biasA = b3Dot( direction, cA ) + 1.0625f * b3Dot( b3Abs( direction ), hA );
 		float support;
 		int vertexIndex;
-		b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &support, &vertexIndex );
+		if ( reuseSupport )
+		{
+			vertexIndex = supportVertices[i];
+			support = b3Dot( direction, b3GetHullPoints( hullA )[vertexIndex] );
+		}
+		else
+		{
+			float biasA = b3Dot( direction, cA ) + 1.0625f * b3Dot( b3Abs( direction ), hA );
+			b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &support, &vertexIndex );
+		}
 		float separation = planeSeparation - support;
 		if ( separation > res.faceB.separation )
 		{
@@ -1403,6 +1467,21 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 				res.separatedFeature = b3_faceAxisB;
 				return res;
 			}
+		}
+	}
+
+	// With a common extrusion axis, every edge cross product is zero or parallel to a face
+	// normal. A nonzero rotation about another axis still needs the general edge tests.
+	const float rotation[3] = { xfB.q.v.x, xfB.q.v.y, xfB.q.v.z };
+	// Try the extrusion axis used by b3CreateCylinder first.
+	const int axes[3] = { 1, 0, 2 };
+	for ( int i = 0; i < 3; ++i )
+	{
+		int axis = axes[i];
+		if ( rotation[( axis + 1 ) % 3] == 0.0f && rotation[( axis + 2 ) % 3] == 0.0f &&
+			 b3IsRightPrism( hullA, axis ) && ( hullA == hullB || b3IsRightPrism( hullB, axis ) ) )
+		{
+			return res;
 		}
 	}
 
@@ -1431,47 +1510,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 	b3NegativeTransformFromSoA( &R, xfB.p, nxB, nyB, nzB, soaFaceCountB, bFNx, bFNy, bFNz, false );
 	b3NegativeTransformFromSoA( &R, xfB.p, vxB, vyB, vzB, soaVertexCountB, bWx, bWy, bWz, true );
-
-	// Per B edge data. C and D are the two face normals, v0 a vertex, DC the edge vector.
-	_Alignas( 16 ) float bCx[NE];
-	_Alignas( 16 ) float bCy[NE];
-	_Alignas( 16 ) float bCz[NE];
-	_Alignas( 16 ) float bDx[NE];
-	_Alignas( 16 ) float bDy[NE];
-	_Alignas( 16 ) float bDz[NE];
-	_Alignas( 16 ) float bV0x[NE];
-	_Alignas( 16 ) float bV0y[NE];
-	_Alignas( 16 ) float bV0z[NE];
-	_Alignas( 16 ) float bDCx[NE];
-	_Alignas( 16 ) float bDCy[NE];
-	_Alignas( 16 ) float bDCz[NE];
-
-	int halfEdgeCountB = hullB->edgeCount;
-	const b3HullHalfEdge* halfEdgesB = b3GetHullEdges( hullB );
-	int nb = 0;
-	for ( int i = 0; i < halfEdgeCountB; i += 2 )
-	{
-		const b3HullHalfEdge* edge = halfEdgesB + i;
-		const b3HullHalfEdge* twin = edge + 1;
-		int f0 = edge->face;
-		int f1 = twin->face;
-		int v0 = edge->origin;
-		int v1 = twin->origin;
-
-		bCx[nb] = bFNx[f0];
-		bCy[nb] = bFNy[f0];
-		bCz[nb] = bFNz[f0];
-		bDx[nb] = bFNx[f1];
-		bDy[nb] = bFNy[f1];
-		bDz[nb] = bFNz[f1];
-		bV0x[nb] = bWx[v0];
-		bV0y[nb] = bWy[v0];
-		bV0z[nb] = bWz[v0];
-		bDCx[nb] = bWx[v1] - bWx[v0];
-		bDCy[nb] = bWy[v1] - bWy[v0];
-		bDCz[nb] = bWz[v1] - bWz[v0];
-		nb += 1;
-	}
 
 	// Per A edge data, already in A's space so just gathered. n0 and n1 are the two face
 	// normals, d the edge vector av1-av0, v0 the first vertex. Tol is the
@@ -1540,7 +1578,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3StoreW( aV0z + na, zero );
 	b3StoreW( aTol + na, zero );
 
-	int edgeCountB = halfEdgeCountB / 2;
+	const b3HullHalfEdge* halfEdgesB = b3GetHullEdges( hullB );
+	int edgeCountB = hullB->edgeCount / 2;
 
 #if defined( B3_SIMD_NONE )
 
@@ -1550,20 +1589,36 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 	const float EPS = -0.0001f;
 
+#else
+
+	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
+	const b3FloatW EPS = b3SplatW( -0.0001f );
+	const b3FloatW INF = b3SplatW( INFINITY );
+
+#endif
+
 	for ( int j = 0; j < edgeCountB; ++j )
 	{
-		float Cx = bCx[j];
-		float Cy = bCy[j];
-		float Cz = bCz[j];
-		float Dx = bDx[j];
-		float Dy = bDy[j];
-		float Dz = bDz[j];
-		float DCx = bDCx[j];
-		float DCy = bDCy[j];
-		float DCz = bDCz[j];
-		float bv0x = bV0x[j];
-		float bv0y = bV0y[j];
-		float bv0z = bV0z[j];
+		const b3HullHalfEdge* edge = halfEdgesB + 2 * j;
+		const b3HullHalfEdge* twin = edge + 1;
+		int f0 = edge->face;
+		int f1 = twin->face;
+		int v0 = edge->origin;
+		int v1 = twin->origin;
+
+#if defined( B3_SIMD_NONE )
+		float Cx = bFNx[f0];
+		float Cy = bFNy[f0];
+		float Cz = bFNz[f0];
+		float Dx = bFNx[f1];
+		float Dy = bFNy[f1];
+		float Dz = bFNz[f1];
+		float DCx = bWx[v1] - bWx[v0];
+		float DCy = bWy[v1] - bWy[v0];
+		float DCz = bWz[v1] - bWz[v0];
+		float bv0x = bWx[v0];
+		float bv0y = bWy[v0];
+		float bv0z = bWz[v0];
 
 		for ( int i = 0; i < na; ++i )
 		{
@@ -1625,28 +1680,19 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 				}
 			}
 		}
-	}
-
 #else
-
-	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
-	const b3FloatW EPS = b3SplatW( -0.0001f );
-	const b3FloatW INF = b3SplatW( INFINITY );
-
-	for ( int j = 0; j < edgeCountB; ++j )
-	{
-		const b3FloatW Cx = b3SplatW( bCx[j] );
-		const b3FloatW Cy = b3SplatW( bCy[j] );
-		const b3FloatW Cz = b3SplatW( bCz[j] );
-		const b3FloatW Dx = b3SplatW( bDx[j] );
-		const b3FloatW Dy = b3SplatW( bDy[j] );
-		const b3FloatW Dz = b3SplatW( bDz[j] );
-		const b3FloatW DCx = b3SplatW( bDCx[j] );
-		const b3FloatW DCy = b3SplatW( bDCy[j] );
-		const b3FloatW DCz = b3SplatW( bDCz[j] );
-		const b3FloatW bv0x = b3SplatW( bV0x[j] );
-		const b3FloatW bv0y = b3SplatW( bV0y[j] );
-		const b3FloatW bv0z = b3SplatW( bV0z[j] );
+		const b3FloatW Cx = b3SplatW( bFNx[f0] );
+		const b3FloatW Cy = b3SplatW( bFNy[f0] );
+		const b3FloatW Cz = b3SplatW( bFNz[f0] );
+		const b3FloatW Dx = b3SplatW( bFNx[f1] );
+		const b3FloatW Dy = b3SplatW( bFNy[f1] );
+		const b3FloatW Dz = b3SplatW( bFNz[f1] );
+		const b3FloatW DCx = b3SplatW( bWx[v1] - bWx[v0] );
+		const b3FloatW DCy = b3SplatW( bWy[v1] - bWy[v0] );
+		const b3FloatW DCz = b3SplatW( bWz[v1] - bWz[v0] );
+		const b3FloatW bv0x = b3SplatW( bWx[v0] );
+		const b3FloatW bv0y = b3SplatW( bWy[v0] );
+		const b3FloatW bv0z = b3SplatW( bWz[v0] );
 
 		for ( int i = 0; i < na; i += 4 )
 		{
@@ -1756,8 +1802,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 				}
 			}
 		}
-	}
 #endif
+	}
 
 	return res;
 }

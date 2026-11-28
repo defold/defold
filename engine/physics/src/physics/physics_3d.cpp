@@ -497,6 +497,11 @@ namespace dmPhysics
         void* m_IgnoredUserData;
     };
 
+    bool IsBox3DBackend()
+    {
+        return false;
+    }
+
     HContext3D NewContext3D(const NewContextParams& params)
     {
         if (params.m_Scale < MIN_SCALE || params.m_Scale > MAX_SCALE)
@@ -603,7 +608,7 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context);
 
-    void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
+    bool StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
@@ -798,6 +803,7 @@ namespace dmPhysics
         }
         UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
         world->m_DynamicsWorld->debugDrawWorld();
+        return step_context.m_DT > 0.0f;
     }
 
     void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context)

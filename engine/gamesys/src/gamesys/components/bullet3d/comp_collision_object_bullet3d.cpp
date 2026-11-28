@@ -36,6 +36,7 @@
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollisionObjectBox3D, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -213,6 +214,9 @@ namespace dmGameSystem
         out_data.m_LockedRotation = ddf->m_LockedRotation;
         out_data.m_Bullet = ddf->m_Bullet;
         out_data.m_Enabled = enabled;
+        out_data.m_EventCollision = ddf->m_EventCollision;
+        out_data.m_EventContact = ddf->m_EventContact;
+        out_data.m_EventTrigger = ddf->m_EventTrigger;
         for (uint32_t i = 0; i < 16 && resource->m_BaseResource.m_Mask[i] != 0; ++i)
         {
             out_data.m_Mask |= GetGroupBitIndex(&world->m_BaseWorld, resource->m_BaseResource.m_Mask[i], false);
@@ -396,7 +400,7 @@ namespace dmGameSystem
 
         DM_PROFILE("StepWorld3D");
         world->m_IsStepping = 1;
-        dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
+        bool stepped = dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
         world->m_IsStepping = 0;
 
         if (g_NumPhysicsTransformsUpdated > 0)
@@ -404,7 +408,10 @@ namespace dmGameSystem
             dmGameObject::UpdateTransforms(collection);
         }
 
-        BroadcastPhysicsPostStepEvent(physics_context->m_BaseContext.m_ContextRegistry, dmPhysics::GetWorldContext3D(world->m_World3D), step_ctx->m_DT);
+        if (stepped)
+        {
+            BroadcastPhysicsPostStepEvent(physics_context->m_BaseContext.m_ContextRegistry, dmPhysics::GetWorldContext3D(world->m_World3D), step_ctx->m_DT);
+        }
         if (g_ScriptBullet3DProcessWorldQueriesCallback)
         {
             g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));
@@ -477,7 +484,14 @@ namespace dmGameSystem
         // We only want to call this once per frame
         dmPhysics::SetDrawDebug3D(world->m_World3D, physics_context->m_BaseContext.m_Debug);
 
-        DM_PROPERTY_ADD_U32(rmtp_CollisionObjectBullet3D, world->m_Components.Size());
+        if (dmPhysics::IsBox3DBackend())
+        {
+            DM_PROPERTY_ADD_U32(rmtp_CollisionObjectBox3D, world->m_Components.Size());
+        }
+        else
+        {
+            DM_PROPERTY_ADD_U32(rmtp_CollisionObjectBullet3D, world->m_Components.Size());
+        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -1051,7 +1065,7 @@ namespace dmGameSystem
 
     static PhysicsEngineType GetPhysicsEngineTypeBullet3D(CollisionWorld* _world)
     {
-        return PhysicsEngineType::PHYSICS_ENGINE_BULLET3D;
+        return dmPhysics::IsBox3DBackend() ? PHYSICS_ENGINE_BOX3D : PHYSICS_ENGINE_BULLET3D;
     }
 
     static void InstallBullet3DPhysicsAdapter()

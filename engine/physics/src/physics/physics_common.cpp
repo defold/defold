@@ -61,6 +61,9 @@ namespace dmPhysics
     , m_LockedRotation(0)
     , m_Bullet(0)
     , m_Enabled(1)
+    , m_EventCollision(1)
+    , m_EventContact(1)
+    , m_EventTrigger(1)
     {
 
     }

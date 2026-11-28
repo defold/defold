@@ -1554,7 +1554,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # third-party headers
-            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
+            for d in ['ext/include/vulkan', 'ext/include/vk_video', 'ext/include/box3d']:
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)

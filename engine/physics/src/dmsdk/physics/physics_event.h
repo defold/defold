@@ -43,8 +43,8 @@
  * Payload for PHYSICS_EVENT_POST_STEP with data_size equal to sizeof(PhysicsEvent).
  * Interpret m_World using the physics backend configured for the project and build.
  * Legacy Defold Box2D supplies a b2World pointer, Box2D 3 a pointer to a b2WorldId
- * value, and Bullet a btDiscreteDynamicsWorld pointer. For Box2D 3, copy the
- * b2WorldId value from the supplied pointer. Native headers and libraries must
+ * value, Box3D a pointer to a b3WorldId value, and Bullet a btDiscreteDynamicsWorld pointer.
+ * Copy the Box2D 3 or Box3D ID from the supplied pointer. Native headers and libraries must
  * match the backend bundled with this SDK.
  *
  * The payload and native world access are borrowed only during the callback.
