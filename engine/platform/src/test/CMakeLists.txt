@@ -176,6 +176,13 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
 endif()
 
 if(TARGET_PLATFORM MATCHES "-android$")
+    defold_add_executable(test_platform_android_egl_config "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_egl_config.c")
+    target_include_directories(test_platform_android_egl_config PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/../native"
+        "${CMAKE_CURRENT_LIST_DIR}/../native/android")
+    defold_target_link_libraries(test_platform_android_egl_config "${TARGET_PLATFORM}" platform)
+    defold_register_test_target(test_platform_android_egl_config ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_platform_android_joystick
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_android_joystick.cpp")
     target_include_directories(test_platform_android_joystick PRIVATE

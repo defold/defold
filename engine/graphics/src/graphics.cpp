@@ -327,6 +327,7 @@ namespace dmGraphics
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
+    , m_DisableDepthStencil(0)
     {
     }
 
@@ -3019,8 +3020,38 @@ namespace dmGraphics
         g_functions.m_Flip(context);
     }
 
+    static void WarnBackbufferDepthStencilDisabled(HContext context)
+    {
+        if (!context->m_DepthStencilWarningIssued)
+        {
+            dmLogWarning("Depth and stencil operations on the main framebuffer are ignored because 'graphics.depth_stencil_enable' is disabled.");
+            context->m_DepthStencilWarningIssued = 1;
+        }
+    }
+
+    static uint32_t FilterBackbufferFlags(HContext context, uint32_t flags)
+    {
+        const uint32_t depth_stencil = BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+        if (flags & depth_stencil)
+        {
+            WarnBackbufferDepthStencilDisabled(context);
+            flags &= ~depth_stencil;
+        }
+
+        return flags;
+    }
+
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
+        if (context->m_DisableDepthStencil && !context->m_OffscreenTargetBound)
+        {
+            flags = FilterBackbufferFlags(context, flags);
+            if (!flags)
+            {
+                return;
+            }
+        }
+
         g_functions.m_Clear(context, flags, red, green, blue, alpha, depth, stencil);
     }
 
@@ -3251,6 +3282,11 @@ namespace dmGraphics
 
     void EnableState(HContext context, State state)
     {
+        if (context->m_DisableDepthStencil && !context->m_OffscreenTargetBound && (state == STATE_DEPTH_TEST || state == STATE_STENCIL_TEST))
+        {
+            WarnBackbufferDepthStencilDisabled(context);
+        }
+
         g_functions.m_EnableState(context, state);
     }
 
@@ -3365,7 +3401,13 @@ namespace dmGraphics
             return;
         }
 
-        g_functions.m_SetRenderTarget(context, render_target, params);
+        RenderTargetBindingParams binding = params;
+        if (context->m_DisableDepthStencil && !render_target)
+        {
+            binding.m_TransientBufferTypes = FilterBackbufferFlags(context, binding.m_TransientBufferTypes);
+        }
+
+        g_functions.m_SetRenderTarget(context, render_target, binding);
     }
 
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)

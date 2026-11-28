@@ -179,6 +179,7 @@ namespace dmGraphics
         m_BaseContext.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_BaseContext.m_Window                  = params.m_Window;
+        m_BaseContext.m_DisableDepthStencil     = params.m_DisableDepthStencil;
         m_BaseContext.m_Width                   = params.m_Width;
         m_BaseContext.m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
@@ -681,7 +682,7 @@ namespace dmGraphics
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
         vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount     = brt->m_ColorAttachmentCount + 1;
+        vk_render_pass_begin_info.clearValueCount     = brt->m_ColorAttachmentCount + (is_main_rt && context->m_BaseContext.m_DisableDepthStencil ? 0 : 1);
         vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -701,6 +702,7 @@ namespace dmGraphics
         }
 
         context->m_CurrentRenderTarget = render_target;
+        context->m_BaseContext.m_OffscreenTargetBound = render_target != context->m_MainRenderTarget;
         context->m_RenderTargetBound = 1;
 
         // We need to update the current frame stamp for all attachments and framebuffer, since they are part of the render pass
@@ -819,6 +821,21 @@ namespace dmGraphics
         return res;
     }
 
+    static VkResult CreateMainDepthStencilTexture(VulkanContext* context)
+    {
+        if (context->m_BaseContext.m_DisableDepthStencil)
+        {
+            return VK_SUCCESS;
+        }
+
+        VkFormat format;
+        VkImageTiling tiling;
+        GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &format, &tiling);
+        return CreateDepthStencilTexture(context, format, tiling,
+                                         context->m_SwapChain->m_ImageExtent.width, context->m_SwapChain->m_ImageExtent.height,
+                                         context->m_SwapChain->m_SampleCountFlag, GetDefaultDepthAndStencilAspectFlags(format), &context->m_MainTextureDepthStencil);
+    }
+
     VkResult CreateMainFrameBuffers(VulkanContext* context)
     {
         assert(context->m_SwapChain);
@@ -840,24 +857,18 @@ namespace dmGraphics
             // that's why we create a single depth buffer at the start and reuse it.
             // Same thing goes for the resolve buffer if we are rendering with
             // multisampling enabled.
-            VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
-            VkImageView& vk_image_view_depth     = depth_stencil_texture->m_Handle.m_ImageView;
-            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture->m_Handle.m_ImageView;
-            VkImageView  vk_image_attachments[3];
-            uint8_t num_attachments;
+            VkImageView swap_view = swapChain->m_ImageViews[i];
+            VkImageView vk_image_attachments[3];
+            uint8_t num_attachments = 0;
+            vk_image_attachments[num_attachments++] = swapChain->HasMultiSampling() ? swapChain->m_ResolveTexture->m_Handle.m_ImageView : swap_view;
+            if (depth_stencil_texture->m_Handle.m_ImageView)
+            {
+                vk_image_attachments[num_attachments++] = depth_stencil_texture->m_Handle.m_ImageView;
+            }
 
             if (swapChain->HasMultiSampling())
             {
-                vk_image_attachments[0] = vk_image_view_resolve;
-                vk_image_attachments[1] = vk_image_view_depth;
-                vk_image_attachments[2] = vk_image_view_swap;
-                num_attachments = 3;
-            }
-            else
-            {
-                vk_image_attachments[0] = vk_image_view_swap;
-                vk_image_attachments[1] = vk_image_view_depth;
-                num_attachments = 2;
+                vk_image_attachments[num_attachments++] = swap_view;
             }
 
             res = CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
@@ -881,6 +892,30 @@ namespace dmGraphics
         context->m_MainFrameBuffers.SetCapacity(0);
         context->m_MainFrameBuffers.SetSize(0);
         return VK_SUCCESS;
+    }
+
+    static VkFormat GetReadPixelsFormat(VkFormat format)
+    {
+        if (format == VK_FORMAT_R8G8B8A8_UNORM || format == VK_FORMAT_R8G8B8A8_SRGB)
+        {
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        }
+
+        if (format == VK_FORMAT_B8G8R8A8_UNORM || format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            return VK_FORMAT_B8G8R8A8_UNORM;
+        }
+
+        return VK_FORMAT_UNDEFINED;
+    }
+
+    static void SetBackbufferReadbackSupport(GraphicsContext* context, VkImageUsageFlags usage, VkFormat format)
+    {
+        context->m_ContextFeatureSupport &= ~(1u << CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        if ((usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) && GetReadPixelsFormat(format) != VK_FORMAT_UNDEFINED)
+        {
+            SetContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK);
+        }
     }
 
     static VkResult SetupMainRenderTarget(VulkanContext* context)
@@ -907,6 +942,8 @@ namespace dmGraphics
         RenderTarget* brt              = &rt->m_Base;
         brt->m_ColorAttachmentCount    = 1;
 
+        SetBackbufferReadbackSupport(&context->m_BaseContext, context->m_SwapChainCapabilities.m_SurfaceCapabilities.supportedUsageFlags,
+                                     context->m_SwapChain->m_SurfaceFormat.format);
         return VK_SUCCESS;
     }
 
@@ -914,26 +951,13 @@ namespace dmGraphics
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
-        // Create depth/stencil buffer
-        VkFormat vk_depth_format;
-        VkImageTiling vk_depth_tiling;
-        GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
-
-        VulkanTexture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
-
-        VkResult res = CreateDepthStencilTexture(context,
-            vk_depth_format, vk_depth_tiling,
-            context->m_SwapChain->m_ImageExtent.width,
-            context->m_SwapChain->m_ImageExtent.height,
-            context->m_SwapChain->m_SampleCountFlag,
-            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
-            depth_stencil_texture);
+        VkResult res = CreateMainDepthStencilTexture(context);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        // Create main render pass with two attachments
+        // Create the main render pass
         RenderPassAttachment  attachments[3];
         RenderPassAttachment* attachment_resolve = 0;
 
@@ -947,11 +971,16 @@ namespace dmGraphics
         attachments[0].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
         // Depth/stencil attachment
-        attachments[1].m_Format             = depth_stencil_texture->m_Format;
-        attachments[1].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
-        attachments[1].m_ImageLayout        = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        attachments[1].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
+        RenderPassAttachment* attachment_depth = 0;
+        if (!context->m_BaseContext.m_DisableDepthStencil)
+        {
+            attachment_depth = &attachments[1];
+            attachment_depth->m_Format             = context->m_MainTextureDepthStencil.m_Format;
+            attachment_depth->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_depth->m_ImageLayout        = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            attachment_depth->m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_depth->m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
+        }
 
         // Optional resolve attachment (for MSAA)
         if (context->m_SwapChain->HasMultiSampling())
@@ -965,7 +994,7 @@ namespace dmGraphics
             attachment_resolve = &attachments[2];
         }
 
-        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, attachment_depth, attachment_resolve, &context->m_MainRenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -978,8 +1007,11 @@ namespace dmGraphics
         attachments[0].m_ImageLayoutInitial = attachments[0].m_ImageLayout;
         attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
 
-        attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
-        attachments[1].m_ImageLayoutInitial = attachments[1].m_ImageLayout;
+        if (attachment_depth)
+        {
+            attachment_depth->m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachment_depth->m_ImageLayoutInitial = attachment_depth->m_ImageLayout;
+        }
 
         if (context->m_SwapChain->HasMultiSampling())
         {
@@ -988,7 +1020,7 @@ namespace dmGraphics
             attachments[2].m_LoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         }
 
-        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPassLoad);
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, attachment_depth, attachment_resolve, &context->m_MainRenderPassLoad);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1139,17 +1171,7 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
         context->m_SwapIntervalChanged = 0;
 
-        // Create the main Depth/Stencil buffer
-        VkFormat vk_depth_format;
-        VkImageTiling vk_depth_tiling;
-        GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
-        res = CreateDepthStencilTexture(context,
-            vk_depth_format, vk_depth_tiling,
-            context->m_SwapChain->m_ImageExtent.width,
-            context->m_SwapChain->m_ImageExtent.height,
-            context->m_SwapChain->m_SampleCountFlag,
-            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
-            depth_stencil_texture);
+        res = CreateMainDepthStencilTexture(context);
         CHECK_VK_ERROR(res);
 
         context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
@@ -1780,6 +1802,7 @@ namespace dmGraphics
         uint32_t created_width  = context->m_BaseContext.m_Width;
         uint32_t created_height = context->m_BaseContext.m_Height;
         const bool want_vsync   = context->m_SwapInterval != 0;
+        const uint32_t buffer_flags = context->m_BaseContext.m_DisableDepthStencil ? BUFFER_TYPE_COLOR0_BIT : (BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT);
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         res = CreateVulkanLogicalDevice(context->m_Instance, context->m_WindowSurface, true, true, context->m_UseValidationLayers,
@@ -1792,7 +1815,7 @@ namespace dmGraphics
         context->m_LogicalDevice    = logical_device;
         context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
         SetupVulkanAdapterInfo(context);
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(&context->m_PhysicalDevice, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(&context->m_PhysicalDevice, buffer_flags, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
@@ -2341,7 +2364,8 @@ namespace dmGraphics
         // (common when scripts pass identical flags to every render.clear()), the bit is a
         // no-op and must not prevent folding.
         const bool pass_not_bound    = !context->m_RenderTargetBound;
-        const bool rt_has_ds         = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil != 0;
+        const bool rt_has_ds         = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID ?
+                                       !context->m_BaseContext.m_DisableDepthStencil : current_rt->m_Base.m_TextureDepthStencil != 0;
         const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
         const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
         // COLOR0_BIT signals that all color attachments should be cleared to the same value.
@@ -2388,9 +2412,6 @@ namespace dmGraphics
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil;
-        bool clear_depth_stencil       = clear_ds;
-
         const bool clear_all_colors = (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
         for (int i = 0; i < current_rt->m_Base.m_ColorAttachmentCount; ++i)
         {
@@ -2407,7 +2428,7 @@ namespace dmGraphics
         }
 
         // Clear depth / stencil
-        if (has_depth_stencil_texture && clear_depth_stencil)
+        if (clear_ds)
         {
             VkFormat depth_stencil_format;
 
@@ -5341,6 +5362,7 @@ namespace dmGraphics
         }
 
         context->m_CurrentRenderTarget = new_rt;
+        context->m_BaseContext.m_OffscreenTargetBound = new_rt != context->m_MainRenderTarget;
         rt->m_ResumePass              = 0;
         rt->m_Base.m_CubeMapFace       = params.m_CubeMapFace;
         context->m_ViewportChanged     = 1;
@@ -6526,6 +6548,12 @@ namespace dmGraphics
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
         const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+        if (backbuffer && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
+        {
+            dmLogError("Cannot read pixels from the Vulkan backbuffer because the swapchain does not support readback.");
+            return;
+        }
+
         uint32_t layer = 0;
         HTexture color_handle = context->m_CurrentSwapchainTexture;
         if (!backbuffer)
@@ -6553,9 +6581,8 @@ namespace dmGraphics
             return;
         }
 
-        const bool is_rgba = texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB;
-        const bool is_bgra = texture->m_Format == VK_FORMAT_B8G8R8A8_UNORM || texture->m_Format == VK_FORMAT_B8G8R8A8_SRGB;
-        if (!is_rgba && !is_bgra)
+        const VkFormat format = GetReadPixelsFormat(texture->m_Format);
+        if (format == VK_FORMAT_UNDEFINED)
         {
             dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment");
             return;
@@ -6676,7 +6703,7 @@ namespace dmGraphics
         memcpy(buffer, stage_buffer.m_Allocation.m_MappedDataPtr, width * height * 4);
 
         // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
-        if (is_rgba)
+        if (format == VK_FORMAT_R8G8B8A8_UNORM)
         {
             SwizzleRGBAToBGRA(buffer, width * height);
         }

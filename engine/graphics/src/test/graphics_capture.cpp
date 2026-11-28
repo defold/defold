@@ -1200,6 +1200,76 @@ static bool CheckCaptureBackbuffer(HContext context, const CaptureResources& res
     return pixel[0] == 0xa5 && pixel[1] == 0xa5 && pixel[2] == 0xa5 && pixel[3] == 0xa5;
 }
 
+// An implicit switch to the color-only backbuffer must warn on the first stencil clear.
+static bool CheckOpenGLBackbufferAfterFlip(HContext context, HRenderTarget offscreen)
+{
+    SetRenderTarget(context, offscreen, RenderTargetBindingParams());
+    Clear(context, BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+    if (context->m_DepthStencilWarningIssued)
+    {
+        dmLogError("Unexpected backbuffer depth/stencil warning while rendering offscreen.");
+        return false;
+    }
+
+    Flip(context);
+    BeginFrame(context);
+    Clear(context, BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+    if (!context->m_DepthStencilWarningIssued)
+    {
+        dmLogError("Expected a stencil warning on the backbuffer after ending the previous frame offscreen.");
+        return false;
+    }
+
+    return true;
+}
+
+// The color-only backbuffer must draw, and the offscreen target must restore each requested test.
+static bool CheckColorOnlyBackbuffer(HContext context, const CaptureResources& resources)
+{
+    CaptureResources main = resources;
+    main.m_Target = 0;
+    RenderTargetBindingParams binding = {};
+    binding.m_TransientBufferTypes = BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+    const State tests[] = { STATE_DEPTH_TEST, STATE_STENCIL_TEST };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tests); ++i)
+    {
+        RenderCapture(context, main, "clear");
+        SetRenderTarget(context, 0, binding);
+        EnableState(context, tests[i]);
+        const bool test_depth = tests[i] == STATE_DEPTH_TEST;
+        const char* test_name = test_depth ? "depth" : "stencil";
+        SetDepthFunc(context, test_depth ? COMPARE_FUNC_NEVER : COMPARE_FUNC_ALWAYS);
+        SetStencilFunc(context, test_depth ? COMPARE_FUNC_ALWAYS : COMPARE_FUNC_NEVER, 0, 0xff);
+        Clear(context, BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+        // White has the same readback bytes on linear and sRGB swapchains.
+        DrawRectangle(context, RECT_BASIC_MASK);
+        uint8_t pixel[4] = {};
+        if (IsContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
+        {
+            ReadPixels(context, CAPTURE_SIZE / 2, CAPTURE_SIZE / 2, 1, 1, pixel, sizeof(pixel));
+            if (pixel[0] != 255 || pixel[1] != 255 || pixel[2] != 255 || pixel[3] != 255)
+            {
+                dmLogError("Expected a white pixel on the color-only backbuffer with the %s test enabled, got RGBA (%u, %u, %u, %u).",
+                           test_name, pixel[2], pixel[1], pixel[0], pixel[3]);
+                return false;
+            }
+        }
+
+        // Rebind without enabling the test again.
+        SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
+        Clear(context, BUFFER_TYPE_COLOR0_BIT, 37, 73, 109, 255, 1.0f, 0);
+        DrawRectangle(context, RECT_ORANGE);
+        ReadPixels(context, CAPTURE_SIZE / 2, CAPTURE_SIZE / 2, 1, 1, pixel, sizeof(pixel));
+        if (pixel[0] != 109 || pixel[1] != 73 || pixel[2] != 37)
+        {
+            dmLogError("Expected the offscreen %s test to reject the draw, got RGB (%u, %u, %u).", test_name, pixel[2], pixel[1], pixel[0]);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Verifies OpenGL uses the actual resized framebuffer bounds, including requests
 // that are valid only after enlargement and invalid only after shrinking.
 static bool CheckReadPixelsWindowResize(HContext context)
@@ -1355,6 +1425,16 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         valid &= CheckCaptureReadPixelsTargets(context, resources);
         valid &= CheckCaptureBackbuffer(context, resources);
     }
+    else if (strcmp(name, "clear") == 0)
+    {
+        if (GetInstalledAdapterFamily() == ADAPTER_FAMILY_OPENGL)
+        {
+            valid &= CheckOpenGLBackbufferAfterFlip(context, resources.m_Target);
+        }
+
+        valid &= CheckColorOnlyBackbuffer(context, resources);
+    }
+
     SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
     DisableState(context, STATE_STENCIL_TEST);
@@ -1380,7 +1460,7 @@ static int CloseCaptureWindow(void* user_data)
     return 0; // Keep the context alive until its resources have been deleted.
 }
 
-static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* capture)
+static bool InitializeCapture(const CaptureBackend& backend, bool disable_depth_stencil, CaptureContext* capture)
 {
     capture->m_Window = dmPlatform::NewWindow();
 
@@ -1388,7 +1468,8 @@ static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* cap
     WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = CAPTURE_SIZE;
     window_params.m_Height = CAPTURE_SIZE;
-    window_params.m_Samples = 1;
+    window_params.m_Samples = disable_depth_stencil ? 4 : 1;
+    window_params.m_DisableDepthStencil = disable_depth_stencil;
     window_params.m_Title = "Graphics capture";
     window_params.m_CloseCallback = CloseCaptureWindow;
     window_params.m_CloseCallbackUserData = &capture->m_WindowClosed;
@@ -1407,6 +1488,7 @@ static bool InitializeCapture(const CaptureBackend& backend, CaptureContext* cap
 
     ContextParams context_params = {};
     context_params.m_Window = capture->m_Window;
+    context_params.m_DisableDepthStencil = disable_depth_stencil;
     context_params.m_Width = CAPTURE_SIZE;
     context_params.m_Height = CAPTURE_SIZE;
     context_params.m_VerifyGraphicsCalls = 1;
@@ -1613,13 +1695,15 @@ static int CaptureMain(int argc, char** argv)
     remove(filename);
 
     CaptureContext capture = {};
-    if (!InitializeCapture(*backend, &capture))
+    // Use a color-only window for the clear case. The stencil preview clips directly on the backbuffer.
+    const bool clear_case = strcmp(name, "clear") == 0;
+    if (!InitializeCapture(*backend, clear_case, &capture))
     {
         FinalizeCapture(&capture);
         return 1;
     }
 
-    if (strcmp(name, "clear") == 0)
+    if (clear_case)
     {
         ReportTextureCaseSupport(capture.m_Context, backend->m_Family);
     }

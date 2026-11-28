@@ -319,6 +319,22 @@ class VulkanInitializationTest : public jc_test_base_class
     dmGraphics::ContextParams m_Params;
 };
 
+// A replacement swapchain can gain or lose backbuffer readback through either its usage flags or its pixel format.
+TEST(VulkanSwapChainTest, BackbufferReadbackSupport)
+{
+    using namespace dmGraphics;
+    GraphicsContext context = {};
+    const VkImageUsageFlags readback_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    SetBackbufferReadbackSupport(&context, readback_usage, VK_FORMAT_B8G8R8A8_SRGB);
+    ASSERT_TRUE(IsContextFeatureSupported(&context, CONTEXT_FEATURE_BACKBUFFER_READBACK));
+    SetBackbufferReadbackSupport(&context, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_FORMAT_B8G8R8A8_UNORM);
+    ASSERT_FALSE(IsContextFeatureSupported(&context, CONTEXT_FEATURE_BACKBUFFER_READBACK));
+    SetBackbufferReadbackSupport(&context, readback_usage, VK_FORMAT_R8G8B8A8_UNORM);
+    ASSERT_TRUE(IsContextFeatureSupported(&context, CONTEXT_FEATURE_BACKBUFFER_READBACK));
+    SetBackbufferReadbackSupport(&context, readback_usage, VK_FORMAT_R16G16B16A16_SFLOAT);
+    ASSERT_FALSE(IsContextFeatureSupported(&context, CONTEXT_FEATURE_BACKBUFFER_READBACK));
+}
+
 // A failed surface must release the instance and clear the global context for another attempt.
 TEST_F(VulkanInitializationTest, SurfaceFailureCanRetry)
 {

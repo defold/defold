@@ -281,8 +281,10 @@ int dmNativeOpenWindow(const WindowCreateParams* params)
     Nativewndconfig wndconfig = {0};
     fbconfig.redBits = fbconfig.greenBits = fbconfig.blueBits = 8;
     fbconfig.alphaBits = params->m_ContextAlphabits;
-    fbconfig.depthBits = 32;
-    fbconfig.stencilBits = 8;
+    fbconfig.depthBits = params->m_DisableDepthStencil ? 0 : 32;
+    fbconfig.stencilBits = params->m_DisableDepthStencil ? 0 : 8;
+    dmNativeWin.depthBits = fbconfig.depthBits;
+    dmNativeWin.stencilBits = fbconfig.stencilBits;
     fbconfig.samples = params->m_Samples;
     wndconfig.mode = mode;
     wndconfig.highDPI = params->m_HighDPI;

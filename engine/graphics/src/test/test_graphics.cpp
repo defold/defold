@@ -244,7 +244,7 @@ const float EPSILON = 0.000001f;
 
 using namespace dmVMath;
 
-template<bool ASYNCHRONOUS, uint32_t WORKER_COUNT = 1>
+template <bool ASYNCHRONOUS, uint32_t WORKER_COUNT = 1, bool DISABLE_DEPTH_STENCIL = false>
 class dmGraphicsTestT : public jc_test_base_class
 {
 public:
@@ -297,6 +297,7 @@ public:
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
         params.m_ContextAlphabits = 8;
+        params.m_DisableDepthStencil = DISABLE_DEPTH_STENCIL;
 
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, params);
@@ -312,6 +313,7 @@ public:
         dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
         context_params.m_Window                  = m_Window;
         context_params.m_JobContext              = m_JobContext;
+        context_params.m_DisableDepthStencil     = params.m_DisableDepthStencil;
 
         m_Context = dmGraphics::NewContext(context_params);
         m_NullContext = (dmGraphics::NullContext*) m_Context;
@@ -402,10 +404,14 @@ TEST_F(dmGraphicsTest, Flip)
     dmGraphics::Flip(m_Context);
 }
 
+// The default framebuffer stores all three clear values when no setting is supplied.
 TEST_F(dmGraphicsTest, Clear)
 {
+    ASSERT_FALSE(dmGraphics::ContextParams().m_DisableDepthStencil);
     const uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+    ASSERT_EQ(1.0f, ((const float*)m_NullContext->m_MainFrameBuffer.m_DepthBuffer)[0]);
+    ASSERT_EQ(1u, ((const uint32_t*)m_NullContext->m_MainFrameBuffer.m_StencilBuffer)[0]);
     uint32_t width = WIDTH;
     uint32_t height = HEIGHT;
     uint32_t data_size = sizeof(uint32_t) * width * height;
@@ -2863,6 +2869,50 @@ static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParam
     SET_PARAM_DIM(p.m_StencilBufferParams, p.m_StencilBufferCreationParams);
     #undef SET_PARAM_DIM
     return p;
+}
+
+class ColorOnlyBackbufferTest : public dmGraphicsTestT<false, 1, true>
+{
+};
+
+// A mixed clear still writes color after resize, and a stencil-only clear preserves those pixels.
+TEST_F(ColorOnlyBackbufferTest, ClearAfterResize)
+{
+    using namespace dmGraphics;
+    SetWindowSize(m_Context, 13, 7);
+    const FrameBuffer& main = m_NullContext->m_MainFrameBuffer;
+    ASSERT_EQ((void*)0, main.m_DepthBuffer);
+    ASSERT_EQ((void*)0, main.m_StencilBuffer);
+    const uint32_t flags = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+    Clear(m_Context, flags, 12, 34, 56, 255, 0.25f, 3);
+    Clear(m_Context, BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0, 7);
+    ASSERT_EQ(0x0c2238ffu, ((const uint32_t*)main.m_ColorBuffer[0])[13 * 7 - 1]);
+}
+
+// Depth and stencil clears still reach an explicitly bound offscreen target, including after a round trip to the backbuffer.
+TEST_F(ColorOnlyBackbufferTest, OffscreenDepthStencil)
+{
+    using namespace dmGraphics;
+    RenderTargetCreationParams params = InitializeRenderTargetParams(2, 2);
+    params.m_DepthBufferParams.m_Format = TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
+    params.m_DepthTexture = 1;
+    params.m_StencilTexture = 1;
+    const uint32_t flags = BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+    HRenderTarget target = NewRenderTarget(m_Context, flags, params);
+    ASSERT_NE((HRenderTarget)0, target);
+    for (uint32_t i = 1; i <= 2; ++i)
+    {
+        SetRenderTarget(m_Context, target, RenderTargetBindingParams());
+        Clear(m_Context, flags, 0, 0, 0, 0, 0.25f * i, i);
+        const FrameBuffer* fb = m_NullContext->m_CurrentFrameBuffer;
+        SetRenderTarget(m_Context, 0, RenderTargetBindingParams());
+        Clear(m_Context, flags, 0, 0, 0, 0, 1.0f, 0);
+        ASSERT_EQ(0.25f * i, ((const float*)fb->m_DepthTextureBuffer)[3]);
+        ASSERT_EQ(i, ((const uint32_t*)fb->m_StencilTextureBuffer)[3]);
+    }
+
+    DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestRenderTargetSampleCountConformance)

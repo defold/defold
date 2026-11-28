@@ -138,11 +138,11 @@ int dmNativeInit()
     return 1;
 }
 
-int dmNativeOpenWindowJS(int width, int height, int alphabits, int samples, int fullscreen, int high_dpi, int opengl, int version);
+int dmNativeOpenWindowJS(int width, int height, int alphabits, int samples, int fullscreen, int high_dpi, int opengl, int version, int disable_depth_stencil);
 
 int dmNativeOpenWindow(const WindowCreateParams* params)
 {
     int opengl = params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL || params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES;
     return dmNativeOpenWindowJS(params->m_Width, params->m_Height, params->m_ContextAlphabits,
-        params->m_Samples, params->m_Fullscreen, params->m_HighDPI, opengl, params->m_GraphicsApiVersionHint);
+                                params->m_Samples, params->m_Fullscreen, params->m_HighDPI, opengl, params->m_GraphicsApiVersionHint, params->m_DisableDepthStencil);
 }

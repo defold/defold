@@ -278,6 +278,8 @@ namespace dmRender
                     params.m_TransientBufferTypes = c->m_Operands[1];
                     params.m_CubeMapFace = (dmGraphics::CubeMapFace) c->m_Operands[2];
                     dmGraphics::SetRenderTarget(context, c->m_Operands[0], params);
+                    // A bind can select another stencil attachment or discard a transient one.
+                    render_context->m_StencilBufferCleared = 0;
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
@@ -500,6 +502,7 @@ namespace dmRender
     {
         const RenderCommandCamera* camera = 0;
         context->m_CurrentRenderCamera = 0;
+        context->m_StencilBufferCleared = 0;
         for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             const RenderFrameTable& table = frame.m_Tables[i];

@@ -1043,6 +1043,7 @@ namespace dmGraphics
 
     /*#
      * Render target binding parameters.
+     * The main framebuffer ignores transient depth and stencil flags when its depth/stencil buffer is disabled.
      * @struct
      * @name RenderTargetBindingParams
      * @member m_TransientBufferTypes [type:uint32_t] BufferType bit mask identifying attachments whose contents may be discarded after the render pass
@@ -1626,6 +1627,7 @@ namespace dmGraphics
     void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
 
     /*#
+     * Depth and stencil tests have no effect on a main framebuffer created without a depth/stencil buffer.
      * @name EnableState
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param state [type:dmGraphics::State] Render state
@@ -1818,6 +1820,7 @@ namespace dmGraphics
      * @member m_GraphicsApiVersionMinorHint [type:uint16_t] Requested graphics API minor version hint.
      * @member m_VerifyGraphicsCalls [type:bool] Enable API call verification for debugging
      * @member m_PrintDeviceInfo [type:bool] Print graphics device information at startup
+     * @member m_DisableDepthStencil [type:bool] Omit depth and stencil attachments from the main framebuffer (default: false)
      * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/DirectX 12 only)
      */
     struct ContextParams
@@ -1837,7 +1840,8 @@ namespace dmGraphics
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_UseValidationLayers : 1;
-        uint8_t               : 5;
+        uint8_t               m_DisableDepthStencil : 1;
+        uint8_t : 4;
     };
 
     /*#
@@ -2129,6 +2133,7 @@ namespace dmGraphics
      *
      * Fills the specified buffers with predefined values. Commonly used at the
      * beginning of a frame to clear the screen to a specific color and depth.
+     * A main framebuffer created without a depth/stencil buffer ignores depth and stencil flags and still clears the requested color buffers.
      * @name Clear
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param flags [type:uint32_t] Bitmask specifying which buffers to clear (BUFFER_TYPE_*)
