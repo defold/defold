@@ -1425,6 +1425,7 @@ namespace dmEngine
         window_params.m_IconifyCallbackUserData = engine;
         window_params.m_Width                   = engine->m_Width;
         window_params.m_Height                  = engine->m_Height;
+        window_params.m_DisableDepthStencil     = dmConfigFile::GetInt(engine->m_Config, "graphics.depth_stencil_enable", 1) == 0;
         window_params.m_Samples                 = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
@@ -1462,6 +1463,7 @@ namespace dmEngine
         graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
         graphics_context_params.m_UseValidationLayers     = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize      = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
+        graphics_context_params.m_DisableDepthStencil     = window_params.m_DisableDepthStencil;
         graphics_context_params.m_Window                  = engine->m_Window;
         graphics_context_params.m_Width                   = engine->m_Width;
         graphics_context_params.m_Height                  = engine->m_Height;

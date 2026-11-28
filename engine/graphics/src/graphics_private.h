@@ -293,8 +293,11 @@ namespace dmGraphics
         uint32_t                           m_ContextFeatureSupport;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
-        uint32_t                           m_VerifyGraphicsCalls : 1;
-        uint32_t                           m_PrintDeviceInfo     : 1;
+        uint32_t                           m_VerifyGraphicsCalls       : 1;
+        uint32_t                           m_PrintDeviceInfo           : 1;
+        uint32_t                           m_DisableDepthStencil       : 1;
+        uint32_t                           m_OffscreenTargetBound      : 1;
+        uint32_t                           m_DepthStencilWarningIssued : 1;
     };
 
     static inline void SetContextFeatureSupported(GraphicsContext* context, ContextFeature feature)

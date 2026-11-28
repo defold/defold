@@ -56,6 +56,7 @@ var LibraryDefoldPlatform = {
     mouseTouchId:null,
     contextCanvas: null,
     contextUsesWebGL: false,
+    contextDisableDepthStencil: false,
     canvasResizeObserver: null,
     canvasResized: false,
 
@@ -207,10 +208,11 @@ var LibraryDefoldPlatform = {
         canvas[method]('blur', DefoldPlatform.onBlur, true);
     },
 
-    prepareCanvas: function(useWebGL) {
+    prepareCanvas: function(useWebGL, disableDepthStencil) {
         var previous = Module['canvas'];
-        if (previous === DefoldPlatform.contextCanvas && useWebGL !== DefoldPlatform.contextUsesWebGL) {
-            // A canvas cannot switch between WebGPU and WebGL, even after its
+        if (previous === DefoldPlatform.contextCanvas &&
+            (useWebGL !== DefoldPlatform.contextUsesWebGL || (useWebGL && disableDepthStencil !== DefoldPlatform.contextDisableDepthStencil))) {
+            // A canvas cannot switch APIs or WebGL context attributes, even after its
             // graphics context is destroyed. Preserve its DOM attributes and
             // reconnect the platform and loader listeners on a fresh canvas.
             var canvas = previous.cloneNode(true);
@@ -227,6 +229,7 @@ var LibraryDefoldPlatform = {
         }
         DefoldPlatform.contextCanvas = Module['canvas'];
         DefoldPlatform.contextUsesWebGL = useWebGL;
+        DefoldPlatform.contextDisableDepthStencil = disableDepthStencil;
     },
 
     disconnectCanvasResizeObserver: function() {
@@ -937,9 +940,9 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeOpenWindowJS__deps: ['$Browser'],
-  dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion) {
+  dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion, disableDepthStencil) {
     DefoldPlatform.disconnectCanvasResizeObserver();
-    DefoldPlatform.prepareCanvas(!!useWebGL);
+    DefoldPlatform.prepareCanvas(!!useWebGL, !!disableDepthStencil);
     DefoldPlatform.mouseScaleX = 1;
     DefoldPlatform.mouseScaleY = 1;
     DefoldPlatform.getCanvasRect();
@@ -953,8 +956,8 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.params[6] = 8; // WINDOW_STATE_GREEN_BITS
     DefoldPlatform.params[7] = 8; // WINDOW_STATE_BLUE_BITS
     DefoldPlatform.params[8] = alphabits; // WINDOW_STATE_ALPHA_BITS
-    DefoldPlatform.params[9] = 32; // WINDOW_STATE_DEPTH_BITS
-    DefoldPlatform.params[10] = 8; // WINDOW_STATE_STENCIL_BITS
+    DefoldPlatform.params[9] = disableDepthStencil ? 0 : 32; // WINDOW_STATE_DEPTH_BITS
+    DefoldPlatform.params[10] = disableDepthStencil ? 0 : 8; // WINDOW_STATE_STENCIL_BITS
 
     if (!fullscreen) {
       DefoldPlatform.initWindowWidth = width;

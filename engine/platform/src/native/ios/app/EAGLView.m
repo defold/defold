@@ -157,7 +157,10 @@ static void LogGLError(GLint err)
 
     const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
     glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
-    glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
+    if (depthStencilRenderbuffer)
+    {
+        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
+    }
 
     glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
     [context presentRenderbuffer:GL_RENDERBUFFER];
@@ -184,6 +187,26 @@ static void LogGLError(GLint err)
     return viewFramebuffer;
 }
 
+- (void)updateDepthStencilAttachment
+{
+    if (dmNativeWin.depthBits && !depthStencilRenderbuffer)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
+        // Setup packed depth and stencil buffers
+        glGenRenderbuffers(1, &depthStencilRenderbuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthStencilRenderbuffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, [self getWindowWidth], [self getWindowHeight]);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
+    }
+    else if (!dmNativeWin.depthBits && depthStencilRenderbuffer)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
+        glDeleteRenderbuffers(1, &depthStencilRenderbuffer);
+        depthStencilRenderbuffer = 0;
+    }
+}
+
 - (BOOL)createFramebuffer
 {
     glGenFramebuffers(1, &viewFramebuffer);
@@ -207,12 +230,7 @@ static void LogGLError(GLint err)
         dmNativeWin.windowSizeCallback( backingWidth, backingHeight );
     }
 
-    // Setup packed depth and stencil buffers
-    glGenRenderbuffers(1, &depthStencilRenderbuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthStencilRenderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, backingWidth, backingHeight);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
+    [self updateDepthStencilAttachment];
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
@@ -309,6 +327,9 @@ int  dmNativeOSOpenWindowOpenGL( int width, int height,
     {
         return GL_FALSE;
     }
+
+    // UIKit can create the view before the engine has read the window settings.
+    [g_EAGLView updateDepthStencilAttachment];
 
     // Width and height are set by the EAGLView
     dmNativeWin.width = [g_EAGLView getWindowWidth];

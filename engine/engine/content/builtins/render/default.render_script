@@ -104,11 +104,12 @@ local function create_state()
     color.y = sys.get_config_number("render.clear_color_green", 0)
     color.z = sys.get_config_number("render.clear_color_blue", 0)
     color.w = sys.get_config_number("render.clear_color_alpha", 0)
-    state.clear_buffers = {
-        [graphics.BUFFER_TYPE_COLOR0_BIT] = color,
-        [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
-        [graphics.BUFFER_TYPE_STENCIL_BIT] = 0
-    }
+    state.clear_buffers = { [graphics.BUFFER_TYPE_COLOR0_BIT] = color }
+    state.depth_stencil_enabled = sys.get_config_boolean("graphics.depth_stencil_enable", true)
+    if state.depth_stencil_enabled then
+        state.clear_buffers[graphics.BUFFER_TYPE_DEPTH_BIT] = 1
+        state.clear_buffers[graphics.BUFFER_TYPE_STENCIL_BIT] = 0
+    end
     state.cameras = {}
     state.cameras_dirty = true
     return state
@@ -174,11 +175,14 @@ function update(self)
     end
 
     local predicates = self.predicates
+    local depth_stencil_enabled = state.depth_stencil_enabled
     -- clear screen buffers
     --
     -- turn on depth_mask before `render.clear()` to clear it as well
-    render.set_depth_mask(true)
-    render.set_stencil_mask(0xff)
+    if depth_stencil_enabled then
+        render.set_depth_mask(true)
+        render.set_stencil_mask(0xff)
+    end
     render.clear(state.clear_buffers)
 
     -- setup camera view and projection
@@ -188,13 +192,17 @@ function update(self)
 
     -- set states used for all the world predicates
     render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-    render.enable_state(graphics.STATE_DEPTH_TEST)
+    if depth_stencil_enabled then
+        render.enable_state(graphics.STATE_DEPTH_TEST)
+    end
 
     -- render `model` predicate for default 3D material
     --
     render.enable_state(graphics.STATE_CULL_FACE)
     render.draw(predicates.model, draw_options_world)
-    render.set_depth_mask(false)
+    if depth_stencil_enabled then
+        render.set_depth_mask(false)
+    end
     render.disable_state(graphics.STATE_CULL_FACE)
 
     -- render the other components: sprites, tilemaps, particles etc
@@ -202,7 +210,9 @@ function update(self)
     render.enable_state(graphics.STATE_BLEND)
     render.draw(predicates.tile, draw_options_world)
     render.draw(predicates.particle, draw_options_world)
-    render.disable_state(graphics.STATE_DEPTH_TEST)
+    if depth_stencil_enabled then
+        render.disable_state(graphics.STATE_DEPTH_TEST)
+    end
 
     render.draw_debug3d()
 
@@ -214,10 +224,14 @@ function update(self)
     render.set_view(camera_gui.view)
     render.set_projection(camera_gui.proj)
 
-    render.enable_state(graphics.STATE_STENCIL_TEST)
+    if depth_stencil_enabled then
+        render.enable_state(graphics.STATE_STENCIL_TEST)
+    end
     render.draw(predicates.gui, camera_gui.options)
     render.draw(predicates.debug_text, camera_gui.options)
-    render.disable_state(graphics.STATE_STENCIL_TEST)
+    if depth_stencil_enabled then
+        render.disable_state(graphics.STATE_STENCIL_TEST)
+    end
     render.disable_state(graphics.STATE_BLEND)
 end
 

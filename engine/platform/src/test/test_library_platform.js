@@ -150,6 +150,26 @@ function testWebGLContextCreationFailure() {
     }
 }
 
+// WebGL depth and stencil are immutable context attributes. A reboot must apply the new setting to a fresh canvas.
+function testWebGLDepthStencil() {
+    const context = loadEnvironment();
+    const library = context.LibraryDefoldPlatform;
+    context.Module.canvas = createCanvas(context);
+    context.Browser = { createContext: (canvas, useWebGL, setInModule, attributes) => ({ canvas, attributes }) };
+    let previous;
+    for (const disable of [false, true, false]) {
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 0, 1, 2, disable), 1);
+        const { canvas, attributes } = context.Module.ctx;
+        assert.notStrictEqual(canvas, previous);
+        assert.strictEqual(attributes.depth, !disable);
+        assert.strictEqual(attributes.stencil, !disable);
+        assert.strictEqual(context.DefoldPlatform.params[9], disable ? 0 : 32);
+        assert.strictEqual(context.DefoldPlatform.params[10], disable ? 0 : 8);
+        previous = canvas;
+        library.dmNativeCloseWindow();
+    }
+}
+
 // Replacing a WebGPU canvas must transfer native input and loader context events without retaining old listeners.
 function testGraphicsFallbackCanvasListeners() {
     for (const canvasIsFullscreenContainer of [false, true]) {
@@ -3225,7 +3245,7 @@ function testMixedTouchAndMouseSources() {
 }
 
 async function runTests() {
-    for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testGraphicsFallbackCanvasListeners,
+    for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testWebGLDepthStencil, testGraphicsFallbackCanvasListeners,
                        testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
                        testRemappedModifierKeys,

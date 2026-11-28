@@ -1309,7 +1309,12 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         else if (context->m_MainRenderTarget->m_Multisample != 1)
             context->m_MainRenderTarget->m_Multisample = 4; // only 1 and 4 are supported
         context->m_MainRenderTarget->m_Base.m_SampleCount = context->m_MainRenderTarget->m_Multisample;
-        context->m_MainRenderTarget->m_BufferTypeFlags = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+        context->m_MainRenderTarget->m_BufferTypeFlags = BUFFER_TYPE_COLOR0_BIT;
+        if (!context->m_BaseContext.m_DisableDepthStencil)
+        {
+            context->m_MainRenderTarget->m_BufferTypeFlags |= BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
+        }
+
         context->m_MainRenderTarget->m_Base.m_ColorAttachmentCount       = 1;
         context->m_MainRenderTarget->m_ColorBufferTypes[0] = BUFFER_TYPE_COLOR0_BIT;
         context->m_MainRenderTarget->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
@@ -1364,6 +1369,12 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         textureResolve->m_Base.m_Height = 0;
         textureResolve->m_Format = context->m_Format;
     }
+
+    if (context->m_BaseContext.m_DisableDepthStencil)
+    {
+        return;
+    }
+
     // depthstencil
     WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
     if (textureDepthStencil)
@@ -1576,6 +1587,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 {
     TRACE_CALL;
     context->m_BaseContext.m_Window = params.m_Window;
+    context->m_BaseContext.m_DisableDepthStencil = params.m_DisableDepthStencil;
     assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
     context->m_BaseContext.m_Width  = params.m_Width;
     context->m_BaseContext.m_Height = params.m_Height;
@@ -2680,7 +2692,9 @@ static void WebGPUBeginFrame(HContext _context)
             textureColor->m_Base.m_Width       = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
             textureColor->m_Base.m_Height      = (uint16_t) dmMath::Min(currentHeight, 0xFFFFu);
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL)
-            if (WGPUTexture currentDepthStencilTexture = wgpuWagyuSurfaceGetCurrentDepthStencilTexture(context->m_Surface)) {
+            WGPUTexture currentDepthStencilTexture = textureDepthStencil ? wgpuWagyuSurfaceGetCurrentDepthStencilTexture(context->m_Surface) : NULL;
+            if (currentDepthStencilTexture)
+            {
                 WGPUTextureFormat currentDepthStencilFormat = wgpuTextureGetFormat(currentDepthStencilTexture);
                 WGPUTextureView currentDepthStencilTextureView;
                 {
@@ -2722,20 +2736,25 @@ static void WebGPUBeginFrame(HContext _context)
             textureResolve->m_Base.m_Width       = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
             textureResolve->m_Base.m_Height      = (uint16_t) dmMath::Min(currentHeight, 0xFFFFu);
         }
-        if (textureDepthStencil->m_Base.m_Width != currentWidth || textureDepthStencil->m_Base.m_Height != currentHeight) {
-            if (textureDepthStencil->m_Texture) {
+
+        if (textureDepthStencil && (textureDepthStencil->m_Base.m_Width != currentWidth || textureDepthStencil->m_Base.m_Height != currentHeight))
+        {
+            if (textureDepthStencil->m_Texture)
+            {
                 wgpuTextureRelease(textureDepthStencil->m_Texture);
                 textureDepthStencil->m_Texture = NULL;
                 assert(textureDepthStencil->m_TextureView);
                 wgpuTextureViewRelease(textureDepthStencil->m_TextureView);
                 textureDepthStencil->m_TextureView = NULL;
             }
+
             textureDepthStencil->m_Base.m_Width  = (uint16_t) dmMath::Min(currentWidth, 0xFFFFu);
             textureDepthStencil->m_Base.m_Height = (uint16_t) dmMath::Min(currentHeight, 0xFFFFu);
             WebGPURealizeTexture(textureDepthStencil, WGPUTextureFormat_Depth24PlusStencil8, 1, context->m_MainRenderTarget->m_Multisample, WGPUTextureUsage_RenderAttachment);
         }
     }
     context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+    context->m_BaseContext.m_OffscreenTargetBound = 0;
     context->m_ApplyRenderTargetLoadOps = 1;
 }
 
@@ -5357,6 +5376,7 @@ static void WebGPUDeleteRenderTarget(HContext context, HRenderTarget _rt)
     if (webgpu_context->m_CurrentRenderTarget == rt)
     {
         webgpu_context->m_CurrentRenderTarget = webgpu_context->m_MainRenderTarget;
+        webgpu_context->m_BaseContext.m_OffscreenTargetBound = 0;
         webgpu_context->m_ViewportChanged = 1;
         webgpu_context->m_ApplyRenderTargetLoadOps = 1;
     }
@@ -5384,6 +5404,7 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, const Re
     next_target->m_Base.m_CubeMapFace = params.m_CubeMapFace;
     context->m_ViewportChanged = 1;
     context->m_CurrentRenderTarget = next_target;
+    context->m_BaseContext.m_OffscreenTargetBound = next_target != context->m_MainRenderTarget;
     context->m_CurrentRenderTarget->m_TransientBufferTypes = params.m_TransientBufferTypes;
     if (starts_new_activation)
         context->m_ApplyRenderTargetLoadOps = 1;
