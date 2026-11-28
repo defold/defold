@@ -15,11 +15,13 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <malloc/malloc.h>
 #include <QuartzCore/QuartzCore.h>
 #include <platform/window.hpp>
 
 #include "metal/graphics_metal_private.h"
 #include "graphics_adapter.h"
+#include "test_graphics_util.h"
 
 extern "C" void GraphicsAdapterMetal();
 
@@ -253,6 +255,75 @@ TEST_F(MetalRenderTargetTest, SparseAttachmentOperations)
         ASSERT_EQ(attachment, target->m_ColorAttachmentCount);
         DeleteRenderTarget(context, handle);
     }
+}
+
+static const char METAL_TEST_VERTEX_PROGRAM[] =
+    "#include <metal_stdlib>\n"
+    "using namespace metal;\n"
+    "struct main0_out { float4 gl_Position [[position]]; };\n"
+    "vertex main0_out main0(uint vertex_id [[vertex_id]]) { main0_out out = {}; out.gl_Position = float4(float(vertex_id), 0.0, 0.0, 1.0); return out; }\n";
+
+static const char METAL_TEST_FRAGMENT_PROGRAM[] =
+    "#include <metal_stdlib>\n"
+    "using namespace metal;\n"
+    "struct main0_out { float4 color [[color(0)]]; };\n"
+    "fragment main0_out main0() { main0_out out = {}; out.color = float4(1.0); return out; }\n";
+
+static int64_t GetHeapSizeInUse()
+{
+    malloc_statistics_t stats;
+    malloc_zone_statistics(0, &stats);
+    return (int64_t) stats.size_in_use;
+}
+
+// Creating and reloading programs must not leave autoreleased objects in the caller's pool. The macOS
+// engine loop has no pool that drains, so they used to add up on every shader hot reload.
+TEST_F(MetalRenderTargetTest, ProgramCreationDoesNotGrowCallerAutoreleasePool)
+{
+    using namespace dmGraphics;
+    ShaderDescBuilder builder;
+    builder.AddShader(ShaderDesc::SHADER_TYPE_VERTEX, ShaderDesc::LANGUAGE_MSL_22, METAL_TEST_VERTEX_PROGRAM, sizeof(METAL_TEST_VERTEX_PROGRAM));
+    builder.AddShader(ShaderDesc::SHADER_TYPE_FRAGMENT, ShaderDesc::LANGUAGE_MSL_22, METAL_TEST_FRAGMENT_PROGRAM, sizeof(METAL_TEST_FRAGMENT_PROGRAM));
+
+    HContext context = (HContext)m_Context;
+    char error_buffer[1024] = {};
+    HProgram program = NewProgram(context, builder.Get(), error_buffer, sizeof(error_buffer));
+    ASSERT_NE((HProgram)0, program);
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_TRUE(ReloadProgram(context, program, builder.Get(), 0, 0));
+        HProgram warmup_program = NewProgram(context, builder.Get(), 0, 0);
+        ASSERT_NE((HProgram)0, warmup_program);
+        DeleteProgram(context, warmup_program);
+    }
+
+    // Without the pools, each iteration leaves about 1.7 KB behind.
+    const uint32_t iterations = 50;
+    const int64_t max_growth = 16 * 1024;
+
+    int64_t heap_before = GetHeapSizeInUse();
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        ASSERT_TRUE(ReloadProgram(context, program, builder.Get(), 0, 0));
+    }
+
+    int64_t reload_growth = GetHeapSizeInUse() - heap_before;
+
+    heap_before = GetHeapSizeInUse();
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        HProgram new_program = NewProgram(context, builder.Get(), 0, 0);
+        ASSERT_NE((HProgram)0, new_program);
+        DeleteProgram(context, new_program);
+    }
+
+    int64_t new_growth = GetHeapSizeInUse() - heap_before;
+
+    DeleteProgram(context, program);
+
+    ASSERT_LT(reload_growth, max_growth);
+    ASSERT_LT(new_growth, max_growth);
 }
 
 int main(int argc, char** argv)
