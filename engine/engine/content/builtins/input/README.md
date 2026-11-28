@@ -1,12 +1,11 @@
 # SDL Game Controller Database
 
-This file contains game controller mappings from the [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) project.
+`gamecontrollerdb.txt` provides Defold's built-in controller mappings from the [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) project.
 
 ## Origin
 
 - **Source**: https://github.com/mdqinc/SDL_GameControllerDB
 - **Format**: SDL 2.0.16 gamecontrollerdb.txt format
-- **Purpose**: Provides cross-platform game controller mappings for GLFW/SDL
 
 ## License
 
@@ -32,9 +31,8 @@ freely, subject to the following restrictions:
 
 ## Usage
 
-Defold automatically loads this database at runtime and filters mappings for
-the target platform (Windows, macOS, Linux, iOS, Android). Platform-specific
-mappings are used to provide consistent game controller input across platforms.
+Defold compiles the mappings for the target platform into the game's
+`.gamepadsc` resource at build time.
 
 The file format is:
 ```

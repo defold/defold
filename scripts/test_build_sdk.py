@@ -1049,7 +1049,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
     def test_sdk_excludes_build_time_libraries_and_preserves_runtime_tools(self):
         cases = (
             ('x86_64-linux',
-             ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
+             ('libglfw3.a', 'libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
               'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.so',
               'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.so', 'libogg.so', 'liboggz.so',
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
@@ -1059,7 +1059,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
             ('arm64-macos',
              ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
               'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.dylib',
-              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.dylib', 'libogg.dylib', 'liboggz.dylib',
+              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.dylib', 'libogg.dylib', 'liboggz.dylib', 'libglfw3.a',
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
              ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
@@ -1069,10 +1069,12 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libspirv-cross-msl.lib', 'absl_cord.lib', 'absl_cordz_info.lib', 'dxcompiler.lib', 'dxcompiler.dll',
               'dlib_noasan.lib', 'graphics_null_noasan.lib', 'dlib_shared.dll', 'dlib_shared.lib',
               'libogg.dll', 'liboggz.dll', 'ogg.lib', 'oggz.lib', 'libspirv-cross-c.lib', 'libspirv-cross-reflect.lib',
-              'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'utf8_range.lib', 'utf8_validity.lib'),
+              'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'utf8_range.lib', 'utf8_validity.lib',
+              'libglfw3.lib', 'glfw3.lib'),
              ('engine.lib', 'basis_transcoder.lib', 'model_ddf.lib', 'dlib.lib', 'graphics_null.lib',
               'decoder_ogg.lib', 'libtremolo.lib', 'libopus.lib')),
         )
+        cases += (('arm64-linux', cases[0][1], cases[0][2]),)
         for platform, excluded_libraries, required_libraries in cases:
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
                 sdk_root = Path(directory)
@@ -1084,7 +1086,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                 }
                 if platform == 'x86_64-linux':
                     required.add('share/java/bob-light.jar')
-                excluded = set()
+                excluded = {'ext/include/glfw/glfw3.h', 'ext/include/glfw/glfw3native.h',
+                            'sdk/include/platform/platform_window_glfw3.h', 'sdk/include/platform/platform_window_glfw3_private.h'}
                 for libdir in ('lib', 'ext/lib'):
                     required.update(f'{libdir}/{platform}/{name}' for name in required_libraries)
                     excluded.update(f'{libdir}/{platform}/{name}' for name in excluded_libraries)
@@ -1176,6 +1179,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                     'extender/build.yml': 'context: {}',
                     f'lib/{platform}/libplatform.a': 'platform archive',
                     f'ext/lib/{platform}/libdependency.a': 'external archive',
+                    f'ext/lib/{platform}/libdmglfw.a': 'retired OpenGL backend',
+                    f'ext/lib/{platform}/libdmglfw_vulkan.a': 'retired Vulkan backend',
                     'share/java/platform_android.jar': 'platform Java classes',
                     'share/java/gamesys_android.jar': 'gamesys Java classes',
                     'share/java/sound_android.jar': 'sound Java classes',
@@ -1204,6 +1209,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                         self.assertEqual(b'platform application header', archive.read('defoldsdk/include/platform/platform_app.h'))
                         self.assertEqual(b'Android SDK header', archive.read('defoldsdk/sdk/include/dmsdk/dlib/android.h'))
                         if sdk_path == archive_path:
+                            self.assertNotIn(f'defoldsdk/ext/lib/{platform}/libdmglfw.a', archive.namelist())
+                            self.assertNotIn(f'defoldsdk/ext/lib/{platform}/libdmglfw_vulkan.a', archive.namelist())
                             self.assertEqual({f'defoldsdk/share/java/{name}_android.jar' for name in
                                               ('platform', 'gamesys', 'sound')},
                                              {name for name in archive.namelist() if name.startswith('defoldsdk/share/java/')})
@@ -1221,6 +1228,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
             }
             if external_javascript:
                 files[f'ext/lib/{platform}/js/library_external.js'] = 'external JavaScript'
+                files[f'ext/lib/{platform}/js/library_glfw.js'] = 'retired window backend'
             for relative_path, contents in files.items():
                 path = sdk_root / relative_path
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -1234,7 +1242,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
             with zipfile.ZipFile(archive_path) as archive:
                 return {name: archive.read(name).decode() for name in archive.namelist()}
 
-    # Web SDKs retain native platform JS when the removed GLFW2 package leaves no external JS directory.
+    # Web SDKs retain native platform JS when the external JS directory is absent.
     def test_web_sdk_without_external_javascript(self):
         for platform in ('wasm-web', 'wasm_pthread-web'):
             with self.subTest(platform=platform):
@@ -1243,13 +1251,14 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                 self.assertEqual('system JavaScript', files[f'defoldsdk/lib/{platform}/js/library_sys.js'])
                 self.assertFalse(any(name.startswith(f'defoldsdk/ext/lib/{platform}/js/') for name in files))
 
-    # Optional external JS libraries are still archived alongside the engine JS libraries when present.
+    # Reused build directories can contain both current external JS and the retired window backend.
     def test_web_sdk_preserves_external_javascript(self):
         for platform in ('wasm-web', 'wasm_pthread-web'):
             with self.subTest(platform=platform):
                 files = self.package_web_sdk(platform, external_javascript=True)
                 self.assertEqual('platform JavaScript', files[f'defoldsdk/lib/{platform}/js/library_platform.js'])
                 self.assertEqual('external JavaScript', files[f'defoldsdk/ext/lib/{platform}/js/library_external.js'])
+                self.assertNotIn(f'defoldsdk/ext/lib/{platform}/js/library_glfw.js', files)
 
 
 class CiSdkTests(unittest.TestCase):

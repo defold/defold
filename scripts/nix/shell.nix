@@ -6,17 +6,25 @@ let
   jdk = pkgs.openjdk25;
 in
 pkgs.mkShell {
+  nativeBuildInputs = with pkgs; [
+    wayland-protocols
+    wayland-scanner
+  ];
+
   buildInputs = with pkgs; [
     clang
     cmake
     git
     glib
+    libdecor
     libGL
     libxext
+    libxkbcommon
     ninja
     openal
     jdk
     pkg-config
+    wayland
     xorg.libX11
     xorg.libXcursor
     xorg.libXi
@@ -41,9 +49,12 @@ pkgs.mkShell {
     export LD_LIBRARY_PATH=${
       pkgs.lib.makeLibraryPath [
         pkgs.glib
+        pkgs.libdecor
         pkgs.libGL
         pkgs.libxext
+        pkgs.libxkbcommon
         pkgs.openal
+        pkgs.wayland
         pkgs.xorg.libX11
         pkgs.xorg.libXcursor
         pkgs.xorg.libXi

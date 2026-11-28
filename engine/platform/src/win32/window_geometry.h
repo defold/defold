@@ -1,0 +1,41 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#ifndef DM_WIN32_WINDOW_GEOMETRY_H
+#define DM_WIN32_WINDOW_GEOMETRY_H
+
+#include "../window_placement.h"
+#include "../window_state.h"
+
+namespace dmPlatform
+{
+    struct Win32Display
+    {
+        dmWindowState::Rect    m_Bounds;
+        dmWindowState::Monitor m_Monitor;
+    };
+
+    struct Win32Frame
+    {
+        int m_Left, m_Top, m_Right, m_Bottom;
+    };
+
+    void                Win32GetDisplays(dmArray<Win32Display>& displays);
+    dmWindowState::Rect Win32ClientRect(HWindow window);
+    Win32Frame          Win32FrameInsets(HWindow window);
+    float               Win32WindowScale(HWindow window);
+    // A move can trigger a DPI resize. Return whether the original native window is still attached.
+    bool                Win32MoveClient(HWindow window, int x, int y);
+}
+#endif

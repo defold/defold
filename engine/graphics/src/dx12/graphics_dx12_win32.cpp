@@ -14,6 +14,7 @@
 
 #include "graphics.h"
 #include "dlib/dstrings.h"
+#include <dlib/math.h>
 #include "graphics_dx12_private.h"
 #include <platform/platform_window_win32.h>
 
@@ -154,8 +155,9 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
 
     // Create swapchain
     DXGI_MODE_DESC back_buffer_desc = {};
-    back_buffer_desc.Width          = window_width;
-    back_buffer_desc.Height         = window_height;
+    // A minimized HWND can have a zero-sized client when graphics starts.
+    back_buffer_desc.Width          = dmMath::Max(1u, window_width);
+    back_buffer_desc.Height         = dmMath::Max(1u, window_height);
     back_buffer_desc.Format         = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     DXGI_SAMPLE_DESC sample_desc = {};

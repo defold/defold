@@ -347,10 +347,13 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain)
+    void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain, bool wait_for_present)
     {
         assert(swapChain);
-        WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, swapChain->m_SwapChain, swapChain->m_LastPresentId);
+        if (wait_for_present)
+        {
+            WaitForLastPresent(vk_device, swapChain->m_WaitForPresent, swapChain->m_SwapChain, swapChain->m_LastPresentId);
+        }
         DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
         for (uint32_t i = 0; i < swapChain->m_RenderFinishedSemaphores.Size(); ++i)
         {

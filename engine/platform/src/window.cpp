@@ -19,6 +19,65 @@
 
 namespace dmPlatform
 {
+    void NotifyWindowResize(HWindow window, const WindowCreateParams& params, uint32_t& resize_count)
+    {
+        if (params.m_ResizeCallback)
+        {
+            ++resize_count;
+            params.m_ResizeCallback(params.m_ResizeCallbackUserData, GetWindowWidth(window), GetWindowHeight(window));
+        }
+    }
+
+    void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params)
+    {
+        if (state.m_DispatchEnabled || state.m_Reporting)
+        {
+            return;
+        }
+
+        while (!state.m_Pending.Empty())
+        {
+            dmArray<WindowFocusEvent> events;
+            events.Swap(state.m_Pending);
+            for (uint32_t i = 0; i < events.Size(); ++i)
+            {
+                WindowFocusEvent& event = events[i];
+                state.m_Reporting = &event;
+                params.m_FocusCallback(params.m_FocusCallbackUserData, event.m_Focused);
+                if (event.m_Closed)
+                {
+                    return;
+                }
+            }
+
+            state.m_Reporting = 0;
+        }
+
+        state.m_DispatchEnabled = true;
+    }
+
+    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused, const WindowPressedInput& input)
+    {
+        if (params.m_FocusCallback && state.m_Focused != focused)
+        {
+            state.m_Focused = focused;
+            if (state.m_DispatchEnabled)
+            {
+                params.m_FocusCallback(params.m_FocusCallbackUserData, focused);
+                return;
+            }
+
+            // Startup callbacks run after graphics initialization. Preserve the input visible at each transition.
+            if (state.m_Pending.Full())
+            {
+                state.m_Pending.OffsetCapacity(2);
+            }
+
+            WindowFocusEvent event = { input, focused, false };
+            state.m_Pending.Push(event);
+        }
+    }
+
     bool ConvertReservedArea(double left, double top, double right, double bottom,
                              double view_width, double view_height,
                              uint32_t window_width, uint32_t window_height, WindowReservedArea* out)

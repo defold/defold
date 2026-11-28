@@ -19,6 +19,7 @@
 #include "graphics.h"
 #if defined(DM_TEST_WINDOW_DX12)
 #include "dx12/graphics_dx12_private.h"
+#include <platform/platform_window_win32.h>
 extern "C" void GraphicsAdapterDX12();
 #else
 #include "vulkan/graphics_vulkan_defines.h"
@@ -45,7 +46,7 @@ struct WindowResizeTest : public jc_test_base_class
         test->m_CallbackHeight = height;
     }
 
-    void SetUp()
+    void OpenWindowAndContext(bool minimized)
     {
         m_CallbackCount = 0;
         m_CallbackWidth = m_CallbackHeight = 0;
@@ -66,6 +67,12 @@ struct WindowResizeTest : public jc_test_base_class
         params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
 #endif
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, params));
+        if (minimized)
+        {
+            dmPlatform::IconifyWindow(m_Window);
+            ASSERT_EQ(0u, dmPlatform::GetWindowWidth(m_Window));
+            ASSERT_EQ(0u, dmPlatform::GetWindowHeight(m_Window));
+        }
         JobSystemCreateParams jobs = {};
         jobs.m_ThreadCount = 1;
         m_Jobs = JobSystemCreate(&jobs);
@@ -77,6 +84,11 @@ struct WindowResizeTest : public jc_test_base_class
         context_params.m_VerifyGraphicsCalls = 1;
         m_Context = NewContext(context_params);
         ASSERT_NE((HContext)0, m_Context);
+    }
+
+    void SetUp()
+    {
+        OpenWindowAndContext(false);
     }
 
     void TearDown()
@@ -114,6 +126,51 @@ struct WindowResizeTest : public jc_test_base_class
     }
 };
 
+#if defined(DM_PLATFORM_LINUX)
+extern "C" bool LinuxExtensionHasX11Window();
+extern "C" bool LinuxExtensionHasGLXContext();
+
+// An extension sees an XID only on X11 and never sees a GLX context for Vulkan.
+TEST_F(WindowResizeTest, LinuxExtensionHandles)
+{
+    bool x11 = dmPlatform::GetNativeWindowId(m_Window).m_Type == dmPlatform::NATIVE_WINDOW_TYPE_X11;
+    ASSERT_EQ(x11, LinuxExtensionHasX11Window());
+    ASSERT_FALSE(LinuxExtensionHasGLXContext());
+}
+
+// Extensions may query native handles between graphics contexts, including after engine shutdown.
+TEST(LinuxNativeHandles, NoGraphicsContext)
+{
+    ASSERT_FALSE(LinuxExtensionHasX11Window());
+    ASSERT_FALSE(LinuxExtensionHasGLXContext());
+}
+
+// Hidden captures must keep rendering on Wayland and restore the requested VSync mode when shown.
+TEST_F(WindowResizeTest, WaylandHiddenPresentation)
+{
+    if (dmPlatform::GetNativeWindowId(m_Window).m_Type == dmPlatform::NATIVE_WINDOW_TYPE_X11)
+    {
+        SKIP();
+    }
+
+    VulkanContext* context = (VulkanContext*)m_Context;
+    ASSERT_TRUE(context->m_SwapChainUnmapped);
+    for (unsigned i = 0; i <= context->m_SwapChain->m_Images.Size(); ++i)
+    {
+        DrawFrame();
+    }
+
+    dmPlatform::ShowWindow(m_Window);
+    DrawFrame();
+    EXPECT_FALSE(context->m_SwapChainUnmapped);
+    EXPECT_EQ(1u, context->m_SwapInterval);
+    dmPlatform::HideWindow(m_Window);
+    DrawFrame();
+    DrawFrame();
+    EXPECT_TRUE(context->m_SwapChainUnmapped);
+}
+#endif
+
 // Guards editor resize requests: the native window and swap chain must resize,
 // while the logical game dimensions stay unchanged, including on the next frame.
 TEST_F(WindowResizeTest, ResizeWindowPreservesLogicalSize)
@@ -146,6 +203,33 @@ TEST_F(WindowResizeTest, SetWindowSizeUpdatesLogicalSize)
 }
 
 #if defined(DM_TEST_WINDOW_DX12)
+struct MinimizedDX12Test : public WindowResizeTest
+{
+    void SetUp()
+    {
+        OpenWindowAndContext(true);
+    }
+
+};
+
+// A game started minimized must render a frame and resize its attachments when the window is restored.
+TEST_F(MinimizedDX12Test, DrawBeforeAndAfterRestore)
+{
+    DX12Context* context = (DX12Context*)m_Context;
+    EXPECT_GT(context->m_BackBufferWidth, 0u);
+    EXPECT_GT(context->m_BackBufferHeight, 0u);
+    DrawFrame();
+
+    ::ShowWindow(dmPlatform::GetWindowsHWND(m_Window), SW_RESTORE);
+    dmPlatform::PollEvents(m_Window);
+    DrawFrame();
+    uint32_t width = dmPlatform::GetWindowWidth(m_Window);
+    uint32_t height = dmPlatform::GetWindowHeight(m_Window);
+    ASSERT_GT(width, 0u);
+    ASSERT_GT(height, 0u);
+    CheckSize(width, height);
+}
+
 // Verifies native DX12 contexts expose storage buffers and can allocate the
 // 12 MiB buffer from issue #13694 through the public API.
 TEST_F(WindowResizeTest, StorageBufferCapabilityAndAllocation)

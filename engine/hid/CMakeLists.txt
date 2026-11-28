@@ -141,12 +141,12 @@ if(BUILD_TESTS)
         target_link_libraries(test_hid PRIVATE Threads::Threads dl)
     endif()
 
-    # Compare HID GUIDs with the private native backend on mobile and web.
+    # Compare HID GUIDs with the platform implementation on Android and web.
     if(TARGET_PLATFORM_OS STREQUAL "android" OR TARGET_PLATFORM_OS STREQUAL "web")
+        target_include_directories(test_hid PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../platform/src")
         defold_target_link_platform(test_hid "${TARGET_PLATFORM}" SCOPE PRIVATE)
     endif()
 
-    defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
@@ -162,9 +162,7 @@ if(BUILD_TESTS)
 
     if(TARGET_PLATFORM MATCHES "-android$")
         defold_add_executable(test_hid_android_gamepad "${HID_SRC_DIR}/test/test_hid_android_gamepad.cpp")
-        target_include_directories(test_hid_android_gamepad PRIVATE
-            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native"
-            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native/android")
+        target_include_directories(test_hid_android_gamepad PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../platform/src")
         # Exercise input mapping selection before the real Android HID backend captures a reconnect packet.
         defold_target_link_libraries(test_hid_android_gamepad "${TARGET_PLATFORM}" dlib profile_null testmain hid platform input)
         foreach(function IN ITEMS dmNativeOSInit dmNativeOSTerminate __system_property_get

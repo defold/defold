@@ -41,11 +41,6 @@ target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_
 defold_target_link_libraries(input "${TARGET_PLATFORM}" SCOPE PUBLIC ${INPUT_DEPENDENCIES})
 add_dependencies(input input_proto_headers input_proto_py)
 
-# Add GLFW3-specific compile define when applicable
-defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
-if (_GLFW_VERSION EQUAL 3)
-    target_compile_definitions(input PUBLIC DM_INPUT_USE_GLFW3)
-endif()
 
 # ===================== Tests (optional) =====================
 

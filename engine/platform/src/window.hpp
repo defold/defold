@@ -35,6 +35,41 @@ namespace dmPlatform
         uint64_t         m_Id;
     };
 
+    struct WindowPressedInput
+    {
+        uint8_t m_Keys[349], m_Buttons[8];
+    };
+
+    struct WindowFocusEvent
+    {
+        WindowPressedInput m_Input;
+        bool               m_Focused, m_Closed;
+    };
+
+    struct WindowFocusState
+    {
+        dmArray<WindowFocusEvent> m_Pending;
+        WindowFocusEvent*         m_Reporting = 0;
+        bool                      m_Focused, m_DispatchEnabled;
+        ~WindowFocusState()
+        {
+            if (m_Reporting)
+            {
+                m_Reporting->m_Closed = true;
+            }
+        }
+
+    };
+
+    inline const WindowPressedInput& ReportedWindowInput(const WindowFocusState& state, const WindowPressedInput& current)
+    {
+        return state.m_Reporting ? state.m_Reporting->m_Input : current;
+    }
+
+    void WindowFocusChanged(WindowFocusState& state, const WindowCreateParams& params, bool focused, const WindowPressedInput& input);
+    void PollWindowFocus(WindowFocusState& state, const WindowCreateParams& params);
+    void NotifyWindowResize(HWindow window, const WindowCreateParams& params, uint32_t& resize_count);
+
     HWindow        NewWindow();
     void           DeleteWindow(HWindow window);
     WindowResult   OpenWindow(HWindow window, const WindowCreateParams& params);

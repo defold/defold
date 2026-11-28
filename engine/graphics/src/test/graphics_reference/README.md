@@ -187,7 +187,7 @@ with Xcode and an installed iOS simulator runtime. Metal is selected by default.
 For Vulkan, install an arm64 **simulator** MoltenVK library in
 `$DYNAMO_HOME/ext/lib/arm64_sim-ios/libMoltenVK.a` and configure with
 `WITH_VULKAN=ON`; see [MoltenVK packaging](../../../../../share/ext/moltenvk/README.md#arm64_sim-ios).
-The SDK also needs the simulator builds of GLFW, Basis Universal and LZ4.
+The SDK also needs the simulator builds of Basis Universal and LZ4.
 
 Run the same `generate_graphics_test_images` CMake target, or invoke the harness directly:
 

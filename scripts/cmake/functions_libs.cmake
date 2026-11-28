@@ -188,7 +188,16 @@ function(defold_target_link_libraries target platform)
     foreach(_lib IN LISTS _LIBS)
       set(_mapped "${_lib}")
       set(_is_exception OFF)
-      if(_lib IN_LIST DEFOLD_EXACT_WINDOWS_STATIC_LIBS)
+      if(NOT TARGET "${_lib}" AND _lib MATCHES "^(hid|mbedtls(_noasan)?)$")
+        # Windows Kits also ship hid.lib. The installed mbedTLS archives use dlib's output names.
+        set(_archive "${_lib}")
+        if(_lib MATCHES "^mbedtls")
+          set(_archive "d${_lib}")
+        endif()
+        # A later subdirectory can still define the in-tree target before generation.
+        set(_mapped "$<IF:$<TARGET_EXISTS:${_lib}>,${_lib},${DEFOLD_SDK_ROOT}/lib/${platform}/${_archive}.lib>")
+        set(_is_exception ON)
+      elseif(_lib IN_LIST DEFOLD_EXACT_WINDOWS_STATIC_LIBS)
         set(_is_exception ON)
       endif()
 
@@ -208,6 +217,14 @@ function(defold_target_link_libraries target platform)
     endforeach()
   else()
     set(_MAPPED_LIBS ${_LIBS})
+  endif()
+
+  if(platform MATCHES "-linux$")
+    foreach(_lib IN ITEMS platform platform_vulkan)
+      if(_lib IN_LIST _LIBS AND NOT TARGET "${_lib}")
+        list(APPEND _MAPPED_LIBS ${DEFOLD_LINUX_WINDOW_LIBRARIES})
+      endif()
+    endforeach()
   endif()
 
   # Private platforms may require additional libraries for testmain consumers.

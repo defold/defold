@@ -220,7 +220,7 @@ struct EngineCtx
     HJobContext           m_JobContext;
 
     ITest* m_Test;
-    bool m_WindowClosed;
+    bool m_CloseRequested;
     bool m_Failed;
 
 } g_EngineCtx;
@@ -2858,8 +2858,9 @@ struct StorageBufferTest : ITest
 static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
-    engine->m_WindowClosed = 1;
-    return 1;
+    engine->m_CloseRequested = true;
+    // Keep the native window open until the graphics adapter has released its surface.
+    return 0;
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -3085,6 +3086,10 @@ static void EngineDestroy(void* _engine)
     if (engine->m_JobContext)
         JobSystemDestroy(engine->m_JobContext);
 
+    dmPlatform::CloseWindow(engine->m_Window);
+    dmPlatform::DeleteWindow(engine->m_Window);
+    engine->m_Window = 0;
+
     engine->m_WasDestroyed++;
 }
 
@@ -3106,7 +3111,7 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmPlatform::PollEvents(engine->m_Window);
 
-    if (engine->m_WindowClosed)
+    if (engine->m_CloseRequested)
     {
         return RESULT_EXIT;
     }
@@ -3224,6 +3229,14 @@ static bool InstallAdapter(int argc, char **argv)
     return true;
 }
 
+// A close request must stop the test loop while keeping the native window available for graphics teardown.
+TEST(App, DeferWindowClose)
+{
+    EngineCtx engine = {};
+    ASSERT_EQ(0, OnWindowClose(&engine));
+    ASSERT_TRUE(engine.m_CloseRequested);
+}
+
 TEST(App, Run)
 {
     AppCtx ctx;
@@ -3256,6 +3269,7 @@ TEST(App, Run)
     ASSERT_EQ(1, g_EngineCtx.m_WasCreated);
     //ASSERT_EQ(200, g_EngineCtx.m_WasRun);
     ASSERT_EQ(1, g_EngineCtx.m_WasDestroyed);
+    ASSERT_EQ((HWindow)0, g_EngineCtx.m_Window);
     ASSERT_EQ(1, g_EngineCtx.m_WasResultCalled);
 }
 

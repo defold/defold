@@ -21,7 +21,6 @@ excluded_files = [
     "engine/ddf/src/ddf/ddf_struct.proto",
     # Third-party source files retain their upstream notices.
     "engine/font/src/test/stb_truetype.h",
-    "engine/hid/src/external/glfw/mappings.h",
     "engine/hid/src/external/sdl/joystick/usb_ids.h",
 ]
 

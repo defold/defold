@@ -368,7 +368,7 @@ struct Viewer
 static int OnWindowClose(void* user_data)
 {
     ((Viewer*)user_data)->m_Closed = true;
-    return 1;
+    return 0; // Finalize needs the window's graphics context to release resources.
 }
 
 static bool ReadTextFile(const char* path, dmArray<char>* output)
@@ -4257,7 +4257,12 @@ static bool ExportDocumentationImage(Viewer* viewer)
 
 extern "C" void dmExportedSymbols();
 
-int             main(int argc, char** argv)
+#ifdef _WIN32
+// The Windows entry point supplies UTF-8 arguments for text, markup and font paths.
+int FontViewerMain(int argc, char** argv)
+#else
+int main(int argc, char** argv)
+#endif
 {
     TestMainPlatformInit();
     dmExportedSymbols();
@@ -4298,6 +4303,11 @@ int             main(int argc, char** argv)
         const float    delta_time = (frame_time - previous_frame_time) / 1000000.0f;
         previous_frame_time = frame_time;
         dmPlatform::PollEvents(viewer.m_Window);
+        if (viewer.m_Closed)
+        {
+            break;
+        }
+
         HandleInput(&viewer);
         // Process only the heaviest requested update. Each heavier path also
         // subsumes and clears the lighter pending work.
@@ -4347,9 +4357,15 @@ int             main(int argc, char** argv)
         Draw(&viewer, 0, 0);
         if (auto_exit && ++frame_count == 2)
         {
-            viewer.m_Closed = true;
+            if (dmPlatform::TriggerCloseCallback(viewer.m_Window) || !viewer.m_Closed)
+            {
+                dmLogError("Font viewer did not defer window destruction until graphics cleanup.");
+                Finalize(&viewer);
+                return 1;
+            }
         }
     }
+
     Finalize(&viewer);
     return 0;
 }

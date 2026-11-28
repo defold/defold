@@ -1566,6 +1566,33 @@ TEST_F(WindowTest, MouseLock)
     dmPlatform::DeleteWindow(window);
 }
 
+// Lua sees an applied resize even before the engine delivers a resize event.
+TEST(ScriptWindowTest, SizeBeforeResizeEvent)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    params.m_Width = 640;
+    params.m_Height = 480;
+    dmGameSystem::ScriptLibContext context;
+    context.m_LuaState = luaL_newstate();
+    luaL_openlibs(context.m_LuaState);
+    context.m_Window = WindowNew();
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(context.m_Window, &params));
+    dmGameSystem::ScriptWindowRegister(context);
+    dmGameSystem::ScriptWindowOnWindowCreated(params.m_Width, params.m_Height);
+
+    EXPECT_TRUE(RunString(context.m_LuaState,
+                          "window.set_size(481, 311)\n"
+                          "local w, h = window.get_size()\n"
+                          "assert(w == 481 and h == 311)\n"));
+
+    dmGameSystem::ScriptWindowFinalize(context);
+    WindowClose(context.m_Window);
+    WindowDelete(context.m_Window);
+    lua_close(context.m_LuaState);
+}
+
 // Verifies the Lua API returns fresh, empty arrays on the null backend, with no synthetic safe-area regions.
 TEST(ScriptWindowTest, ReservedAreas)
 {

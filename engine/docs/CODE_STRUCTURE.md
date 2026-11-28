@@ -31,7 +31,7 @@ E.g. `render` may use `graphics`, but the reverse order is not allowed.
 * [modelc](../modelc/README.md) - Model importer. Builds `modelimporter.jar` and a native shared library for Bob.
 * shaderc - Shader compiler and Java bindings.
 * ddf - Our runtime data format. It's a slimmed down version of Protobuf.
-* platform - Handles some platform specific concepts, like a Window.
+* [platform](../platform/README.md) - Window lifecycle, native input, and rendering surfaces.
 * graphics - Graphics layer with e.g. vertex buffers and shader programs. Backends for OpenGL, Vulkan etc.
 * [font](../font/README.md) - Font processing, layout and rendering data.
 * particle - Simulates particles for the [particle effect component](../gamesys/src/gamesys/components/comp_particlefx.cpp).
@@ -76,4 +76,6 @@ It is [described here](../../com.dynamo.cr/README.md)
 
 Run `./scripts/build.py install_ext` from the repository root. It unpacks prebuilt dependencies from [packages](../../packages/) and builds source dependencies from [external](../../external/README.md) into `$DYNAMO_HOME/ext`. These include Box2D and Bullet for the runtime, and Protobuf for desktop tools.
 
-[share/ext](../../share/ext/) contains custom packaging scripts for dependencies such as GLFW 3 and Tremolo. The mobile and web window backends build as part of [engine/platform](../platform/src/native/README.md).
+[share/ext](../../share/ext/) contains custom packaging scripts for dependencies such as glslang and Tremolo.
+
+Defold builds its desktop, mobile and web window backends in [engine/platform](../platform/README.md). The [Linux backend](../platform/src/linux/README.md) supports X11 and Wayland.

@@ -15,9 +15,64 @@
 #ifndef DM_PLATFORM_WINDOW_OPENGL_H
 #define DM_PLATFORM_WINDOW_OPENGL_H
 
+#include <stdint.h>
+
 namespace dmPlatform
 {
     int32_t OpenGLGetDefaultFramebufferId();
+
+    struct OpenGLFormatScore
+    {
+        uint32_t m_MissingBuffers, m_MissingBits, m_SampleError;
+        bool     m_Pbuffer;
+    };
+
+    static inline OpenGLFormatScore ScoreOpenGLSamples(uint32_t requested, uint32_t available, bool pbuffer)
+    {
+        OpenGLFormatScore score = {};
+        if (requested && !available)
+        {
+            score.m_MissingBuffers = 1;
+            score.m_SampleError = UINT32_MAX;
+        }
+        else
+        {
+            score.m_SampleError = requested > available ? requested - available : available - requested;
+        }
+
+        score.m_Pbuffer = pbuffer;
+        return score;
+    }
+
+    static inline void ScoreOpenGLChannel(OpenGLFormatScore& score, int requested, int available)
+    {
+        if (available < requested)
+        {
+            score.m_MissingBuffers += available == 0;
+            score.m_MissingBits += requested - available;
+        }
+    }
+
+    static inline bool BetterOpenGLFormat(const OpenGLFormatScore& candidate, const OpenGLFormatScore& best)
+    {
+        // A lower-precision buffer can still provide the requested framebuffer feature.
+        if (candidate.m_MissingBuffers != best.m_MissingBuffers)
+        {
+            return candidate.m_MissingBuffers < best.m_MissingBuffers;
+        }
+
+        if (candidate.m_MissingBits != best.m_MissingBits)
+        {
+            return candidate.m_MissingBits < best.m_MissingBits;
+        }
+
+        if (candidate.m_SampleError != best.m_SampleError)
+        {
+            return candidate.m_SampleError < best.m_SampleError;
+        }
+
+        return candidate.m_Pbuffer && !best.m_Pbuffer;
+    }
 
     static inline bool OpenGLGetVersion(int32_t version, uint32_t* major, uint32_t* minor)
     {
@@ -33,7 +88,7 @@ namespace dmPlatform
 
         if ((version == 0 && use_highest_version_supported) ||   // Highest available
             (tmp_major == 3 && tmp_minor == 3) ||              // Only 3.3 is supported from 3.x
-            (tmp_major == 4 && tmp_minor >= 0 && *minor <= 6)) // Only 4.0 - 4.6 are proper versions
+            (tmp_major == 4 && tmp_minor <= 6))                // Only 4.0 - 4.6 are proper versions
         {
             *major = tmp_major;
             *minor = tmp_minor;

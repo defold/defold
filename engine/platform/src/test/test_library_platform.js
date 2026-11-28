@@ -18,11 +18,11 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const nativeHeader = fs.readFileSync(path.join(__dirname, "../native/native.h"), "utf8");
+const nativeHeader = fs.readFileSync(path.join(__dirname, "../window_mobile_web_constants.h"), "utf8");
 const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
     Number(nativeHeader.match(new RegExp("^#define NATIVE_" + name + "\\s+(0x[0-9A-Fa-f]+)", "m"))[1]));
 
-function loadEnvironment() {
+function loadEnvironment(standardWheel = false) {
     const listeners = new Map();
     const windowListeners = new Map();
     const dispatch = type => {
@@ -63,12 +63,13 @@ function loadEnvironment() {
         stringToNewUTF8: value => value,
         _free() {}
     });
-    const libraryPath = path.join(__dirname, "../native/web/library_platform.js");
+    const libraryPath = path.join(__dirname, "../web/library_platform.js");
     // Call JavaScript test callbacks directly in place of Emscripten's WASM function pointers.
     const source = fs.readFileSync(libraryPath, "utf8").replace(
         /\{\{\{\s*makeDynCall\('[^']+', '([^']+)'\)\s*\}\}\}/g, "$1");
     vm.runInContext(source, context, { filename: libraryPath });
     context.DefoldPlatform = context.LibraryDefoldPlatform.$DefoldPlatform;
+    if (standardWheel) context.window.onwheel = null;
     context.LibraryDefoldPlatform.dmNativeInitJS();
     context.createFullscreenElement = () => ({
         requestFullscreen() {
@@ -101,44 +102,25 @@ function createCanvas(context) {
     };
 }
 
-// Closing for graphics fallback must allow reopening without emitting a user-close event that stops the engine.
+// Closing for graphics fallback must release the context and allow reopening the canvas.
 function testWindowCloseAndReopen() {
     const context = loadEnvironment();
     const library = context.LibraryDefoldPlatform;
     context.Module.canvas = createCanvas(context);
     context.navigator.userAgent = "";
     context.Browser = { createContext: () => ({}) };
-    let closeCalls = 0;
-    library.dmNativeSetWindowCloseCallback(() => { ++closeCalls; return 0; });
 
     // A failed WebGPU attempt closes its window before the fallback opens a WebGL context.
     for (const useWebGL of [false, true]) {
-        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, false, false, useWebGL, 2), 1);
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, false, false, useWebGL, 2), 1);
+        assert.strictEqual(library.dmNativeGetWindowParam(1), 1);
         assert.strictEqual(!!context.Module.ctx, useWebGL);
         library.dmNativeCloseWindow();
-        assert.strictEqual(closeCalls, 0);
+        assert.strictEqual(library.dmNativeGetWindowParam(1), 0);
         assert.strictEqual(context.Module.ctx, undefined);
 
         // Final engine cleanup may close a window already closed by a failed graphics attempt.
         library.dmNativeCloseWindow();
-        assert.strictEqual(closeCalls, 0);
-    }
-}
-
-// Failed WebGL creation must fail window opening, while WebGL 1 remains a valid fallback from WebGL 2.
-function testWebGLContextCreationFailure() {
-    for (const webGL1Available of [false, true]) {
-        const context = loadEnvironment();
-        const attempts = [];
-        context.Module.canvas = createCanvas(context);
-        context.Browser = { createContext(canvas, useWebGL, setInModule, attributes) {
-            attempts.push(attributes.majorVersion);
-            return webGL1Available && attributes.majorVersion === 1 ? {} : null;
-        } };
-        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2),
-            webGL1Available ? 1 : 0);
-        assert.deepStrictEqual(attempts, [2, 1]);
-        assert.strictEqual(!!context.Module.ctx, webGL1Available);
     }
 }
 
@@ -147,6 +129,7 @@ function testGraphicsFallbackCanvasListeners() {
     for (const canvasIsFullscreenContainer of [false, true]) {
         const context = loadLoaderEnvironment();
         const library = context.LibraryDefoldPlatform;
+        library.dmNativeTerminate();
         const previous = createCanvas(context);
         const parent = { child: previous, replaceChild(canvas, old) {
             assert.strictEqual(old, this.child);
@@ -165,11 +148,12 @@ function testGraphicsFallbackCanvasListeners() {
         context.Module.setCanvasEventListeners(previous, true);
         library.dmNativeSetWindowFocusCallback(focus => events.push(focus ? "focus" : "blur"));
         previous.focus();
+        assert.deepStrictEqual(events, ["focus"]);
         events.length = 0;
         context.Browser = { createContext: canvas => ({ canvas }) };
-        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 0, 2), 1);
         library.dmNativeCloseWindow();
-        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2), 1);
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2), 1);
         const canvas = context.Module.canvas;
         assert.notStrictEqual(canvas, previous);
         assert.strictEqual(parent.child, canvas);
@@ -190,7 +174,7 @@ function testGraphicsFallbackCanvasListeners() {
 
         // Reopening the same API must keep the canvas and must not multiply its listeners.
         library.dmNativeCloseWindow();
-        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2), 1);
+        assert.strictEqual(library.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2), 1);
         assert.strictEqual(context.Module.canvas, canvas);
         events.length = 0;
         canvas.dispatchEvent({ type: "touchstart" });
@@ -201,7 +185,7 @@ function testGraphicsFallbackCanvasListeners() {
     }
 }
 
-// Verify native capability queries drive browser gamepad input and report disconnection after the GLFW removal.
+// Verify native capability queries drive browser gamepad input and report disconnection.
 function testGamepadCapabilitiesAndInput() {
     const context = loadEnvironment();
     const library = context.LibraryDefoldPlatform;
@@ -220,19 +204,51 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [1, 2, 3, 0]);
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(1, param)), [0, 0, 0, 0]);
 
-    library.dmNativeGetJoystickPos(0, 0, library.dmNativeGetJoystickParam(0, joystickParams[1]));
-    library.dmNativeGetJoystickButtons(0, 8, library.dmNativeGetJoystickParam(0, joystickParams[2]));
+    assert.strictEqual(library.dmNativeGetJoystickPos(0, 0, library.dmNativeGetJoystickParam(0, joystickParams[1])), 2);
+    assert.strictEqual(library.dmNativeGetJoystickButtons(0, 8, library.dmNativeGetJoystickParam(0, joystickParams[2])), 3);
     assert.deepStrictEqual([values[0], values[4], values[8], values[9], values[10]], [0.25, -0.5, 1, 0, 1]);
 
     gamepads[0] = null;
-    context.DefoldPlatform.onJoystickDisconnected();
+    context.window.dispatchEvent({ type: "gamepaddisconnected" });
     assert.deepStrictEqual(events, [[0, 1], [0, 0]]);
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
+    assert.strictEqual(library.dmNativeGetJoystickPos(0, 0, 2), 0);
+    assert.deepStrictEqual([values[0], values[4]], [0, 0]);
+}
+
+// Removing or replacing the window in a gamepad callback ends the old batch of device notifications.
+function testGamepadCallbackTeardown() {
+    const controllers = ["first", "second"].map(id => ({ id, mapping: "", axes: [], buttons: [] }));
+    for (const stopOnConnect of [false, true]) {
+        const context = loadEnvironment();
+        const api = context.LibraryDefoldPlatform;
+        let pads = stopOnConnect ? [] : controllers;
+        context.navigator.getGamepads = () => pads;
+        const events = [];
+        const replacementEvents = [];
+        api.dmNativeSetGamepadCallback((slot, connected) => {
+            events.push([slot, connected]);
+            if (!!connected === stopOnConnect) {
+                api.dmNativeTerminate();
+                if (stopOnConnect) {
+                    pads = [controllers[0]];
+                    api.dmNativeInitJS();
+                    api.dmNativeSetGamepadCallback((id, state) => replacementEvents.push([id, state]));
+                }
+            }
+        });
+
+        pads = stopOnConnect ? controllers : [];
+        context.window.dispatchEvent({ type: stopOnConnect ? "gamepadconnected" : "gamepaddisconnected" });
+        assert.deepStrictEqual(events, stopOnConnect ? [[0, 1]] : [[0, 1], [1, 1], [0, 0]]);
+        assert.deepStrictEqual(replacementEvents, stopOnConnect ? [[0, 1]] : []);
+        assert.strictEqual(api.dmNativeGetJoystickParam(1, joystickParams[0]), 0);
+    }
 }
 
 // Verify modifier presses, repeats and releases keep both sides independent, including overlapping holds (#13745).
 function testModifierKeyEvents() {
-    // Both sides share a DOM keyCode, but must produce distinct native key values.
+    // Both sides share a DOM keyCode and must produce distinct native key values.
     for (const [name, keyCode, left, right] of [
         ["Shift", 16, 287, 288], ["Control", 17, 289, 290], ["Alt", 18, 291, 292]
     ]) {
@@ -240,16 +256,14 @@ function testModifierKeyEvents() {
         for (const first of [0, 1]) {
             const context = loadEnvironment();
             const library = context.LibraryDefoldPlatform;
-            const events = [];
             context.Module.canvas = {};
-            context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
             const keys = [left, right];
             const codes = [name + "Left", name + "Right"];
             const dispatch = (type, side, repeat = false) => context.window.dispatchEvent({
                 type, keyCode, key: name, code: codes[side], location: side + 1, repeat,
                 shiftKey: name === "Shift" && type === "keydown", target: context.Module.canvas
             });
-            const keyStates = () => keys.map(key => library.dmNativeGetKey(key) || 0);
+            const keyStates = () => keys.map(key => library.dmNativeGetKey(key));
             const second = 1 - first;
 
             dispatch("keydown", first);
@@ -266,11 +280,6 @@ function testModifierKeyEvents() {
             assert.deepStrictEqual(keyStates(), first === 0 ? [0, 1] : [1, 0]);
             dispatch("keyup", second);
             assert.deepStrictEqual(keyStates(), [0, 0]);
-            // Callbacks must report the same distinct keys as the polled state.
-            assert.deepStrictEqual(events, [
-                [keys[first], 1], [keys[second], 1], [keys[first], 1], [keys[second], 1],
-                [keys[first], 0], [keys[second], 0]
-            ]);
         }
     }
 }
@@ -295,9 +304,7 @@ function testRemappedModifierKeys() {
     ]) {
         const context = loadEnvironment();
         const library = context.LibraryDefoldPlatform;
-        const events = [];
         context.Module.canvas = {};
-        context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
         for (const type of ["keydown", "keyup"]) {
             context.window.dispatchEvent({
                 type, key, keyCode, code, location, shiftKey: key === "Shift" && type === "keydown",
@@ -305,7 +312,6 @@ function testRemappedModifierKeys() {
             });
             assert.strictEqual(library.dmNativeGetKey(expected), type === "keydown" ? 1 : 0);
         }
-        assert.deepStrictEqual(events, [[expected, 1], [expected, 0]]);
     }
 }
 
@@ -317,13 +323,13 @@ function testModifierPhysicalKeyCodes() {
         [17, "ControlRight", 290], [18, "AltLeft", 291], [18, "AltRight", 292]
     ]) {
         // A physical code must be sufficient even when keyCode is unavailable.
-        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode: 0, code }), expected);
         // Older events can provide a shared modifier keyCode without a key or usable location.
-        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
-        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code, undefined, 0), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code, location: 0 }), expected);
     }
-    // AltGraph's legacy keyCode must not override the physical right Alt key.
-    assert.strictEqual(platform.DOMToNativeKeyCode(225, "AltRight"), 292);
+    // AltGraph's legacy keyCode also uses the physical side.
+    assert.strictEqual(platform.keyNumber({ keyCode: 225, code: "AltRight" }), 292);
 }
 
 // Verify modifier disambiguation preserves legacy mappings and ordinary keyboard input.
@@ -337,20 +343,21 @@ function testKeyboardMappingFallbacks() {
             [16, 287], [17, 289], [18, 291],
             [0x05, 287], [0x06, 288], [0x03, 289], [0x04, 290], [0x02, 291], [0x01, 292]
         ]) {
-            assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+            assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
         }
     }
     // Ordinary keys and numpad operators still use their keyCode mappings.
     for (const [keyCode, code, expected] of [
         [65, "KeyA", 65], [32, "Space", 32], [37, "ArrowLeft", 285],
         [112, "F1", 258], [96, "Numpad0", 302], [109, "NumpadSubtract", 314],
-        [107, "NumpadAdd", 315], [110, "NumpadDecimal", 316]
+        [107, "NumpadAdd", 315], [110, "NumpadDecimal", 316], [13, "NumpadEnter", 318]
     ]) {
-        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
     }
     // A modifier position remapped to a letter or Caps Lock must retain that reported keyCode.
-    assert.strictEqual(platform.DOMToNativeKeyCode(65, "ControlLeft"), 65);
-    assert.strictEqual(platform.DOMToNativeKeyCode(20, "AltLeft"), 20);
+    assert.strictEqual(platform.keyNumber({ keyCode: 65, code: "ControlLeft" }), 65);
+    assert.strictEqual(platform.keyNumber({ keyCode: 20, code: "AltLeft" }), 20);
+    assert.strictEqual(platform.keyNumber({ keyCode: 72, code: "ArrowLeft" }), 72);
 }
 
 // Verify physical punctuation remains a fallback, preserving remapped Backspace and other explicit keyCodes.
@@ -360,17 +367,18 @@ function testPunctuationPhysicalKeyCodes() {
         [189, "Minus", 45], [190, "Period", 46], [188, "Comma", 44], [191, "Slash", 47],
         [220, "Backslash", 92], [193, "IntlRo", 92], [255, "IntlYen", 92], [226, "IntlBackslash", 92],
         [192, "Backquote", 96], [219, "BracketLeft", 91], [221, "BracketRight", 93],
-        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316]
+        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316],
+        [65, "Semicolon", 59]
     ]) {
-        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
-        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode: 0, code }), expected);
     }
     // NICOLA-F maps the physical Quote key to Backspace; its reported function must win.
     for (const [keyCode, code, expected] of [
         [8, "Quote", 295], [9, "Backquote", 293], [13, "Semicolon", 294],
         [27, "Backquote", 257], [109, "Minus", 314], [107, "Equal", 315]
     ]) {
-        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
     }
 }
 
@@ -408,10 +416,10 @@ function loadResizeEnvironment(settings = {}, scaleMode = "stretch") {
     context.Module.canvas = canvas;
     context.Browser = { setCanvasSize: (width, height) => Object.assign(canvas, { width, height }) };
     context._dmNativeSetWindowSize = (width, height) => context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
-    context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0,
+    context.LibraryDefoldPlatform.dmNativeOpenWindowJS(8, 0, 0,
         settings["display.high_dpi"] ?? true, false, 2);
     context.resizes = [];
-    context.DefoldPlatform.resizeFunc = (width, height) => context.resizes.push([width, height]);
+    context.LibraryDefoldPlatform.dmNativeSetWindowSizeCallback((width, height) => context.resizes.push([width, height]));
     context.resize = () => {
         context.CUSTOM_PARAMETERS.resize_window_callback();
         context.LibraryDefoldPlatform.dmNativeSwapBuffers();
@@ -701,6 +709,31 @@ function testLoaderFullscreenToggle() {
         assert.strictEqual(context.document.fullscreenElement, null);
         assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
     }
+}
+
+// Fullscreen and pointer lock on a sibling element must leave the game canvas and its input alone.
+function testUnrelatedDisplayOwner() {
+    const context = loadResizeEnvironment({}, "no_scale");
+    context.resize();
+    const canvas = context.Module.canvas;
+    const size = [canvas.width, canvas.height];
+    const video = context.createFullscreenElement();
+    video.requestFullscreen();
+    context.resize();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+    assert.deepStrictEqual([canvas.width, canvas.height], size);
+    const wrapper = context.createFullscreenElement();
+    wrapper.contains = element => element === canvas;
+    wrapper.requestFullscreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, true);
+    context.document.pointerLockElement = video;
+    context.DefoldPlatform.readDisplayState();
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseLocked(), 0);
+    context.document.exitPointerLock = () => assert.fail("released the sibling's pointer lock");
+    context.LibraryDefoldPlatform.dmNativeSetCursorVisible(true);
+    context.document.pointerLockElement = canvas;
+    context.DefoldPlatform.readDisplayState();
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseLocked(), 1);
 }
 
 // Resize must use drawing-buffer DPI (#8844) without clearing the canvas again for an unchanged viewport (#11869).
@@ -2936,8 +2969,8 @@ function testLoaderArchiveBufferOwnership() {
     assert.strictEqual(preloadedFiles, archives.length);
 }
 
-function loadPointerEnvironment() {
-    const context = loadEnvironment();
+function loadPointerEnvironment(standardWheel = false) {
+    const context = loadEnvironment(standardWheel);
     context.Module.canvas = {
         width: 100,
         height: 100,
@@ -2950,7 +2983,11 @@ function loadPointerEnvironment() {
             this.mouseX = event.clientX;
             this.mouseY = event.clientY;
         },
-        getMouseWheelDelta: () => 1
+        getMouseWheelDelta(event) {
+            if (event.type === "mousewheel") return event.wheelDelta / 120;
+            if (event.type === "DOMMouseScroll") return event.detail / 3;
+            return event.deltaY / 3; // Emscripten's wheel conversion for DOM_DELTA_LINE.
+        }
     };
     return context;
 }
@@ -3013,7 +3050,6 @@ function testMixedTouchAndMouseSources() {
     const platform = context.DefoldPlatform;
     const primary = { identifier: 1, clientX: 10, clientY: 20 };
     platform.onTouchStart(touchEvent(context, [primary]));
-    platform.mouseButtonFunc = () => {};
 
     // DOM right and middle buttons are swapped in the native API.
     for (const [domButton, nativeButton] of [[2, 1], [1, 2]]) {
@@ -3027,7 +3063,7 @@ function testMixedTouchAndMouseSources() {
     }
 
     platform.onTouchMove(touchEvent(context, [primary]));
-    platform.onMouseWheel(mouseEvent(context));
+    platform.onMouseWheel({ ...mouseEvent(context), type: "mousewheel", wheelDelta: 120 });
     assert.strictEqual(library.dmNativeGetMouseWheel(), 1);
     assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
@@ -3040,12 +3076,156 @@ function testMixedTouchAndMouseSources() {
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
 }
 
+// Each browser event must increase the engine wheel position for up and decrease it for down.
+function testMouseWheelDirection() {
+    for (const [type, field, down] of [["wheel", "deltaY", 3], ["mousewheel", "wheelDelta", -120], ["DOMMouseScroll", "detail", 3]]) {
+        const context = loadPointerEnvironment(type === "wheel");
+        const event = { ...mouseEvent(context), type, deltaMode: 1, [field]: down };
+        context.window.dispatchEvent(event);
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseWheel(), -1, type);
+        context.window.dispatchEvent({ ...event, [field]: -down });
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseWheel(), 0, type);
+    }
+}
+
+// Verify named and legacy DOM keys, layout-dependent letters and Unicode reach the engine through its callbacks.
+function testKeyboardTranslation() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    context.document.activeElement = canvas;
+    const characters = [];
+    api.dmNativeSetCharCallback((codepoint, action) => characters.push([codepoint, action]));
+    function send(type, keyCode, code, charCode = 0) {
+        context.window.dispatchEvent({ type, target: canvas, keyCode, code, charCode, preventDefault() {}, stopPropagation() {} });
+    }
+    for (const [value, code, expected] of [[65, "KeyQ", 65], [37, "ArrowLeft", 285], [0, "F12", 269],
+        [105, "", 311], [0, "NumpadEnter", 318], [220, "IntlYen", 92], [16, "ShiftRight", 288], [8, "", 295]]) {
+        send("keydown", value, code);
+        assert.strictEqual(api.dmNativeGetKey(expected), 1);
+        send("keyup", value, code);
+        assert.strictEqual(api.dmNativeGetKey(expected), 0);
+    }
+    send("keydown", 32, "Space");
+    send("keypress", 0, "", 0x1f600);
+    assert.deepStrictEqual(characters, [[32, 1], [0x1f600, 1]]);
+}
+
+// Remapped printable keys must update the logical binding and still deliver the typed character.
+function testPrintableKeysOnNamedPositions() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    const characters = [];
+    api.dmNativeSetCharCallback(codepoint => characters.push(codepoint));
+    for (const [code, key, keyCode, physicalKey] of [
+        ["CapsLock", " ", 32, 320], ["ArrowLeft", "h", 72, 285], ["Space", "3", 51, 32]
+    ]) {
+        let prevented = false;
+        const event = { target: canvas, code, key, keyCode,
+            preventDefault() { prevented = true; }, stopPropagation() {} };
+        context.window.dispatchEvent({ ...event, type: "keydown" });
+        assert.strictEqual(api.dmNativeGetKey(keyCode), 1, code);
+        assert.strictEqual(api.dmNativeGetKey(physicalKey), 0, code);
+        assert.strictEqual(prevented, key === " ", code);
+        if (!prevented) context.window.dispatchEvent({ ...event, type: "keypress", charCode: key.charCodeAt(0) });
+        context.window.dispatchEvent({ ...event, type: "keyup" });
+        assert.strictEqual(api.dmNativeGetKey(keyCode), 0, code);
+    }
+    assert.deepStrictEqual(characters, [32, 104, 51]);
+}
+
+// Candidate navigation belongs to the IME, including the boundary events only identified by keyCode 229.
+function testKeyboardComposition() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    context.document.activeElement = canvas;
+    const characters = [];
+    api.dmNativeSetCharCallback(codepoint => characters.push(codepoint));
+    const send = event => context.window.dispatchEvent({
+        target: canvas,
+        preventDefault() { assert.fail("IME input must retain its browser default"); },
+        stopPropagation() { assert.fail("IME input must propagate"); },
+        ...event
+    });
+
+    for (const [code, keyCode, nativeKey] of [["Space", 32, 32], ["ArrowDown", 40, 284], ["Enter", 13, 294]]) {
+        for (const flags of [{ isComposing: true, keyCode }, { isComposing: false, keyCode: 229 }]) {
+            send({ type: "keydown", key: "Process", code, ...flags });
+            assert.strictEqual(api.dmNativeGetKey(nativeKey), 0);
+            send({ type: "keyup", key: "Process", code, ...flags });
+        }
+    }
+    send({ type: "keypress", isComposing: true, charCode: 32 });
+    send({ type: "keypress", isComposing: false, charCode: 229, keyCode: 229 });
+    assert.deepStrictEqual(characters, [229]);
+
+    send({ type: "keydown", code: "ArrowDown", keyCode: 40, preventDefault() {}, stopPropagation() {} });
+    assert.strictEqual(api.dmNativeGetKey(284), 1);
+    send({ type: "keyup", code: "ArrowDown", keyCode: 229, isComposing: true });
+    assert.strictEqual(api.dmNativeGetKey(284), 0);
+}
+
+// Reopening the canvas must discard held input, old callbacks and gamepad allocations, then rediscover connected devices.
+function testPlatformReinitialization() {
+    const context = loadPointerEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    let frees = 0;
+    context._free = () => ++frees;
+    context.navigator.getGamepads = () => [{ id: "USB", mapping: "", axes: [], buttons: [] }];
+    const connections = [];
+    api.dmNativeSetGamepadCallback((slot, connected) => connections.push([slot, connected]));
+    context.window.dispatchEvent({ ...mouseEvent(context), type: "mousedown" });
+    assert.strictEqual(api.dmNativeGetMouseButton(0), true);
+    api.dmNativeTerminate();
+    assert.strictEqual(frees, 2);
+    api.dmNativeInitJS();
+    assert.strictEqual(api.dmNativeGetMouseButton(0), false);
+    assert.strictEqual(api.dmNativeGetJoystickParam(0, joystickParams[0]), 0);
+    api.dmNativeSetGamepadCallback((slot, connected) => connections.push([slot, connected]));
+    assert.deepStrictEqual(connections, [[0, 1], [0, 1]]);
+}
+
+// The loader can enter fullscreen before the next engine initializes, then exit from the same canvas.
+function testFullscreenBeforeInit() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    api.dmNativeTerminate();
+    context.Module.canvas = context.createFullscreenElement();
+    context.DefoldPlatform.requestFullScreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, true);
+    api.dmNativeInitJS();
+    context.DefoldPlatform.cancelFullScreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+}
+
+// Failure to create either WebGL version leaves the window closed and permits a successful retry.
+function testWebGLFallbackAndRetry() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const attempts = [];
+    let supported = 0;
+    context.Module.canvas = {};
+    context.Browser = { createContext(canvas, useGL, setInModule, attributes) {
+        attempts.push(attributes.majorVersion);
+        return attributes.majorVersion === supported ? {} : null;
+    } };
+    const open = () => api.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2);
+    assert.strictEqual(open(), 0);
+    assert.strictEqual(api.dmNativeGetWindowParam(1), 0);
+    supported = 1;
+    assert.strictEqual(open(), 1);
+    assert.deepStrictEqual(attempts, [2, 1, 2, 1]);
+    assert.strictEqual(api.dmNativeGetWindowParam(1), 1);
+}
+
 async function runTests() {
-    for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testGraphicsFallbackCanvasListeners,
-                       testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                       testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
-                       testRemappedModifierKeys,
-                       testPunctuationPhysicalKeyCodes,
+    for (const test of [testKeyboardTranslation, testPrintableKeysOnNamedPositions, testKeyboardComposition, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
+                       testWebGLFallbackAndRetry, testWindowCloseAndReopen, testGraphicsFallbackCanvasListeners,
+                       testModifierKeyEvents, testModifierPhysicalKeyCodes, testRemappedModifierKeys,
+                       testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput, testGamepadCallbackTeardown,
+                       testLoaderFullscreenToggle, testUnrelatedDisplayOwner,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,

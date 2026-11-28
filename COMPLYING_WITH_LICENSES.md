@@ -31,6 +31,7 @@ The following software has licenses which require inclusion of their respective 
     * [Metal.hpp](/licenses/NOTICE-metal-cpp) - Used by the Metal graphics backend on macOS and iOS.
     * [VkQuality](/licenses/NOTICE-vkquality) - Used by the Android Vulkan graphics backend to select between Vulkan and OpenGL ES.
   * MIT
+    * [Wayland protocol definitions](/licenses/NOTICE-wayland-protocols) - Included in Linux builds that use the native window backend.
     * [Slug reference shaders](/licenses/NOTICE-slug) - Eric Lengyel. Used by the built-in Vector font shaders. Include this notice in games and applications that distribute these shaders. Defold uses the MIT license option offered by the upstream project.
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
     * [JSONTestSuite](/licenses/NOTICE-jsontestsuite) - Nicolas Seriot. Used as a JSON parser test corpus. Not included in the Defold engine or games built with Defold.
@@ -69,8 +70,7 @@ The following third party software has licenses which does not require inclusion
   * ZLib
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
-    * GLFW - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
     * SDL - Sam Lantinga (slouken@libsdl.org)
 
-NOTE: The Zlib license encourages attribution but does not require inclusion of the license.
+For binary-only releases, crediting zlib-licensed software is optional. Source distributions must retain the original notice and identify modified versions.

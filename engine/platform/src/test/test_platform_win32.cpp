@@ -14,38 +14,19 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "test_window_focus.h"
 
 #include "../platform_window_win32.h"
+#include "../platform_window_constants.h"
+#include "../win32/window_win32.h"
 
-// Cleanup before a native window exists must not query a null GLFW handle.
+// Verify teardown is safe before the HWND exists.
 TEST(dmPlatform, WindowsCloseUnopenedWindow)
 {
     HWindow window = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow) 0, window);
+    ASSERT_NE((HWindow)0, window);
     dmPlatform::CloseWindow(window);
     ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
-    dmPlatform::DeleteWindow(window);
-}
-
-// A failed window attempt must be safe to close before graphics fallback reuses the window wrapper.
-TEST(dmPlatform, WindowsCloseFailedWindow)
-{
-    HWindow window = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow) 0, window);
-
-    WindowCreateParams params;
-    WindowCreateParamsInitialize(&params);
-    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
-    params.m_Hidden = true;
-    params.m_FocusOnShow = false;
-    params.m_Width = 0;
-    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
-    dmPlatform::CloseWindow(window);
-    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
-
-    params.m_Width = 640;
-    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
-    dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
 }
 
@@ -53,7 +34,7 @@ TEST(dmPlatform, WindowsCloseFailedWindow)
 TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
 {
     HWindow window = dmPlatform::NewWindow();
-    ASSERT_NE((HWindow) 0, window);
+    ASSERT_NE((HWindow)0, window);
 
     WindowCreateParams params;
     WindowCreateParamsInitialize(&params);
@@ -72,8 +53,429 @@ TEST(dmPlatform, WindowsCloseWindowTwiceAndReopen)
     dmPlatform::DeleteWindow(window);
 }
 
-// Verifies both taskbar fallback icons match the executable before event polling,
-// guarding against generic taskbar icons when startup blocks the window thread.
+struct ResizeAction
+{
+    HWindow                   m_Window;
+    const WindowCreateParams* m_ReopenParams;
+    uint32_t                  m_Callbacks;
+};
+
+static void CloseOnResize(void* data, uint32_t, uint32_t)
+{
+    ResizeAction* action = (ResizeAction*)data;
+    if (!action->m_Window || ++action->m_Callbacks != 1)
+    {
+        return;
+    }
+
+    if (action->m_ReopenParams)
+    {
+        dmPlatform::CloseWindow(action->m_Window);
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action->m_Window, *action->m_ReopenParams));
+    }
+    else
+    {
+        dmPlatform::DeleteWindow(action->m_Window);
+        action->m_Window = 0;
+    }
+}
+
+// A fullscreen display change can replace its HWND from the resize callback while Win32 is processing the message.
+TEST(dmPlatform, WindowsDisplayChangeCanReopenWindow)
+{
+    WindowCreateParams replacement;
+    WindowCreateParamsInitialize(&replacement);
+    replacement.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    replacement.m_Hidden = true;
+    WindowCreateParams fullscreen = replacement;
+    fullscreen.m_Fullscreen = true;
+    ResizeAction action = { 0, &replacement, 0 };
+    fullscreen.m_ResizeCallback = CloseOnResize;
+    fullscreen.m_ResizeCallbackUserData = &action;
+
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, fullscreen));
+    HWND original = dmPlatform::GetWindowsHWND(window);
+    ASSERT_TRUE(SetWindowPos(original, 0, 0, 0, 64, 64, SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER));
+    action.m_Window = window;
+    EXPECT_EQ((LRESULT)0, SendMessageW(original, WM_DISPLAYCHANGE, 32, 0));
+    EXPECT_EQ(1u, action.m_Callbacks);
+    EXPECT_FALSE(IsWindow(original));
+    EXPECT_TRUE(IsWindow(dmPlatform::GetWindowsHWND(window)));
+    dmPlatform::DeleteWindow(window);
+}
+
+// A synchronous resize may delete the window or reopen the same handle without notifying the replacement.
+TEST(dmPlatform, WindowsResizeCallbackCanDeleteOrReopenWindow)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_ResizeCallback = CloseOnResize;
+    for (int reopen = 0; reopen <= 1; ++reopen)
+    {
+        ResizeAction action = { dmPlatform::NewWindow(), reopen ? &params : 0, 0 };
+        ASSERT_NE((HWindow)0, action.m_Window);
+        params.m_ResizeCallbackUserData = &action;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action.m_Window, params));
+        HWND original = dmPlatform::GetWindowsHWND(action.m_Window);
+        const uint32_t width = dmPlatform::GetWindowWidth(action.m_Window) + 1;
+        dmPlatform::SetWindowSize(action.m_Window, width, dmPlatform::GetWindowHeight(action.m_Window));
+        EXPECT_FALSE(IsWindow(original));
+        EXPECT_EQ(1u, action.m_Callbacks);
+        if (reopen)
+        {
+            EXPECT_TRUE(IsWindow(dmPlatform::GetWindowsHWND(action.m_Window)));
+            dmPlatform::DeleteWindow(action.m_Window);
+        }
+    }
+}
+
+static void CountFocus(void* data, uint32_t focused)
+{
+    ++((unsigned*)data)[focused];
+}
+
+static void ReopenOnFocus(void* data, uint32_t focused)
+{
+    if (focused)
+    {
+        HWindow window = (HWindow)data;
+        dmPlatform::CloseWindow(window);
+        WindowCreateParams replacement;
+        WindowCreateParamsInitialize(&replacement);
+        replacement.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+        replacement.m_Hidden = true;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, replacement));
+    }
+}
+
+// A focus callback can replace the window during ShowWindow. The hidden replacement must keep its initial focus state.
+TEST(dmPlatform, WindowsShowPreservesHiddenReplacement)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_FocusCallback = ReopenOnFocus;
+    params.m_FocusCallbackUserData = window;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::PollEvents(window);
+    HWND original = dmPlatform::GetWindowsHWND(window);
+    dmPlatform::ShowWindow(window);
+    HWND replacement = dmPlatform::GetWindowsHWND(window);
+    EXPECT_NE(original, replacement);
+    EXPECT_TRUE(IsWindow(replacement));
+    EXPECT_FALSE(IsWindowVisible(replacement));
+    EXPECT_NE(replacement, GetFocus());
+    dmPlatform::DeleteWindow(window);
+}
+
+// Polling only the main window must deliver secondary focus and recenter its locked cursor.
+TEST(dmPlatform, WindowsPollSecondaryWindow)
+{
+    HWindow main = dmPlatform::NewWindow();
+    HWindow second = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(main, params));
+    unsigned events[2] = {};
+    params.m_FocusCallback = CountFocus;
+    params.m_FocusCallbackUserData = events;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(second, params));
+    dmPlatform::ShowWindow(second);
+    HWND hwnd = dmPlatform::GetWindowsHWND(second);
+    SetFocus(hwnd);
+    EXPECT_EQ(0u, events[1]);
+    dmPlatform::PollEvents(main);
+    EXPECT_EQ(1u, events[1]);
+
+    dmPlatform::SetDeviceState(second, WINDOW_DEVICE_STATE_CURSOR, false);
+    RECT client;
+    GetClientRect(hwnd, &client);
+    POINT center = { client.right / 2, client.bottom / 2 };
+    POINT screen = center;
+    ClientToScreen(hwnd, &screen);
+    SetCursorPos(screen.x + 10, screen.y);
+    SendMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(center.x + 10, center.y));
+    dmPlatform::PollEvents(main);
+    POINT actual;
+    GetCursorPos(&actual);
+    EXPECT_EQ(screen.x, actual.x);
+    EXPECT_EQ(screen.y, actual.y);
+    dmPlatform::DeleteWindow(second);
+    dmPlatform::DeleteWindow(main);
+}
+
+// Both live and deferred focus-loss callbacks must see the held inputs even after Win32 releases mouse capture.
+TEST(dmPlatform, WindowsFocusLossReportsPressedInput)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+    for (int poll_first = 0; poll_first <= 1; ++poll_first)
+    {
+        dmWindowTest::FocusLossInput observed = { window, 0, 0, 0 };
+        params.m_FocusCallbackUserData = &observed;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        if (poll_first)
+        {
+            dmPlatform::PollEvents(window);
+        }
+
+        SendMessageW(hwnd, WM_KEYDOWN, 'A', 0x001e0001);
+        SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+        SetFocus(0);
+        EXPECT_EQ(poll_first, observed.m_Losses);
+        EXPECT_EQ(0, dmPlatform::GetKey(window, 'A'));
+        EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(1, observed.m_Losses);
+        EXPECT_EQ(1, observed.m_Key);
+        EXPECT_EQ(1, observed.m_Button);
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// Capture loss before a modal focus change must leave held buttons visible to the focus callback.
+TEST(dmPlatform, WindowsCaptureLossBeforeFocusCallback)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = dmWindowTest::FocusLossInput::Record;
+    for (int poll_first = 0; poll_first <= 1; ++poll_first)
+    {
+        dmWindowTest::FocusLossInput observed = { window, 0, 0, 0 };
+        params.m_FocusCallbackUserData = &observed;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        if (poll_first)
+        {
+            dmPlatform::PollEvents(window);
+        }
+
+        SendMessageW(hwnd, WM_KEYDOWN, 'A', 0x001e0001);
+        SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+        ASSERT_EQ(hwnd, GetCapture());
+        ASSERT_TRUE(ReleaseCapture());
+        EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 0));
+        SetFocus(0);
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(1, observed.m_Losses);
+        EXPECT_EQ(1, observed.m_Key);
+        EXPECT_EQ(1, observed.m_Button);
+        EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// Capture loss without a focus change must clear stale held buttons by the end of the poll.
+TEST(dmPlatform, WindowsCaptureLossClearsButtons)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    dmPlatform::PollEvents(window);
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+    ASSERT_EQ(hwnd, GetCapture());
+    ASSERT_TRUE(ReleaseCapture());
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 0));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(10, 10));
+    ASSERT_TRUE(ReleaseCapture());
+    SendMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(10, 10));
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, 0));
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, 1));
+    SendMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(10, 10));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Losing focus before the first poll must deliver the gain and loss in order after graphics startup.
+TEST(dmPlatform, WindowsFocusLostBeforeFirstPoll)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    dmArray<uint32_t> events;
+    events.SetCapacity(4);
+    params.m_FocusCallbackUserData = &events;
+    params.m_FocusCallback = [](void* data, uint32_t focused) {
+                                 ((dmArray<uint32_t>*)data)->Push(focused);
+                             };
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    ASSERT_EQ(hwnd, GetFocus());
+    SetFocus(0);
+    ASSERT_EQ(0u, events.Size());
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(2u, events.Size());
+    EXPECT_EQ(1u, events[0]);
+    EXPECT_EQ(0u, events[1]);
+    dmPlatform::DeleteWindow(window);
+}
+
+// The player stays hidden until shown and delivers startup focus after graphics initialization on each launch.
+TEST(dmPlatform, WindowsStartupVisibilityAndFocus)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_FocusCallback = CountFocus;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        unsigned events[2] = {};
+        params.m_FocusCallbackUserData = events;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        ASSERT_FALSE(IsWindowVisible(hwnd));
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(IsWindowVisible(hwnd));
+        SetFocus(hwnd);
+        ASSERT_EQ(hwnd, GetFocus());
+        ASSERT_EQ(0u, events[1]);
+        dmPlatform::PollEvents(window);
+        dmPlatform::PollEvents(window);
+        ASSERT_EQ(1u, events[1]);
+        SetFocus(0);
+        ASSERT_EQ(1u, events[0]);
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// Showing an already-visible player should take keyboard focus from a child only when focus on show is enabled.
+TEST(dmPlatform, WindowsShowWithFocusedChild)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    for (int focus_on_show = 0; focus_on_show <= 1; ++focus_on_show)
+    {
+        params.m_FocusOnShow = focus_on_show;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        HWND hwnd = dmPlatform::GetWindowsHWND(window);
+        HWND child = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE, 0, 0, 40, 20, hwnd, 0, GetModuleHandleW(0), 0);
+        ASSERT_NE((HWND)0, child);
+        SetFocus(child);
+        ASSERT_EQ(child, GetFocus());
+
+        dmPlatform::ShowWindow(window);
+        EXPECT_EQ(focus_on_show ? hwnd : child, GetFocus());
+        dmPlatform::CloseWindow(window);
+    }
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// A focused native child shares the game's cursor lock, including when focus leaves or returns directly to the child.
+TEST(dmPlatform, WindowsCursorLockWithFocusedChild)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    HWND child = CreateWindowW(L"EDIT", L"", WS_CHILD | WS_VISIBLE, 0, 0, 40, 20, hwnd, 0, GetModuleHandleW(0), 0);
+    ASSERT_TRUE(child);
+    SetFocus(child);
+    ASSERT_EQ(child, GetFocus());
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    RECT client, clip;
+    GetClientRect(hwnd, &client);
+    MapWindowPoints(hwnd, 0, (POINT*)&client, 2);
+    GetClipCursor(&clip);
+    EXPECT_TRUE(EqualRect(&client, &clip));
+    SetFocus(hwnd);
+    SetFocus(child);
+    EXPECT_TRUE(window->m_CursorCaptured);
+    SetFocus(0);
+    dmPlatform::PollEvents(window);
+    EXPECT_FALSE(window->m_CursorCaptured);
+    GetClipCursor(&clip);
+    EXPECT_FALSE(EqualRect(&client, &clip));
+    SetFocus(child);
+    dmPlatform::PollEvents(window);
+    GetClipCursor(&clip);
+    EXPECT_TRUE(EqualRect(&client, &clip));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Minimize and restore must each reach listeners before their corresponding resize.
+TEST(dmPlatform, WindowsMinimizeRestoreCallbackOrder)
+{
+    enum Event
+    {
+        MINIMIZED, RESTORED, RESIZED
+    };
+    dmArray<Event> events;
+    events.SetCapacity(8);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_ResizeCallbackUserData = params.m_IconifyCallbackUserData = &events;
+    params.m_IconifyCallback = [](void* data, uint32_t minimized) {
+                                   ((dmArray<Event>*)data)->Push(minimized ? MINIMIZED : RESTORED);
+                               };
+    params.m_ResizeCallback = [](void* data, uint32_t, uint32_t) {
+                                  ((dmArray<Event>*)data)->Push(RESIZED);
+                              };
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    dmPlatform::PollEvents(window);
+    events.SetSize(0);
+
+    dmPlatform::IconifyWindow(window);
+    ::ShowWindow(dmPlatform::GetWindowsHWND(window), SW_RESTORE);
+    ASSERT_EQ(4u, events.Size());
+    EXPECT_EQ(MINIMIZED, events[0]);
+    EXPECT_EQ(RESIZED, events[1]);
+    EXPECT_EQ(RESTORED, events[2]);
+    EXPECT_EQ(RESIZED, events[3]);
+    dmPlatform::DeleteWindow(window);
+}
+
+// Native clients and the taskbar must find both executable icons before the game starts polling.
 TEST(dmPlatform, WindowsClassIconsBeforePolling)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -87,15 +489,330 @@ TEST(dmPlatform, WindowsClassIconsBeforePolling)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
 
     HWND hwnd = dmPlatform::GetWindowsHWND(window);
-    // GLFW sets process DPI awareness, which affects the default icon size.
+    // Process DPI awareness affects the size of the default icon.
     HINSTANCE instance = (HINSTANCE) GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
     HICON icon = (HICON) LoadImageW(instance, MAKEINTRESOURCEW(100),
-                                  IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+                                    IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
     ASSERT_NE((HICON) 0, icon);
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICON));
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICONSM));
+    EXPECT_EQ(icon, (HICON)SendMessageW(hwnd, WM_GETICON, ICON_BIG, 0));
+    EXPECT_EQ(icon, (HICON)SendMessageW(hwnd, WM_GETICON, ICON_SMALL, 0));
 
     dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
+struct WindowCallbacks
+{
+    uint32_t m_CloseCount, m_CharCount, m_Codepoint, m_EmptyMarked;
+    bool     m_CloseAllowed;
+};
+
+static int CloseRequested(void* data)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    ++callbacks->m_CloseCount;
+    return callbacks->m_CloseAllowed;
+}
+
+static void CharInput(void* data, int value)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    ++callbacks->m_CharCount;
+    callbacks->m_Codepoint = value;
+}
+
+static void MarkedInput(void* data, char* text)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    if (!*text)
+    {
+        ++callbacks->m_EmptyMarked;
+    }
+}
+
+// Verifies a close veto preserves the HWND and a closed or failed window can reopen with another renderer.
+TEST(dmPlatform, WindowsCloseAndReopen)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    WindowCallbacks events = {};
+    params.m_Hidden = true;
+    params.m_CloseCallback = CloseRequested;
+    params.m_CloseCallbackUserData = &events;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
+    dmPlatform::CloseWindow(window);
+    ASSERT_EQ(0u, dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED));
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    ASSERT_FALSE(IsWindowVisible(hwnd));
+    ASSERT_EQ((uintptr_t)hwnd, dmPlatform::GetNativeWindowId(window).m_Id);
+    ASSERT_EQ((HGLRC)0, dmPlatform::GetWindowsHGLRC(window));
+    ASSERT_EQ((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
+    SendMessageW(hwnd, WM_CLOSE, 0, 0);
+    ASSERT_EQ(1U, events.m_CloseCount);
+    ASSERT_TRUE(IsWindow(hwnd));
+    events.m_CloseAllowed = true;
+    PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(2U, events.m_CloseCount);
+    ASSERT_FALSE(IsWindow(hwnd));
+    ASSERT_EQ((uintptr_t)0, dmPlatform::GetNativeWindowId(window).m_Id);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    ASSERT_EQ((HGLRC)0, dmPlatform::GetWindowsHGLRC(window));
+    ASSERT_FALSE(dmPlatform::GetWindowStateParam(window, WINDOW_STATE_AUX_CONTEXT));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Verifies scan-code modifiers, UTF-16 input, composition end, wheel accumulation and focus cleanup through the HWND.
+TEST(dmPlatform, WindowsInputMessages)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Hidden = true;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    WindowCallbacks events = {};
+    dmPlatform::SetKeyboardCharCallback(window, CharInput, &events);
+    dmPlatform::SetKeyboardMarkedTextCallback(window, MarkedInput, &events);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0x011d0001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CANCEL, 0x01460001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_PAUSE));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_SCROLL_LOCK));
+    SendMessageW(hwnd, WM_KEYUP, VK_CANCEL, 0xc1460001);
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_PAUSE));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SendMessageW(hwnd, WM_KEYUP, VK_SHIFT, 0xc1360001);
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x01360001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSHIFT));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_PROCESSKEY, 0x00390001);
+    ASSERT_EQ(0, dmPlatform::GetKey(window, ' '));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SPACE, 0x00390001);
+    SendMessageW(hwnd, WM_KEYUP, VK_PROCESSKEY, 0xc0390001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, ' '));
+    SendMessageW(hwnd, WM_KEYUP, VK_SPACE, 0xc0390001);
+    SendMessageW(hwnd, WM_CHAR, 0xd83d, 0);
+    ASSERT_EQ(0U, events.m_CharCount);
+    SendMessageW(hwnd, WM_CHAR, 0xde03, 0);
+    ASSERT_EQ(1U, events.m_CharCount);
+    ASSERT_EQ(0x1f603U, events.m_Codepoint);
+    SendMessageW(hwnd, WM_IME_ENDCOMPOSITION, 0, 0);
+    ASSERT_EQ(1U, events.m_EmptyMarked);
+    SendMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, 30), 0);
+    ASSERT_EQ(0, dmPlatform::GetMouseWheel(window));
+    SendMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, 90), 0);
+    ASSERT_EQ(1, dmPlatform::GetMouseWheel(window));
+    SendMessageW(hwnd, WM_XBUTTONDOWN, MAKEWPARAM(0, XBUTTON2), 0);
+    ASSERT_EQ(1, dmPlatform::GetMouseButton(window, 4));
+    SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+    ASSERT_EQ(0, dmPlatform::GetMouseButton(window, 4));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    dmPlatform::DeleteWindow(window);
+}
+
+struct MarkedTextAction
+{
+    HWindow  m_Window;
+    uint32_t m_Calls;
+    bool     m_Delete;
+};
+
+static void StopMarkedText(void* data, char* text)
+{
+    MarkedTextAction* action = (MarkedTextAction*)data;
+    ++action->m_Calls;
+    EXPECT_STREQ("composing", text);
+    if (action->m_Delete)
+    {
+        dmPlatform::DeleteWindow(action->m_Window);
+        action->m_Window = 0;
+    }
+    else
+    {
+        dmPlatform::SetKeyboardMarkedTextCallback(action->m_Window, 0, 0);
+    }
+}
+
+// The first IME notification can remove its listener or delete the window before the committed text is delivered.
+TEST(dmPlatform, WindowsImeCallbackCanUnregisterOrDeleteWindow)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    for (int remove_window = 0; remove_window < 2; ++remove_window)
+    {
+        MarkedTextAction action = { dmPlatform::NewWindow(), 0, remove_window != 0 };
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(action.m_Window, params));
+        dmPlatform::SetKeyboardMarkedTextCallback(action.m_Window, StopMarkedText, &action);
+        char composition[] = "composing", committed[] = "committed";
+        EXPECT_EQ(!action.m_Delete, dmPlatform::Win32DispatchImeText(action.m_Window, composition, committed));
+        EXPECT_EQ(1u, action.m_Calls);
+        if (action.m_Window)
+        {
+            dmPlatform::DeleteWindow(action.m_Window);
+        }
+    }
+}
+
+// A second mouse press must preserve the first button and keep capture until the last release.
+TEST(dmPlatform, WindowsMouseButtonChord)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, 0);
+    SendMessageW(hwnd, WM_RBUTTONDOWN, MK_LBUTTON | MK_RBUTTON, 0);
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT));
+    SendMessageW(hwnd, WM_RBUTTONUP, MK_LBUTTON, 0);
+    EXPECT_EQ(hwnd, GetCapture());
+    EXPECT_EQ(1, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT));
+    SendMessageW(hwnd, WM_LBUTTONUP, 0, 0);
+    EXPECT_EQ((HWND)0, GetCapture());
+    EXPECT_EQ(0, dmPlatform::GetMouseButton(window, dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Independent Ctrl and Right Alt transitions survive different timestamps or an intervening mouse message.
+TEST(dmPlatform, WindowsSeparateCtrlAndRightAlt)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Hidden = true;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    for (int pressed = 1; pressed >= 0; --pressed)
+    {
+        UINT message = pressed ? WM_KEYDOWN : WM_KEYUP;
+        LPARAM released = pressed ? 0 : (LPARAM)0xc0000000;
+        ASSERT_TRUE(PostMessageW(hwnd, message, VK_CONTROL, released | 0x001d0001));
+        MSG ctrl, tick;
+        ASSERT_TRUE(PeekMessageW(&ctrl, hwnd, message, message, PM_NOREMOVE));
+        UINT_PTR timer = SetTimer(hwnd, 1, USER_TIMER_MINIMUM, 0);
+        ASSERT_NE((UINT_PTR)0, timer);
+        do
+        {
+            ASSERT_GT(GetMessageW(&tick, hwnd, WM_TIMER, WM_TIMER), 0);
+        } while (tick.time == ctrl.time);
+
+        KillTimer(hwnd, timer);
+        ASSERT_TRUE(PostMessageW(hwnd, message, VK_MENU, released | 0x01380001));
+        dmPlatform::PollEvents(window);
+        EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+        EXPECT_EQ(pressed, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RALT));
+    }
+
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0x001d0001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_MENU, 0x01380001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    ASSERT_TRUE(PostMessageW(hwnd, WM_MOUSEMOVE, 0, 0));
+    ASSERT_TRUE(PostMessageW(hwnd, WM_KEYUP, VK_MENU, 0xc1380001));
+    // Give the synchronous Ctrl release the queued Alt release's message time.
+    MSG alt;
+    ASSERT_TRUE(PeekMessageW(&alt, hwnd, WM_KEYUP, WM_KEYUP, PM_NOREMOVE));
+    ASSERT_EQ(alt.time, (DWORD)GetMessageTime());
+    SendMessageW(hwnd, WM_KEYUP, VK_CONTROL, 0xc01d0001);
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RALT));
+
+    dmPlatform::DeleteWindow(window);
+}
+
+// Alt+Space must reach the game without entering the modal system menu. Alt+F4 must still reach Windows.
+TEST(dmPlatform, WindowsKeyboardMenu)
+{
+    dmWindow window = {};
+    LRESULT result = 0;
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSKEYDOWN, VK_SPACE, 0x20390001, &result));
+    EXPECT_TRUE(dmPlatform::GetKey(&window, ' '));
+    EXPECT_TRUE(dmPlatform::Win32HandleInput(&window, WM_SYSCHAR, ' ', 0x20390001, &result));
+    EXPECT_TRUE(dmPlatform::Win32HandleInput(&window, WM_SYSCOMMAND, SC_KEYMENU, ' ', &result));
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSKEYDOWN, VK_F4, 0x203e0001, &result));
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSCOMMAND, SC_CLOSE, 0, &result));
+}
+
+// Activating a locked window through a caption button must leave the pointer free until the click completes.
+TEST(dmPlatform, WindowsCaptionActivationDefersCursorCapture)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = window->m_Window;
+    SetFocus(0);
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    SendMessageW(hwnd, WM_MOUSEACTIVATE, (WPARAM)hwnd, MAKELPARAM(HTCLOSE, WM_LBUTTONDOWN));
+    SetFocus(hwnd);
+    EXPECT_FALSE(window->m_CursorCaptured);
+    SendMessageW(hwnd, WM_CAPTURECHANGED, 0, 0);
+    EXPECT_TRUE(window->m_CursorCaptured);
+    dmPlatform::DeleteWindow(window);
+}
+
+// Polling must reconcile missing key-up events from overlapping Shifts and Win+V while preserving held modifiers.
+TEST(dmPlatform, WindowsMissingModifierReleases)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    dmPlatform::ShowWindow(window);
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    ASSERT_EQ(hwnd, GetFocus());
+    dmPlatform::PollEvents(window);
+
+    BYTE saved[256], state[256];
+    ASSERT_TRUE(GetKeyboardState(saved));
+    memcpy(state, saved, sizeof(state));
+    state[VK_SHIFT] = state[VK_RSHIFT] = 0x80;
+    state[VK_LSHIFT] = 0;
+    state[VK_LWIN] = 0;
+    state[VK_RWIN] = 0x80;
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x002a0001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_LWIN, 0x015b0001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_RWIN, 0x015c0001);
+    ASSERT_TRUE(SetKeyboardState(state));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSHIFT));
+    EXPECT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSUPER));
+    EXPECT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSUPER));
+    state[VK_SHIFT] = state[VK_RSHIFT] = 0;
+    state[VK_RWIN] = 0;
+    ASSERT_TRUE(SetKeyboardState(state));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSUPER));
+    SetKeyboardState(saved);
     dmPlatform::DeleteWindow(window);
 }
 

@@ -98,8 +98,13 @@ var CUSTOM_PARAMETERS = {
         var innerWidth = window.innerWidth;
         var innerHeight = window.innerHeight - buttonHeight;
         var dpi = Module["getPixelRatio"]({{display.high_dpi}});
-        var fullscreen = !!(document.fullscreenElement || document.fullScreen || document.mozFullScreen ||
-                            document.webkitIsFullScreen || document.msIsFullScreen);
+        // The loader also sizes the canvas before the engine's browser backend is available.
+        var active = document.fullscreenElement || document.webkitFullscreenElement ||
+                     document.mozFullScreenElement || document.msFullscreenElement;
+        var fullscreen = typeof DefoldPlatform !== 'undefined' && DefoldPlatform.isGameFullscreen ?
+                         DefoldPlatform.isGameFullscreen(game_canvas) :
+                         !!(active && (active === game_canvas || active === Module.fullScreenContainer ||
+                                       (active.contains && active.contains(game_canvas))));
         if (innerWidth <= 0 || innerHeight <= 0) {
             return;
         }
@@ -1326,8 +1331,7 @@ var Module = {
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
-            // create canvas to simply check is rendering context supported
-            // real render context created by glfw
+            // Probe a separate canvas before the engine creates its render context.
             var canvas = document.createElement("canvas");
             var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
             if (gl && gl instanceof WebGLRenderingContext) {

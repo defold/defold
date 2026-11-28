@@ -625,6 +625,7 @@ namespace dmGraphics
 #endif
         uint32_t                        m_SwapInterval;
         uint32_t                        m_SwapIntervalChanged  : 1;
+        uint32_t                        m_SwapChainUnmapped    : 1;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_ImageAvailableConsumed : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
@@ -720,7 +721,7 @@ namespace dmGraphics
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice, uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain);
-    void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
+    void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain, bool wait_for_present);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     bool InitializeVulkan(HContext context);

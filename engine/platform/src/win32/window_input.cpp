@@ -1,0 +1,614 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "window_win32.h"
+#include "../window_desktop_keys.h"
+#include <imm.h>
+#include <windowsx.h>
+#include <math.h>
+
+namespace dmPlatform
+{
+    // Map physical PC scan codes to the desktop window key codes accepted by GetKey.
+    static int KeyCode(WPARAM key, LPARAM flags)
+    {
+        unsigned scan = (flags >> 16) & 0xff;
+        if (scan == 0)
+        {
+            scan = MapVirtualKeyW((UINT)key, MAPVK_VK_TO_VSC);
+        }
+
+        if (key == VK_PAUSE)
+        {
+            return PLATFORM_KEY_PAUSE;
+        }
+
+        if (key == VK_SNAPSHOT)
+        {
+            return PLATFORM_KEY_PRINT_SCREEN;
+        }
+
+        if (key == VK_NUMLOCK)
+        {
+            return PLATFORM_KEY_KP_NUM_LOCK;
+        }
+
+        // Some CJK input methods also set the extended bit on the ordinary right Shift scan code.
+        if ((flags & (1 << 24)) && scan != 0x36)
+        {
+            switch (scan)
+            {
+                case 0x1c:
+                {
+                    return PLATFORM_KEY_KP_ENTER;
+                }
+                case 0x1d:
+                {
+                    return PLATFORM_KEY_RCTRL;
+                }
+                case 0x35:
+                {
+                    return PLATFORM_KEY_KP_DIVIDE;
+                }
+                case 0x38:
+                {
+                    return PLATFORM_KEY_RALT;
+                }
+                case 0x46:
+                {
+                    // Windows sends the extended Break scan code when Ctrl is held with Pause.
+                    return PLATFORM_KEY_PAUSE;
+                }
+                case 0x47:
+                {
+                    return PLATFORM_KEY_HOME;
+                }
+                case 0x48:
+                {
+                    return PLATFORM_KEY_UP;
+                }
+                case 0x49:
+                {
+                    return PLATFORM_KEY_PAGEUP;
+                }
+                case 0x4b:
+                {
+                    return PLATFORM_KEY_LEFT;
+                }
+                case 0x4d:
+                {
+                    return PLATFORM_KEY_RIGHT;
+                }
+                case 0x4f:
+                {
+                    return PLATFORM_KEY_END;
+                }
+                case 0x50:
+                {
+                    return PLATFORM_KEY_DOWN;
+                }
+                case 0x51:
+                {
+                    return PLATFORM_KEY_PAGEDOWN;
+                }
+                case 0x52:
+                {
+                    return PLATFORM_KEY_INSERT;
+                }
+                case 0x53:
+                {
+                    return PLATFORM_KEY_DEL;
+                }
+                case 0x5b:
+                {
+                    return PLATFORM_KEY_LSUPER;
+                }
+                case 0x5c:
+                {
+                    return PLATFORM_KEY_RSUPER;
+                }
+                case 0x5d:
+                {
+                    return PLATFORM_KEY_MENU;
+                }
+                default:
+                {
+                    return -1;
+                }
+            }
+        }
+
+        static const int codes[] = {
+            /* 0x00 */ -1, PLATFORM_KEY_ESC, '1', '2',
+            /* 0x04 */ '3', '4', '5', '6',
+            /* 0x08 */ '7', '8', '9', '0',
+            /* 0x0C */ '-', '=', PLATFORM_KEY_BACKSPACE, PLATFORM_KEY_TAB,
+            /* 0x10 */ 'Q', 'W', 'E', 'R',
+            /* 0x14 */ 'T', 'Y', 'U', 'I',
+            /* 0x18 */ 'O', 'P', '[', ']',
+            /* 0x1C */ PLATFORM_KEY_ENTER, PLATFORM_KEY_LCTRL, 'A', 'S',
+            /* 0x20 */ 'D', 'F', 'G', 'H',
+            /* 0x24 */ 'J', 'K', 'L', ';',
+            /* 0x28 */ '\'', '`', PLATFORM_KEY_LSHIFT, '\\',
+            /* 0x2C */ 'Z', 'X', 'C', 'V',
+            /* 0x30 */ 'B', 'N', 'M', ',',
+            /* 0x34 */ '.', '/', PLATFORM_KEY_RSHIFT, PLATFORM_KEY_KP_MULTIPLY,
+            /* 0x38 */ PLATFORM_KEY_LALT, ' ', PLATFORM_KEY_CAPS_LOCK, PLATFORM_KEY_F1,
+            /* 0x3C */ PLATFORM_KEY_F2, PLATFORM_KEY_F3, PLATFORM_KEY_F4, PLATFORM_KEY_F5,
+            /* 0x40 */ PLATFORM_KEY_F6, PLATFORM_KEY_F7, PLATFORM_KEY_F8, PLATFORM_KEY_F9,
+            /* 0x44 */ PLATFORM_KEY_F10, PLATFORM_KEY_KP_NUM_LOCK, PLATFORM_KEY_SCROLL_LOCK, PLATFORM_KEY_KP_7,
+            /* 0x48 */ PLATFORM_KEY_KP_8, PLATFORM_KEY_KP_9, PLATFORM_KEY_KP_SUBTRACT, PLATFORM_KEY_KP_4,
+            /* 0x4C */ PLATFORM_KEY_KP_5, PLATFORM_KEY_KP_6, PLATFORM_KEY_KP_ADD, PLATFORM_KEY_KP_1,
+            /* 0x50 */ PLATFORM_KEY_KP_2, PLATFORM_KEY_KP_3, PLATFORM_KEY_KP_0, PLATFORM_KEY_KP_DECIMAL,
+            /* 0x54 */ -1, -1, PLATFORM_KEY_NON_US_2, PLATFORM_KEY_F11,
+            /* 0x58 */ PLATFORM_KEY_F12,
+        };
+        if (key >= VK_F13 && key <= VK_F24)
+        {
+            return PLATFORM_KEY_F13 + (int)key - VK_F13;
+        }
+
+        if (scan == 0x59)
+        {
+            return PLATFORM_KEY_KP_EQUAL;
+        }
+
+        return scan < sizeof(codes) / sizeof(codes[0]) ? codes[scan] : -1;
+    }
+
+    static bool AltGrControl(UINT message, WPARAM key, LPARAM flags)
+    {
+        if (key != VK_CONTROL || (flags & (1 << 24)))
+        {
+            return false;
+        }
+
+        // Peeking updates the thread's message time even when the message stays queued.
+        DWORD time = (DWORD)GetMessageTime();
+        MSG next;
+        // Windows queues the synthetic Ctrl and Right Alt messages for AltGr next to each other.
+        if (!PeekMessageW(&next, 0, 0, 0, PM_NOREMOVE))
+        {
+            return false;
+        }
+
+        bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+        bool matching = down ? next.message == WM_KEYDOWN || next.message == WM_SYSKEYDOWN
+                             : next.message == WM_KEYUP || next.message == WM_SYSKEYUP;
+        return matching && next.wParam == VK_MENU && (next.lParam & (1 << 24)) && next.time == time;
+    }
+
+    static void Character(HWindow window, uint32_t code)
+    {
+        if (window->m_Callbacks.m_Char && code >= 32 && (code < 127 || code >= 160) &&
+            code <= 0x10ffff && (code < 0xd800 || code > 0xdfff))
+        {
+            window->m_Callbacks.m_Char(window->m_Callbacks.m_CharData, code);
+        }
+    }
+
+    static void CharacterUnit(HWindow window, uint16_t unit)
+    {
+        if (unit >= 0xd800 && unit <= 0xdbff)
+        {
+            window->m_HighSurrogate = unit;
+            return;
+        }
+
+        uint32_t code = unit;
+        if (window->m_HighSurrogate && unit >= 0xdc00 && unit <= 0xdfff)
+        {
+            code = 0x10000 + ((window->m_HighSurrogate - 0xd800) << 10) + (unit - 0xdc00);
+        }
+
+        window->m_HighSurrogate = 0;
+        Character(window, code);
+    }
+
+    static char* ReadMarkedText(HIMC ime, DWORD kind, dmArray<char>& text)
+    {
+        LONG bytes = ImmGetCompositionStringW(ime, kind, 0, 0);
+        if (bytes < 0)
+        {
+            return 0;
+        }
+
+        dmArray<WCHAR> wide;
+        wide.SetCapacity(bytes / sizeof(WCHAR) + 1);
+        LONG size = ImmGetCompositionStringW(ime, kind, wide.Begin(), bytes);
+        if (size < 0 || size > bytes)
+        {
+            return 0;
+        }
+
+        wide.Begin()[size / sizeof(WCHAR)] = 0;
+        int count = WideCharToMultiByte(CP_UTF8, 0, wide.Begin(), -1, 0, 0, 0, 0);
+        text.SetCapacity(count);
+        if (count && WideCharToMultiByte(CP_UTF8, 0, wide.Begin(), -1, text.Begin(), count, 0, 0))
+        {
+            return text.Begin();
+        }
+
+        return 0;
+    }
+
+    bool Win32DispatchImeText(HWindow window, char* composition, char* committed)
+    {
+        HWND hwnd = window->m_Window;
+        char* strings[] = { composition, committed };
+        for (unsigned i = 0; i < DM_ARRAY_SIZE(strings); ++i)
+        {
+            if (strings[i] && window->m_Callbacks.m_Marked)
+            {
+                window->m_Callbacks.m_Marked(window->m_Callbacks.m_MarkedData, strings[i]);
+                if ((HWindow)GetWindowLongPtrW(hwnd, GWLP_USERDATA) != window)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    static POINT CursorPosition(HWND hwnd)
+    {
+        POINT cursor = {};
+        GetCursorPos(&cursor);
+        ScreenToClient(hwnd, &cursor);
+        return cursor;
+    }
+
+    void Win32CenterCursor(HWindow window)
+    {
+        if (!window->m_CursorCaptured)
+        {
+            return;
+        }
+
+        RECT rect;
+        GetClientRect(window->m_Window, &rect);
+        POINT center = { rect.right / 2, rect.bottom / 2 };
+        MapWindowPoints(window->m_Window, 0, (POINT*)&rect, 2);
+        RECT clip;
+        bool moved = !GetClipCursor(&clip) || !EqualRect(&clip, &rect);
+        if (moved)
+        {
+            ClipCursor(&rect);
+        }
+
+        // Moving the HWND changes the screen center even if its client size stays the same.
+        if (moved || window->m_LastCursor.x != center.x || window->m_LastCursor.y != center.y)
+        {
+            window->m_LastCursor = center;
+            SetCursorPos(rect.left + center.x, rect.top + center.y);
+        }
+    }
+
+    static void SetHiddenCursor(HWindow window)
+    {
+        // Remote Desktop can keep drawing the client's pointer when SetCursor receives a null handle.
+        if (!window->m_HiddenCursor)
+        {
+            BYTE and_mask[32 * 32 / 8];
+            BYTE xor_mask[sizeof(and_mask)] = {};
+            memset(and_mask, 0xff, sizeof(and_mask));
+            window->m_HiddenCursor = CreateCursor(GetModuleHandleW(0), 0, 0, 32, 32, and_mask, xor_mask);
+        }
+
+        SetCursor(window->m_HiddenCursor);
+    }
+
+    void Win32UpdateCursor(HWindow window, bool focused)
+    {
+        bool capture = focused && window->m_CursorLocked && !window->m_CaptionAction && !window->m_InModalLoop;
+        if (capture == window->m_CursorCaptured)
+        {
+            return;
+        }
+
+        window->m_CursorCaptured = capture;
+        if (capture)
+        {
+            window->m_LastCursor = CursorPosition(window->m_Window);
+            window->m_SavedCursor = window->m_LastCursor;
+            Win32CenterCursor(window);
+            SetHiddenCursor(window);
+        }
+        else
+        {
+            ClipCursor(0);
+            POINT pos = window->m_SavedCursor;
+            ClientToScreen(window->m_Window, &pos);
+            SetCursorPos(pos.x, pos.y);
+            SetCursor((HCURSOR)GetClassLongPtrW(window->m_Window, GCLP_HCURSOR));
+        }
+    }
+
+    static void Button(HWindow window, int button, bool pressed)
+    {
+        if (pressed && window->m_PendingButtonReset)
+        {
+            memset(window->m_Input.m_Buttons, 0, sizeof(window->m_Input.m_Buttons));
+            window->m_PendingButtonReset = false;
+        }
+
+        if (pressed && GetCapture() != window->m_Window)
+        {
+            SetCapture(window->m_Window);
+        }
+
+        window->m_Input.m_Buttons[button] = pressed;
+        if (!pressed && GetCapture() == window->m_Window)
+        {
+            for (unsigned i = 0; i < sizeof(window->m_Input.m_Buttons); ++i)
+            {
+                if (window->m_Input.m_Buttons[i])
+                {
+                    return;
+                }
+            }
+
+            ReleaseCapture();
+        }
+    }
+
+    bool Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result)
+    {
+        switch (message)
+        {
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            {
+                // The IME consumed the key but Windows still supplies its physical scan code.
+                if (wp == VK_PROCESSKEY)
+                {
+                    break;
+                }
+
+                int code = KeyCode(wp, lp);
+                if (code >= 0 && !AltGrControl(message, wp, lp))
+                {
+                    window->m_Input.m_Keys[code] = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+                }
+
+                break; // DefWindowProc handles system shortcuts, including Alt+F4.
+            }
+            case WM_SYSCHAR:
+            {
+                // The keyboard shortcut was already delivered through WM_SYSKEYDOWN.
+                return true;
+            }
+            case WM_SYSCOMMAND:
+            {
+                return (wp & 0xfff0) == SC_KEYMENU;
+            }
+            case WM_CHAR:
+            {
+                CharacterUnit(window, (uint16_t)wp);
+                return true;
+            }
+            case WM_UNICHAR:
+            {
+                if (wp == UNICODE_NOCHAR)
+                {
+                    *result = TRUE;
+                }
+                else
+                {
+                    Character(window, (uint32_t)wp);
+                }
+
+                return true;
+            }
+            case WM_IME_COMPOSITION:
+            {
+                if (window->m_Callbacks.m_Marked)
+                {
+                    HWND hwnd = window->m_Window;
+                    HIMC ime = ImmGetContext(hwnd);
+                    if (ime)
+                    {
+                        dmArray<char> composition, committed;
+                        char* marked = (lp & GCS_COMPSTR) ? ReadMarkedText(ime, GCS_COMPSTR, composition) : 0;
+                        char* result_text = (lp & GCS_RESULTSTR) ? ReadMarkedText(ime, GCS_RESULTSTR, committed) : 0;
+                        ImmReleaseContext(hwnd, ime);
+                        // Only a live HWND should receive default processing to generate WM_CHAR.
+                        return !Win32DispatchImeText(window, marked, result_text);
+                    }
+                }
+
+                break; // The default IME generates WM_CHAR for committed text.
+            }
+            case WM_IME_ENDCOMPOSITION:
+            {
+                char empty[] = "";
+                return !Win32DispatchImeText(window, empty, 0);
+            }
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP:
+            {
+                Button(window, 0, message == WM_LBUTTONDOWN);
+                return true;
+            }
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP:
+            {
+                Button(window, 1, message == WM_RBUTTONDOWN);
+                return true;
+            }
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONUP:
+            {
+                Button(window, 2, message == WM_MBUTTONDOWN);
+                return true;
+            }
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONUP:
+            {
+                Button(window, HIWORD(wp) == XBUTTON1 ? 3 : 4, message == WM_XBUTTONDOWN);
+                *result = TRUE;
+                return true;
+            }
+            case WM_MOUSEACTIVATE:
+            {
+                if (LOWORD(lp) != HTCLIENT && (HIWORD(lp) == WM_LBUTTONDOWN || HIWORD(lp) == WM_NCLBUTTONDOWN))
+                {
+                    window->m_CaptionAction = true;
+                }
+
+                break;
+            }
+            case WM_CAPTURECHANGED:
+            {
+                // A modal dialog can take capture before WM_KILLFOCUS delivers the focus callback.
+                window->m_PendingButtonReset = true;
+                if (!lp && window->m_CaptionAction)
+                {
+                    window->m_CaptionAction = false;
+                    Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
+                }
+
+                break;
+            }
+            case WM_MOUSEWHEEL:
+            {
+                window->m_Wheel += GET_WHEEL_DELTA_WPARAM(wp) / (double)WHEEL_DELTA;
+                return true;
+            }
+            case WM_MOUSEMOVE:
+            {
+                if (window->m_CursorCaptured)
+                {
+                    POINT point = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+                    window->m_VirtualCursor.x += point.x - window->m_LastCursor.x;
+                    window->m_VirtualCursor.y += point.y - window->m_LastCursor.y;
+                    window->m_LastCursor = point;
+                }
+
+                break;
+            }
+            case WM_SETCURSOR:
+            {
+                if (window->m_CursorCaptured && LOWORD(lp) == HTCLIENT)
+                {
+                    SetHiddenCursor(window);
+                    *result = TRUE;
+                    return true;
+                }
+
+                break;
+            }
+            case WM_ENTERSIZEMOVE:
+            case WM_ENTERMENULOOP:
+            {
+                window->m_InModalLoop = true;
+                Win32UpdateCursor(window, false);
+                break;
+            }
+            case WM_EXITSIZEMOVE:
+            case WM_EXITMENULOOP:
+            {
+                window->m_InModalLoop = false;
+                Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    int32_t GetKey(HWindow window, int32_t key)
+    {
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (uint32_t)key < sizeof(input.m_Keys) ? input.m_Keys[key] : 0;
+    }
+
+    int32_t GetMouseButton(HWindow window, int32_t button)
+    {
+        const WindowPressedInput& input = ReportedWindowInput(window->m_Focus, window->m_Input);
+        return (uint32_t)button < sizeof(input.m_Buttons) ? input.m_Buttons[button] : 0;
+    }
+
+    int32_t GetMouseWheel(HWindow window)
+    {
+        return (int32_t)round(window->m_Wheel);
+    }
+
+    void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
+    {
+        POINT pos = window->m_CursorLocked ? window->m_VirtualCursor : CursorPosition(window->m_Window);
+        *x = pos.x;
+        *y = pos.y;
+    }
+
+    void SetKeyboardCharCallback(HWindow window, FWindowAddKeyboardCharCallback cb, void* data)
+    {
+        window->m_Callbacks.m_Char = cb;
+        window->m_Callbacks.m_CharData = data;
+    }
+
+    void SetKeyboardMarkedTextCallback(HWindow window, FWindowSetMarkedTextCallback cb, void* data)
+    {
+        window->m_Callbacks.m_Marked = cb;
+        window->m_Callbacks.m_MarkedData = data;
+    }
+
+    void SetKeyboardDeviceChangedCallback(HWindow, FWindowDeviceChangedCallback, void*)
+    {
+    }
+
+    void SetGamepadEventCallback(HWindow window, FWindowGamepadEventCallback cb, void* data)
+    {
+        window->m_Callbacks.m_Gamepad = cb;
+        window->m_Callbacks.m_GamepadData = data;
+    }
+
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool value, bool)
+    {
+        if (state == WINDOW_DEVICE_STATE_CURSOR && window->m_CursorLocked == value && window->m_Window)
+        {
+            window->m_CursorLocked = !value;
+            if (!value)
+            {
+                window->m_VirtualCursor = CursorPosition(window->m_Window);
+            }
+
+            Win32UpdateCursor(window, GetAncestor(GetFocus(), GA_ROOT) == window->m_Window);
+        }
+    }
+
+    void SetDeviceState(HWindow window, WindowDeviceState state, bool value)
+    {
+        SetDeviceState(window, state, value, false);
+    }
+
+    bool GetDeviceState(HWindow window, WindowDeviceState state, int32_t index)
+    {
+        if (state == WINDOW_DEVICE_STATE_JOYSTICK_PRESENT)
+        {
+            return Win32JoystickPresent(index);
+        }
+
+        return state == WINDOW_DEVICE_STATE_CURSOR_LOCK && window->m_CursorLocked;
+    }
+
+    bool GetDeviceState(HWindow window, WindowDeviceState state)
+    {
+        return GetDeviceState(window, state, 0);
+    }
+
+}

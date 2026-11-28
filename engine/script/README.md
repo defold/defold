@@ -9,6 +9,8 @@ Web tests
 
 CMake runs WebAssembly unit tests through Bun or Node.js. See the [web build and test guide](../../README_EMSCRIPTEN.md#running-and-debugging) for setup and the browser test suite.
 
+The HTTP tests call `dmSys::PumpMessageQueue()` to dispatch pending events. Under Node.js, dlib uses the `uvrun` module to advance the event loop.
+
 C functions exposed to Lua
 --------------------------
 

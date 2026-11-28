@@ -303,8 +303,10 @@ static int GetSize(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 2);
 
-    lua_pushnumber(L, g_Window.m_Width);
-    lua_pushnumber(L, g_Window.m_Height);
+    // The drawable can already have resized while its event is still queued.
+    HWindow window = g_Window.m_Window;
+    lua_pushnumber(L, window ? dmPlatform::GetWindowWidth(window) : g_Window.m_Width);
+    lua_pushnumber(L, window ? dmPlatform::GetWindowHeight(window) : g_Window.m_Height);
 
     return 2;
 }
@@ -649,6 +651,7 @@ void ScriptWindowFinalize(const ScriptLibContext& context)
         dmScript::DestroyCallback(g_Window.m_Callback);
     g_Window.m_Callback = 0;
     g_Window.m_HidContext = 0;
+    g_Window.m_Window = 0;
 }
 
 void ScriptWindowOnWindowFocus(bool focus)

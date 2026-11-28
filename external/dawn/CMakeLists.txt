@@ -104,7 +104,8 @@ install(CODE "
     COMMAND_ERROR_IS_FATAL ANY)
 ")
 # Keep native WebGPU headers out of Emscripten's shared include search path.
-install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION "include/${TARGET_PLATFORM}")
+install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION "include/${TARGET_PLATFORM}"
+        PATTERN "webgpu_glfw.h" EXCLUDE)
 install(FILES "${dawn_BINARY_DIR}/gen/include/webgpu/webgpu_cpp_chained_struct.h"
         DESTINATION "include/${TARGET_PLATFORM}/webgpu")
 install(FILES "${dawn_BINARY_DIR}/gen/include/dawn/webgpu.h"

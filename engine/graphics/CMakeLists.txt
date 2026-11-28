@@ -216,7 +216,7 @@ if(GRAPHICS_PLATFORM_SUPPORTS_OPENGL)
     target_include_directories(graphics PUBLIC "${GRAPHICS_SRC_DIR}/opengl/win32")
   endif()
   if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux)$")
-    target_compile_definitions(graphics PRIVATE GL_GLEXT_PROTOTYPES _GLFW_HAS_GLXGETPROCADDRESS)
+    target_compile_definitions(graphics PRIVATE GL_GLEXT_PROTOTYPES)
   elseif(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
     target_compile_definitions(graphics PRIVATE GL_GLEXT_PROTOTYPES)
   endif()
@@ -451,8 +451,8 @@ add_custom_target(graphics_sdk_headers
     graphics_public_sdk_headers
     graphics_generated_sdk_headers
     graphics_dmsdk_sdk_headers
-    ddf_sdk_headers
-    dlib_sdk_headers)
+    "$<TARGET_NAME_IF_EXISTS:ddf_sdk_headers>"
+    "$<TARGET_NAME_IF_EXISTS:dlib_sdk_headers>")
 
 install(FILES
   "${GRAPHICS_SRC_DIR}/graphics.h"

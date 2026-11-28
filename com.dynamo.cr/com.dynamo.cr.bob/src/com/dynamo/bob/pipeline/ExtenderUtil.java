@@ -478,8 +478,7 @@ public class ExtenderUtil {
             return false;
         }
 
-        // Both libraries are now optional runtime dependencies. Keep the adapter selection
-        // and custom libraries, but remove the links added by legacy Vulkan manifests.
+        // The Linux platform resolves both the Vulkan loader and the X11-XCB bridge at runtime.
         boolean modified = false;
         for (String key : List.of("libs", "engineLibs", "dynamicLibs")) {
             if (context.get(key) instanceof List<?> libraries) {

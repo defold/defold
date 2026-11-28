@@ -112,7 +112,7 @@ extern uint32_t      DEBUG_SPC_SIZE;
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
 // game.project config and used in dmEngine::Init(), passed along to
-// the GLFW Android implementation.
+// the Android platform backend.
 #include <platform/platform_window_android.h>
 #endif
 

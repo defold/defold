@@ -215,9 +215,7 @@ namespace dmHID
         return found;
     }
 
-    // SDL's RawInput GUID is useful for diagnostics even though GLFW supplies
-    // the live XInput packet. Keep that compatibility detail local to this
-    // driver, together with the automatic packet-layout decision.
+    // Keep the SDL RawInput GUID for diagnostics when XInput supplies the live packet.
     static bool EnsureAutomaticXInputIdentity(HContext context, PlatformGamepadDevice* device)
     {
         if (device->m_HasAutomaticIdentity)
@@ -317,7 +315,7 @@ namespace dmHID
             new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT;
         }
     #elif defined(__linux__)
-        // Same with linux, the order for gamepad buttons have changed since GLFW 2.7, so we need to adhere to that.
+        // Legacy Linux mappings use the original button and hat layout.
         new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX;
     #endif
 
@@ -348,12 +346,7 @@ namespace dmHID
     }
 
 
-    // Note: For windows and Linux we will get callbacks here on init when
-    // we detect devices using PlatformGamepadDriverDetectDevices. If a joystick
-    // is not present when checking a joystick id glfw will generate a
-    // disconnect callback.
-    // https://github.com/glfw/glfw/blob/3.4/src/win32_joystick.c#L627
-    // https://github.com/glfw/glfw/blob/3.4/src/linux_joystick.c#L398
+    // Device discovery can deliver connection callbacks during enumeration.
     static void PlatformGamepadCallback(void* user_Data, int gamepad_id, WindowGamepadEvent event)
     {
         Gamepad* gp = 0;
@@ -393,8 +386,7 @@ namespace dmHID
 
         if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
         {
-            // For linux, the old GLFW 2.7.7 version represents hats as axes, but in newer
-            // glfw version they are actually represented as buttons instead.
+            // Legacy Linux mappings read two axes per hat from the appended directional buttons.
 
             Gamepad* gamepad          = platform_gamepad->m_Gamepad;
             uint8_t axis_count        = gamepad->m_HatCount * 2;
@@ -451,9 +443,8 @@ namespace dmHID
 #if defined(_WIN32)
             if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
             {
-                // GLFW exposes XInput buttons as A, B, X, Y, shoulders,
-                // back, start and stick clicks. The automatic mapping consumes
-                // the canonical SDL-style order declared by GamepadMappedButton.
+                // The Windows backend reports face buttons, shoulders, back, start, then stick clicks.
+                // Automatic mappings use the SDL order declared by GamepadMappedButton.
                 buttons_remapped[GAMEPAD_MAPPED_BUTTON_A]              = buttons[0];
                 buttons_remapped[GAMEPAD_MAPPED_BUTTON_B]              = buttons[1];
                 buttons_remapped[GAMEPAD_MAPPED_BUTTON_X]              = buttons[2];
@@ -465,9 +456,7 @@ namespace dmHID
                 buttons_remapped[GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER]  = buttons[4];
                 buttons_remapped[GAMEPAD_MAPPED_BUTTON_RIGHT_SHOULDER] = buttons[5];
 
-                // XInput through GLFW doesn't expose Guide or Capture. Keep
-                // those slots clear instead of reading GLFW's appended hat
-                // buttons as ordinary buttons.
+                // The ten XInput buttons are followed by hat directions. Leave Guide and Capture clear.
                 platform_gamepad->m_Gamepad->m_ButtonCount = GAMEPAD_MAPPED_BUTTON_COUNT;
                 return buttons_remapped;
             }
@@ -481,10 +470,7 @@ namespace dmHID
             return buttons;
         }
 
-        // For win32, hats are placed at the END of the button array on later glfw version,
-        // but old Defold expects the hats to be placed first. So to avoid forcing people to
-        // do a new remapping for their gamepads, we just copy and adjust the hats from the new
-        // glfw format to the old one.
+        // Move the appended hat directions to the front for legacy Windows mappings.
         Gamepad* gamepad                = platform_gamepad->m_Gamepad;
         int32_t hats_button_count       = gamepad->m_HatCount * 4;
         int32_t hats_start              = gamepad->m_ButtonCount - hats_button_count;
@@ -492,54 +478,11 @@ namespace dmHID
 
         if (platform_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
-            // In GLFW 2.7, the button count is hardcoded to 16 for XInput devices.
+            // Legacy XInput mappings use all 16 bit positions in XINPUT_GAMEPAD::wButtons.
             gamepad->m_ButtonCount = 16;
 
-            // For XInput devices, the button order has changed so we have to do an explicit remapping here.
-            //
-            // Q: How does this remapping work?
-            // A: In the old glfw code, the button at index i is calculated as:
-            //      for i=0; i < max_buttons do
-            //          buttons[ button ] = (unsigned char) (ji.dwButtons & (1UL << button) ? GLFW_PRESS : GLFW_RELEASE);
-            //
-            //    The values of the ji.dwButtons mask is specified in xinput.h that we have in the glfw repo:
-            //      #define XINPUT_GAMEPAD_DPAD_UP          0x0001 (button index: 0)
-            //      #define XINPUT_GAMEPAD_DPAD_DOWN        0x0002 (button index: 1)
-            //      #define XINPUT_GAMEPAD_DPAD_LEFT        0x0004 (button index: 2)
-            //      #define XINPUT_GAMEPAD_DPAD_RIGHT       0x0008 (button index: 3)
-            //      #define XINPUT_GAMEPAD_START            0x0010 (button index: 4)
-            //      #define XINPUT_GAMEPAD_BACK             0x0020 (button index: 5)
-            //      #define XINPUT_GAMEPAD_LEFT_THUMB       0x0040 (button index: 6)
-            //      #define XINPUT_GAMEPAD_RIGHT_THUMB      0x0080 (button index: 7)
-            //      #define XINPUT_GAMEPAD_LEFT_SHOULDER    0x0100 (button index: 8)
-            //      #define XINPUT_GAMEPAD_RIGHT_SHOULDER   0x0200 (button index: 9)
-            //              (note! no index 10/11, 0x400 and 0x800 are missing!)
-            //      #define XINPUT_GAMEPAD_A                0x1000 (button index: 12)
-            //      #define XINPUT_GAMEPAD_B                0x2000 (button index: 13)
-            //      #define XINPUT_GAMEPAD_X                0x4000 (button index: 14)
-            //      #define XINPUT_GAMEPAD_Y                0x8000 (button index: 15)
-            //
-            //   In GLFW 3.4, the xinput button order has changed to:
-            //      XINPUT_GAMEPAD_A,              (button index: 0)
-            //      XINPUT_GAMEPAD_B,              (button index: 1)
-            //      XINPUT_GAMEPAD_X,              (button index: 2)
-            //      XINPUT_GAMEPAD_Y,              (button index: 3)
-            //      XINPUT_GAMEPAD_LEFT_SHOULDER,  (button index: 4)
-            //      XINPUT_GAMEPAD_RIGHT_SHOULDER, (button index: 5)
-            //      XINPUT_GAMEPAD_BACK,           (button index: 6)
-            //      XINPUT_GAMEPAD_START,          (button index: 7)
-            //      XINPUT_GAMEPAD_LEFT_THUMB,     (button index: 8)
-            //      XINPUT_GAMEPAD_RIGHT_THUMB     (button index: 9)
-            //
-            //   What we want to do now is to put the values from the new mapping into
-            //   the same order as the old array would look like.
-            //   For example, in the new order we find the "start" button at index 7,
-            //   but in the old mapping it would have index 0.
-            //
-            //   Since we do the dpad mapping later, we skip the dpads here.
-            //   The "buttons_remapped_start" pointer is pointer to the start of the
-            //   button block (which is after all the dpads) so that's why it seems
-            //   like the indices aren't the same as from the XInput header.
+            // The destination starts after the four D-pad bits. Bits 10 and 11 are reserved,
+            // and the face buttons occupy bits 12 through 15.
 
             buttons_remapped_start[0]  = buttons[7];
             buttons_remapped_start[1]  = buttons[6];

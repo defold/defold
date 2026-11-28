@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="23000" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23000"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="NSApplication">
+            <connections>
+                <outlet property="mainMenu" destination="main-menu" id="main-outlet"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <customObject id="target" customClass="DMTestMenuTarget"/>
+        <menu title="Main Menu" systemMenu="main" id="main-menu">
+            <items>
+                <menuItem title="Application" id="app-item">
+                    <menu key="submenu" title="Application" systemMenu="apple" id="app-menu"/>
+                </menuItem>
+                <menuItem title="Test Commands" id="commands-item">
+                    <menu key="submenu" title="Test Commands" id="commands-menu">
+                        <items>
+                            <menuItem title="Run Command" id="run-command">
+                                <connections>
+                                    <action selector="runBundledCommand:" target="target" id="run-action"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
+            </items>
+        </menu>
+    </objects>
+</document>

@@ -189,8 +189,18 @@ def install_linux(args):
         "tree",
         "uuid-dev",
         "xvfb",
-        "xauth"
+        "xauth",
+        "wayland-protocols",
+        "libwayland-dev",
+        "libxkbcommon-dev",
+        "libdecor-0-dev",
+        "libegl-dev",
+        "libgles-dev",
+        "libvulkan-dev"
     ]
+    if not args.platform or args.platform.endswith('-linux'):
+        packages.extend(["x11-utils", "x11-xkb-utils", "xdotool", "xclip", "wl-clipboard",
+                         "openbox", "weston", "libdecor-0-plugin-1-cairo"])
     # LuaJIT's VM generator needs a 32-bit host toolchain for armv7 cross-builds.
     if args.platform == 'armv7-android':
         packages.extend(["libc6-dev-i386", "gcc-multilib"])
