@@ -26,8 +26,8 @@ using namespace dmWindowState;
 static State MakeState()
 {
     State state = {};
-    Rect rect = { -1800, 100, 960, 640 };
-    Rect work = { -1920, 20, 1920, 1040 };
+    Rect rect = {-1800, 100, 960, 640};
+    Rect work = {-1920, 20, 1920, 1040};
     state.m_Rect = rect;
     state.m_Monitor.m_WorkArea = work;
     state.m_Monitor.m_NameHash = 1234;
@@ -41,36 +41,31 @@ static State MakeState()
 
 class WindowStateTest : public jc_test_base_class
 {
-    protected:
+protected:
     const char* m_Path;
-    char*       m_NumericLocale;
+    char* m_NumericLocale;
     void SetUp()
     {
         m_Path = "test-window-state.ini";
         m_NumericLocale = strdup(setlocale(LC_NUMERIC, 0));
         remove(m_Path);
     }
-
     void TearDown()
     {
         setlocale(LC_NUMERIC, m_NumericLocale);
         free(m_NumericLocale);
         remove(m_Path);
     }
-
 };
 
 static bool UseCommaDecimalLocale()
 {
-    const char* names[] = { "sv_SE.UTF-8", "sv_SE.utf8", "Swedish_Sweden.1252", "de_DE.UTF-8" };
+    const char* names[] = {"sv_SE.UTF-8", "sv_SE.utf8", "Swedish_Sweden.1252", "de_DE.UTF-8"};
     for (uint32_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
     {
         if (setlocale(LC_NUMERIC, names[i]) && !strcmp(localeconv()->decimal_point, ","))
-        {
             return true;
-        }
     }
-
     return false;
 }
 
@@ -78,10 +73,7 @@ static bool UseCommaDecimalLocale()
 TEST_F(WindowStateTest, SaveAcrossNumericLocales)
 {
     if (!UseCommaDecimalLocale())
-    {
         SKIP();
-    }
-
     State state = MakeState(), loaded = {};
     state.m_Monitor.m_ScaleY = 1.25f;
     ASSERT_TRUE(Save(m_Path, state));
@@ -101,10 +93,7 @@ TEST_F(WindowStateTest, LoadAcrossNumericLocales)
     state.m_Monitor.m_ScaleY = 1.25f;
     ASSERT_TRUE(Save(m_Path, state));
     if (!UseCommaDecimalLocale())
-    {
         SKIP();
-    }
-
     ASSERT_EQ(LOAD_OK, Load(m_Path, &loaded));
     ASSERT_STREQ(",", localeconv()->decimal_point);
     ASSERT_EQ(1.5f, loaded.m_Monitor.m_ScaleX);
@@ -117,21 +106,21 @@ TEST_F(WindowStateTest, ScaleSyntaxAndBounds)
     struct Case
     {
         const char* m_Text;
-        bool        m_Valid;
+        bool m_Valid;
     };
     const Case cases[] = {
-        { "0.25", true }, { "1", true }, { "1.500000", true }, { "16.000000", true },
-        { "0.249999", false }, { "16.000001", false }, { "1000000000000", false },
-        { "nan", false }, { "inf", false }, { "1,500000", false }, { "1.5garbage", false },
-        { "1.", false }, { "1.-5", false }, { "-1.5", false }, { "1.0000001", false }
+        {"0.25", true}, {"1", true}, {"1.500000", true}, {"16.000000", true},
+        {"0.249999", false}, {"16.000001", false}, {"1000000000000", false},
+        {"nan", false}, {"inf", false}, {"1,500000", false}, {"1.5garbage", false},
+        {"1.", false}, {"1.-5", false}, {"-1.5", false}, {"1.0000001", false}
     };
     for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
         FILE* file = fopen(m_Path, "wb");
         ASSERT_NE((FILE*)0, file);
         fprintf(file, "[window]\nversion = 1\nwidth = 400\nheight = 300\n"
-                "config_width = 400\nconfig_height = 300\nhas_position = 0\n"
-                "[monitor]\nscale_x = %s\nscale_y = %s\n", cases[i].m_Text, cases[i].m_Text);
+            "config_width = 400\nconfig_height = 300\nhas_position = 0\n"
+            "[monitor]\nscale_x = %s\nscale_y = %s\n", cases[i].m_Text, cases[i].m_Text);
         fclose(file);
         State loaded;
         ASSERT_EQ(cases[i].m_Valid ? LOAD_OK : LOAD_INVALID, Load(m_Path, &loaded));
@@ -219,8 +208,8 @@ TEST(WindowState, MonitorSelection)
 {
     State state = MakeState();
     Monitor monitors[] = {
-        { { 0, 20, 1920, 1040 }, 5678, 1, 1 },
-        { { -1920, 20, 1920, 1040 }, 1234, 1.5f, 1.5f }
+        {{0, 20, 1920, 1040}, 5678, 1, 1},
+        {{-1920, 20, 1920, 1040}, 1234, 1.5f, 1.5f}
     };
     ASSERT_EQ(1u, SelectMonitor(state, monitors, 2));
     monitors[0].m_NameHash = 1234;
@@ -263,12 +252,12 @@ TEST(WindowState, DpiAndRelativePosition)
 // Verifies decorations and oversized windows cannot leave the title bar outside the work area.
 TEST(WindowState, ClampDecoratedAndOversized)
 {
-    Rect work = { -1920, 30, 1920, 1000 };
-    Rect rect = { -2500, -100, 960, 640 };
+    Rect work = {-1920, 30, 1920, 1000};
+    Rect rect = {-2500, -100, 960, 640};
     ClampPosition(&rect, work, 5, 28, 5, 5);
     ASSERT_EQ(-1915, rect.m_X);
     ASSERT_EQ(58, rect.m_Y);
-    Rect oversized = { 5000, 5000, 4000, 3000 };
+    Rect oversized = {5000, 5000, 4000, 3000};
     ClampPosition(&oversized, work, 5, 28, 5, 5);
     ASSERT_EQ(-1915, oversized.m_X);
     ASSERT_EQ(58, oversized.m_Y);

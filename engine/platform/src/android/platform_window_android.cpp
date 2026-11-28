@@ -210,26 +210,20 @@ namespace dmPlatform
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
-        {
             return;
-        }
 
         jobject activity = thread.GetActivity()->clazz;
         jclass activity_class = env->GetObjectClass(activity);
         jmethodID method = env->GetMethodID(activity_class, "getReservedAreas", "()[I");
         env->DeleteLocalRef(activity_class);
         if (!method)
-        {
             return;
-        }
 
         // One Java call retains one immutable snapshot, including its coordinate
         // space, even if the UI thread publishes new insets while we copy it.
         jintArray snapshot = (jintArray)env->CallObjectMethod(activity, method);
         if (!snapshot)
-        {
             return;
-        }
 
         const jsize length = env->GetArrayLength(snapshot);
         if (length >= 2)
@@ -239,26 +233,18 @@ namespace dmPlatform
             {
                 const uint32_t count = (length - 2) / 4;
                 if (areas.Capacity() < count)
-                {
                     areas.SetCapacity(count);
-                }
-
                 for (uint32_t i = 0; i < count; ++i)
                 {
                     const jint* rect = values + 2 + i * 4;
                     WindowReservedArea area;
                     if (ConvertReservedArea(rect[0], rect[1], rect[2], rect[3], values[0], values[1],
                                             GetWindowWidth(window), GetWindowHeight(window), &area))
-                    {
                         areas.Push(area);
-                    }
                 }
-
                 env->ReleaseIntArrayElements(snapshot, values, JNI_ABORT);
             }
         }
-
         env->DeleteLocalRef(snapshot);
     }
-
 }

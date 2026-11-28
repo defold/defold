@@ -31,7 +31,7 @@ void  dmNativeAndroidPlatformOnResize(void);
 void  dmNativeAndroidPlatformAfterFlushEvents(void);
 void  dmNativeAndroidPlatformDestroyWindow(void);
 int   dmNativeAndroidPlatformQueryAuxContext(void);
-void*   dmNativeAndroidPlatformAcquireAuxContext(void);
+void* dmNativeAndroidPlatformAcquireAuxContext(void);
 void  dmNativeAndroidPlatformUnacquireAuxContext(void* context);
 
 #endif

@@ -26,16 +26,15 @@
 #define NATIVE_PHASE_TAPPED (5)
 #define NATIVE_PHASE_IDLE (6)
 
-typedef struct
-{
-    int   TapCount;
-    int   Phase;
-    int   X;
-    int   Y;
-    int   DX;
-    int   DY;
+typedef struct {
+    int TapCount;
+    int Phase;
+    int X;
+    int Y;
+    int DX;
+    int DY;
     void* Reference;
-    int   Id;
+    int Id;
 } NativeTouch;
 
 #ifdef __cplusplus

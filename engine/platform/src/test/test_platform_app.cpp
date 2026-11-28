@@ -33,10 +33,10 @@ enum UpdateResult
     RESULT_EXIT     = -1,
 };
 
-typedef void*        (*EngineCreateFn)(int argc, char** argv);
-typedef void         (*EngineDestroyFn)(void* engine);
+typedef void* (*EngineCreateFn)(int argc, char** argv);
+typedef void (*EngineDestroyFn)(void* engine);
 typedef UpdateResult (*EngineUpdateFn)(void* engine);
-typedef void         (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+typedef void (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
 struct RunLoopParams
 {
@@ -74,9 +74,7 @@ struct EngineCtx
 static int RunLoop(const RunLoopParams* params)
 {
     if (params->m_AppCreate)
-    {
         params->m_AppCreate(params->m_AppCtx);
-    }
 
     int argc = params->m_Argc;
     char** argv = params->m_Argv;
@@ -114,9 +112,7 @@ static int RunLoop(const RunLoopParams* params)
     }
 
     if (params->m_AppDestroy)
-    {
         params->m_AppDestroy(params->m_AppCtx);
-    }
 
     return exit_code;
 }
@@ -221,7 +217,7 @@ TEST(App, Run)
 }
 
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
     return jc_test_run_all();

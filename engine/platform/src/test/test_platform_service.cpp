@@ -45,47 +45,39 @@ namespace dmPlatform
     {
         return window->m_Width * window->m_DrawableScale;
     }
-
     uint32_t GetWindowHeight(HWindow window)
     {
         return window->m_Height * window->m_DrawableScale;
     }
-
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         return state == WINDOW_STATE_OPENED && window->m_Opened;
     }
-
     float GetDisplayScaleFactor(HWindow window)
     {
         return window->m_DisplayScale;
     }
-
     bool IsWindowResizeSupported(HWindow window)
     {
         return window->m_ResizeSupported;
     }
-
     bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
     {
         *width = window->m_Width;
         *height = window->m_Height;
         return window->m_ClientAvailable;
     }
-
     NativeWindowId GetNativeWindowId(HWindow window)
     {
         NativeWindowId identity = {};
         return window && window->m_Opened ? window->m_NativeWindowId : identity;
     }
-
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         window->m_Width = width;
         window->m_Height = height;
         window->m_ResizeCallback(window->m_Userdata, width, height);
     }
-
 }
 
 static uint64_t g_ServiceTime;
@@ -119,10 +111,8 @@ struct NumericLocale
                 return true;
             }
         }
-
         return false;
     }
-
 };
 
 class PlatformServiceTest : public HttpServiceTest
@@ -198,7 +188,6 @@ class PlatformServiceTest : public HttpServiceTest
     {
         dmWebServer::Update(m_Server);
     }
-
     static void Ping(void*, dmWebServer::Request* request)
     {
         dmWebServer::Send(request, "ok", 2);
@@ -211,7 +200,6 @@ class PlatformServiceTest : public HttpServiceTest
         {
             return;
         }
-
         ++test->m_ResizeCount;
         if (test->m_ClampResize)
         {
@@ -231,7 +219,6 @@ class PlatformServiceTest : public HttpServiceTest
         ASSERT_NE((const char*)0, strstr(m_Location, "/window/resize/"));
         dmStrlCpy(m_Receipt, m_Location, sizeof(m_Receipt));
     }
-
 };
 
 // Unpinned resizes complete without HTTP polling, and idle updates never issue a setter.
@@ -445,7 +432,6 @@ TEST_F(PlatformServiceTest, ExpiredResizeDoesNotBlockAdmission)
             m_ClampResize = true;
             dmPlatformService::Update(m_Service);
         }
-
         g_ServiceTime += 2000;
         Queue("{\"width\":360,\"height\":640}");
         Fetch("GET", previous);
@@ -515,10 +501,8 @@ TEST_F(PlatformServiceTest, ResizeReceiptCapacity)
         {
             dmStrlCpy(first, m_Receipt, sizeof(first));
         }
-
         dmPlatformService::Update(m_Service);
     }
-
     Queue("{\"width\":960,\"height\":640}");
     dmPlatformService::Update(m_Service);
     ASSERT_EQ(0U, m_ResizeCount);
@@ -602,7 +586,6 @@ TEST_F(PlatformServiceTest, WindowJsonWithNumericLocale)
     {
         SKIP();
     }
-
     m_Window->m_DisplayScale = 1.5f;
     Fetch("GET", "/window");
     ASSERT_EQ(200, m_Status);
@@ -620,7 +603,6 @@ TEST_F(PlatformServiceTest, ResizeJsonNumbersWithNumericLocale)
     {
         SKIP();
     }
-
     Queue("{\"width\":640.0,\"height\":3.6e2,\"timeout_ms\":1.5e3}");
     dmPlatformService::Update(m_Service);
     ASSERT_EQ(640U, dmPlatform::GetWindowWidth(m_Window));
@@ -656,7 +638,6 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
         Fetch("POST", "/window/resize", invalid[i]);
         ASSERT_EQ(400, m_Status);
     }
-
     const char* paths[] = { "/window", "/window/resize/unknown" };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
     {
@@ -674,7 +655,6 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
         ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "400 Bad Request"));
         ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "Connection: close"));
     }
-
     Fetch("GET", "/window/resize");
     ASSERT_EQ(405, m_Status);
     ASSERT_STREQ("POST", m_Allow);
@@ -684,7 +664,6 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
         Fetch("POST", missing[i], "", false, 10);
         ASSERT_EQ(404, m_Status);
     }
-
     Fetch("POST", "/window/resize", "", false, 1025);
     ASSERT_EQ(413, m_Status);
     ASSERT_STREQ("close", m_Connection);

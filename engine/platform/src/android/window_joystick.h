@@ -24,10 +24,8 @@ static inline void dmNativeAndroidCreateJoystickDeviceGuid(unsigned short vendor
                                                            unsigned int button_mask, unsigned int axis_mask, char guid[33])
 {
     static const char hex[] = "0123456789abcdef";
-    unsigned char capabilities[4] = {
-        (unsigned char)button_mask, (unsigned char)(button_mask >> 8),
-        (unsigned char)axis_mask, (unsigned char)(axis_mask >> 8)
-    };
+    unsigned char capabilities[4] = { (unsigned char)button_mask, (unsigned char)(button_mask >> 8),
+                                      (unsigned char)axis_mask, (unsigned char)(axis_mask >> 8) };
     dmNativeCreateJoystickDeviceGuid(0x0005, vendor, product, 0, 0, descriptor, 0, 0, guid);
     for (int i = 0; i < 4; ++i)
     {
@@ -37,7 +35,7 @@ static inline void dmNativeAndroidCreateJoystickDeviceGuid(unsigned short vendor
 }
 
 // Return nonzero for a handled gamepad key to suppress Android navigation fallback events.
-int  dmNativeAndroidUpdateJoystick(const AInputEvent* event);
+int dmNativeAndroidUpdateJoystick(const AInputEvent* event);
 void dmNativeAndroidDiscoverJoysticks();
 void dmNativeAndroidSetJoystickLayoutLegacy(int joy, int legacy);
 void dmNativeAndroidInitializeJoystickAxes(int joy, const float* axes, int num_axes);

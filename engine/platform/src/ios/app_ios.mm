@@ -24,24 +24,8 @@ namespace dmPlatform
         dmNativeAppBootstrap(argc, argv, init_context, init, exit, create, destroy, update, get_result);
     }
 
-    void RegisteriOSApplicationDelegate(void* delegate)
-    {
-        dmNativeRegisterUIApplicationDelegate(delegate);
-    }
-
-    void UnregisteriOSApplicationDelegate(void* delegate)
-    {
-        dmNativeUnregisterUIApplicationDelegate(delegate);
-    }
-
-    void RegisteriOSSceneDelegate(void* delegate)
-    {
-        dmNativeRegisterUISceneDelegate(delegate);
-    }
-
-    void UnregisteriOSSceneDelegate(void* delegate)
-    {
-        dmNativeUnregisterUISceneDelegate(delegate);
-    }
-
+    void RegisteriOSApplicationDelegate(void* delegate)   { dmNativeRegisterUIApplicationDelegate(delegate); }
+    void UnregisteriOSApplicationDelegate(void* delegate) { dmNativeUnregisterUIApplicationDelegate(delegate); }
+    void RegisteriOSSceneDelegate(void* delegate)         { dmNativeRegisterUISceneDelegate(delegate); }
+    void UnregisteriOSSceneDelegate(void* delegate)       { dmNativeUnregisterUISceneDelegate(delegate); }
 }

@@ -60,9 +60,7 @@ static NativeAndroidEglResult CreateGLSurface()
 
     JNIDetachCurrentThreadIfNeeded(did_attach);
     if (result == NATIVE_ANDROID_EGL_RESULT_READY)
-    {
         result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
-    }
 
     if (result != NATIVE_ANDROID_EGL_RESULT_READY)
     {
@@ -96,9 +94,8 @@ int dmNativeAndroidPlatformGetWindowRefreshRate(void)
     lJavaVMAttachArgs.group = NULL;
 
     result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR)
-    {
-        return 0;
+    if (result == JNI_ERR) {
+         return 0;
     }
 
     jobject native_activity = g_AndroidApp->activity->clazz;
@@ -126,7 +123,6 @@ int dmNativeAndroidPlatformGetWindowRefreshRate(void)
             }
         }
     }
-
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 
     return (int)(refresh_rate + 0.5f);
@@ -144,33 +140,24 @@ int dmNativeAndroidPlatformOpenWindow(int client_api)
         do
         {
             if (init_gl(&dmNativeWinAndroid) == 0)
-            {
                 return GL_FALSE;
-            }
 
             result = make_current(&dmNativeWinAndroid);
             if (result == NATIVE_ANDROID_EGL_RESULT_READY)
-            {
                 result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
-            }
 
             if (result != NATIVE_ANDROID_EGL_RESULT_READY)
             {
                 result = HandleGLSurfaceFailure(result);
                 final_gl(&dmNativeWinAndroid);
             }
-
             if (is_egl_result_retryable(result))
-            {
                 wait_for_egl_retry(retry_count++);
-            }
         }
         while (is_egl_result_retryable(result));
 
         if (result != NATIVE_ANDROID_EGL_RESULT_READY)
-        {
             return GL_FALSE;
-        }
 
         reset_egl_failure_retries(&dmNativeWinAndroid);
         dmNativeWinAndroid.should_recreate_surface = 0;
@@ -243,11 +230,9 @@ void dmNativeAndroidPlatformSwapBuffers(void)
             {
                 dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
             }
-
             HandleGLSurfaceFailure(result);
             return;
         }
-
         g_PendingResize = 0;
     }
 }
@@ -282,7 +267,6 @@ int32_t dmNativeAndroidPlatformVerifySurface(void)
             return result;
         }
     }
-
     return 1; // surface is ok
 }
 
@@ -349,10 +333,7 @@ void dmNativeAndroidPlatformAfterFlushEvents(void)
             if (!window)
             {
                 if (pending_insets)
-                {
                     dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
-                }
-
                 return;
             }
 
@@ -363,11 +344,8 @@ void dmNativeAndroidPlatformAfterFlushEvents(void)
             dmNativeWin.height = height;
             g_PendingResize = 0;
             if (dmNativeWin.windowSizeCallback)
-            {
                 dmNativeWin.windowSizeCallback(width, height);
-            }
         }
-
         return;
     }
 

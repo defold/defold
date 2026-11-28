@@ -21,12 +21,11 @@ This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView sub
 The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
-@interface EAGLView : BaseView
-{
-    @public
-    EAGLContext* context;
-    EAGLContext* auxContext;
-    @private
+@interface EAGLView : BaseView {
+@public
+    EAGLContext *context;
+    EAGLContext *auxContext;
+@private
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthStencilRenderbuffer;
 }
@@ -41,7 +40,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @interface EAGLView ()
 
-@property (nonatomic, retain) EAGLContext* context;
-@property (nonatomic, retain) EAGLContext* auxContext;
+@property (nonatomic, retain) EAGLContext *context;
+@property (nonatomic, retain) EAGLContext *auxContext;
 
 @end

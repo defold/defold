@@ -17,7 +17,7 @@
 
 extern Nativewin g_Savewin;
 
-void dmNativeOSCloseWindow(void)
+void dmNativeOSCloseWindow( void )
 {
     // Preserve UIKit and graphics objects across reboot. Callbacks belong to the closing engine.
     g_Savewin = (Nativewin){
@@ -33,21 +33,21 @@ int dmNativeOSGetDefaultFramebuffer( )
     return dmNativeWin.frameBuffer; // non zero only if OpenGLES
 }
 
-void dmNativeOSSetWindowSize(int width, int height)
+void dmNativeOSSetWindowSize( int width, int height )
 {
 }
 
-void dmNativeOSIconifyWindow(void)
+void dmNativeOSIconifyWindow( void )
 {
 }
 
-void dmNativeOSSwapBuffers(void)
+void dmNativeOSSwapBuffers( void )
 {
     BaseView* view = (BaseView*)dmNativeWin.view;
     [view swapBuffers];
 }
 
-void dmNativeOSSwapInterval(int interval)
+void dmNativeOSSwapInterval( int interval )
 {
     BaseView* view = (BaseView*)dmNativeWin.view;
     [view setSwapInterval: interval];

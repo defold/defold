@@ -101,7 +101,7 @@ TEST(NativeTouch, CapacityPreservesPendingTouches)
 // Verifies press and move deltas are reported once, guarding against stale deltas on frames without touch events (#9411).
 TEST(NativeTouch, DeltasAreConsumedOnce)
 {
-    const int phases[] = { NATIVE_PHASE_BEGAN, NATIVE_PHASE_MOVED };
+    const int phases[] = {NATIVE_PHASE_BEGAN, NATIVE_PHASE_MOVED};
     for (int cancel_all = 0; cancel_all < 2; ++cancel_all)
     {
         for (int phase_index = 0; phase_index < 2; ++phase_index)

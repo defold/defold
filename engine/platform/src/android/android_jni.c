@@ -81,11 +81,7 @@ int JNICheckAndClearException(JNIEnv* env)
 
 jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature)
 {
-    if (instance == 0)
-    {
-        return 0;
-    }
-
+    if (instance == 0) return 0;
     jclass clazz = (*env)->GetObjectClass(env, instance);
     if (JNICheckAndClearException(env) || clazz == 0)
     {
@@ -93,7 +89,6 @@ jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, cons
         {
             (*env)->DeleteLocalRef(env, clazz);
         }
-
         return 0;
     }
 

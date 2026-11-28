@@ -45,23 +45,18 @@ static void SetStateEnvironment(const char* value)
     _putenv_s("DM_WINDOW_STATE", value ? value : "");
 #else
     if (value)
-    {
         setenv("DM_WINDOW_STATE", value, 1);
-    }
     else
-    {
         unsetenv("DM_WINDOW_STATE");
-    }
-
 #endif
 }
 
 class WindowPlacementTest : public jc_test_base_class
 {
-    protected:
-    HWindow            m_Window;
-    char*              m_PreviousEnvironment;
-    char               m_Path[DMPATH_MAX_PATH];
+protected:
+    HWindow m_Window;
+    char* m_PreviousEnvironment;
+    char m_Path[DMPATH_MAX_PATH];
     WindowCreateParams m_Params;
     struct ResizeEvents
     {
@@ -124,11 +119,8 @@ class WindowPlacementTest : public jc_test_base_class
             dmPlatform::PollEvents(m_Window);
             dmWindowTest::Position(m_Window, &actual_x, &actual_y);
             if ((actual_x == x && actual_y == y) || dmTime::GetMonotonicTime() >= deadline)
-            {
                 break;
-            }
         }
-
         ASSERT_EQ(x, actual_x);
         ASSERT_EQ(y, actual_y);
     }
@@ -164,7 +156,6 @@ class WindowPlacementTest : public jc_test_base_class
         SetStateEnvironment(m_PreviousEnvironment);
         free(m_PreviousEnvironment);
     }
-
 };
 
 // Desktop windows must reject the null graphics API and remain usable for a later Vulkan open.
@@ -423,7 +414,6 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
         ASSERT_EQ(expected.m_X, x);
         ASSERT_EQ(expected.m_Y, y);
     }
-
     // Repeat to detect cumulative scaling during creation.
     Recreate();
     dmWindowTest::ClientSize(m_Window, &width, &height);
@@ -565,7 +555,6 @@ TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
     {
         SKIP();
     }
-
     m_Params.m_Width = 1200;
     m_Params.m_Height = 800;
     OpenAndShow();

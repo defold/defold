@@ -15,11 +15,10 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 
-@interface BaseView : UIView<UIKeyInput, UITextInput>
-{
-    @public
+@interface BaseView : UIView<UIKeyInput, UITextInput> {
+@public
     CADisplayLink* displayLink;
-    @private
+@private
     int backingWidth;
     int backingHeight;
     int countDown;
@@ -27,11 +26,11 @@
     UIKeyboardType keyboardType;
     BOOL secureTextEntry;
     id <UITextInputDelegate> inputDelegate;
-    NSMutableString* markedText;
-    NSString* fakeText;
+    NSMutableString *markedText;
+    NSString *fakeText;
 }
 
-@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id>* markedTextStyle;
+@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *markedTextStyle;
 
 - (void)swapBuffers;
 - (void)setSwapInterval: (int) interval;

@@ -36,7 +36,7 @@ static BaseView*            g_BaseView = 0;
 
 @implementation BaseView
 
-NSString* const FAKE_STRING = @"Abcd";
+NSString *const FAKE_STRING = @"Abcd";
 
 + (Class)layerClass
 {
@@ -46,8 +46,7 @@ NSString* const FAKE_STRING = @"Abcd";
 
 - (id) init {
     self = [super init];
-    if (self != nil)
-    {
+    if (self != nil) {
         [self setSwapInterval: 1];
         markedText = [[NSMutableString alloc] initWithCapacity:128];
         // This hack needed to make sure backspace long press works fine.
@@ -98,18 +97,17 @@ NSString* const FAKE_STRING = @"Abcd";
 //   * Keeping track of "marked text" (unfinished keyboard input)
 //========================================================================
 
-- (UITextRange*)selectedTextRange {
+- (UITextRange *)selectedTextRange {
     // We always return the "caret" position as the end of the marked text
     return [IndexedRange rangeWithNSRange:NSMakeRange(markedText.length, 0)];
 }
 
-- (UITextRange*)markedTextRange {
+- (UITextRange *)markedTextRange {
     return [IndexedRange rangeWithNSRange:NSMakeRange(0, markedText.length)];
 }
 
 - (void)unmarkText {
-    if ([markedText length] > 0)
-    {
+    if ([markedText length] > 0) {
         [self insertText: markedText];
 
         // Clear marked text
@@ -120,52 +118,49 @@ NSString* const FAKE_STRING = @"Abcd";
     }
 }
 
-- (NSString*)textInRange:(UITextRange*)range
+- (NSString *)textInRange:(UITextRange *)range
 {
     IndexedRange* _range = (IndexedRange*)range;
     NSString* sub_string = [markedText length] < _range.range.length ? [fakeText substringWithRange:_range.range] : [markedText substringWithRange:_range.range];
     return sub_string;
 }
 
-- (void)replaceRange:(UITextRange*)range
-            withText:(NSString*)text
+- (void)replaceRange:(UITextRange *)range
+            withText:(NSString *)text
 {
     IndexedRange* _range = (IndexedRange*)range;
     [markedText replaceCharactersInRange:_range.range withString:text];
 }
 
-- (UITextRange*)textRangeFromPosition:(UITextPosition*)fromPosition
-                            toPosition:(UITextPosition*)toPosition
+- (UITextRange *)textRangeFromPosition:(UITextPosition *)fromPosition
+                            toPosition:(UITextPosition *)toPosition
 {
-    IndexedPosition* from = (IndexedPosition*)fromPosition;
-    IndexedPosition* to = (IndexedPosition*)toPosition;
+    IndexedPosition *from = (IndexedPosition *)fromPosition;
+    IndexedPosition *to = (IndexedPosition *)toPosition;
     NSRange range = NSMakeRange(MIN(from.index, to.index), ABS(to.index - from.index));
     return [IndexedRange rangeWithNSRange:range];
 }
 
-- (UITextPosition*)positionFromPosition:(UITextPosition*)position
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position
                                   offset:(NSInteger)offset
 {
-    IndexedPosition* pos = (IndexedPosition*)position;
+    IndexedPosition *pos = (IndexedPosition *)position;
     NSInteger end = pos.index + offset;
     NSString* string = markedText.length != 0 ? markedText : fakeText;
     if (end > [string length] || end < 0)
-    {
         return nil;
-    }
-
     return [IndexedPosition positionWithIndex:end];
 }
 
-- (NSInteger)offsetFromPosition:(UITextPosition*)fromPosition
-                     toPosition:(UITextPosition*)toPosition
+- (NSInteger)offsetFromPosition:(UITextPosition *)fromPosition
+                     toPosition:(UITextPosition *)toPosition
 {
-    IndexedPosition* f = (IndexedPosition*)fromPosition;
-    IndexedPosition* t = (IndexedPosition*)toPosition;
+    IndexedPosition *f = (IndexedPosition *)fromPosition;
+    IndexedPosition *t = (IndexedPosition *)toPosition;
     return (t.index - f.index);
 }
 
-- (id<UITextInputDelegate>) inputDelegate {
+- (id< UITextInputDelegate >) inputDelegate {
     return inputDelegate;
 }
 
@@ -177,7 +172,7 @@ NSString* const FAKE_STRING = @"Abcd";
     return [[UITextInputStringTokenizer alloc] initWithTextInput:self];
 }
 
-- (NSWritingDirection) baseWritingDirectionForPosition: (UITextPosition*)position inDirection: (UITextStorageDirection)direction {
+- (NSWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
     return NSWritingDirectionRightToLeft;
 }
 
@@ -189,8 +184,8 @@ NSString* const FAKE_STRING = @"Abcd";
     return UITextSpellCheckingTypeNo;
 }
 
-- (UITextPosition*) endOfDocument {
-    IndexedPosition* pos = [[IndexedPosition alloc] init];
+- (UITextPosition *) endOfDocument {
+    IndexedPosition *pos = [[IndexedPosition alloc] init];
     pos.index = [fakeText length];
     return [pos autorelease];
 }
@@ -204,61 +199,30 @@ NSString* const FAKE_STRING = @"Abcd";
 // implemented just to satisfy the protocol but are not used.
 //========================================================================
 
-- (void)setSelectedTextRange:(UITextRange*)range {
-}
+- (void)setSelectedTextRange:(UITextRange *)range {}
+- (UITextPosition *) beginningOfDocument { return nil; }
 
-- (UITextPosition*) beginningOfDocument {
-    return nil;
-}
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point { return nil; }
+- (NSArray *)selectionRectsForRange:(UITextRange *)range { return nil; }
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point
+                               withinRange:(UITextRange *)range { return nil; }
+- (UITextRange *)characterRangeAtPoint:(CGPoint)point { return nil; }
 
-- (UITextPosition*)closestPositionToPoint:(CGPoint)point {
-    return nil;
-}
+- (UITextPosition *)positionWithinRange:(UITextRange *)range
+                    farthestInDirection:(UITextLayoutDirection)direction { return nil; }
+- (UITextRange *)characterRangeByExtendingPosition:(UITextPosition *)position
+                                       inDirection:(UITextLayoutDirection)direction { return nil; }
+- (CGRect)firstRectForRange:(UITextRange *)range { return CGRectMake(0, 0, 0, 0); }
+- (CGRect)caretRectForPosition:(UITextPosition *)position { return CGRectMake(0, 0, 0, 0); }
 
-- (NSArray*)selectionRectsForRange:(UITextRange*)range {
-    return nil;
-}
-
-- (UITextPosition*)closestPositionToPoint:(CGPoint)point
-    withinRange:(UITextRange*)range {
-    return nil;
-}
-
-- (UITextRange*)characterRangeAtPoint:(CGPoint)point {
-    return nil;
-}
-
-- (UITextPosition*)positionWithinRange:(UITextRange*)range
-    farthestInDirection:(UITextLayoutDirection)direction {
-    return nil;
-}
-
-- (UITextRange*)characterRangeByExtendingPosition:(UITextPosition*)position
-    inDirection:(UITextLayoutDirection)direction {
-    return nil;
-}
-
-- (CGRect)firstRectForRange:(UITextRange*)range {
-    return CGRectMake(0, 0, 0, 0);
-}
-
-- (CGRect)caretRectForPosition:(UITextPosition*)position {
-    return CGRectMake(0, 0, 0, 0);
-}
-
-- (UITextPosition*)positionFromPosition:(UITextPosition*)position
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position
                              inDirection:(UITextLayoutDirection)direction
-    offset:(NSInteger)offset {
-    return nil;
-}
+                                  offset:(NSInteger)offset { return nil; }
 
-- (NSComparisonResult)comparePosition:(UITextPosition*)position
-    toPosition:(UITextPosition*)other {
-    return NSOrderedSame;
-}
+- (NSComparisonResult)comparePosition:(UITextPosition *)position
+                           toPosition:(UITextPosition *)other { return NSOrderedSame; }
 
-- (void) setBaseWritingDirection: (NSWritingDirection)writingDirection forRange:(UITextRange*)range {
-}
+- (void) setBaseWritingDirection: (NSWritingDirection)writingDirection forRange:(UITextRange *)range { }
 
 - (void)swapBuffers
 {
@@ -267,9 +231,7 @@ NSString* const FAKE_STRING = @"Abcd";
 - (void)newFrame
 {
     if (!dmNativeOSIsSceneActive() || dmNativeWin.iconified)
-    {
         return;
-    }
 
     countDown--;
 
@@ -282,7 +244,6 @@ NSString* const FAKE_STRING = @"Abcd";
     {
         interval = 1;
     }
-
     swapInterval = interval;
     countDown = swapInterval;
 }
@@ -296,23 +257,20 @@ NSString* const FAKE_STRING = @"Abcd";
     int32_t i;
 
     NativeTouch* freeTouch = 0x0;
-    for (i = 0; i != NATIVE_MAX_TOUCH; i++)
+    for (i=0;i!=NATIVE_MAX_TOUCH;i++)
     {
         dmNativeInput.Touch[i].Id = i;
-        if (dmNativeInput.Touch[i].Reference == ref)
-        {
+        if (dmNativeInput.Touch[i].Reference == ref) {
             return &dmNativeInput.Touch[i];
         }
 
         // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
-        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0)
-        {
+        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0) {
             freeTouch = &dmNativeInput.Touch[i];
         }
     }
 
-    if (freeTouch != 0x0)
-    {
+    if (freeTouch != 0x0) {
         freeTouch->Reference = ref;
     }
 
@@ -324,8 +282,7 @@ NSString* const FAKE_STRING = @"Abcd";
     dmNativeInput.MousePosX = x;
     dmNativeInput.MousePosY = y;
     dmNativeInput.MousePositionFromTouch = 1;
-    if (@available(iOS 13.4, *))
-    {
+    if (@available(iOS 13.4, *)) {
         dmNativeInput.MousePositionFromTouch = touch.type != UITouchTypeIndirectPointer;
     }
 }
@@ -333,8 +290,7 @@ NSString* const FAKE_STRING = @"Abcd";
 - (void) touchStart: (NativeTouch*) dmNativet withTouch: (UITouch*) t
 {
     // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
-    if (dmNativeInput.MouseEmulationTouch == 0x0)
-    {
+    if (dmNativeInput.MouseEmulationTouch == 0x0) {
         dmNativeInput.MouseEmulationTouch = dmNativet;
     }
 
@@ -367,21 +323,18 @@ NSString* const FAKE_STRING = @"Abcd";
     int newPhase = t.phase;
 
     // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-    if (prevPhase == NATIVE_PHASE_TAPPED)
-    {
+    if (prevPhase == NATIVE_PHASE_TAPPED) {
         return;
     }
 
     // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
-    if (newPhase == NATIVE_PHASE_ENDED && dmNativeInput.MouseEmulationTouch == dmNativet)
-    {
+    if (newPhase == NATIVE_PHASE_ENDED && dmNativeInput.MouseEmulationTouch == dmNativet) {
         dmNativeInput.MouseEmulationTouch = 0x0;
     }
 
     // This is an invalid touch order, we need to recieve a began or moved
     // phase before moving pushing any more move inputs.
-    if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED)
-    {
+    if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED) {
         return;
     }
 
@@ -393,15 +346,12 @@ NSString* const FAKE_STRING = @"Abcd";
 
     // If we recieved both a began and moved for the same touch during one frame/update,
     // just update the coordinates but leave the phase as began.
-    if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED)
-    {
+    if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED) {
         return;
 
-        // If a touch both began and ended during one frame/update, set the phase as
-        // tapped so dmNativeReadTouches reports the release on the following update.
-    }
-    else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED)
-    {
+    // If a touch both began and ended during one frame/update, set the phase as
+    // tapped so dmNativeReadTouches reports the release on the following update.
+    } else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED) {
         dmNativet->Phase = NATIVE_PHASE_TAPPED;
         return;
     }
@@ -412,15 +362,13 @@ NSString* const FAKE_STRING = @"Abcd";
 
 - (void) fillTouchStart: (UIEvent*) event
 {
-    NSSet* touches = [event allTouches];
+    NSSet *touches = [event allTouches];
 
-    for (UITouch* t in touches)
+    for (UITouch *t in touches)
     {
-        if (NATIVE_PHASE_BEGAN == t.phase)
-        {
+        if (NATIVE_PHASE_BEGAN == t.phase) {
             NativeTouch* dmNativet = [self touchById: t];
-            if (dmNativet == 0x0)
-            {
+            if (dmNativet == 0x0) {
                 // Could not find corresponding NativeTouch.
                 // Possibly due to too many touches at once,
                 // we only support NATIVE_MAX_TOUCH.
@@ -428,8 +376,7 @@ NSString* const FAKE_STRING = @"Abcd";
             }
 
             // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
-            if (dmNativet->Phase != NATIVE_PHASE_IDLE)
-            {
+            if (dmNativet->Phase != NATIVE_PHASE_IDLE) {
                 continue;
             }
 
@@ -438,7 +385,7 @@ NSString* const FAKE_STRING = @"Abcd";
             if (dmNativet == dmNativeInput.MouseEmulationTouch)
             {
                 [self updateMousePosition: dmNativet->X y: dmNativet->Y touch: t];
-                dmNativeInputMouseClick(NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS);
+                dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
             }
         }
     }
@@ -446,15 +393,13 @@ NSString* const FAKE_STRING = @"Abcd";
 
 - (void) fillTouch: (UIEvent*) event forPhase:(UITouchPhase) phase
 {
-    NSSet* touches = [event allTouches];
+    NSSet *touches = [event allTouches];
 
-    for (UITouch* t in touches)
+    for (UITouch *t in touches)
     {
-        if (phase == t.phase)
-        {
+        if (phase == t.phase) {
             NativeTouch* dmNativet = [self touchById: t];
-            if (dmNativet == 0x0)
-            {
+            if (dmNativet == 0x0) {
                 // Could not find corresponding NativeTouch.
                 // Possibly due to too many touches at once,
                 // we only support NATIVE_MAX_TOUCH.
@@ -462,8 +407,7 @@ NSString* const FAKE_STRING = @"Abcd";
             }
 
             // We can only update previous touches that has been initialized (began, moved etc).
-            if (dmNativet->Phase == NATIVE_PHASE_IDLE)
-            {
+            if (dmNativet->Phase == NATIVE_PHASE_IDLE) {
                 dmNativet->Reference = 0x0;
                 continue;
             }
@@ -473,27 +417,23 @@ NSString* const FAKE_STRING = @"Abcd";
             if (dmNativet == dmNativeInput.MouseEmulationTouch || !dmNativeInput.MouseEmulationTouch)
             {
                 [self updateMousePosition: dmNativet->X y: dmNativet->Y touch: t];
-                if ((phase == NATIVE_PHASE_ENDED || phase == NATIVE_PHASE_CANCELLED))
-                {
-                    dmNativeInputMouseClick(NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE);
-                }
-                else
-                {
+                if ((phase == NATIVE_PHASE_ENDED || phase == NATIVE_PHASE_CANCELLED)) {
+                    dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
+                } else {
                 }
             }
         }
     }
 }
 
-- (void)touchesMoved:(NSSet*)touches withEvent:(UIEvent*)event
+- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
     [self fillTouch: event forPhase: UITouchPhaseMoved];
 }
 
-- (void)touchesBegan:(NSSet*)touches withEvent:(UIEvent*)event
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    if (self.keyboardActive && self.autoCloseKeyboard)
-    {
+    if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
         dmNativeShowKeyboard(0, 0, 0);
     }
@@ -501,12 +441,12 @@ NSString* const FAKE_STRING = @"Abcd";
     [self fillTouchStart: event];
 }
 
-- (void)touchesEnded:(NSSet*)touches withEvent:(UIEvent*)event
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
     [self fillTouch: event forPhase: UITouchPhaseEnded];
 }
 
-- (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
 {
     [self fillTouch: event forPhase: UITouchPhaseCancelled];
 }
@@ -521,27 +461,25 @@ NSString* const FAKE_STRING = @"Abcd";
     return YES;
 }
 
-- (void)setMarkedText:(NSString*)newMarkedText selectedRange:(NSRange)selectedRange {
+- (void)setMarkedText:(NSString *)newMarkedText selectedRange:(NSRange)selectedRange {
     [markedText setString:newMarkedText];
     dmNativeSetMarkedText((char*)[markedText UTF8String]);
 }
 
-- (void)insertText:(NSString*)theText
+- (void)insertText:(NSString *)theText
 {
     int length = [theText length];
 
-    if (length == 1 && [theText characterAtIndex: 0] == 10)
-    {
-        dmNativeInputKey(NATIVE_KEY_ENTER, NATIVE_PRESS);
+    if (length == 1 && [theText characterAtIndex: 0] == 10) {
+        dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_PRESS );
         self.textkeyActive = TEXT_KEY_COOLDOWN;
         return;
     }
 
-    for (int i = 0; i < length; i++)
-    {
+    for(int i = 0;  i < length;  i++) {
         // Trick to "fool" dmNative. Otherwise repeated characters will be filtered due to repeat
-        dmNativeInputChar([theText characterAtIndex:i], NATIVE_RELEASE);
-        dmNativeInputChar([theText characterAtIndex:i], NATIVE_PRESS);
+        dmNativeInputChar( [theText characterAtIndex:i], NATIVE_RELEASE );
+        dmNativeInputChar( [theText characterAtIndex:i], NATIVE_PRESS );
     }
 }
 
@@ -551,11 +489,9 @@ NSString* const FAKE_STRING = @"Abcd";
     {
         [markedText setString:@""];
         dmNativeSetMarkedText("");
-    }
-    else
-    {
-        dmNativeInputKey(NATIVE_KEY_BACKSPACE, NATIVE_RELEASE);
-        dmNativeInputKey(NATIVE_KEY_BACKSPACE, NATIVE_PRESS);
+    } else {
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_PRESS );
         self.textkeyActive = TEXT_KEY_COOLDOWN;
     }
 }
@@ -629,9 +565,7 @@ NSString* const FAKE_STRING = @"Abcd";
 - (void)applyPreferredFrameRate
 {
     if (!displayLink)
-    {
         return;
-    }
 
     if (g_PreferredFrameRate == 0)
     {
@@ -664,7 +598,6 @@ NSString* const FAKE_STRING = @"Abcd";
         [self startDisplayLink];
         [self setNeedsLayout];
     }
-
     // Detachment can be temporary. Scene disconnection and view replacement
     // explicitly invalidate the link; a modal presentation must keep it running.
 }
@@ -691,7 +624,7 @@ NSString* const FAKE_STRING = @"Abcd";
 // Reset keyboard input state (clears marked text)
 //========================================================================
 
-void dmNativeResetKeyboard(void)
+void dmNativeResetKeyboard( void )
 {
     BaseView* view = (BaseView*) dmNativeWin.view;
     [view clearMarkedText];
@@ -703,37 +636,29 @@ void dmNativeResetKeyboard(void)
 
 int dmNativeOSGetAcceleration(float* x, float* y, float* z)
 {
-    if (g_AccelerometerEnabled)
-    {
+    if (g_AccelerometerEnabled) {
         CMAccelerometerData* data = g_MotionManager.accelerometerData;
-        if (data)
-        {
+        if (data) {
             dmNativeInput.AccX = data.acceleration.x;
             dmNativeInput.AccY = data.acceleration.y;
             dmNativeInput.AccZ = data.acceleration.z;
         }
-
         *x = dmNativeInput.AccX;
         *y = dmNativeInput.AccY;
         *z = dmNativeInput.AccZ;
     }
-
     return g_AccelerometerEnabled;
 }
 
 void dmNativeAccelerometerEnable()
 {
     if (!g_MotionManager)
-    {
         g_MotionManager = [[CMMotionManager alloc] init];
-    }
 
-    if (g_MotionManager.accelerometerAvailable)
-    {
+    if (g_MotionManager.accelerometerAvailable) {
         g_MotionManager.accelerometerUpdateInterval = g_AccelerometerFrequency;
         [g_MotionManager startAccelerometerUpdates];
     }
-
     g_AccelerometerEnabled = 1;
 }
 
@@ -741,57 +666,40 @@ void dmNativeAccelerometerEnable()
 // Keyboard
 //========================================================================
 
-void dmNativeShowKeyboard(int show, int type, int auto_close)
+void dmNativeShowKeyboard( int show, int type, int auto_close )
 {
     BaseView* view = (BaseView*) dmNativeWin.view;
     view.secureTextEntry = NO;
-    switch (type)
-    {
+    switch (type) {
         case NATIVE_KEYBOARD_DEFAULT:
-        {
             view.keyboardType = UIKeyboardTypeDefault;
             break;
-        }
         case NATIVE_KEYBOARD_NUMBER_PAD:
-        {
             view.keyboardType = UIKeyboardTypeNumberPad;
             break;
-        }
         case NATIVE_KEYBOARD_EMAIL:
-        {
             view.keyboardType = UIKeyboardTypeEmailAddress;
             break;
-        }
         case NATIVE_KEYBOARD_PASSWORD:
-        {
             view.secureTextEntry = YES;
             view.keyboardType = UIKeyboardTypeDefault;
             break;
-        }
         default:
-        {
             view.keyboardType = UIKeyboardTypeDefault;
-        }
     }
-
     view.autoCloseKeyboard = auto_close;
-    if (show)
-    {
+    if (show) {
         view.keyboardActive = YES;
         [dmNativeWin.view becomeFirstResponder];
-    }
-    else
-    {
+    } else {
         view.keyboardActive = NO;
         [dmNativeWin.view resignFirstResponder];
     }
-
     // check if there are any active special keys and immediately release
     // them when the keyboard is manipulated
-    if (view.textkeyActive > 0)
-    {
-        dmNativeInputKey(NATIVE_KEY_BACKSPACE, NATIVE_RELEASE);
-        dmNativeInputKey(NATIVE_KEY_ENTER, NATIVE_RELEASE);
+    if (view.textkeyActive > 0) {
+        dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+        dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_RELEASE );
         view.textkeyActive = 0;
     }
 }
@@ -801,7 +709,7 @@ void dmNativeShowKeyboard(int show, int type, int auto_close)
 // Poll for new window and input events
 //========================================================================
 
-void dmNativeOSPollEvents(void)
+void dmNativeOSPollEvents( void )
 {
     BaseView* view = (BaseView*) dmNativeWin.view;
     if (view.safeAreaChanged && dmNativeWin.windowSizeCallback)
@@ -815,26 +723,21 @@ void dmNativeOSPollEvents(void)
             dmNativeWin.windowSizeCallback(width, height);
         }
     }
-
-    if (view.keyboardActive > 0)
-    {
+    if (view.keyboardActive > 0) {
         view.textkeyActive--;
-        if (view.textkeyActive == 0)
-        {
-            dmNativeInputKey(NATIVE_KEY_BACKSPACE, NATIVE_RELEASE);
-            dmNativeInputKey(NATIVE_KEY_ENTER, NATIVE_RELEASE);
+        if (view.textkeyActive == 0) {
+            dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_RELEASE );
+            dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_RELEASE );
         }
     }
 }
 
-int dmNativeOSGetWindowRefreshRate(void)
+int dmNativeOSGetWindowRefreshRate( void )
 {
     UIWindow* window = (UIWindow*) dmNativeWin.window;
     UIScreen* screen = window ? window.screen : g_ApplicationWindow.screen;
     if (!screen)
-    {
         return 0;
-    }
 
     int rate = (int)screen.maximumFramesPerSecond;
     // iPhone limits display links to 60 Hz unless the app opts out in its Info.plist
@@ -842,11 +745,8 @@ int dmNativeOSGetWindowRefreshRate(void)
     {
         NSNumber* disable_limit = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CADisableMinimumFrameDurationOnPhone"];
         if (![disable_limit boolValue])
-        {
             rate = 60;
-        }
     }
-
     return rate;
 }
 

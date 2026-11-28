@@ -17,11 +17,11 @@
 // Returns the last valid legacy orientation override, or zero.
 FOUNDATION_EXPORT UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* window);
 
-@interface AppDelegateProxy : NSObject <UIApplicationDelegate>
+@interface AppDelegateProxy: NSObject <UIApplicationDelegate>
 
 // due to bootstrap issues, we need to invoke the delegates via this class method for now
-+ (BOOL) application:(UIApplication*)application willFinishLaunchingWithOptions:(NSDictionary*)launchOptions;
++ (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
 
-- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions;
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
 
 @end

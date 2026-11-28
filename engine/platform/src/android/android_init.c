@@ -39,7 +39,7 @@ extern int g_SpecialKeyActive;
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
-static uint32_t g_accelerometerFrequency = 1000000 / 60;
+static uint32_t g_accelerometerFrequency = 1000000/60;
 static NativeTouch* g_MouseEmulationTouch = 0;
 uint32_t g_EventLock = 0;
 int g_AppCommands[MAX_APP_COMMANDS];
@@ -64,28 +64,23 @@ void JNIAndroidFreeCommandLine(int argc, char** argv)
 {
     int i;
     if (argv == NULL)
-    {
         return;
-    }
 
     for (i = 0; i < argc; ++i)
     {
         free(argv[i]);
     }
-
     free(argv);
 }
 
 static JNIEnv* getJNIEnv(ANativeActivity* activity)
 {
     JNIEnv* env = activity->env;
-    if (env != NULL)
-    {
+    if (env != NULL) {
         return env;
     }
 
-    if (activity->vm != NULL && (*activity->vm)->AttachCurrentThread(activity->vm, &env, NULL) == JNI_OK)
-    {
+    if (activity->vm != NULL && (*activity->vm)->AttachCurrentThread(activity->vm, &env, NULL) == JNI_OK) {
         return env;
     }
 
@@ -105,33 +100,28 @@ static int isAndroidPackageDebuggable(JNIEnv* env, ANativeActivity* activity)
     int result = 0;
 
     activity_class = (*env)->GetObjectClass(env, activity->clazz);
-    if (activity_class == NULL)
-    {
+    if (activity_class == NULL) {
         goto done;
     }
 
     get_application_info_method = (*env)->GetMethodID(env, activity_class, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
-    if (get_application_info_method == NULL)
-    {
+    if (get_application_info_method == NULL) {
         goto done;
     }
 
     application_info = (*env)->CallObjectMethod(env, activity->clazz, get_application_info_method);
-    if (application_info == NULL)
-    {
+    if (application_info == NULL) {
         goto done;
     }
 
     application_info_class = (*env)->GetObjectClass(env, application_info);
-    if (application_info_class == NULL)
-    {
+    if (application_info_class == NULL) {
         goto done;
     }
 
     flags_field = (*env)->GetFieldID(env, application_info_class, "flags", "I");
     flag_debuggable_field = (*env)->GetStaticFieldID(env, application_info_class, "FLAG_DEBUGGABLE", "I");
-    if (flags_field == NULL || flag_debuggable_field == NULL)
-    {
+    if (flags_field == NULL || flag_debuggable_field == NULL) {
         goto done;
     }
 
@@ -140,21 +130,15 @@ static int isAndroidPackageDebuggable(JNIEnv* env, ANativeActivity* activity)
     result = (flags & flag_debuggable) != 0;
 
 done:
-    if (application_info != NULL)
-    {
+    if (application_info != NULL) {
         (*env)->DeleteLocalRef(env, application_info);
     }
-
-    if (application_info_class != NULL)
-    {
+    if (application_info_class != NULL) {
         (*env)->DeleteLocalRef(env, application_info_class);
     }
-
-    if (activity_class != NULL)
-    {
+    if (activity_class != NULL) {
         (*env)->DeleteLocalRef(env, activity_class);
     }
-
     return result;
 }
 
@@ -177,57 +161,47 @@ int JNIAndroidSetCommandLine(ANativeActivity* activity)
     size_t program_name_length = 0;
 
     env = getJNIEnv(activity);
-    if (env == NULL)
-    {
+    if (env == NULL) {
         goto done;
     }
 
-    if (!isAndroidPackageDebuggable(env, activity))
-    {
+    if (!isAndroidPackageDebuggable(env, activity)) {
         result = 1;
         goto done;
     }
 
     activity_class = (*env)->GetObjectClass(env, activity->clazz);
-    if (activity_class == NULL)
-    {
+    if (activity_class == NULL) {
         goto done;
     }
 
     get_intent_method = (*env)->GetMethodID(env, activity_class, "getIntent", "()Landroid/content/Intent;");
-    if (get_intent_method == NULL)
-    {
+    if (get_intent_method == NULL) {
         goto done;
     }
 
     intent = (*env)->CallObjectMethod(env, activity->clazz, get_intent_method);
-    if (intent != NULL)
-    {
+    if (intent != NULL) {
         intent_class = (*env)->GetObjectClass(env, intent);
-        if (intent_class == NULL)
-        {
+        if (intent_class == NULL) {
             goto done;
         }
 
         get_string_array_extra_method = (*env)->GetMethodID(
             env, intent_class, "getStringArrayExtra", "(Ljava/lang/String;)[Ljava/lang/String;");
-        if (get_string_array_extra_method == NULL)
-        {
+        if (get_string_array_extra_method == NULL) {
             goto done;
         }
 
         extra_key = (*env)->NewStringUTF(env, COMMAND_LINE_ARGUMENTS_EXTRA);
-        if (extra_key == NULL)
-        {
+        if (extra_key == NULL) {
             goto done;
         }
 
         extra_args = (jobjectArray)(*env)->CallObjectMethod(env, intent, get_string_array_extra_method, extra_key);
-        if (extra_args != NULL)
-        {
+        if (extra_args != NULL) {
             extra_count = (*env)->GetArrayLength(env, extra_args);
-            if (extra_count > 0)
-            {
+            if (extra_count > 0) {
                 argc += extra_count;
                 use_extra_args = 1;
             }
@@ -235,70 +209,52 @@ int JNIAndroidSetCommandLine(ANativeActivity* activity)
     }
 
     command_line = (char**)calloc((size_t)argc + 1, sizeof(char*));
-    if (command_line == NULL)
-    {
+    if (command_line == NULL) {
         goto done;
     }
 
     program_name_length = strlen(g_AndroidCommandLineProgramName) + 1;
     command_line[0] = (char*)malloc(program_name_length);
-    if (command_line[0] == NULL)
-    {
+    if (command_line[0] == NULL) {
         goto done;
     }
-
     memcpy(command_line[0], g_AndroidCommandLineProgramName, program_name_length);
 
-    if (use_extra_args)
-    {
-        for (i = 0; i < extra_count; ++i)
-        {
+    if (use_extra_args) {
+        for (i = 0; i < extra_count; ++i) {
             jstring arg = (jstring)(*env)->GetObjectArrayElement(env, extra_args, i);
             const char* utf = NULL;
             jsize len = 0;
 
-            if (arg != NULL)
-            {
+            if (arg != NULL) {
                 utf = (*env)->GetStringUTFChars(env, arg, 0);
-                if (utf == NULL)
-                {
+                if (utf == NULL) {
                     (*env)->DeleteLocalRef(env, arg);
                     goto done;
                 }
-
                 len = (*env)->GetStringUTFLength(env, arg);
             }
 
             command_line[i + 1] = (char*)malloc((size_t)len + 1);
-            if (command_line[i + 1] == NULL)
-            {
-                if (utf != NULL)
-                {
+            if (command_line[i + 1] == NULL) {
+                if (utf != NULL) {
                     (*env)->ReleaseStringUTFChars(env, arg, utf);
                 }
-
-                if (arg != NULL)
-                {
+                if (arg != NULL) {
                     (*env)->DeleteLocalRef(env, arg);
                 }
-
                 goto done;
             }
 
-            if (len > 0)
-            {
+            if (len > 0) {
                 memcpy(command_line[i + 1], utf, (size_t)len);
             }
-
             command_line[i + 1][len] = '\0';
 
-            if (utf != NULL)
-            {
+            if (utf != NULL) {
                 (*env)->ReleaseStringUTFChars(env, arg, utf);
             }
-
-            if (arg != NULL)
-            {
+            if (arg != NULL) {
                 (*env)->DeleteLocalRef(env, arg);
             }
         }
@@ -311,40 +267,28 @@ int JNIAndroidSetCommandLine(ANativeActivity* activity)
     result = 1;
 
 done:
-    if (command_line != NULL)
-    {
+    if (command_line != NULL) {
         JNIAndroidFreeCommandLine(argc, command_line);
     }
-
-    if (env != NULL && extra_key != NULL)
-    {
+    if (env != NULL && extra_key != NULL) {
         (*env)->DeleteLocalRef(env, extra_key);
     }
-
-    if (env != NULL && extra_args != NULL)
-    {
+    if (env != NULL && extra_args != NULL) {
         (*env)->DeleteLocalRef(env, extra_args);
     }
-
-    if (env != NULL && intent != NULL)
-    {
+    if (env != NULL && intent != NULL) {
         (*env)->DeleteLocalRef(env, intent);
     }
-
-    if (env != NULL && intent_class != NULL)
-    {
+    if (env != NULL && intent_class != NULL) {
         (*env)->DeleteLocalRef(env, intent_class);
     }
-
-    if (env != NULL && activity_class != NULL)
-    {
+    if (env != NULL && activity_class != NULL) {
         (*env)->DeleteLocalRef(env, activity_class);
     }
-
     return result;
 }
 
-#define CASE_RETURN(cmd) \
+#define CASE_RETURN(cmd)\
     case cmd:\
         return #cmd;
 
@@ -368,10 +312,8 @@ const char* dmNativeGetAndroidCmdName(int32_t cmd)
     CASE_RETURN(APP_CMD_PAUSE);
     CASE_RETURN(APP_CMD_STOP);
     CASE_RETURN(APP_CMD_DESTROY);
-        default:
-        {
-            return "unknown";
-        }
+    default:
+        return "unknown";
     }
 }
 
@@ -405,9 +347,9 @@ void computeIconifiedState()
     dmNativeWin.iconified = !(g_AppResumed && has_renderable_window);
 
     LOGV("iconified: %s    (resume: %s, window: %s)",
-         dmNativeWin.iconified ? "YES" : "no",
-         g_AppResumed ? "YES" : "no",
-         has_renderable_window ? "YES" : "no");
+        dmNativeWin.iconified?"YES":"no",
+        g_AppResumed?"YES":"no",
+        has_renderable_window?"YES":"no");
 }
 
 int32_t dmNativeAndroidWindowOpened()
@@ -420,84 +362,55 @@ int32_t dmNativeAndroidVerifySurface()
     return dmNativeAndroidPlatformVerifySurface();
 }
 
-void dmNativeAndroidDispatchCommand(struct android_app* app, int32_t cmd)
-{
+void dmNativeAndroidDispatchCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand (looper thread): %s", dmNativeGetAndroidCmdName(cmd));
 
     switch (cmd)
     {
-        case APP_CMD_SAVE_STATE:
-        {
-            break;
+    case APP_CMD_SAVE_STATE:
+        break;
+    case APP_CMD_INIT_WINDOW:
+        dmNativeWin.opened = 1;
+        break;
+    case APP_CMD_TERM_WINDOW:
+        // Defer surface teardown to the engine thread to avoid blocking the looper.
+        break;
+    case APP_CMD_GAINED_FOCUS:
+        break;
+    case APP_CMD_LOST_FOCUS:
+        if (g_KeyboardActive) {
+            dmNativeShowKeyboard(0, 0, 0);
         }
-        case APP_CMD_INIT_WINDOW:
-        {
-            dmNativeWin.opened = 1;
-            break;
+        break;
+    case APP_CMD_START:
+        break;
+    case APP_CMD_STOP:
+        break;
+    case APP_CMD_RESUME:
+        dmNativeWin.active = 1;
+        g_AppResumed = true;
+        if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
+            ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
-        case APP_CMD_TERM_WINDOW:
-        {
-            // Defer surface teardown to the engine thread to avoid blocking the looper.
-            break;
+        computeIconifiedState();
+        break;
+    case APP_CMD_WINDOW_RESIZED:
+    case APP_CMD_CONFIG_CHANGED:
+    case APP_CMD_WINDOW_REDRAW_NEEDED:
+    case APP_CMD_CONTENT_RECT_CHANGED:
+        // See dmNativeAndroidFlushEvents for handling of orientation changes
+        break;
+    case APP_CMD_PAUSE:
+        g_AppResumed = false;
+        dmNativeWin.active = 0;
+        if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
+            ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
-        case APP_CMD_GAINED_FOCUS:
-        {
-            break;
-        }
-        case APP_CMD_LOST_FOCUS:
-        {
-            if (g_KeyboardActive)
-            {
-                dmNativeShowKeyboard(0, 0, 0);
-            }
-
-            break;
-        }
-        case APP_CMD_START:
-        {
-            break;
-        }
-        case APP_CMD_STOP:
-        {
-            break;
-        }
-        case APP_CMD_RESUME:
-        {
-            dmNativeWin.active = 1;
-            g_AppResumed = true;
-            if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled)
-            {
-                ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
-            }
-
-            computeIconifiedState();
-            break;
-        }
-        case APP_CMD_WINDOW_RESIZED:
-        case APP_CMD_CONFIG_CHANGED:
-        case APP_CMD_WINDOW_REDRAW_NEEDED:
-        case APP_CMD_CONTENT_RECT_CHANGED:
-        {
-            // See dmNativeAndroidFlushEvents for handling of orientation changes
-            break;
-        }
-        case APP_CMD_PAUSE:
-        {
-            g_AppResumed = false;
-            dmNativeWin.active = 0;
-            if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled)
-            {
-                ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
-            }
-
-            computeIconifiedState();
-            break;
-        }
-        case APP_CMD_DESTROY:
-        {
-            androidDestroyWindow();
-            break;
-        }
+        computeIconifiedState();
+        break;
+    case APP_CMD_DESTROY:
+        androidDestroyWindow();
+        break;
     }
 }
 
@@ -521,48 +434,42 @@ void dmNativeAndroidHandleCommand(struct android_app* app, int32_t cmd)
     spinlock_unlock(&g_EventLock);
 }
 
-static NativeTouch* touchById(void* ref)
+static NativeTouch* touchById(void *ref)
 {
     int32_t i;
 
     NativeTouch* freeTouch = 0x0;
-    for (i = 0; i != NATIVE_MAX_TOUCH; i++)
+    for (i=0;i!=NATIVE_MAX_TOUCH;i++)
     {
         dmNativeInput.Touch[i].Id = i;
         if (dmNativeInput.Touch[i].Reference == ref)
-        {
             return &dmNativeInput.Touch[i];
-        }
 
         // Save touch entry for later if we need to "alloc" one in case we don't find the current reference.
-        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0)
-        {
+        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0) {
             freeTouch = &dmNativeInput.Touch[i];
         }
     }
 
-    if (freeTouch != 0x0)
-    {
+    if (freeTouch != 0x0) {
         freeTouch->Reference = ref;
     }
 
     return freeTouch;
 }
 
-static NativeTouch* touchStart(void* ref, int32_t x, int32_t y)
+static NativeTouch* touchStart(void *ref, int32_t x, int32_t y)
 {
-    NativeTouch* touch = touchById(ref);
+    NativeTouch *touch = touchById(ref);
     if (touch)
     {
         // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
-        if (touch->Phase != NATIVE_PHASE_IDLE)
-        {
+        if (touch->Phase != NATIVE_PHASE_IDLE) {
             return 0x0;
         }
 
         // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
-        if (g_MouseEmulationTouch == 0x0)
-        {
+        if (g_MouseEmulationTouch == 0x0) {
             g_MouseEmulationTouch = touch;
         }
 
@@ -578,14 +485,13 @@ static NativeTouch* touchStart(void* ref, int32_t x, int32_t y)
     return 0;
 }
 
-static NativeTouch* touchUpdate(void* ref, int32_t x, int32_t y, int phase)
+static NativeTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 {
-    NativeTouch* touch = touchById(ref);
+    NativeTouch *touch = touchById(ref);
     if (touch)
     {
         // We can only update previous touches that has been initialized (began, moved etc).
-        if (touch->Phase == NATIVE_PHASE_IDLE)
-        {
+        if (touch->Phase == NATIVE_PHASE_IDLE) {
             touch->Reference = 0x0;
             return 0x0;
         }
@@ -594,21 +500,18 @@ static NativeTouch* touchUpdate(void* ref, int32_t x, int32_t y, int phase)
         int newPhase = phase;
 
         // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-        if (prevPhase == NATIVE_PHASE_TAPPED || prevPhase == NATIVE_PHASE_CANCELLED)
-        {
+        if (prevPhase == NATIVE_PHASE_TAPPED || prevPhase == NATIVE_PHASE_CANCELLED) {
             return 0x0;
         }
 
         // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
-        if (newPhase == NATIVE_PHASE_ENDED && g_MouseEmulationTouch == touch)
-        {
+        if (newPhase == NATIVE_PHASE_ENDED && g_MouseEmulationTouch == touch) {
             g_MouseEmulationTouch = 0x0;
         }
 
         // This is an invalid touch order, we need to recieve a began or moved
         // phase before moving pushing any more move inputs.
-        if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED)
-        {
+        if (prevPhase == NATIVE_PHASE_ENDED && newPhase == NATIVE_PHASE_MOVED) {
             return touch;
         }
 
@@ -619,14 +522,11 @@ static NativeTouch* touchUpdate(void* ref, int32_t x, int32_t y, int phase)
 
         // If we recieved both a began and moved for the same touch during one frame/update,
         // just update the coordinates but leave the phase as began.
-        if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED)
-        {
+        if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_MOVED) {
             return touch;
-            // If a touch both began and ended during one frame/update, set the phase as
-            // tapped so dmNativeReadTouches reports the release on the following update.
-        }
-        else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED)
-        {
+        // If a touch both began and ended during one frame/update, set the phase as
+        // tapped so dmNativeReadTouches reports the release on the following update.
+        } else if (prevPhase == NATIVE_PHASE_BEGAN && newPhase == NATIVE_PHASE_ENDED) {
             touch->Phase = NATIVE_PHASE_TAPPED;
             return touch;
         }
@@ -635,11 +535,10 @@ static NativeTouch* touchUpdate(void* ref, int32_t x, int32_t y, int phase)
 
         return touch;
     }
-
     return 0;
 }
 
-void*pointerIdToRef(int32_t id)
+void *pointerIdToRef(int32_t id)
 {
     return (void*)(uintptr_t)(0x1 + id);
 }
@@ -657,8 +556,7 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
     int event_type = event->m_Type;
     if (event_type == AINPUT_EVENT_TYPE_MOTION)
     {
-        if (g_KeyboardActive && g_autoCloseKeyboard)
-        {
+        if (g_KeyboardActive && g_autoCloseKeyboard) {
             // Implicitly hide keyboard
             dmNativeShowKeyboard(0, 0, 0);
         }
@@ -742,8 +640,7 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
     }
     else if (event_type == AINPUT_EVENT_TYPE_KEY)
     {
-        int32_t code = event->m_Code;
-        ;
+        int32_t code = event->m_Code;;
         int32_t action = event->m_Action;
         int32_t flags = event->m_Flags;
         int32_t meta = event->m_Meta;
@@ -774,444 +671,139 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
         // There's an ugly hack in window_android.c that counts down the
         // g_SpecialKeyActive and when it reaches zero it generates a release
         // event for the keys checked below
-        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS))
-        {
-            switch (code)
-            {
-                case AKEYCODE_DEL:
-                {
-                    g_SpecialKeyActive = 10;
-                    dmNativeInputKey(NATIVE_KEY_BACKSPACE, NATIVE_PRESS);
-                    return 1;
-                }
-                case AKEYCODE_ENTER:
-                {
-                    g_SpecialKeyActive = 10;
-                    dmNativeInputKey(NATIVE_KEY_ENTER, NATIVE_PRESS);
-                    return 1;
-                }
+        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS)) {
+            switch (code) {
+            case AKEYCODE_DEL:
+                g_SpecialKeyActive = 10;
+                dmNativeInputKey( NATIVE_KEY_BACKSPACE, NATIVE_PRESS );
+                return 1;
+            case AKEYCODE_ENTER:
+                g_SpecialKeyActive = 10;
+                dmNativeInputKey( NATIVE_KEY_ENTER, NATIVE_PRESS );
+                return 1;
             }
         }
 
         // check for key events that should generate a key trigger
-        switch (code)
-        {
-            case AKEYCODE_MENU:
-            {
-                dmNativeInputKey(NATIVE_KEY_MENU, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_BACK:
-            {
-                // Starting API 33 old implementation of the Back button doesn't work
-                // https://github.com/defold/defold/issues/6821
-                if (android_get_device_api_level() < 33)
-                {
-                    if (g_KeyboardActive)
-                    {
-                        // Implicitly hide keyboard
-                        dmNativeShowKeyboard(0, 0, 0);
-                    }
-
-                    dmNativeInputKey(NATIVE_KEY_BACK, dmNative_action);
-                    return 1;
+        switch (code) {
+        case AKEYCODE_MENU:
+            dmNativeInputKey( NATIVE_KEY_MENU, dmNative_action );
+            return 1;
+        case AKEYCODE_BACK:
+            // Starting API 33 old implementation of the Back button doesn't work
+            // https://github.com/defold/defold/issues/6821
+            if (android_get_device_api_level() < 33) {
+                if (g_KeyboardActive) {
+                    // Implicitly hide keyboard
+                    dmNativeShowKeyboard(0, 0, 0);
                 }
+                dmNativeInputKey( NATIVE_KEY_BACK, dmNative_action );
+                return 1;
+            }
+            return 0;
+        case AKEYCODE_ESCAPE: dmNativeInputKey( NATIVE_KEY_ESC, dmNative_action ); return 1;
+        case AKEYCODE_F1: dmNativeInputKey( NATIVE_KEY_F1, dmNative_action ); return 1;
+        case AKEYCODE_F2: dmNativeInputKey( NATIVE_KEY_F2, dmNative_action ); return 1;
+        case AKEYCODE_F3: dmNativeInputKey( NATIVE_KEY_F3, dmNative_action ); return 1;
+        case AKEYCODE_F4: dmNativeInputKey( NATIVE_KEY_F4, dmNative_action ); return 1;
+        case AKEYCODE_F5: dmNativeInputKey( NATIVE_KEY_F5, dmNative_action ); return 1;
+        case AKEYCODE_F6: dmNativeInputKey( NATIVE_KEY_F6, dmNative_action ); return 1;
+        case AKEYCODE_F7: dmNativeInputKey( NATIVE_KEY_F7, dmNative_action ); return 1;
+        case AKEYCODE_F8: dmNativeInputKey( NATIVE_KEY_F8, dmNative_action ); return 1;
+        case AKEYCODE_F9: dmNativeInputKey( NATIVE_KEY_F9, dmNative_action ); return 1;
+        case AKEYCODE_F10: dmNativeInputKey( NATIVE_KEY_F10, dmNative_action ); return 1;
+        case AKEYCODE_F11: dmNativeInputKey( NATIVE_KEY_F11, dmNative_action ); return 1;
+        case AKEYCODE_F12: dmNativeInputKey( NATIVE_KEY_F12, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_UP: dmNativeInputKey( NATIVE_KEY_UP, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_DOWN: dmNativeInputKey( NATIVE_KEY_DOWN, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_LEFT: dmNativeInputKey( NATIVE_KEY_LEFT, dmNative_action ); return 1;
+        case AKEYCODE_DPAD_RIGHT: dmNativeInputKey( NATIVE_KEY_RIGHT, dmNative_action ); return 1;
+        case AKEYCODE_SHIFT_LEFT: dmNativeInputKey( NATIVE_KEY_LSHIFT, dmNative_action ); return 1;
+        case AKEYCODE_SHIFT_RIGHT: dmNativeInputKey( NATIVE_KEY_RSHIFT, dmNative_action ); return 1;
+        case AKEYCODE_CTRL_LEFT: dmNativeInputKey( NATIVE_KEY_LCTRL, dmNative_action ); return 1;
+        case AKEYCODE_CTRL_RIGHT: dmNativeInputKey( NATIVE_KEY_RCTRL, dmNative_action ); return 1;
+        // This key is not {@link AKEYCODE_NUM_LOCK}; it is more like {@link AKEYCODE_ALT_LEFT}.
+        // https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h
+        case AKEYCODE_NUM: dmNativeInputKey( NATIVE_KEY_LALT, dmNative_action ); return 1;
+        case AKEYCODE_ALT_LEFT: dmNativeInputKey( NATIVE_KEY_LALT, dmNative_action ); return 1;
+        case AKEYCODE_ALT_RIGHT: dmNativeInputKey( NATIVE_KEY_RALT, dmNative_action ); return 1;
+        case AKEYCODE_TAB: dmNativeInputKey( NATIVE_KEY_TAB, dmNative_action ); return 1;
+        case AKEYCODE_INSERT: dmNativeInputKey( NATIVE_KEY_INSERT, dmNative_action ); return 1;
+        case AKEYCODE_DEL: dmNativeInputKey( NATIVE_KEY_DEL, dmNative_action ); return 1;
+        case AKEYCODE_PAGE_UP: dmNativeInputKey( NATIVE_KEY_PAGEUP, dmNative_action ); return 1;
+        case AKEYCODE_PAGE_DOWN: dmNativeInputKey( NATIVE_KEY_PAGEDOWN, dmNative_action ); return 1;
+        case AKEYCODE_MOVE_HOME: dmNativeInputKey( NATIVE_KEY_HOME, dmNative_action ); return 1;
+        case AKEYCODE_MOVE_END: dmNativeInputKey( NATIVE_KEY_END, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_0: dmNativeInputKey( NATIVE_KEY_KP_0, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_1: dmNativeInputKey( NATIVE_KEY_KP_1, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_2: dmNativeInputKey( NATIVE_KEY_KP_2, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_3: dmNativeInputKey( NATIVE_KEY_KP_3, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_4: dmNativeInputKey( NATIVE_KEY_KP_4, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_5: dmNativeInputKey( NATIVE_KEY_KP_5, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_6: dmNativeInputKey( NATIVE_KEY_KP_6, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_7: dmNativeInputKey( NATIVE_KEY_KP_7, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_8: dmNativeInputKey( NATIVE_KEY_KP_8, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_9: dmNativeInputKey( NATIVE_KEY_KP_9, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_DIVIDE: dmNativeInputKey( NATIVE_KEY_KP_DIVIDE, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_MULTIPLY: dmNativeInputKey( NATIVE_KEY_KP_MULTIPLY, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_SUBTRACT: dmNativeInputKey( NATIVE_KEY_KP_SUBTRACT, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_ADD: dmNativeInputKey( NATIVE_KEY_KP_ADD, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_DOT: dmNativeInputKey( NATIVE_KEY_KP_DECIMAL, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_EQUALS: dmNativeInputKey( NATIVE_KEY_KP_EQUAL, dmNative_action ); return 1;
+        case AKEYCODE_NUMPAD_ENTER: dmNativeInputKey( NATIVE_KEY_KP_ENTER, dmNative_action ); return 1;
+        case AKEYCODE_NUM_LOCK: dmNativeInputKey( NATIVE_KEY_KP_NUM_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_CAPS_LOCK: dmNativeInputKey( NATIVE_KEY_CAPS_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_SCROLL_LOCK: dmNativeInputKey( NATIVE_KEY_SCROLL_LOCK, dmNative_action ); return 1;
+        case AKEYCODE_META_LEFT: dmNativeInputKey( NATIVE_KEY_LSUPER, dmNative_action ); return 1;
+        case AKEYCODE_META_RIGHT: dmNativeInputKey( NATIVE_KEY_RSUPER, dmNative_action ); return 1;
+        // Break / Pause key
+        // https://developer.android.com/ndk/reference/group___input.html
+        case AKEYCODE_BREAK: dmNativeInputKey( NATIVE_KEY_PAUSE, dmNative_action ); return 1;
 
-                return 0;
-            }
-            case AKEYCODE_ESCAPE:
-            {
-                dmNativeInputKey(NATIVE_KEY_ESC, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F1:
-            {
-                dmNativeInputKey(NATIVE_KEY_F1, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F2:
-            {
-                dmNativeInputKey(NATIVE_KEY_F2, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F3:
-            {
-                dmNativeInputKey(NATIVE_KEY_F3, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F4:
-            {
-                dmNativeInputKey(NATIVE_KEY_F4, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F5:
-            {
-                dmNativeInputKey(NATIVE_KEY_F5, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F6:
-            {
-                dmNativeInputKey(NATIVE_KEY_F6, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F7:
-            {
-                dmNativeInputKey(NATIVE_KEY_F7, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F8:
-            {
-                dmNativeInputKey(NATIVE_KEY_F8, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F9:
-            {
-                dmNativeInputKey(NATIVE_KEY_F9, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F10:
-            {
-                dmNativeInputKey(NATIVE_KEY_F10, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F11:
-            {
-                dmNativeInputKey(NATIVE_KEY_F11, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_F12:
-            {
-                dmNativeInputKey(NATIVE_KEY_F12, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_DPAD_UP:
-            {
-                dmNativeInputKey(NATIVE_KEY_UP, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_DPAD_DOWN:
-            {
-                dmNativeInputKey(NATIVE_KEY_DOWN, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_DPAD_LEFT:
-            {
-                dmNativeInputKey(NATIVE_KEY_LEFT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_DPAD_RIGHT:
-            {
-                dmNativeInputKey(NATIVE_KEY_RIGHT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_SHIFT_LEFT:
-            {
-                dmNativeInputKey(NATIVE_KEY_LSHIFT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_SHIFT_RIGHT:
-            {
-                dmNativeInputKey(NATIVE_KEY_RSHIFT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_CTRL_LEFT:
-            {
-                dmNativeInputKey(NATIVE_KEY_LCTRL, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_CTRL_RIGHT:
-            {
-                dmNativeInputKey(NATIVE_KEY_RCTRL, dmNative_action);
-                return 1;
-            }
-            // This key is not {@link AKEYCODE_NUM_LOCK}; it is more like {@link AKEYCODE_ALT_LEFT}.
-            // https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h
-            case AKEYCODE_NUM:
-            {
-                dmNativeInputKey(NATIVE_KEY_LALT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_ALT_LEFT:
-            {
-                dmNativeInputKey(NATIVE_KEY_LALT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_ALT_RIGHT:
-            {
-                dmNativeInputKey(NATIVE_KEY_RALT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_TAB:
-            {
-                dmNativeInputKey(NATIVE_KEY_TAB, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_INSERT:
-            {
-                dmNativeInputKey(NATIVE_KEY_INSERT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_DEL:
-            {
-                dmNativeInputKey(NATIVE_KEY_DEL, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_PAGE_UP:
-            {
-                dmNativeInputKey(NATIVE_KEY_PAGEUP, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_PAGE_DOWN:
-            {
-                dmNativeInputKey(NATIVE_KEY_PAGEDOWN, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_MOVE_HOME:
-            {
-                dmNativeInputKey(NATIVE_KEY_HOME, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_MOVE_END:
-            {
-                dmNativeInputKey(NATIVE_KEY_END, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_0:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_0, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_1:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_1, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_2:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_2, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_3:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_3, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_4:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_4, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_5:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_5, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_6:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_6, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_7:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_7, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_8:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_8, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_9:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_9, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_DIVIDE:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_DIVIDE, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_MULTIPLY:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_MULTIPLY, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_SUBTRACT:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_SUBTRACT, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_ADD:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_ADD, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_DOT:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_DECIMAL, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_EQUALS:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_EQUAL, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_ENTER:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_ENTER, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_NUM_LOCK:
-            {
-                dmNativeInputKey(NATIVE_KEY_KP_NUM_LOCK, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_CAPS_LOCK:
-            {
-                dmNativeInputKey(NATIVE_KEY_CAPS_LOCK, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_SCROLL_LOCK:
-            {
-                dmNativeInputKey(NATIVE_KEY_SCROLL_LOCK, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_META_LEFT:
-            {
-                dmNativeInputKey(NATIVE_KEY_LSUPER, dmNative_action);
-                return 1;
-            }
-            case AKEYCODE_META_RIGHT:
-            {
-                dmNativeInputKey(NATIVE_KEY_RSUPER, dmNative_action);
-                return 1;
-            }
-            // Break / Pause key
-            // https://developer.android.com/ndk/reference/group___input.html
-            case AKEYCODE_BREAK:
-            {
-                dmNativeInputKey(NATIVE_KEY_PAUSE, dmNative_action);
-                return 1;
-            }
-
-            // the key events below have no direct NATIVE_KEY_* mapping - do a reasonable translation
-            case AKEYCODE_DPAD_CENTER:
-            {
-                dmNativeInputKey(NATIVE_KEY_ENTER, dmNative_action);
-                return 1;
-            }
+        // the key events below have no direct NATIVE_KEY_* mapping - do a reasonable translation
+        case AKEYCODE_DPAD_CENTER: dmNativeInputKey( NATIVE_KEY_ENTER, dmNative_action ); return 1;
         }
 
         // check for key events that should generate both a text and key trigger
-        switch (code)
-        {
-            case AKEYCODE_STAR:
-            {
-                dmNativeInputKey('*', dmNative_action);
-                break;
-            }
-            case AKEYCODE_POUND:
-            {
-                dmNativeInputKey('#', dmNative_action);
-                break;
-            }
-            case AKEYCODE_COMMA:
-            {
-                dmNativeInputKey(',', dmNative_action);
-                break;
-            }
-            case AKEYCODE_PERIOD:
-            {
-                dmNativeInputKey('.', dmNative_action);
-                break;
-            }
-            case AKEYCODE_SPACE:
-            {
-                dmNativeInputKey(NATIVE_KEY_SPACE, dmNative_action);
-                break;
-            }
-            case AKEYCODE_GRAVE:
-            {
-                dmNativeInputKey('`', dmNative_action);
-                break;
-            }
-            case AKEYCODE_MINUS:
-            {
-                dmNativeInputKey('-', dmNative_action);
-                break;
-            }
-            case AKEYCODE_EQUALS:
-            {
-                dmNativeInputKey('=', dmNative_action);
-                break;
-            }
-            case AKEYCODE_LEFT_BRACKET:
-            {
-                dmNativeInputKey('[', dmNative_action);
-                break;
-            }
-            case AKEYCODE_RIGHT_BRACKET:
-            {
-                dmNativeInputKey(']', dmNative_action);
-                break;
-            }
-            case AKEYCODE_BACKSLASH:
-            {
-                dmNativeInputKey('\\', dmNative_action);
-                break;
-            }
-            case AKEYCODE_SEMICOLON:
-            {
-                dmNativeInputKey(';', dmNative_action);
-                break;
-            }
-            case AKEYCODE_APOSTROPHE:
-            {
-                dmNativeInputKey('\'', dmNative_action);
-                break;
-            }
-            case AKEYCODE_SLASH:
-            {
-                dmNativeInputKey('/', dmNative_action);
-                break;
-            }
-            case AKEYCODE_AT:
-            {
-                dmNativeInputKey('@', dmNative_action);
-                break;
-            }
-            case AKEYCODE_PLUS:
-            {
-                dmNativeInputKey('+', dmNative_action);
-                break;
-            }
+        switch (code) {
+            case AKEYCODE_STAR: dmNativeInputKey( '*', dmNative_action ); break;
+            case AKEYCODE_POUND: dmNativeInputKey( '#', dmNative_action ); break;
+            case AKEYCODE_COMMA: dmNativeInputKey( ',', dmNative_action ); break;
+            case AKEYCODE_PERIOD: dmNativeInputKey( '.', dmNative_action ); break;
+            case AKEYCODE_SPACE: dmNativeInputKey( NATIVE_KEY_SPACE, dmNative_action ); break;
+            case AKEYCODE_GRAVE: dmNativeInputKey( '`', dmNative_action ); break;
+            case AKEYCODE_MINUS: dmNativeInputKey( '-', dmNative_action ); break;
+            case AKEYCODE_EQUALS: dmNativeInputKey( '=', dmNative_action ); break;
+            case AKEYCODE_LEFT_BRACKET: dmNativeInputKey( '[', dmNative_action ); break;
+            case AKEYCODE_RIGHT_BRACKET: dmNativeInputKey( ']', dmNative_action ); break;
+            case AKEYCODE_BACKSLASH: dmNativeInputKey( '\\', dmNative_action ); break;
+            case AKEYCODE_SEMICOLON: dmNativeInputKey( ';', dmNative_action ); break;
+            case AKEYCODE_APOSTROPHE: dmNativeInputKey( '\'', dmNative_action ); break;
+            case AKEYCODE_SLASH: dmNativeInputKey( '/', dmNative_action ); break;
+            case AKEYCODE_AT: dmNativeInputKey( '@', dmNative_action ); break;
+            case AKEYCODE_PLUS: dmNativeInputKey( '+', dmNative_action ); break;
             default:
-            {
-                if ((code >= AKEYCODE_A) && (code <= AKEYCODE_Z))
-                {
+                if ((code >= AKEYCODE_A) && (code <= AKEYCODE_Z)) {
                     const int key = 'A' + (code - AKEYCODE_A);
-                    dmNativeInputKey(key, dmNative_action);
+                    dmNativeInputKey( key, dmNative_action );
                 }
-                else if ((code >= AKEYCODE_0) && (code <= AKEYCODE_9))
-                {
+                else if ((code >= AKEYCODE_0) && (code <= AKEYCODE_9)) {
                     const int key = '0' + (code - AKEYCODE_0);
-                    dmNativeInputKey(key, dmNative_action);
+                    dmNativeInputKey( key, dmNative_action );
                 }
-
                 break;
-            }
         }
 
         jclass KeyEventClass = (*env)->FindClass(env, "android/view/KeyEvent");
         jmethodID KeyEventConstructor = (*env)->GetMethodID(env, KeyEventClass, "<init>", "(JJIIIIIIII)V");
         jobject keyEvent = (*env)->NewObject(env, KeyEventClass, KeyEventConstructor,
-                                             down_time, event_time, action, code, repeat, meta, device_id, scan_code, flags, source);
+                down_time, event_time, action, code, repeat, meta, device_id, scan_code, flags, source);
         jmethodID KeyEvent_getUnicodeChar = (*env)->GetMethodID(env, KeyEventClass, "getUnicodeChar", "(I)I");
 
         int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, meta);
-        (*env)->DeleteLocalRef(env, keyEvent);
+        (*env)->DeleteLocalRef( env, keyEvent );
 
-        dmNativeInputChar(unicode, dmNative_action);
+        dmNativeInputChar( unicode, dmNative_action );
     }
 
     return 0;
@@ -1233,22 +825,17 @@ static uint32_t countInputEvents(struct android_app* app, const AInputEvent* eve
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
             case AMOTION_EVENT_ACTION_POINTER_UP:
             case AMOTION_EVENT_ACTION_CANCEL:
-            {
                 count++;
                 break;
-            }
             case AMOTION_EVENT_ACTION_MOVE:
-            {
                 count += AMotionEvent_getPointerCount(event);
                 break;
-            }
         }
     }
     else if (event_type == AINPUT_EVENT_TYPE_KEY)
     {
         count++;
     }
-
     return count;
 }
 
@@ -1273,7 +860,6 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
             case AMOTION_EVENT_ACTION_POINTER_UP:
             case AMOTION_EVENT_ACTION_CANCEL:
-            {
                 out->m_Action = action;
                 out->m_Source = AInputEvent_getSource(event);
                 out->m_Ref = pointerIdToRef(pointer_id);
@@ -1282,27 +868,25 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
                 (*out_count)++;
                 out++;
                 break;
-            }
             case AMOTION_EVENT_ACTION_MOVE:
-            {
-                // these events contain updates for all pointers.
-                int i, max = AMotionEvent_getPointerCount(event);
-                for (i = 0; i < max; i++)
                 {
-                    if ((*out_count) < max_out_count)
+                    // these events contain updates for all pointers.
+                    int i, max = AMotionEvent_getPointerCount(event);
+                    for (i=0;i<max;i++)
                     {
-                        out->m_Action = action;
-                        out->m_Source = AInputEvent_getSource(event);
-                        out->m_X = AMotionEvent_getX(event, i);
-                        out->m_Y = AMotionEvent_getY(event, i);
-                        out->m_Ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
-                        (*out_count)++;
-                        out++;
+                        if ((*out_count) < max_out_count)
+                        {
+                            out->m_Action = action;
+                            out->m_Source = AInputEvent_getSource(event);
+                            out->m_X = AMotionEvent_getX(event, i);
+                            out->m_Y = AMotionEvent_getY(event, i);
+                            out->m_Ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
+                            (*out_count)++;
+                            out++;
+                        }
                     }
                 }
-
                 break;
-            }
         }
 
         return 1;
@@ -1342,258 +926,76 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         // There's an ugly hack in window_android.c that counts down the
         // g_SpecialKeyActive and when it reaches zero it generates a release
         // event for the keys checked below
-        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS))
-        {
-            switch (out->m_Code)
-            {
-                case AKEYCODE_DEL:
-                {
-                    return 1;
-                }
-                case AKEYCODE_ENTER:
-                {
-                    return 1;
-                }
+        if (g_KeyboardActive && (dmNative_action == NATIVE_PRESS)) {
+            switch (out->m_Code) {
+            case AKEYCODE_DEL:      return 1;
+            case AKEYCODE_ENTER:    return 1;
             }
         }
 
         // check for key events that should generate a key trigger
-        switch (out->m_Code)
-        {
-            case AKEYCODE_MENU:
-            {
-                return 1;
-            }
-            case AKEYCODE_BACK:
-            {
-                return 1;
-            }
-            case AKEYCODE_ESCAPE:
-            {
-                return 1;
-            }
-            case AKEYCODE_F1:
-            {
-                return 1;
-            }
-            case AKEYCODE_F2:
-            {
-                return 1;
-            }
-            case AKEYCODE_F3:
-            {
-                return 1;
-            }
-            case AKEYCODE_F4:
-            {
-                return 1;
-            }
-            case AKEYCODE_F5:
-            {
-                return 1;
-            }
-            case AKEYCODE_F6:
-            {
-                return 1;
-            }
-            case AKEYCODE_F7:
-            {
-                return 1;
-            }
-            case AKEYCODE_F8:
-            {
-                return 1;
-            }
-            case AKEYCODE_F9:
-            {
-                return 1;
-            }
-            case AKEYCODE_F10:
-            {
-                return 1;
-            }
-            case AKEYCODE_F11:
-            {
-                return 1;
-            }
-            case AKEYCODE_F12:
-            {
-                return 1;
-            }
-            case AKEYCODE_DPAD_UP:
-            {
-                return 1;
-            }
-            case AKEYCODE_DPAD_DOWN:
-            {
-                return 1;
-            }
-            case AKEYCODE_DPAD_LEFT:
-            {
-                return 1;
-            }
-            case AKEYCODE_DPAD_RIGHT:
-            {
-                return 1;
-            }
-            case AKEYCODE_SHIFT_LEFT:
-            {
-                return 1;
-            }
-            case AKEYCODE_SHIFT_RIGHT:
-            {
-                return 1;
-            }
-            case AKEYCODE_CTRL_LEFT:
-            {
-                return 1;
-            }
-            case AKEYCODE_CTRL_RIGHT:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUM:
-            {
-                return 1;
-            }
-            case AKEYCODE_ALT_LEFT:
-            {
-                return 1;
-            }
-            case AKEYCODE_ALT_RIGHT:
-            {
-                return 1;
-            }
-            case AKEYCODE_TAB:
-            {
-                return 1;
-            }
-            case AKEYCODE_INSERT:
-            {
-                return 1;
-            }
-            case AKEYCODE_DEL:
-            {
-                return 1;
-            }
-            case AKEYCODE_PAGE_UP:
-            {
-                return 1;
-            }
-            case AKEYCODE_PAGE_DOWN:
-            {
-                return 1;
-            }
-            case AKEYCODE_MOVE_HOME:
-            {
-                return 1;
-            }
-            case AKEYCODE_MOVE_END:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_0:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_1:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_2:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_3:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_4:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_5:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_6:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_7:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_8:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_9:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_DIVIDE:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_MULTIPLY:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_SUBTRACT:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_ADD:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_DOT:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_EQUALS:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUMPAD_ENTER:
-            {
-                return 1;
-            }
-            case AKEYCODE_NUM_LOCK:
-            {
-                return 1;
-            }
-            case AKEYCODE_CAPS_LOCK:
-            {
-                return 1;
-            }
-            case AKEYCODE_SCROLL_LOCK:
-            {
-                return 1;
-            }
-            case AKEYCODE_META_LEFT:
-            {
-                return 1;
-            }
-            case AKEYCODE_META_RIGHT:
-            {
-                return 1;
-            }
-            case AKEYCODE_BREAK:
-            {
-                return 1;
-            }
-            case AKEYCODE_DPAD_CENTER:
-            {
-                return 1;
-            }
-            default:
-            {
-                // Consumed gamepad keys must not generate Android's fallback navigation events.
-                return gamepad_handled;
-                break;
-            }
+        switch (out->m_Code) {
+        case AKEYCODE_MENU:             return 1;
+        case AKEYCODE_BACK:             return 1;
+        case AKEYCODE_ESCAPE:           return 1;
+        case AKEYCODE_F1:               return 1;
+        case AKEYCODE_F2:               return 1;
+        case AKEYCODE_F3:               return 1;
+        case AKEYCODE_F4:               return 1;
+        case AKEYCODE_F5:               return 1;
+        case AKEYCODE_F6:               return 1;
+        case AKEYCODE_F7:               return 1;
+        case AKEYCODE_F8:               return 1;
+        case AKEYCODE_F9:               return 1;
+        case AKEYCODE_F10:              return 1;
+        case AKEYCODE_F11:              return 1;
+        case AKEYCODE_F12:              return 1;
+        case AKEYCODE_DPAD_UP:          return 1;
+        case AKEYCODE_DPAD_DOWN:        return 1;
+        case AKEYCODE_DPAD_LEFT:        return 1;
+        case AKEYCODE_DPAD_RIGHT:       return 1;
+        case AKEYCODE_SHIFT_LEFT:       return 1;
+        case AKEYCODE_SHIFT_RIGHT:      return 1;
+        case AKEYCODE_CTRL_LEFT:        return 1;
+        case AKEYCODE_CTRL_RIGHT:       return 1;
+        case AKEYCODE_NUM:              return 1;
+        case AKEYCODE_ALT_LEFT:         return 1;
+        case AKEYCODE_ALT_RIGHT:        return 1;
+        case AKEYCODE_TAB:              return 1;
+        case AKEYCODE_INSERT:           return 1;
+        case AKEYCODE_DEL:              return 1;
+        case AKEYCODE_PAGE_UP:          return 1;
+        case AKEYCODE_PAGE_DOWN:        return 1;
+        case AKEYCODE_MOVE_HOME:        return 1;
+        case AKEYCODE_MOVE_END:         return 1;
+        case AKEYCODE_NUMPAD_0:         return 1;
+        case AKEYCODE_NUMPAD_1:         return 1;
+        case AKEYCODE_NUMPAD_2:         return 1;
+        case AKEYCODE_NUMPAD_3:         return 1;
+        case AKEYCODE_NUMPAD_4:         return 1;
+        case AKEYCODE_NUMPAD_5:         return 1;
+        case AKEYCODE_NUMPAD_6:         return 1;
+        case AKEYCODE_NUMPAD_7:         return 1;
+        case AKEYCODE_NUMPAD_8:         return 1;
+        case AKEYCODE_NUMPAD_9:         return 1;
+        case AKEYCODE_NUMPAD_DIVIDE:    return 1;
+        case AKEYCODE_NUMPAD_MULTIPLY:  return 1;
+        case AKEYCODE_NUMPAD_SUBTRACT:  return 1;
+        case AKEYCODE_NUMPAD_ADD:       return 1;
+        case AKEYCODE_NUMPAD_DOT:       return 1;
+        case AKEYCODE_NUMPAD_EQUALS:    return 1;
+        case AKEYCODE_NUMPAD_ENTER:     return 1;
+        case AKEYCODE_NUM_LOCK:         return 1;
+        case AKEYCODE_CAPS_LOCK:        return 1;
+        case AKEYCODE_SCROLL_LOCK:      return 1;
+        case AKEYCODE_META_LEFT:        return 1;
+        case AKEYCODE_META_RIGHT:       return 1;
+        case AKEYCODE_BREAK:            return 1;
+        case AKEYCODE_DPAD_CENTER:      return 1;
+        default:
+            // Consumed gamepad keys must not generate Android's fallback navigation events.
+            return gamepad_handled;
+            break;
         }
     }
 
@@ -1611,7 +1013,6 @@ static uint32_t getNewInputEventCapacity(uint32_t current_capacity, uint32_t req
         {
             return required_capacity;
         }
-
         new_capacity = next_capacity;
     }
 
@@ -1731,9 +1132,7 @@ void dmNativePreMain(struct android_app* state)
     if (g_AndroidArgc <= 0 || g_AndroidArgv == NULL)
     {
         LOGV("dmNativePreMain arg fallback");
-        char* fallback_argv[] = {
-            g_AndroidCommandLineProgramName, NULL
-        };
+        char* fallback_argv[] = {g_AndroidCommandLineProgramName, NULL};
         ret = main(1, fallback_argv);
         _exit(ret);
     }
@@ -1749,29 +1148,22 @@ void dmNativePreMain(struct android_app* state)
 static int LooperCallback(int fd, int events, void* data)
 {
     struct Command cmd;
-    if (read(dmNativeWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd))
-    {
-        if (cmd.m_Command == CMD_INPUT_CHAR)
-        {
+    if (read(dmNativeWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+        if (cmd.m_Command == CMD_INPUT_CHAR) {
             // Trick to "fool" dmNative. Otherwise repeated characters will be filtered due to repeat
-            dmNativeInputChar( (int)cmd.m_Data, NATIVE_RELEASE);
-            dmNativeInputChar( (int)cmd.m_Data, NATIVE_PRESS);
+            dmNativeInputChar( (int)cmd.m_Data, NATIVE_RELEASE );
+            dmNativeInputChar( (int)cmd.m_Data, NATIVE_PRESS );
 
-        }
-        else if (cmd.m_Command == CMD_INPUT_MARKED_TEXT)
-        {
-            dmNativeSetMarkedText( (char*)cmd.m_Data);
+        } else if (cmd.m_Command == CMD_INPUT_MARKED_TEXT) {
+            dmNativeSetMarkedText( (char*)cmd.m_Data );
 
             // Need to free marked text string thas was
             // allocated in window_android.c
             free(cmd.m_Data);
         }
-    }
-    else
-    {
+    } else {
         LOGF("read error in looper callback");
     }
-
     return 1;
 }
 
@@ -1785,26 +1177,23 @@ static int SensorCallback(int fd, int events, void* data)
         dmNativeInput.AccY = e.acceleration.y;
         dmNativeInput.AccZ = e.acceleration.z;
     }
-
     return 1;
 }
 
 int dmNativeOSGetAcceleration(float* x, float* y, float* z)
 {
-    if (g_accelerometerEnabled)
-    {
+    if (g_accelerometerEnabled) {
         // This trickery is to align scale and axises to what
         // iOS outputs (as that was implemented first)
-        const float scale = -1.0 / ASENSOR_STANDARD_GRAVITY;
+        const float scale = - 1.0 / ASENSOR_STANDARD_GRAVITY;
         *x = scale * dmNativeInput.AccX;
         *y = scale * dmNativeInput.AccY;
         *z = scale * dmNativeInput.AccZ;
     }
-
     return g_accelerometerEnabled;
 }
 
-int dmNativeOSInit(void)
+int dmNativeOSInit( void )
 {
     LOGV("dmNativeOSInit");
 
@@ -1819,26 +1208,21 @@ int dmNativeOSInit(void)
     dmNativeWinAndroid.surface = EGL_NO_SURFACE;
 
     int result = pipe(dmNativeWinAndroid.m_Pipefd);
-    if (result != 0)
-    {
+    if (result != 0) {
         LOGF("Could not open pipe for communication: %d", result);
     }
-
     result = ALooper_addFd(g_AndroidApp->looper, dmNativeWinAndroid.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &dmNativeWin);
-    if (result != 1)
-    {
+    if (result != 1) {
         LOGF("Could not add file descriptor to looper: %d", result);
     }
 
     ASensorManager* sensorManager = ASensorManager_getInstance();
-    if (!sensorManager)
-    {
+    if (!sensorManager) {
         LOGF("Could not get sensor manager");
     }
 
     g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &dmNativeWin);
-    if (!g_sensorEventQueue)
-    {
+    if (!g_sensorEventQueue) {
         LOGF("Could not create event queue");
     }
 
@@ -1847,7 +1231,7 @@ int dmNativeOSInit(void)
     return GL_TRUE;
 }
 
-int dmNativeOSTerminate(void)
+int dmNativeOSTerminate( void )
 {
     LOGV("dmNativeOSTerminate");
 
@@ -1860,8 +1244,7 @@ int dmNativeOSTerminate(void)
     dmNativeCloseWindow();
 
     int result = ALooper_removeFd(g_AndroidApp->looper, dmNativeWinAndroid.m_Pipefd[0]);
-    if (result != 1)
-    {
+    if (result != 1) {
         LOGF("Could not remove fd from looper: %d", result);
     }
 
@@ -1880,7 +1263,7 @@ int dmNativeOSTerminate(void)
     // Call finish and let Android life cycle take care of the termination
     ANativeActivity_finish(g_AndroidApp->activity);
 
-    // Wait for gl context destruction
+     // Wait for gl context destruction
     while (dmNativeWinAndroid.display != EGL_NO_DISPLAY)
     {
         void* data = NULL;
@@ -1891,14 +1274,11 @@ int dmNativeOSTerminate(void)
             struct android_poll_source* source = (struct android_poll_source*)data;
             source->process(g_AndroidApp, source);
         }
-
-        if (g_AndroidApp->destroyRequested)
-        {
+        if (g_AndroidApp->destroyRequested) {
             // App requested exit. It doesn't wait when thread work finished because app is in background already.
             // App will never end up here from within the app itself, only using OS functions.
             return GL_TRUE;
         }
-
         if (ident == ALOOPER_POLL_ERROR)
         {
             LOGF("ALooper_pollOnce returned an error");
@@ -1913,20 +1293,16 @@ int dmNativeOSTerminate(void)
 
 void dmNativeAccelerometerEnable()
 {
-    if (g_accelerometer == 0)
-    {
+    if (g_accelerometer == 0) {
         ASensorManager* sensorManager = ASensorManager_getInstance();
-        if (!sensorManager)
-        {
+        if (!sensorManager) {
             LOGF("Could not get sensor manager");
             return;
         }
-
         g_accelerometer = ASensorManager_getDefaultSensor(sensorManager, ASENSOR_TYPE_ACCELEROMETER);
     }
 
-    if (g_sensorEventQueue != 0 && g_accelerometer != 0 && !g_accelerometerEnabled)
-    {
+    if (g_sensorEventQueue != 0 && g_accelerometer != 0 && !g_accelerometerEnabled) {
         g_accelerometerEnabled = 1;
         ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         ASensorEventQueue_setEventRate(g_sensorEventQueue, g_accelerometer, g_accelerometerFrequency);

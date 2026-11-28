@@ -26,7 +26,7 @@
 
 struct Command
 {
-    int   m_Command;
+    int m_Command;
     void* m_Data;
 };
 
@@ -83,8 +83,8 @@ int dmNativeAndroidIsAppResumed(void);
 ANativeWindow* dmNativeAndroidAcquireWindow(void);
 ANativeWindow* dmNativeAcquireAndroidWindow(void);
 ANativeWindow* dmNativeWaitForAndroidWindow(void);
-int            dmNativeAndroidIsWindowCurrent(ANativeWindow* window);
-void           dmNativeReleaseAndroidWindow(ANativeWindow* window);
+int dmNativeAndroidIsWindowCurrent(ANativeWindow* window);
+void dmNativeReleaseAndroidWindow(ANativeWindow* window);
 
 int query_gl_aux_context(Nativewin_android* win);
 
@@ -111,29 +111,29 @@ int32_t dmNativeAndroidVerifySurfaceError(EGLint error);
 static inline void spinlock_lock(uint32_t* lock)
 {
     uint32_t tmp;
-    __asm__ __volatile__ (
-        "1:     ldrex   %0, [%1]\n"
-        "       teq     %0, #0\n"
+     __asm__ __volatile__(
+"1:     ldrex   %0, [%1]\n"
+"       teq     %0, #0\n"
 // "       wfene\n"  -- WFENE gives SIGILL for still unknown reasons on some 64-bit ARMs Aarch32 mode.
 //                      Disassembly of libc.so and pthread_mutex_lock shows no use of the instruction.
-        "       strexeq %0, %2, [%1]\n"
-        "       teqeq   %0, #0\n"
-        "       bne     1b\n"
-        "        dsb\n"
-        : "=&r" (tmp)
-        : "r" (lock), "r" (1)
-        : "cc");
+"       strexeq %0, %2, [%1]\n"
+"       teqeq   %0, #0\n"
+"       bne     1b\n"
+"        dsb\n"
+     : "=&r" (tmp)
+     : "r" (lock), "r" (1)
+     : "cc");
 
 }
 
 static inline void spinlock_unlock(uint32_t* lock)
 {
-    __asm__ __volatile__ (
-        "       dsb\n"
-        "       str     %1, [%0]\n"
-        :
-        : "r" (lock), "r" (0)
-        : "cc");
+    __asm__ __volatile__(
+"       dsb\n"
+"       str     %1, [%0]\n"
+    :
+    : "r" (lock), "r" (0)
+    : "cc");
 }
 
 #elif defined(__aarch64__)
@@ -144,24 +144,24 @@ static inline void spinlock_lock(uint32_t* lock)
 {
 
     uint32_t tmp;
-    __asm__ __volatile__ (
-        "   sevl\n"
-        "1: wfe\n"
-        "2: ldaxr   %w0, [%1]\n"
-        "   cbnz    %w0, 1b\n"
-        "   stxr    %w0, %w2, [%1]\n"
-        "   cbnz    %w0, 2b\n"
-        : "=&r" (tmp)
-        : "r" (lock), "r" (1)
-        : "memory");
+     __asm__ __volatile__(
+"   sevl\n"
+    "1: wfe\n"
+    "2: ldaxr   %w0, [%1]\n"
+    "   cbnz    %w0, 1b\n"
+    "   stxr    %w0, %w2, [%1]\n"
+    "   cbnz    %w0, 2b\n"
+    : "=&r" (tmp)
+    : "r" (lock), "r" (1)
+    : "memory");
 
 }
 
 static inline void spinlock_unlock(uint32_t* lock)
 {
-    __asm__ __volatile__ (
-        "   stlr    %w1, [%0]\n"
-        : : "r" (lock), "r" (0) : "memory");
+    __asm__ __volatile__(
+    "   stlr    %w1, [%0]\n"
+    : : "r" (lock), "r" (0) : "memory");
 
 }
 
