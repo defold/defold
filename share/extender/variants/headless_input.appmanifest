@@ -17,9 +17,9 @@ platforms:
 
     linux:
         context:
-            excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_gles","hid","platform"]
+            excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_opengles","graphics_vulkan","hid","platform","platform_vulkan"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
-            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","EGL","GLESv1_CM","GLESv2"]
+            excludeDynamicLibs: ["vulkan","X11-xcb","openal","Xext","X11","Xi","GL","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     web:

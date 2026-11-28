@@ -63,6 +63,13 @@ class BuildTimeTracker:
         if self.current_command is not None:
             self.check_times.setdefault(self.current_command, {})[check_name] = {'duration': duration}
 
+    def record_step_time(self, step_name, duration):
+        """Add a measured duration to a step under the current command."""
+        if self.current_command is not None:
+            steps = self.step_times.setdefault(self.current_command, {})
+            timing = steps.setdefault(step_name, {'duration': 0.0})
+            timing['duration'] += duration
+
     @contextmanager
     def measure_step(self, step_name):
         """Measure a step under its parent command, including nested commands and failures."""
@@ -73,10 +80,7 @@ class BuildTimeTracker:
         finally:
             duration = time.perf_counter() - started
             self.current_command = command_name
-            if command_name is not None:
-                steps = self.step_times.setdefault(command_name, {})
-                timing = steps.setdefault(step_name, {'duration': 0.0})
-                timing['duration'] += duration
+            self.record_step_time(step_name, duration)
 
     @staticmethod
     def read_ninja_log(build_dir):

@@ -247,6 +247,11 @@ namespace dmPlatform
         return 0;
     }
 
+    void SetWindowSize(HWindow, uint32_t, uint32_t)
+    {
+        EXPECT_TRUE(false);
+    }
+
     uint32_t GetWindowWidth(HWindow)
     {
         EXPECT_TRUE(false);

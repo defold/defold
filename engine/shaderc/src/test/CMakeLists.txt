@@ -49,13 +49,20 @@ if(NOT CMAKE_CROSSCOMPILING)
     COMMAND ${_shaderc_cli_tests}
     DEPENDS shaderc_standalone
     VERBATIM)
-  defold_add_to_run_tests(run_test_shaderc_standalone
-    COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
-  defold_register_sequential_test_command(shaderc_standalone
+  defold_add_to_run_tests(run_test_shaderc_standalone SEQUENTIAL_NAME shaderc_standalone
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
 endif()
 
 shaderc_stage_dxc(test_shaderc)
+
+if(UNIX)
+  # Run in a fresh process so earlier shader tests cannot hide a change to the signal handlers.
+  defold_add_executable(test_dxc_signals "${SHADERC_TEST_DIR}/test_dxc_signals.cpp")
+  target_link_libraries(test_dxc_signals PRIVATE shaderc_dxcompiler)
+  set_target_properties(test_dxc_signals PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/signals")
+  shaderc_stage_dxc(test_dxc_signals)
+  defold_register_test_target(test_dxc_signals ON "${SHADERC_ROOT}")
+endif()
 
 if(WIN32)
   target_link_libraries(test_shaderc PRIVATE d3d12.lib)

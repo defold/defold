@@ -5524,6 +5524,15 @@ namespace dmGraphics
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
     }
 
+    static bool MetalIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        const MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+               (!tex->m_Destroyed && tex->m_Texture && params.m_MipMap < tex->m_Texture->mipmapLevelCount());
+    }
+
     static void MetalSetTexture(HContext _context, HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);

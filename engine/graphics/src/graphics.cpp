@@ -2922,6 +2922,46 @@ namespace dmGraphics
         return info;
     }
 
+    bool IsTextureUploadValid(HContext context, HTexture texture, const TextureParams& params)
+    {
+        const TextureInfo info = GetTextureInfo(context, texture);
+        if (info.m_Type != TEXTURE_TYPE_2D || info.m_Depth > 1 || info.m_PageCount > 1 || !info.m_Width || !info.m_Height)
+        {
+            return false;
+        }
+
+        if (!params.m_Width || !params.m_Height || params.m_Width > GetMaxTextureSize(context) || params.m_Height > GetMaxTextureSize(context))
+        {
+            return false;
+        }
+
+        // A full level-zero upload can resize the texture. Other uploads must fit
+        // the current size, including after an earlier queued resize.
+        if (params.m_SubUpdate || params.m_MipMap != 0)
+        {
+            if (params.m_MipMap >= GetMipmapCount(dmMath::Max(info.m_Width, info.m_Height)))
+            {
+                return false;
+            }
+
+            const uint32_t width = dmMath::Max(1u, (uint32_t)GetMipmapSize(info.m_Width, params.m_MipMap));
+            const uint32_t height = dmMath::Max(1u, (uint32_t)GetMipmapSize(info.m_Height, params.m_MipMap));
+            if (params.m_SubUpdate)
+            {
+                if (params.m_X > width || params.m_Width > width - params.m_X || params.m_Y > height || params.m_Height > height - params.m_Y)
+                {
+                    return false;
+                }
+            }
+            else if (params.m_Width != width || params.m_Height != height)
+            {
+                return false;
+            }
+        }
+
+        return g_functions.m_IsTextureUploadValid(context, texture, params);
+    }
+
     // SDK-friendly overload that preserves the Vector4-based adapter API.
     void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
     {

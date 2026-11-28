@@ -176,6 +176,7 @@ namespace dmGraphics
             VkImage     m_Image;
             VkImageView m_ImageView;
             uint8_t     m_LastUsedFrameSlot; // Frame slot used for deferred destruction.
+            uint8_t     m_MipMapCount; // Actual VkImage allocation, not the requested mip count.
         };
 
         Texture           m_Base;

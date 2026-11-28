@@ -186,7 +186,7 @@
           properties-modified-on-target (coll/into-> (:outputs-modified tx-result) #{}
                                           (filter #(= (gt/endpoint-node-id %) target))
                                           (map gt/endpoint-label))]
-      (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
+      (is (= #{:_declared-properties :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
   (with-clean-system
@@ -206,7 +206,7 @@
             modified      (coll/into-> (:outputs-modified tx-result) #{}
                             (filter #(= (gt/endpoint-node-id %) enode))
                             (map gt/endpoint-label))]
-        (is (= #{:_declared-properties :baz :_properties} modified))))))
+        (is (= #{:_declared-properties :_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system

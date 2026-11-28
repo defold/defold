@@ -253,6 +253,15 @@ public class FontTest {
         assertBMFontFormatException(bmfont, input);
     }
 
+    // A non-finite BMFont size must fail parsing before it can be rounded to a pixel size.
+    @Test
+    public void testBMFontRejectsNonFiniteSizes() throws Exception {
+        for (String size : new String[] { "-1e100", "Infinity", "NaN" }) {
+            String fnt = "info size=" + size + " padding=0,0,0,0 spacing=1,1\npage id=0 file=\"bmfont.png\"\n";
+            assertBMFontFormatException(new BMFont(), new ByteArrayInputStream(fnt.getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
     @Test
     public void testBMFont() throws Exception {
 

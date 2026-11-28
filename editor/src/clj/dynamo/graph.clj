@@ -1473,6 +1473,34 @@
    (some-> (first (inputs basis node-id label))
            gt/source-id)))
 
+(defn- input-source-endpoints [basis node-id input-label]
+  (mapv gt/source-endpoint (inputs basis node-id input-label)))
+
+(defn- predecessor-endpoints [basis node-id label dependency-labels-fn]
+  (let [node-type (node-type* basis node-id)]
+    (if-let [output (get (declared-outputs node-type) label)]
+      (coll/into-> (dependency-labels-fn node-type label output) []
+        (remove in/synthesized-arguments)
+        (mapcat
+          (fn [dependency-label]
+            (if (not= label dependency-label)
+              [(endpoint node-id dependency-label)]
+              ;; A passthrough output reads the input of the same name.
+              (when (has-input? node-type label)
+                (input-source-endpoints basis node-id label))))))
+      (when (has-input? node-type label)
+        (input-source-endpoints basis node-id label)))))
+
+(defn immediate-predecessor-endpoints
+  "Returns the declared dependencies of a label in the supplied basis.
+
+  Follows inputs to connected outputs and skips synthesized fnk arguments."
+  [basis node-id label]
+  (predecessor-endpoints
+    basis node-id label
+    (fn [_node-type _label output]
+      (:dependencies output))))
+
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as a seq of Endpoints

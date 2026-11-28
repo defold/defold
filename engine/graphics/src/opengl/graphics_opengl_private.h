@@ -61,6 +61,7 @@ namespace dmGraphics
         HOpenglID*    m_TextureIds;
         OpenGLSampler m_Sampler;
         OpenGLSampler m_SamplerDirty;
+        uint16_t      m_AllocatedMipMapMask; // glTexImage defines each mip separately.
     };
 
     struct OpenGLTextureBinding

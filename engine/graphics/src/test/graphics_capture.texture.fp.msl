@@ -23,6 +23,6 @@ struct main0_in
 fragment main0_out main0(main0_in in [[stage_in]], constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]])
 {
     main0_out out = {};
-    out.fragment_color = float4(spvDescriptorSet0.test_texture.sample(spvDescriptorSet0.test_sampler, in.vertex_color.xy, level(0.0)).xyz, 1.0);
+    out.fragment_color = float4(spvDescriptorSet0.test_texture.sample(spvDescriptorSet0.test_sampler, in.vertex_color.xy, level(in.vertex_color.z)).xyz, 1.0);
     return out;
 }

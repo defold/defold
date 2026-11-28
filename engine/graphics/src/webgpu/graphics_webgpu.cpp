@@ -180,11 +180,11 @@ static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilte
     switch (minfilter)
     {
         case TEXTURE_FILTER_NEAREST:
-            desc.magFilter   = WGPUFilterMode_Nearest;
+            desc.minFilter   = WGPUFilterMode_Nearest;
             desc.lodMaxClamp = 0.25f;
             break;
         case TEXTURE_FILTER_LINEAR:
-            desc.magFilter   = WGPUFilterMode_Linear;
+            desc.minFilter   = WGPUFilterMode_Linear;
             desc.lodMaxClamp = 0.25f;
             break;
         case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
@@ -4626,6 +4626,15 @@ static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureF
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_BaseContext.m_AssetHandleContainer, _texture);
     WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
+}
+
+static bool WebGPUIsTextureUploadValid(HContext _context, HTexture texture, const TextureParams& params)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+    const WebGPUTexture* tex = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+    return (!params.m_SubUpdate && params.m_MipMap == 0) ||
+           (tex->m_Texture && params.m_MipMap < wgpuTextureGetMipLevelCount(tex->m_Texture));
 }
 
 static void WebGPUSetTexture(HContext context, HTexture _texture, const TextureParams& params)

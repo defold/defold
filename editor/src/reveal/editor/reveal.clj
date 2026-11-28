@@ -31,7 +31,6 @@
             [editor.workspace :as workspace]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.node :as in]
             [internal.system :as is]
             [util.coll :as coll]
             [util.eduction :as e]
@@ -197,41 +196,26 @@
         (r/raw-string "self" {:fill :string})
         (node-id-sf ec node-id)))))
 
-(defn- input-source-endpoints [basis node-id label]
-  (when (some-> (g/node-type* basis node-id)
-                (g/has-input? label))
-    (mapv #(g/endpoint (gt/source-id %)
-                       (gt/source-label %))
-          (ig/arcs-by-target basis node-id label))))
-
-(defn- endpoint-predecessors [basis endpoint]
-  (let [node-id (g/endpoint-node-id endpoint)
-        node-type (g/node-type* basis node-id)
-        label (g/endpoint-label endpoint)
-        output-info (get (in/declared-outputs node-type) label)
-        input-source-endpoints-delay (delay (input-source-endpoints basis node-id label))]
-    (coll/not-empty
-      (if (nil? output-info)
-        (force input-source-endpoints-delay)
-        (coll/into-> (:dependencies output-info) []
-          (mapcat
-            (fn [dep-label]
-              (if (= label dep-label)
-                (force input-source-endpoints-delay)
-                [(g/endpoint node-id dep-label)]))))))))
-
 (r/defaction ::defold:predecessors [x ann]
-  (when-some [endpoint (as-endpoint x ann)]
-    (let [ec (make-evaluation-context)
-          basis (:basis ec)
-          endpoint-predecessors (fn/memoize #(endpoint-predecessors basis %))]
-      (when (endpoint-predecessors endpoint)
+  (when-let [root-endpoint (as-endpoint x ann)]
+    (let [evaluation-context (make-evaluation-context)
+          basis (:basis evaluation-context)
+
+          endpoint-predecessors
+          (fn/memoize
+            (fn endpoint-predecessors [endpoint]
+              (coll/not-empty
+                (g/immediate-predecessor-endpoints
+                  basis
+                  (g/endpoint-node-id endpoint)
+                  (g/endpoint-label endpoint)))))]
+      (when (endpoint-predecessors root-endpoint)
         (fn []
           {:fx/type r/tree-view
-           :render #(render-endpoint ec endpoint %)
-           :branch? (comp seq endpoint-predecessors)
+           :render #(render-endpoint evaluation-context root-endpoint %)
+           :branch? endpoint-predecessors
            :children (comp sort endpoint-predecessors)
-           :root endpoint})))))
+           :root root-endpoint})))))
 
 (defn- endpoint-successors [basis endpoint]
   (ig/successors basis (g/endpoint-node-id endpoint) (g/endpoint-label endpoint)))

@@ -6,7 +6,7 @@ var<private> fragment_color : vec4<f32>;
 @group(0u) @binding(1u) var test_sampler : sampler;
 
 fn main_inner(vertex_color : vec3<f32>) {
-  let v = textureSampleLevel(test_texture, test_sampler, vertex_color.xy, 0.0f).xyz;
+  let v = textureSampleLevel(test_texture, test_sampler, vertex_color.xy, vertex_color.z).xyz;
   fragment_color = vec4<f32>(v.x, v.y, v.z, 1.0f);
 }
 

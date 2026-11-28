@@ -1639,36 +1639,10 @@ public class Project implements AutoCloseable {
         }
     }
 
-    private static boolean usesGlesShaderLanguages(Platform platform) {
-        return platform.matchesOS(OS.OS_ID_ANDROID) ||
-               platform.matchesOS(OS.OS_ID_WEB) ||
-               platform.matchesOS(OS.OS_ID_IOS) ||
-               (platform.isLinux() && platform.getArch().equals("arm64"));
-    }
-
     private static boolean isDesktopOpenGLPlatform(Platform platform) {
         return platform.isWindows() ||
                platform.isMacOS() ||
-               (platform.isLinux() && !usesGlesShaderLanguages(platform));
-    }
-
-    private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
-        LinkedHashSet<String> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
-        } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
-        } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
-        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_DX12);
-        } else if (usesGlesShaderLanguages(platform)) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
-        } else if (isDesktopOpenGLPlatform(platform)) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGL);
-        }
-        return adapters;
+               (platform.isLinux() && !ShaderCompilers.usesGlesShaderLanguages(platform));
     }
 
     @SuppressWarnings("unchecked")
@@ -1704,7 +1678,9 @@ public class Project implements AutoCloseable {
             case "GraphicsAdapterOpenGLES":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
             case "GraphicsAdapterOpenGL":
-                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
+                // Linux registers OpenGL and OpenGLES separately; excluding one must not exclude the other.
+                return !platform.isLinux() && ShaderCompilers.usesGlesShaderLanguages(platform)
+                        ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "GraphicsAdapterMetal":
                 return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "GraphicsAdapterWebGPU":
@@ -1729,7 +1705,7 @@ public class Project implements AutoCloseable {
                 }
                 return isDesktopOpenGLPlatform(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGL : null;
             case "graphics_opengl":
-                return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
+                return ShaderCompilers.usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
             case "graphics_metal":
@@ -1758,7 +1734,7 @@ public class Project implements AutoCloseable {
     }
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
-        LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        LinkedHashSet<String> adapters = new LinkedHashSet<>(ShaderCompilers.getDefaultShaderAdapters(platform));
         if (platform == Platform.Arm64IosSim) {
             return String.join(",", adapters);
         }

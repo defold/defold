@@ -128,8 +128,13 @@ namespace dmResource
     };
 
     /**
-     * New factory parmetes
+     * Progress external work while loading, outside the loader lock. Called on the
+     * thread updating the preloader, including synchronous Get. Check thread ownership
+     * before running thread-owned work. Do not start another synchronous resource load.
      */
+    typedef void (*FResourceService)(void* context);
+
+    /** New factory parameters. */
     struct NewFactoryParams
     {
         /// Maximum number of resource in factory. Default is 1024
@@ -158,6 +163,13 @@ namespace dmResource
      * @return Factory handle. NULL if out of memory or invalid uri.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
+
+    /**
+     * Set the loading progress callback before starting resource loads. The callback
+     * and its context must remain alive until factory deletion, or until replaced
+     * while no loads are updating. A null callback disables external servicing.
+     */
+    void SetFactoryService(HFactory factory, FResourceService service, void* context);
 
     /**
      * Delete a factory

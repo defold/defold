@@ -741,7 +741,6 @@ namespace
         context_params.m_Factory = fixture->m_Factory;
         context_params.m_Register = fixture->m_Register;
         context_params.m_RenderContext = fixture->m_RenderContext;
-        context_params.m_ScriptContext = fixture->m_Script;
         const dmRender::RenderFrameLimits limits = { 4096, 16, 16 };
         fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits, dmRender::RENDER_FRAME_PREPARATION_CONSUMER);
         assert(fixture->m_Context);
@@ -828,12 +827,16 @@ namespace
         }
         if (fixture->m_RenderContext)
         {
-            dmRender::DeleteRenderContext(fixture->m_RenderContext, fixture->m_Script);
+            dmRender::FinalizeRenderer(fixture->m_RenderContext, fixture->m_Script);
         }
         dmScript::Finalize(fixture->m_Script);
         dmScript::DeleteContext(fixture->m_Script);
         dmGameObject::DeleteRegister(fixture->m_Register);
         dmResource::DeleteFactory(fixture->m_Factory);
+        if (fixture->m_RenderContext)
+        {
+            dmRender::DeleteRenderContext(fixture->m_RenderContext, 0);
+        }
         dmGameSystem::DeleteContext(fixture->m_Context);
         dmRender::DeleteRenderExecution(fixture->m_Execution);
         dmConditionVariable::Delete(fixture->m_Probe.m_Changed);
@@ -2273,7 +2276,6 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     context_params.m_Factory = factory;
     context_params.m_Register = component_register;
     context_params.m_RenderContext = render;
-    context_params.m_ScriptContext = script;
     dmGameSystem::HContext context = dmGameSystem::NewContext(context_params);
     ASSERT_NE((dmGameSystem::HContext)0, context);
     ASSERT_EQ(0u, dmGameObject::GetNumComponentTypes(component_register));
@@ -2345,14 +2347,15 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmGameObject::DeleteCollection(collection);
     dmGameObject::PostUpdate(component_register);
     ASSERT_TRUE(dmGameSystem::Finalize(context));
-    dmGameSystem::DeleteContext(context);
     dmGameObject::DeleteRegister(component_register);
     dmRender::DeleteLightInstance(render, light);
     dmRender::DeleteLightPrototype(render, light_prototype);
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, script));
+    dmRender::FinalizeRenderer(render, script);
     dmScript::Finalize(script);
     dmScript::DeleteContext(script);
     dmResource::DeleteFactory(factory);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
+    dmGameSystem::DeleteContext(context);
     dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);

@@ -568,6 +568,14 @@ namespace dmGraphics
      */
     TextureInfo GetTextureInfo(HContext context, HTexture texture);
 
+    /**
+     * Check a 2D upload against the texture's current size and allocated mip levels.
+     * Partial updates require existing storage. Full uploads may allocate storage,
+     * depending on the adapter. Call on the graphics owner immediately before SetTexture;
+     * this does not check the source bytes or guarantee that GPU allocation will succeed.
+     */
+    bool IsTextureUploadValid(HContext context, HTexture texture, const TextureParams& params);
+
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);

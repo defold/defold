@@ -23,6 +23,23 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # Existing CI and local commands must overlap an adjacent SDK install with package setup on any platform.
+    def test_cli_combines_sdk_and_package_setup(self):
+        required_env = dict.fromkeys(('DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME'), 'test')
+        for platform, command in (('x86_64-win32', 'install_ext_packages'), ('arm64-linux', 'install_ext')):
+            with self.subTest(platform=platform, command=command), \
+                    mock.patch.object(build, 'Configuration') as configuration, \
+                    mock.patch.object(build.build_private, 'set_target_platform'), \
+                    mock.patch.object(build.s3, 'init_boto_data_path'), \
+                    mock.patch.dict(os.environ, required_env), \
+                    mock.patch.object(sys, 'argv', ['build.py', f'--platform={platform}', 'distclean', 'install_sdk', command]):
+                build._main()
+
+            commands = configuration.return_value
+            commands.distclean.assert_called_once_with()
+            commands.install_sdk.assert_not_called()
+            getattr(commands, command).assert_called_once_with(install_sdk=True)
+
     # Hosts with a bundled strip tool must reach Bob's fallback without installing or checking LLVM first.
     def test_ci_setup_does_not_require_llvm_strip_on_macos_or_windows(self):
         for system in ('Darwin', 'Windows'):
