@@ -17,8 +17,10 @@ and upstream tests are disabled. `patch.cmake` makes upstream honor its SPIR-V
 option on Unix and fixes deallocation of variable-sized `CGFunctionInfo`,
 `AttributeSetImpl`, and `AttributeSetNode` objects. The latter pairs the raw
 allocation with explicit destruction and unsized deletion, avoiding ASAN's
-`new-delete-type-mismatch` error when DXC finishes compiling a shader. Version
-stamping uses the source archive's fixed version.
+`new-delete-type-mismatch` error when DXC finishes compiling a shader. On Unix,
+the patch also skips file cleanup registration for in-memory output so shader
+compilation preserves the JVM's signal handlers. See [DXC issue #8999](https://github.com/microsoft/DirectXShaderCompiler/issues/8999).
+Version stamping uses the source archive's fixed version.
 Windows uses the static CRT, matching the other Defold tools.
 
 Installed files under the SDK's `ext` directory:

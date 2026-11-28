@@ -55,6 +55,15 @@ endif()
 
 shaderc_stage_dxc(test_shaderc)
 
+if(UNIX)
+  # Run in a fresh process so earlier shader tests cannot hide a change to the signal handlers.
+  defold_add_executable(test_dxc_signals "${SHADERC_TEST_DIR}/test_dxc_signals.cpp")
+  target_link_libraries(test_dxc_signals PRIVATE shaderc_dxcompiler)
+  set_target_properties(test_dxc_signals PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/signals")
+  shaderc_stage_dxc(test_dxc_signals)
+  defold_register_test_target(test_dxc_signals ON "${SHADERC_ROOT}")
+endif()
+
 if(WIN32)
   target_link_libraries(test_shaderc PRIVATE d3d12.lib)
 endif()

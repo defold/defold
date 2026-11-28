@@ -15,6 +15,26 @@ else()
   file(WRITE "${path}" "${source}")
 endif()
 
+# DXC writes direct output to a memory stream named output.bc. Registering it
+# for crash cleanup replaces the JVM's process-wide SIGBUS and SIGSEGV handlers,
+# which HotSpot uses for safepoints. See microsoft/DirectXShaderCompiler#8999.
+if(CMAKE_HOST_UNIX)
+  set(path "${DXC_SOURCE_DIR}/tools/clang/lib/Frontend/CompilerInstance.cpp")
+  file(READ "${path}" source)
+  set(original "/*RemoveFileOnSignal=*/true, InFile, Extension,\n                          /*UseTemporary=*/!WriteDefaultOutputDirectly")
+  set(replacement "/*RemoveFileOnSignal=*/!WriteDefaultOutputDirectly, InFile, Extension,\n                          /*UseTemporary=*/!WriteDefaultOutputDirectly")
+  string(FIND "${source}" "${original}" found)
+  if(found EQUAL -1)
+    string(FIND "${source}" "${replacement}" patched)
+    if(patched EQUAL -1)
+      message(FATAL_ERROR "DXC output signal cleanup patch no longer matches the pinned source")
+    endif()
+  else()
+    string(REPLACE "${original}" "${replacement}" source "${source}")
+    file(WRITE "${path}" "${source}")
+  endif()
+endif()
+
 # LLVM attribute sets and nodes use the same trailing-allocation pattern.
 set(path "${DXC_SOURCE_DIR}/lib/IR/LLVMContextImpl.cpp")
 file(READ "${path}" source)
