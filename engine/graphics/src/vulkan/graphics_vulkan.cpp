@@ -752,7 +752,14 @@ namespace dmGraphics
         }
     }
 
-    static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size, VkFormat* vk_format_out, VkImageTiling* vk_tiling_out)
+    static VkImageLayout GetDepthStencilFinalLayout(const VulkanTexture* texture)
+    {
+        return (texture->m_UsageFlags & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+            ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+
+    static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size,
+                                        VkFormat* vk_format_out, VkImageTiling* vk_tiling_out, bool sampled = false)
     {
         // Depth formats are optional, so we need to query
         // what available formats we have.
@@ -766,18 +773,19 @@ namespace dmGraphics
 
         const VkFormat* vk_formats_to_test = vk_format_list ? vk_format_list : vk_format_list_default;
         uint8_t vk_formats_to_test_size    = vk_format_list ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
+        VkFormatFeatureFlags features     = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | (sampled ? VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT : 0);
 
         // Check if we can use optimal tiling for this format, otherwise
         // we try to find the best format that supports linear
         VkImageTiling vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
         VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
-            vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+                                                                 vk_formats_to_test_size, vk_image_tiling, features);
 
         if (vk_depth_format == VK_FORMAT_UNDEFINED)
         {
             vk_image_tiling = VK_IMAGE_TILING_LINEAR;
             vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
-                vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+                                                       vk_formats_to_test_size, vk_image_tiling, features);
         }
 
         *vk_format_out = vk_depth_format;
@@ -787,6 +795,11 @@ namespace dmGraphics
     static VkResult CreateDepthStencilTexture(VulkanContext* context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
         uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, VkImageAspectFlags vk_aspect_flags, VulkanTexture* depth_stencil_texture_out)
     {
+        if (vk_depth_format == VK_FORMAT_UNDEFINED)
+        {
+            return VK_ERROR_FORMAT_NOT_SUPPORTED;
+        }
+
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
         VkImageUsageFlags vk_usage_flags          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | depth_stencil_texture_out->m_UsageFlags;
@@ -808,12 +821,23 @@ namespace dmGraphics
 
         if (res == VK_SUCCESS)
         {
+            // Initialize every layer to the same layout the render passes leave it in.
+            // Sampling after a pass then requires no separate command-buffer submission.
             res = TransitionImageLayout(&context->m_LogicalDevice,
-                depth_stencil_texture_out,
-                vk_aspect_flags,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                0,
-                GetLayerCount(depth_stencil_texture_out->m_Base.m_Type));
+                                        depth_stencil_texture_out,
+                                        vk_aspect_flags,
+                                        GetDepthStencilFinalLayout(depth_stencil_texture_out),
+                                        0,
+                                        GetLayerCount(depth_stencil_texture_out->m_Base.m_Type));
+        }
+
+        if (res == VK_SUCCESS && (vk_usage_flags & VK_IMAGE_USAGE_SAMPLED_BIT) &&
+            GetSupportedTilingFormat(vk_physical_device, &vk_depth_format, 1, vk_depth_tiling, VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) == VK_FORMAT_UNDEFINED)
+        {
+            depth_stencil_texture_out->m_ForceNearestFiltering = 1;
+            const TextureSampler sampler = context->m_TextureSamplers[depth_stencil_texture_out->m_TextureSamplerIndex];
+            VulkanSetTextureParamsInternal(context, depth_stencil_texture_out, sampler.m_MinFilter, sampler.m_MagFilter,
+                                           sampler.m_AddressModeU, sampler.m_AddressModeV, sampler.m_AddressModeW, sampler.m_MaxAnisotropy);
         }
 
         return res;
@@ -948,7 +972,7 @@ namespace dmGraphics
 
         // Depth/stencil attachment
         attachments[1].m_Format             = depth_stencil_texture->m_Format;
-        attachments[1].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[1].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachments[1].m_ImageLayout        = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachments[1].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachments[1].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
@@ -3382,7 +3406,7 @@ namespace dmGraphics
 
         VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
-        VkImageView image_view           = texture->m_Handle.m_ImageView;
+        VkImageView image_view           = texture->GetDescriptorImageView();
         VkDescriptorType descriptor_type = TextureTypeToDescriptorType(binding->m_Type.m_ShaderType);
 
         if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
@@ -3591,7 +3615,7 @@ namespace dmGraphics
                 case BINDING_FAMILY_TEXTURE:
                 {
                     VulkanTexture* texture = ResolveTextureDescriptorTexture(context, context->m_TextureUnits[next->m_TextureUnit], res);
-                    VkImageView image_view = texture ? texture->m_Handle.m_ImageView : VK_NULL_HANDLE;
+                    VkImageView image_view = texture ? texture->GetDescriptorImageView() : VK_NULL_HANDLE;
                     VkSampler image_sampler = texture ? context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler : VK_NULL_HANDLE;
 
                     if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
@@ -4881,7 +4905,7 @@ namespace dmGraphics
             }
 
             rp_attachment_depth_stencil                    = &rp_attachments[fb_attachment_count];
-            rp_attachment_depth_stencil->m_ImageLayout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            rp_attachment_depth_stencil->m_ImageLayout     = GetDepthStencilFinalLayout(depth_stencil_texture_ptr);
             rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
             rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -4951,7 +4975,7 @@ namespace dmGraphics
             if (rp_attachment_depth_stencil != 0)
             {
                 rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_CLEAR;
-                rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+                rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
                 res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures, rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassClearColorDepth);
                 if (res != VK_SUCCESS)
                 {
@@ -5228,6 +5252,7 @@ namespace dmGraphics
             VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
 
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+            const bool sampled = (stencil_depth_create_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_SAMPLE) != 0;
 
             if (color_index == 0)
             {
@@ -5244,26 +5269,40 @@ namespace dmGraphics
                 };
 
                 GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, vk_format_list,
-                    DM_ARRAY_SIZE(vk_format_list), &vk_depth_stencil_format, &vk_depth_tiling);
+                                        DM_ARRAY_SIZE(vk_format_list), &vk_depth_stencil_format, &vk_depth_tiling, sampled);
             }
 
             // If we request both depth & stencil OR test above failed,
             // try with default depth stencil formats
             if (vk_depth_stencil_format == VK_FORMAT_UNDEFINED)
             {
-                GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
+                GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling, sampled);
             }
 
             texture_depth_stencil                    = NewTexture((HContext) context, stencil_depth_create_params);
             VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);
 
-            // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, (VkSampleCountFlagBits) rt->m_Base.m_SampleCount,
                 GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 texture_depth_stencil_ptr);
-            CHECK_VK_ERROR(res);
+            if (res != VK_SUCCESS)
+            {
+                dmLogError("Failed to create Vulkan render target depth/stencil attachment: %s", VkResultToStr(res));
+                DeleteTexture(_context, texture_depth_stencil);
+                for (uint32_t i = 0; i < color_index; ++i)
+                {
+                    DeleteTexture(_context, texture_color[i]);
+                    if (texture_color_resolve[i])
+                    {
+                        DeleteTexture(_context, texture_color_resolve[i]);
+                    }
+                }
+
+                delete rt;
+                return 0;
+            }
         }
 
         if (color_index > 0 || has_depth || has_stencil)
@@ -5452,15 +5491,11 @@ namespace dmGraphics
             DestroyResourceDeferred(context, depth_stencil_texture);
 
             // Check tiling support for this format
-            VkImageTiling vk_image_tiling    = VK_IMAGE_TILING_OPTIMAL;
-            VkFormat vk_depth_stencil_format = depth_stencil_texture->m_Format;
-            VkFormat vk_depth_format         = GetSupportedTilingFormat(context->m_PhysicalDevice.m_Device, &vk_depth_stencil_format,
-                1, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-
-            if (vk_depth_format == VK_FORMAT_UNDEFINED)
-            {
-                vk_image_tiling = VK_IMAGE_TILING_LINEAR;
-            }
+            VkImageTiling vk_image_tiling;
+            VkFormat vk_depth_stencil_format;
+            const bool sampled = (depth_stencil_texture->m_UsageFlags & VK_IMAGE_USAGE_SAMPLED_BIT) != 0;
+            GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, &depth_stencil_texture->m_Format, 1,
+                                    &vk_depth_stencil_format, &vk_image_tiling, sampled);
 
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_image_tiling,
@@ -6456,6 +6491,13 @@ namespace dmGraphics
 
     static void VulkanSetTextureParamsInternal(VulkanContext* context, VulkanTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
+        if (texture->m_ForceNearestFiltering)
+        {
+            minfilter = TEXTURE_FILTER_NEAREST;
+            magfilter = TEXTURE_FILTER_NEAREST;
+            max_anisotropy = 1.0f;
+        }
+
         TextureSampler sampler   = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(context, max_anisotropy);
 

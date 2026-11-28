@@ -175,6 +175,7 @@ namespace dmGraphics
         {
             VkImage     m_Image;
             VkImageView m_ImageView;
+            VkImageView m_DepthSamplingView;
             uint8_t     m_LastUsedFrameSlot; // Frame slot used for deferred destruction.
             uint8_t     m_MipMapCount; // Actual VkImage allocation, not the requested mip count.
         };
@@ -188,9 +189,14 @@ namespace dmGraphics
         HOpaqueHandle     m_PendingUpload;
         uint16_t          m_TextureSamplerIndex : 10;
         uint16_t          m_Destroyed           : 1;
+        uint16_t          m_ForceNearestFiltering : 1;
         uint8_t           m_LayerCount;
 
         const VulkanResourceType GetType();
+        VkImageView GetDescriptorImageView() const
+        {
+            return m_Handle.m_DepthSamplingView ? m_Handle.m_DepthSamplingView : m_Handle.m_ImageView;
+        }
     };
 
     struct TextureSampler

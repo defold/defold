@@ -31,6 +31,7 @@ namespace dmGraphics
         t->m_Format                     = VK_FORMAT_UNDEFINED;
         t->m_TextureSamplerIndex        = 0;
         t->m_Destroyed                  = 0;
+        t->m_ForceNearestFiltering      = 0;
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
@@ -903,7 +904,8 @@ bail:
             vk_view_type = VK_IMAGE_VIEW_TYPE_3D;
         }
 
-        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
+        VulkanTexture::VulkanHandle handle = {};
+        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -911,7 +913,7 @@ bail:
 
         // Allocate GPU memory to hold texture
         VkMemoryRequirements vk_memory_req;
-        vkGetImageMemoryRequirements(vk_device, textureOut->m_Handle.m_Image, &vk_memory_req);
+        vkGetImageMemoryRequirements(vk_device, handle.m_Image, &vk_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -942,7 +944,7 @@ bail:
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Handle.m_Image, device_buffer.m_Allocation.m_Handle.m_Memory, 0);
+        res = vkBindImageMemory(vk_device, handle.m_Image, device_buffer.m_Allocation.m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
@@ -956,7 +958,7 @@ bail:
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
 
         vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        vk_view_create_info.image                           = textureOut->m_Handle.m_Image;
+        vk_view_create_info.image                           = handle.m_Image;
         vk_view_create_info.viewType                        = vk_view_type;
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
@@ -965,9 +967,34 @@ bail:
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
         vk_view_create_info.subresourceRange.layerCount     = imageLayers;
 
-        textureOut->m_Format                   = vk_format;
-        textureOut->m_Destroyed                = 0;
+        VkImageView image_view;
+        res = vkCreateImageView(vk_device, &vk_view_create_info, 0, &image_view);
+        if (res != VK_SUCCESS)
+        {
+            goto bail;
+        }
+
+        handle.m_ImageView = image_view;
+
+        // A packed depth/stencil view can be attached to a framebuffer. A shader
+        // descriptor must select just one aspect, which is depth for these textures.
+        if (vk_aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT) &&
+            (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
+        {
+            vk_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            res = vkCreateImageView(vk_device, &vk_view_create_info, 0, &image_view);
+            if (res != VK_SUCCESS)
+            {
+                goto bail;
+            }
+
+            handle.m_DepthSamplingView = image_view;
+        }
+
+        textureOut->m_Format                  = vk_format;
+        textureOut->m_Destroyed               = 0;
         textureOut->m_DeviceBuffer.m_Destroyed = 0;
+        textureOut->m_ForceNearestFiltering   = 0;
 
         if (imageMips == 0)
         {
@@ -976,17 +1003,16 @@ bail:
             textureOut->m_Base.m_Depth  = imageDepth;
         }
 
-        res = vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
-        if (res == VK_SUCCESS)
-        {
-            // Account for the complete allocation, including mips, layers, format expansion
-            // and driver padding. Individual uploads must not replace this with their size.
-            textureOut->m_Handle.m_MipMapCount = imageMips;
-            SetTextureResourceSizeExact(&textureOut->m_Base, sizeof(VulkanTexture), device_buffer.m_Base.m_Size);
-        }
-        return res;
+        // Account for the complete allocation, including mips, layers, format expansion
+        // and driver padding. Individual uploads must not replace this with their size.
+        handle.m_LastUsedFrameSlot = textureOut->m_Handle.m_LastUsedFrameSlot;
+        handle.m_MipMapCount = imageMips;
+        textureOut->m_Handle = handle;
+        SetTextureResourceSizeExact(&textureOut->m_Base, sizeof(VulkanTexture), device_buffer.m_Base.m_Size);
+        return VK_SUCCESS;
 bail:
-        DestroyTexture(vk_device, &textureOut->m_Handle);
+        DestroyTexture(vk_device, &handle);
+        DestroyDeviceBufferAllocation(vk_device, &device_buffer.m_Allocation);
         return res;
     }
 
@@ -1079,7 +1105,7 @@ bail:
 
             if (depthStencilAttachment->m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
             {
-                attachment_depth.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                attachment_depth.initialLayout = depthStencilAttachment->m_ImageLayoutInitial;
             }
 
             vk_attachment_depth_ref.attachment = numColorAttachments;
@@ -1107,14 +1133,8 @@ bail:
             }
         }
 
-        // Subpass dependencies describe access patterns between several 'sub-passes',
-        // e.g for a post-processing stack you would likely have a dependency chain between
-        // the results of various draw calls, which could then be specefied as subpass dependencies
-        // which could yield optimal performance. We don't have any way of describing the access flow
-        // yet so for now we just create a single subpass that connects an external source
-        // (anything that has happend before this call) to the color output of the render pass,
-        // which should be fine in most cases.
-        VkSubpassDependency vk_sub_pass_dependencies[1];
+        // Order earlier attachment writes before this pass reads or writes the attachments.
+        VkSubpassDependency vk_sub_pass_dependencies[2];
         memset(vk_sub_pass_dependencies, 0, sizeof(vk_sub_pass_dependencies));
         vk_sub_pass_dependencies[0].srcSubpass    = VK_SUBPASS_EXTERNAL;
         vk_sub_pass_dependencies[0].dstSubpass    = 0;
@@ -1125,6 +1145,22 @@ bail:
             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         // Arbitrary SSBO dependencies are global and may order fragment work
         // before vertex work. They cannot be expressed by a subpass self-dependency.
+
+        uint32_t dependency_count = 1;
+        if (depthStencilAttachment && depthStencilAttachment->m_ImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            // Order earlier shader reads before the attachment transition, and
+            // make attachment writes visible to graphics or compute shader reads.
+            vk_sub_pass_dependencies[1].srcSubpass = 0;
+            vk_sub_pass_dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+            vk_sub_pass_dependencies[1].srcStageMask = vk_sub_pass_dependencies[0].srcStageMask;
+            vk_sub_pass_dependencies[1].srcAccessMask = vk_sub_pass_dependencies[0].srcAccessMask;
+            vk_sub_pass_dependencies[1].dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            vk_sub_pass_dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vk_sub_pass_dependencies[0].srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            vk_sub_pass_dependencies[0].srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            ++dependency_count;
+        }
 
         // The subpass description connects the input attachments to the render pass,
         // in a MRT situation writing to specific color outputs (gl_FragData[x]) match these numbers.
@@ -1145,7 +1181,7 @@ bail:
         render_pass_create_info.pAttachments    = vk_attachment_desc;
         render_pass_create_info.subpassCount    = 1;
         render_pass_create_info.pSubpasses      = &vk_sub_pass_description;
-        render_pass_create_info.dependencyCount = DM_ARRAY_SIZE(vk_sub_pass_dependencies);
+        render_pass_create_info.dependencyCount = dependency_count;
         render_pass_create_info.pDependencies   = vk_sub_pass_dependencies;
 
         VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
@@ -1569,6 +1605,12 @@ bail:
     void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle)
     {
         assert(handle);
+        if (handle->m_DepthSamplingView != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(vk_device, handle->m_DepthSamplingView, 0);
+            handle->m_DepthSamplingView = VK_NULL_HANDLE;
+        }
+
         if (handle->m_ImageView != VK_NULL_HANDLE)
         {
             vkDestroyImageView(vk_device, handle->m_ImageView, 0);
