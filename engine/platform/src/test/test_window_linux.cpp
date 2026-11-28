@@ -105,7 +105,8 @@ static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress
 }
 
 extern "C" void* __real_dlsym(void* handle, const char* name);
-static bool g_NoEGLExtensions;
+static const char* g_EGLDisplayExtensions;
+static PFNEGLMAKECURRENTPROC g_TestEGLMakeCurrent;
 static bool g_TestWindowOnlyEGL, g_RejectEGLPbuffer, g_RejectEGLAuxWindow;
 static unsigned g_EGLWindowSurfaces;
 
@@ -130,9 +131,42 @@ static EGLSurface EGLAPIENTRY MainEGLWindowOnly(EGLDisplay display, EGLConfig co
     return ++g_EGLWindowSurfaces == 1 ? eglCreateWindowSurface(display, config, native, attrs) : EGL_NO_SURFACE;
 }
 
-static const char* EGLAPIENTRY NoEGLExtensions(EGLDisplay display, EGLint query)
+static const char* EGLAPIENTRY TestEGLExtensions(EGLDisplay display, EGLint query)
 {
-    return query == EGL_EXTENSIONS ? "" : eglQueryString(display, query);
+    if (g_EGLDisplayExtensions && query == EGL_EXTENSIONS)
+    {
+        return display ? g_EGLDisplayExtensions : "";
+    }
+
+    return eglQueryString(display, query);
+}
+
+static EGLBoolean EGLAPIENTRY RejectSurfacelessBind(EGLDisplay display, EGLSurface draw, EGLSurface read, EGLContext context)
+{
+    if (context && !draw && !read)
+    {
+        return EGL_FALSE;
+    }
+
+    return eglMakeCurrent(display, draw, read, context);
+}
+
+static EGLBoolean EGLAPIENTRY RejectRenderContextRestore(EGLDisplay display, EGLSurface draw, EGLSurface read, EGLContext context)
+{
+    if (context && eglGetCurrentContext())
+    {
+        if (draw)
+        {
+            // A window surface without a context makes EGL reject the restore with EGL_BAD_MATCH.
+            return eglMakeCurrent(display, draw, read, EGL_NO_CONTEXT);
+        }
+
+        // Make the auxiliary bind succeed even on drivers that require a surface.
+        draw = eglGetCurrentSurface(EGL_DRAW);
+        read = eglGetCurrentSurface(EGL_READ);
+    }
+
+    return eglMakeCurrent(display, draw, read, context);
 }
 
 // Visual 2 adds a pbuffer. Visual 3 trades depth precision for multisampling.
@@ -201,9 +235,14 @@ extern "C" void* __wrap_dlsym(void* handle, const char* name)
         }
     }
 
-    if (g_NoEGLExtensions && !strcmp(name, "eglQueryString"))
+    if (g_EGLDisplayExtensions && !strcmp(name, "eglQueryString"))
     {
-        return (void*)NoEGLExtensions;
+        return (void*)TestEGLExtensions;
+    }
+
+    if (g_TestEGLMakeCurrent && !strcmp(name, "eglMakeCurrent"))
+    {
+        return (void*)g_TestEGLMakeCurrent;
     }
 
     if (g_TestWindowOnlyEGL && !strcmp(name, "eglGetConfigAttrib"))
@@ -1711,9 +1750,9 @@ TEST(LinuxWindow, WaylandOpaqueEGLFallback)
 
     WindowCreateParams p = Params();
     p.m_ContextAlphabits = 8;
-    g_NoEGLExtensions = true;
+    g_EGLDisplayExtensions = "";
     WindowResult result = dmPlatform::OpenWindow(w, p);
-    g_NoEGLExtensions = false;
+    g_EGLDisplayExtensions = 0;
     ASSERT_EQ(WINDOW_RESULT_OK, result);
     EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ALPHA_BITS));
     EXPECT_EQ(0u, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ACCELERATED));
@@ -3071,7 +3110,7 @@ TEST(LinuxWindow, X11SharedContextWithoutPbuffer)
     dmPlatform::DeleteWindow(w);
 }
 
-// X11 and Wayland must still share worker uploads when EGL requires a window surface for each context.
+// Without a pbuffer, X11 and Wayland must preserve the render context and fall back when EGL rejects a surfaceless worker.
 TEST(LinuxWindow, EGLSharedContextWithoutPbuffer)
 {
     HWindow w = dmPlatform::NewWindow();
@@ -3079,20 +3118,46 @@ TEST(LinuxWindow, EGLSharedContextWithoutPbuffer)
     WindowCreateParams p = Params();
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     p.m_Hidden = true;
-    for (int cycle = 0; cycle < 3; ++cycle)
+    const char* surfaceless = "EGL_KHR_surfaceless_context";
+    const struct
     {
-        g_TestWindowOnlyEGL = cycle != 1;
-        g_RejectEGLAuxWindow = cycle == 2;
+        const char*           extensions;
+        PFNEGLMAKECURRENTPROC make_current;
+        bool                  window_only, reject_aux_window;
+    } cases[] = {
+        { "", 0, true, false },
+        { "", 0, false, false },
+        { "", 0, true, true },
+        { surfaceless, RejectSurfacelessBind, false, false },
+        { surfaceless, RejectSurfacelessBind, true, true },
+        { surfaceless, RejectRenderContextRestore, true, false },
+        { surfaceless, 0, true, false },
+    };
+    for (unsigned i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        g_TestWindowOnlyEGL = cases[i].window_only;
+        g_RejectEGLAuxWindow = cases[i].reject_aux_window;
         g_EGLWindowSurfaces = 0;
-        g_RejectEGLPbuffer = g_NoEGLExtensions = true;
+        g_RejectEGLPbuffer = true;
+        g_EGLDisplayExtensions = cases[i].extensions;
+        g_TestEGLMakeCurrent = cases[i].make_current;
         WindowResult result = dmPlatform::OpenWindow(w, p);
-        g_TestWindowOnlyEGL = g_RejectEGLPbuffer = g_NoEGLExtensions = g_RejectEGLAuxWindow = false;
+        g_TestWindowOnlyEGL = g_RejectEGLPbuffer = g_RejectEGLAuxWindow = false;
+        g_EGLDisplayExtensions = 0;
+        g_TestEGLMakeCurrent = 0;
+        if (cases[i].make_current == RejectRenderContextRestore)
+        {
+            ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, result);
+            EXPECT_EQ((EGLContext)EGL_NO_CONTEXT, eglGetCurrentContext());
+            continue;
+        }
+
         ASSERT_EQ(WINDOW_RESULT_OK, result);
-        ASSERT_EQ(cycle != 2, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT) != 0);
-        if (cycle == 2)
+        EXPECT_NE((EGLSurface)EGL_NO_SURFACE, eglGetCurrentSurface(EGL_DRAW));
+        ASSERT_EQ(!cases[i].reject_aux_window, dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT) != 0);
+        if (cases[i].reject_aux_window)
         {
             EXPECT_EQ(2u, g_EGLWindowSurfaces);
-            EXPECT_NE((EGLContext)EGL_NO_CONTEXT, eglGetCurrentContext());
         }
         else
         {

@@ -639,7 +639,6 @@ namespace dmPlatform
             attrs[4] = EGL_NONE;
         }
 
-        const char* extensions = g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS);
         const EGLint opaque[] = { EGL_PRESENT_OPAQUE_EXT, EGL_TRUE, EGL_NONE };
         g->m_EMain = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, EGL_NO_CONTEXT, attrs);
         if (!g->m_EMain)
@@ -669,17 +668,31 @@ namespace dmPlatform
         {
             const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
             g->m_EAuxSurface = g->m_eglCreatePbufferSurface(g->m_EDisplay, g->m_EConfig, pbuffer);
+            if (g->m_EAuxSurface)
+            {
+                return true;
+            }
         }
 
-        if (!g->m_EAuxSurface && !Extension(extensions, "EGL_KHR_surfaceless_context"))
+        // The display can advertise surfaceless binding even when this context requires a surface.
+        const char* extensions = g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS);
+        if (Extension(extensions, "EGL_KHR_surfaceless_context") &&
+            g->m_eglMakeCurrent(g->m_EDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, g->m_EAux))
         {
-            g->m_EAuxSurface = CreateEGLAuxWindowSurface(w);
-            if (!g->m_EAuxSurface)
+            if (!g->m_eglMakeCurrent(g->m_EDisplay, g->m_ESurface, g->m_ESurface, g->m_EMain))
             {
-                DestroyAuxWindow(w);
-                g->m_eglDestroyContext(g->m_EDisplay, g->m_EAux);
-                g->m_EAux = EGL_NO_CONTEXT;
+                return EGLFailure(g, "eglMakeCurrent (restore render context)", major, minor);
             }
+
+            return true;
+        }
+
+        g->m_EAuxSurface = CreateEGLAuxWindowSurface(w);
+        if (!g->m_EAuxSurface)
+        {
+            DestroyAuxWindow(w);
+            g->m_eglDestroyContext(g->m_EDisplay, g->m_EAux);
+            g->m_EAux = EGL_NO_CONTEXT;
         }
 
         return true;
