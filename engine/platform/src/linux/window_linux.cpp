@@ -123,7 +123,7 @@ namespace dmPlatform
 
         LinuxResizeGL(w);
         WindowPlacementChanged(w);
-        if (w->m_Open)
+        if (w->m_Open && !DeferWindowPlacementResize(w, w->m_ResizeCallbackCount))
         {
             NotifyWindowResize(w, w->m_Params, w->m_ResizeCallbackCount);
         }
@@ -268,6 +268,10 @@ namespace dmPlatform
             if (!current->m_DeletePending)
             {
                 UpdateWindowPlacement(current, false);
+                if (TakeWindowPlacementResize(current, current->m_ResizeCallbackCount))
+                {
+                    NotifyWindowResize(current, current->m_Params, current->m_ResizeCallbackCount);
+                }
             }
 
             HWindow polled = current;

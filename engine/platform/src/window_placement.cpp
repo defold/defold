@@ -30,6 +30,7 @@ struct WindowPlacement
     uint64_t             m_LastCheck;
     uint64_t             m_LastWrite;
     uint32_t             m_MonitorRevision;
+    uint32_t             m_DeferredResizeCount;
     int32_t              m_ConfigWidth, m_ConfigHeight;
     bool                 m_HaveNormal;
     bool                 m_CanWrite;
@@ -38,6 +39,8 @@ struct WindowPlacement
     bool                 m_Dirty;
     bool                 m_ResetPending;
     bool                 m_ClampPending;
+    bool                 m_AdjustingGeometry;
+    bool                 m_ResizeDeferred;
     bool                 m_Warned;
 };
 
@@ -134,6 +137,32 @@ namespace dmPlatform
         }
     }
 
+    bool DeferWindowPlacementResize(HWindow window, uint32_t resize_count)
+    {
+        WindowPlacement* placement = PlacementStorage(window);
+        if (!placement || !placement->m_AdjustingGeometry)
+        {
+            return false;
+        }
+
+        placement->m_ResizeDeferred = true;
+        placement->m_DeferredResizeCount = resize_count;
+        return true;
+    }
+
+    bool TakeWindowPlacementResize(HWindow window, uint32_t resize_count)
+    {
+        WindowPlacement* placement = PlacementStorage(window);
+        if (!placement || !placement->m_ResizeDeferred || placement->m_AdjustingGeometry)
+        {
+            return false;
+        }
+
+        placement->m_ResizeDeferred = false;
+        // A later resize callback already reported the current drawable size.
+        return placement->m_DeferredResizeCount == resize_count;
+    }
+
     void WindowPlacementSizeRequested(HWindow window)
     {
         WindowPlacement* placement = PlacementStorage(window);
@@ -189,19 +218,20 @@ namespace dmPlatform
         if ((check || placement->m_NeedsCapture) && NormalPlacementWindow(window))
         {
             placement->m_NeedsCapture = false;
-            if (placement->m_ResetPending)
+            if (placement->m_ResetPending || placement->m_ClampPending || placement->m_MonitorRevision != g_MonitorRevision)
             {
-                ApplyPlacementSize(window, placement->m_ConfigWidth, placement->m_ConfigHeight);
-                ClampWindowPlacement(window);
-                placement->m_ResetPending = false;
-            }
+                // Native geometry changes may synchronously notify a listener that closes or reopens the window.
+                // Finish capturing its placement before delivering the resize from the event pump.
+                placement->m_AdjustingGeometry = true;
+                if (placement->m_ResetPending)
+                {
+                    ApplyPlacementSize(window, placement->m_ConfigWidth, placement->m_ConfigHeight);
+                    placement->m_ResetPending = false;
+                }
 
-            if (placement->m_ClampPending || placement->m_MonitorRevision != g_MonitorRevision)
-            {
-                // A window left outside the remaining displays must stay
-                // reachable, including when a display is unplugged at runtime.
                 ClampWindowPlacement(window);
                 placement->m_ClampPending = false;
+                placement->m_AdjustingGeometry = false;
             }
 
             dmWindowState::State state = {};

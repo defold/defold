@@ -73,7 +73,7 @@ namespace dmPlatform
         window->m_Height = rect.bottom;
         window->m_LastResizeScale = window->m_Scale;
         WindowPlacementChanged(window);
-        if (changed && notify && window->m_Ready)
+        if (changed && notify && window->m_Ready && !DeferWindowPlacementResize(window, window->m_ResizeCallbackCount))
         {
             NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
         }
@@ -498,33 +498,47 @@ namespace dmPlatform
     void PollEvents(HWindow)
     {
         DWORD thread = GetCurrentThreadId();
-        struct StartupWindow
+        struct PendingWindow
         {
-            HWindow m_Handle;
-            HWND    m_Window;
+            HWindow  m_Handle;
+            HWND     m_Window;
+            uint32_t m_ResizeCount;
+            bool     m_Resize;
         };
-        dmArray<StartupWindow> startup;
+        dmArray<PendingWindow> pending;
         for (HWindow current = g_Windows; current; current = current->m_Next)
         {
-            if (current->m_Ready && current->m_EventThread == thread && !current->m_Focus.m_DispatchEnabled)
+            if (!current->m_Ready || current->m_EventThread != thread)
             {
-                if (startup.Full())
+                continue;
+            }
+
+            const bool resize = TakeWindowPlacementResize(current, current->m_ResizeCallbackCount);
+            if (resize || !current->m_Focus.m_DispatchEnabled)
+            {
+                if (pending.Full())
                 {
-                    startup.OffsetCapacity(4);
+                    pending.OffsetCapacity(4);
                 }
 
-                StartupWindow item = { current, current->m_Window };
-                startup.Push(item);
+                PendingWindow item = { current, current->m_Window, current->m_ResizeCallbackCount, resize };
+                pending.Push(item);
             }
         }
 
         // A deferred callback can close its own window or another one in the same poll.
-        for (uint32_t i = 0; i < startup.Size(); ++i)
+        for (uint32_t i = 0; i < pending.Size(); ++i)
         {
-            HWindow current = startup[i].m_Handle;
-            if ((HWindow)GetWindowLongPtrW(startup[i].m_Window, GWLP_USERDATA) == current)
+            const PendingWindow& item = pending[i];
+            HWindow current = item.m_Handle;
+            if ((HWindow)GetWindowLongPtrW(item.m_Window, GWLP_USERDATA) == current)
             {
                 PollWindowFocus(current->m_Focus, current->m_Params);
+                if (item.m_Resize && (HWindow)GetWindowLongPtrW(item.m_Window, GWLP_USERDATA) == current &&
+                    current->m_ResizeCallbackCount == item.m_ResizeCount)
+                {
+                    NotifyWindowResize(current, current->m_Params, current->m_ResizeCallbackCount);
+                }
             }
         }
 

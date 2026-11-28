@@ -29,6 +29,8 @@ namespace dmPlatform
     bool        RestoreWindowPlacement(HWindow window);
     const char* GetWindowPlacementPath(HWindow window);
     void        WindowPlacementChanged(HWindow window);
+    bool        DeferWindowPlacementResize(HWindow window, uint32_t resize_count);
+    bool        TakeWindowPlacementResize(HWindow window, uint32_t resize_count);
     void        WindowPlacementMonitorsChanged();
     void        WindowPlacementMonitorsChanged(HWindow window);
     void        WindowPlacementSizeRequested(HWindow window);

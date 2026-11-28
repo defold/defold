@@ -337,7 +337,10 @@ namespace dmPlatform
         if (changed && notify && window->m_Ready)
         {
             WindowPlacementChanged(window);
-            NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
+            if (!DeferWindowPlacementResize(window, window->m_ResizeCallbackCount))
+            {
+                NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
+            }
         }
     }
 
@@ -536,6 +539,10 @@ namespace dmPlatform
                 if (window)
                 {
                     UpdateWindowPlacement(window, false);
+                    if (TakeWindowPlacementResize(window, window->m_ResizeCallbackCount))
+                    {
+                        NotifyWindowResize(window, window->m_Params, window->m_ResizeCallbackCount);
+                    }
                 }
             }
         }

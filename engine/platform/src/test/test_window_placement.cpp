@@ -621,6 +621,57 @@ TEST_F(WindowPlacementTest, ResetSize)
     ASSERT_EQ(300, height);
 }
 
+struct ResetResizeAction
+{
+    HWindow                   m_Window;
+    const WindowCreateParams* m_Replacement;
+    const char*               m_Path;
+    WindowResult              m_Result;
+    bool                      m_Armed;
+};
+
+static void ReopenAfterPlacementReset(void* data, uint32_t, uint32_t)
+{
+    ResetResizeAction* action = (ResetResizeAction*)data;
+    if (action->m_Armed)
+    {
+        action->m_Armed = false;
+        dmWindowState::State saved;
+        ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(action->m_Path, &saved));
+        ASSERT_STREQ("deadbeef-1234", saved.m_ResetToken);
+        dmPlatform::CloseWindow(action->m_Window);
+        action->m_Result = dmPlatform::OpenWindow(action->m_Window, *action->m_Replacement);
+    }
+}
+
+// A resize listener can replace its window after a placement reset without interrupting the save or changing the replacement.
+TEST_F(WindowPlacementTest, ResizeCallbackReopensAfterReset)
+{
+    WindowCreateParams replacement = m_Params;
+    ResetResizeAction action = { m_Window, &replacement, m_Path, WINDOW_RESULT_WINDOW_OPEN_ERROR, false };
+    m_Params.m_ResizeCallback = ReopenAfterPlacementReset;
+    m_Params.m_ResizeCallbackUserData = &action;
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmPlatform::PollEvents(m_Window);
+
+    FILE* file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-1234", file);
+    fclose(file);
+    action.m_Armed = true;
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    EXPECT_TRUE(action.m_Armed);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (action.m_Armed && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(m_Window);
+    }
+
+    EXPECT_EQ(WINDOW_RESULT_OK, action.m_Result);
+}
+
 // Verifies the editor's HTTP resize and a later preset cannot be undone by a delayed reset check.
 TEST_F(WindowPlacementTest, ResetDoesNotOverrideExplicitSize)
 {
