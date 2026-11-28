@@ -192,7 +192,7 @@ list(FILTER GS_SOURCES EXCLUDE REGEX "/script_model\\.cpp$")
 # main gamesys library. They are built as separate libraries below
 # (script_box2d, script_box2d_defold). The waf wscript uses 'scripts/*.cpp'
 # (non-recursive), so scripts/box2d/*.cpp are not part of gamesys.
-list(FILTER GS_SOURCES EXCLUDE REGEX "/scripts/box2d/")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/scripts/(box2d|box3d)/")
 
 # Choose platform-specific window script
 if (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
@@ -377,6 +377,15 @@ endif()
 defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBLIC ${SCRIPT_BOX2D_DEPENDENCIES})
 set_target_properties(script_box2d_defold PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
+if(DEFOLD_WITH_BOX3D)
+    defold_add_library(script_box3d STATIC "${GS_SRC_DIR}/scripts/box3d/script_box3d.cpp")
+    target_include_directories(script_box3d PRIVATE "${GS_SRC_DIR}" "${GS_SRC_ROOT}")
+    defold_get_box3d_library(SCRIPT_BOX3D_LIB)
+    defold_target_link_libraries(script_box3d "${TARGET_PLATFORM}" SCOPE PUBLIC ${SCRIPT_BOX2D_DEPENDENCIES} ${SCRIPT_BOX3D_LIB})
+    set_target_properties(script_box3d PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
+    set(BOX3D_SCRIPT_TARGET script_box3d)
+endif()
+
 # ========= script_bullet3d =========
 defold_add_library(script_bullet3d STATIC
     "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d.cpp"
@@ -403,7 +412,7 @@ defold_target_link_libraries(script_bullet3d "${TARGET_PLATFORM}" SCOPE PUBLIC $
 defold_target_link_bullet3d(script_bullet3d "${TARGET_PLATFORM}" SCOPE PUBLIC)
 set_target_properties(script_bullet3d PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
-foreach(_target IN ITEMS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d)
+foreach(_target IN ITEMS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d ${BOX3D_SCRIPT_TARGET})
     add_dependencies(${_target} gamesys_proto_cpp)
     target_include_directories(${_target} PUBLIC "${GS_GENERATED_INCLUDE_DIR}")
 endforeach()
@@ -425,7 +434,7 @@ if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android|x86_64-android")
 endif()
 
 # ========= Install =========
-defold_install_targets(TARGETS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d
+defold_install_targets(TARGETS gamesys gamesys_gui gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold script_bullet3d ${BOX3D_SCRIPT_TARGET}
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

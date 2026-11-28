@@ -93,6 +93,7 @@ namespace dmGameSystem
         PHYSICS_ENGINE_NONE,
         PHYSICS_ENGINE_BOX2D,
         PHYSICS_ENGINE_BULLET3D,
+        PHYSICS_ENGINE_BOX3D,
     };
 
     struct CollisionWorld;

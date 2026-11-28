@@ -27,7 +27,12 @@ endfunction()
 
 defold_add_executable(test_physics_bullet3d "${PHYSICS_TEST_ROOT}/test_physics.cpp")
 target_compile_definitions(test_physics_bullet3d PRIVATE PHYSICS_TEST_BULLET_3D)
-physics_configure_test(test_physics_bullet3d physics ON)
+physics_configure_test(test_physics_bullet3d physics_3d ON)
+
+if(DEFOLD_WITH_BOX3D)
+  defold_add_executable(test_physics_box3d "${PHYSICS_TEST_ROOT}/test_physics_box3d.cpp")
+  physics_configure_test(test_physics_box3d physics ON)
+endif()
 
 defold_add_executable(test_physics_box2d "${PHYSICS_TEST_ROOT}/test_physics.cpp")
 target_compile_definitions(test_physics_box2d PRIVATE PHYSICS_TEST_BOX2D)

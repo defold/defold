@@ -301,6 +301,11 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBullet3DInitialize(dmExtension::Params* params)
     {
+        if (dmPhysics::IsBox3DBackend())
+        {
+            return dmExtension::RESULT_OK;
+        }
+
         float physics_scale = params->m_ConfigFile ? dmConfigFile::GetFloat(params->m_ConfigFile, "physics.scale", 1.0f) : 1.0f;
         // The engine clamps this value before creating the physics context.
         // Keep the Lua/native conversion boundary on that same effective scale.
@@ -330,6 +335,11 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptBullet3DFinalize(dmExtension::Params* params)
     {
+        if (dmPhysics::IsBox3DBackend())
+        {
+            return dmExtension::RESULT_OK;
+        }
+
         (void)params;
         CompCollisionObjectSetBullet3DInvalidateWorldCallback(0);
         CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(0);

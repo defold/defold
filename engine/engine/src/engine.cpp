@@ -1699,9 +1699,20 @@ namespace dmEngine
 
         dmGameSystem::PhysicsContext* physics_context = 0;
 
-        if (dmStrCaseCmp(physics_type, "3D") == 0)
+        bool box3d_requested = dmStrCaseCmp(physics_type, "Box3D") == 0;
+        if (box3d_requested && !dmPhysics::IsBox3DBackend())
+        {
+            dmLogError("Box3D requires an engine built with the box3d feature.");
+            return false;
+        }
+
+        if (dmStrCaseCmp(physics_type, "3D") == 0 || box3d_requested)
         {
             engine->m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(physics_params);
+            if (box3d_requested && !engine->m_PhysicsContextBullet3D.m_Context)
+            {
+                return false;
+            }
             SetupPhysicsContextParams(&engine->m_PhysicsContextBullet3D.m_BaseContext, engine->m_Config);
             physics_context = &engine->m_PhysicsContextBullet3D.m_BaseContext;
         }

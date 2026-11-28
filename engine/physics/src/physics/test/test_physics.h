@@ -175,7 +175,7 @@ struct Test3D
     Funcs<Test3D>::DeleteContextFunc                m_DeleteContextFunc;
     Funcs<Test3D>::NewWorldFunc                     m_NewWorldFunc;
     Funcs<Test3D>::DeleteWorldFunc                  m_DeleteWorldFunc;
-    Funcs<Test3D>::StepWorldFunc                    m_StepWorldFunc;
+    bool                                            (*m_StepWorldFunc)(WorldType world, const dmPhysics::StepWorldContext& context);
     Funcs<Test3D>::SetCollisionCallbackFunc         m_SetCollisionCallbackFunc;
     Funcs<Test3D>::SetContactPointCallbackFunc      m_SetContactPointCallbackFunc;
     Funcs<Test3D>::SetDrawDebugFunc                 m_SetDrawDebugFunc;

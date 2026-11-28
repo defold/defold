@@ -70,7 +70,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         uint32_t component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
         void* comp_world = dmGameObject::GetWorld(collection, component_type_index);
-        void* world = dmGameSystem::CompCollisionObjectGetBox2DWorld(comp_world);
+        void* world = comp_world && GetPhysicsEngineType((CollisionWorld*)comp_world) == PHYSICS_ENGINE_BOX2D ? CompCollisionObjectGetBox2DWorld(comp_world) : 0;
 
         if (world)
             PushWorld(L, world);
@@ -85,9 +85,10 @@ namespace dmGameSystem
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
         dmGameObject::HComponent component = 0;
-        GetCollisionObject(L, 1, collection, 0, &component, 0);
+        void* comp_world = 0;
+        GetCollisionObject(L, 1, collection, 0, &component, &comp_world);
 
-        void* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
+        void* body = comp_world && GetPhysicsEngineType((CollisionWorld*)comp_world) == PHYSICS_ENGINE_BOX2D ? CompCollisionObjectGetBox2DBody(component) : 0;
 
         if (body)
         {

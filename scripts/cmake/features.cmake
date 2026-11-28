@@ -88,6 +88,12 @@ function(defold_feature_disabled feature out_var)
     set(${out_var} ${_disabled} PARENT_SCOPE)
 endfunction()
 
+defold_feature_enabled(box3d DEFOLD_WITH_BOX3D)
+defold_feature_disabled(physics _without_physics)
+if(_without_physics)
+    set(DEFOLD_WITH_BOX3D OFF)
+endif()
+
 defold_log("BUILD_TESTS: ${BUILD_TESTS}")
 defold_log("WITH_THREADED_RENDERING: ${WITH_THREADED_RENDERING}")
 defold_log("DEFOLD_TEST_COLORS: ${DEFOLD_TEST_COLORS}")

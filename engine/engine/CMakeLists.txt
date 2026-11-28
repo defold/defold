@@ -415,9 +415,14 @@ set(ENGINE_RESOURCE_SYMBOLS
 set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight
   ComponentTypeParticleFX ComponentTypeTileMap)
+if(DEFOLD_WITH_BOX3D)
+  set(ENGINE_3D_SCRIPT_SYMBOL ScriptBox3DExt)
+else()
+  set(ENGINE_3D_SCRIPT_SYMBOL ScriptBullet3DExt)
+endif()
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptMaterialExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ${ENGINE_3D_SCRIPT_SYMBOL} ScriptImageExt ScriptMaterialExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
 if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
   list(APPEND ENGINE_EXPORTED_SYMBOLS ScriptComputeExt)
@@ -487,7 +492,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     ${ENGINE_EXTRA_LIBS})
   defold_get_physics_libraries(_engine_physics_libs)
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${_engine_physics_libs})
-  defold_target_link_bullet3d(${target} "${TARGET_PLATFORM}")
+  if(NOT DEFOLD_WITH_BOX3D)
+    defold_target_link_bullet3d(${target} "${TARGET_PLATFORM}")
+  endif()
   defold_target_link_lua(${target} "${TARGET_PLATFORM}")
   defold_target_link_socket(${target} "${TARGET_PLATFORM}")
   defold_target_link_app(${target} "${TARGET_PLATFORM}")
@@ -584,6 +591,9 @@ set(ENGINE_HEADLESS_SYMBOLS
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
   ${ENGINE_COMPONENT_SYMBOLS})
+if(DEFOLD_WITH_BOX3D)
+  list(APPEND ENGINE_HEADLESS_SYMBOLS ScriptBox3DExt)
+endif()
 set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine_headless.cpp")
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")

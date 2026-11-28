@@ -255,6 +255,9 @@ namespace dmPhysics
         uint8_t :7;
     };
 
+    /// Whether the linked 3D implementation uses Box3D.
+    bool IsBox3DBackend();
+
     /**
      * Create a new physics 3D context.
      *
@@ -399,8 +402,9 @@ namespace dmPhysics
      *
      * @param world Physics world
      * @param context Function parameter struct
+     * @return true when the backend advanced the simulation
      */
-    void StepWorld3D(HWorld3D world, const StepWorldContext& context);
+    bool StepWorld3D(HWorld3D world, const StepWorldContext& context);
 
     /**
      * Simulate 2D physics
@@ -626,7 +630,10 @@ namespace dmPhysics
         uint16_t m_Bullet : 1;
         /// Whether the object is enabled from the start or not, default is 1
         uint16_t m_Enabled : 1;
-        uint16_t :14;
+        /// Event subscriptions used when creating native shapes.
+        uint16_t            m_EventCollision : 1;
+        uint16_t            m_EventContact : 1;
+        uint16_t            m_EventTrigger : 1;
     };
 
     /**

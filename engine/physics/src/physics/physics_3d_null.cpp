@@ -22,6 +22,11 @@
 
 namespace dmPhysics
 {
+    bool IsBox3DBackend()
+    {
+        return false;
+    }
+
     HContext3D NewContext3D(const NewContextParams& params)
     {
         return 0;
@@ -45,8 +50,9 @@ namespace dmPhysics
     {
     }
 
-    void StepWorld3D(HWorld3D world, const StepWorldContext& context)
+    bool StepWorld3D(HWorld3D world, const StepWorldContext& context)
     {
+        return false;
     }
 
     void SetDrawDebug3D(HWorld3D world, bool draw_debug)
