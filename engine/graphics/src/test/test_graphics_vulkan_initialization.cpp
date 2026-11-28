@@ -51,6 +51,8 @@ static uint32_t g_DestroyedInstances;
 static uint32_t g_DestroyedSurfaces;
 static uint32_t g_DestroyedDevices;
 static uint32_t g_FailureStage;
+static VkAttachmentDescription g_DepthStencilAttachments[4];
+static uint32_t g_CapturedRenderPassCount;
 
 template <typename T>
 static T NewHandle()
@@ -135,6 +137,21 @@ static VkResult VKAPI_CALL GetSwapchainImages(VkDevice, VkSwapchainKHR, uint32_t
 static VkResult VKAPI_CALL CreateImageView(VkDevice, const VkImageViewCreateInfo*, const VkAllocationCallbacks*, VkImageView* view)
 {
     *view = NewHandle<VkImageView>();
+    return VK_SUCCESS;
+}
+
+static VkResult VKAPI_CALL CaptureRenderPass(VkDevice, const VkRenderPassCreateInfo* info, const VkAllocationCallbacks*, VkRenderPass* render_pass)
+{
+    assert(g_CapturedRenderPassCount < DM_ARRAY_SIZE(g_DepthStencilAttachments));
+    uint32_t attachment = info->pSubpasses[0].pDepthStencilAttachment->attachment;
+    g_DepthStencilAttachments[g_CapturedRenderPassCount++] = info->pAttachments[attachment];
+    *render_pass = NewHandle<VkRenderPass>();
+    return VK_SUCCESS;
+}
+
+static VkResult VKAPI_CALL CreateFramebuffer(VkDevice, const VkFramebufferCreateInfo*, const VkAllocationCallbacks*, VkFramebuffer* framebuffer)
+{
+    *framebuffer = NewHandle<VkFramebuffer>();
     return VK_SUCCESS;
 }
 
@@ -368,6 +385,55 @@ TEST_F(VulkanInitializationTest, PartialLogicalDevice)
     dmGraphics::DestroyLogicalDevice(&device);
     ASSERT_TRUE(device.m_Device == VK_NULL_HANDLE);
     ASSERT_EQ(1, g_DestroyedDevices);
+}
+
+// Verifies the offscreen pass variants preserve depth/stencil on rebind even
+// if the driver happens to leave DONT_CARE attachments intact.
+TEST_F(VulkanInitializationTest, OffscreenDepthStencilLoadOps)
+{
+    using namespace dmGraphics;
+    g_CapturedRenderPassCount = 0;
+    vkCreateRenderPass = CaptureRenderPass;
+    vkCreateFramebuffer = CreateFramebuffer;
+    VulkanContext context(m_Params, VK_NULL_HANDLE);
+    context.m_LogicalDevice.m_Device = NewHandle<VkDevice>();
+    VulkanTexture color;
+    InitializeVulkanTexture(&color);
+    color.m_Format = VK_FORMAT_R8G8B8A8_UNORM;
+    color.m_Handle.m_Image = NewHandle<VkImage>();
+    color.m_Handle.m_ImageView = NewHandle<VkImageView>();
+    VulkanTexture depth;
+    InitializeVulkanTexture(&depth);
+    depth.m_Format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    depth.m_UsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT;
+    depth.m_Handle.m_ImageView = NewHandle<VkImageView>();
+
+    HTexture colors[] = { StoreAssetInContainer(context.m_BaseContext.m_AssetHandleContainer, &color, ASSET_TYPE_TEXTURE) };
+    HTexture depth_handle = StoreAssetInContainer(context.m_BaseContext.m_AssetHandleContainer, &depth, ASSET_TYPE_TEXTURE);
+    BufferType buffer_types[] = { BUFFER_TYPE_COLOR0_BIT };
+    VulkanRenderTarget target(1);
+    target.m_Base.m_ColorTextureParams[0].m_Width = target.m_Base.m_ColorTextureParams[0].m_Height = 32;
+    target.m_ColorBufferLoadOps[0] = ATTACHMENT_OP_LOAD;
+    ASSERT_EQ(VK_SUCCESS, dmGraphics::CreateRenderTarget(&context, colors, 0, buffer_types, 1, depth_handle,
+                                                         VK_SAMPLE_COUNT_1_BIT, 32, 32, &target));
+    ASSERT_EQ(DM_ARRAY_SIZE(g_DepthStencilAttachments), g_CapturedRenderPassCount);
+
+    const VkAttachmentLoadOp expected[] = { VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_LOAD_OP_LOAD };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+    {
+        const VkAttachmentDescription& attachment = g_DepthStencilAttachments[i];
+        EXPECT_EQ(expected[i], attachment.loadOp);
+        EXPECT_EQ(expected[i], attachment.stencilLoadOp);
+        EXPECT_EQ(VK_ATTACHMENT_STORE_OP_STORE, attachment.storeOp);
+        EXPECT_EQ(VK_ATTACHMENT_STORE_OP_STORE, attachment.stencilStoreOp);
+        EXPECT_EQ(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, attachment.initialLayout);
+        EXPECT_EQ(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, attachment.finalLayout);
+    }
+
+    DestroyRenderTarget(context.m_LogicalDevice.m_Device, &target.m_Handle);
+    DestroyTexture(context.m_LogicalDevice.m_Device, &color.m_Handle);
+    DestroyTexture(context.m_LogicalDevice.m_Device, &depth.m_Handle);
+    ReleaseHandle(context.m_LogicalDevice.m_Device);
 }
 
 int main(int argc, char** argv)

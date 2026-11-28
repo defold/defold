@@ -648,7 +648,7 @@ namespace dmGraphics
         // Render pass selection:
         // 1. Both color and depth pending clears: use the color+depth CLEAR variant so both
         //    attachments are initialized via load op with the requested clear values.
-        // 2. Color-only pending clear: use the color CLEAR variant (depth stays DONT_CARE).
+        // 2. Color-only pending clear: use the color CLEAR variant, which loads offscreen depth/stencil.
         // 3. For the main render target, subsequent rebinds within a frame must preserve the
         //    previously rendered contents, so we fall back to m_MainRenderPassLoad.
         // 4. Otherwise use the RT's default render pass (honoring user-configured load ops).
@@ -2301,33 +2301,6 @@ namespace dmGraphics
     #endif
     }
 
-    static inline bool FormatHasDepth(VkFormat fmt)
-    {
-        switch (fmt) {
-            case VK_FORMAT_D16_UNORM:
-            case VK_FORMAT_X8_D24_UNORM_PACK32:
-            case VK_FORMAT_D32_SFLOAT:
-            case VK_FORMAT_D16_UNORM_S8_UINT:
-            case VK_FORMAT_D24_UNORM_S8_UINT:
-            case VK_FORMAT_D32_SFLOAT_S8_UINT:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    static inline bool FormatHasStencil(VkFormat fmt) {
-        switch (fmt) {
-            case VK_FORMAT_S8_UINT:
-            case VK_FORMAT_D16_UNORM_S8_UINT:
-            case VK_FORMAT_D24_UNORM_S8_UINT:
-            case VK_FORMAT_D32_SFLOAT_S8_UINT:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         DM_PROFILE(__FUNCTION__);
@@ -2349,34 +2322,29 @@ namespace dmGraphics
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
 
-        // Fast path: fold the clear into LOAD_OP_CLEAR.
-        //
-        // Preconditions:
-        //   - No render pass is currently open (so we can still pick the render pass variant).
-        //   - We have a CLEAR variant for this RT.
-        //   - Every color attachment on the RT is being cleared (partial color clears would
-        //     require per-attachment variants).
-        //   - No depth/stencil clear is needed on an RT that actually has depth/stencil.
-        //     Depth/stencil still uses vkCmdClearAttachments because CreateRenderPass forces
-        //     LOAD_OP_DONT_CARE for depth; in that case we take the slow path below so both
-        //     color and depth clear inside the open pass.
-        //
-        // If the caller passes BUFFER_TYPE_DEPTH_BIT but the RT has no depth attachment
-        // (common when scripts pass identical flags to every render.clear()), the bit is a
-        // no-op and must not prevent folding.
-        const bool pass_not_bound    = !context->m_RenderTargetBound;
-        const bool rt_has_ds         = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil != 0;
-        const bool clear_ds          = rt_has_ds && ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) != 0);
-        const bool has_clear_variant = current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE;
+        const bool is_main_rt = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
+        VkImageAspectFlags clear_aspects = 0;
+        bool clear_all_depth_stencil = false;
+        if ((flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) && (is_main_rt || current_rt->m_Base.m_TextureDepthStencil))
+        {
+            const VkFormat format = is_main_rt ? context->m_MainTextureDepthStencil.m_Format :
+                                    GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil)->m_Format;
+            const VkImageAspectFlags aspects = GetDefaultDepthAndStencilAspectFlags(format);
+            const VkImageAspectFlags requested_aspects = ((flags & BUFFER_TYPE_DEPTH_BIT) ? VK_IMAGE_ASPECT_DEPTH_BIT : 0) |
+                                                         ((flags & BUFFER_TYPE_STENCIL_BIT) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
+            clear_aspects = aspects & requested_aspects;
+            clear_all_depth_stencil = clear_aspects == aspects;
+        }
+
         // COLOR0_BIT signals that all color attachments should be cleared to the same value.
-        // Individual COLOR1/2/3 bits are ignored for the fast-path check; the slow path also
-        // treats COLOR0_BIT as "clear all" to keep the semantics consistent.
-        const bool all_colors_in_flags = current_rt->m_Base.m_ColorAttachmentCount > 0 &&
-                                         (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
-
-        const bool has_color_depth_variant = current_rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE;
-
-        if (pass_not_bound && has_clear_variant && all_colors_in_flags && (!clear_ds || has_color_depth_variant))
+        const bool clear_all_colors = (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
+        // The combined pass clears every depth/stencil aspect. The main target's
+        // clear variants alias each other, so a mid-frame color-only clear must use LOAD.
+        const bool can_fold_combined_clear = clear_all_depth_stencil && current_rt->m_Handle.m_RenderPassClearColorDepth != VK_NULL_HANDLE;
+        const bool can_fold_color_clear = !clear_aspects && current_rt->m_Handle.m_RenderPassClear != VK_NULL_HANDLE &&
+                                          (!is_main_rt || !context->m_MainRTBegunThisFrame);
+        if (!context->m_RenderTargetBound && clear_all_colors && current_rt->m_Base.m_ColorAttachmentCount > 0 &&
+            (can_fold_combined_clear || can_fold_color_clear))
         {
             // Record clear colors on the RT; BeginRenderPass reads these into pClearValues.
             for (int i = 0; i < current_rt->m_Base.m_ColorAttachmentCount; ++i)
@@ -2387,8 +2355,7 @@ namespace dmGraphics
                 current_rt->m_ColorAttachmentClearValue[i][3] = a;
             }
             current_rt->m_HasPendingClearColor = 1;
-            current_rt->m_HasPendingClearDepth = 0;
-            if (clear_ds)
+            if (can_fold_combined_clear)
             {
                 current_rt->m_DepthAttachmentClearValue   = depth;
                 current_rt->m_StencilAttachmentClearValue = stencil;
@@ -2396,9 +2363,6 @@ namespace dmGraphics
             }
             return;
         }
-
-        // Slow path: open the pass (if not already) and clear via vkCmdClearAttachments.
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         uint32_t attachment_count = 0;
         VkClearAttachment vk_clear_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
@@ -2412,10 +2376,6 @@ namespace dmGraphics
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_depth_stencil_texture = current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_Base.m_TextureDepthStencil;
-        bool clear_depth_stencil       = clear_ds;
-
-        const bool clear_all_colors = (flags & BUFFER_TYPE_COLOR0_BIT) != 0;
         for (int i = 0; i < current_rt->m_Base.m_ColorAttachmentCount; ++i)
         {
             if (clear_all_colors || (flags & color_buffers[i]))
@@ -2430,44 +2390,20 @@ namespace dmGraphics
             }
         }
 
-        // Clear depth / stencil
-        if (has_depth_stencil_texture && clear_depth_stencil)
+        if (clear_aspects)
         {
-            VkFormat depth_stencil_format;
-
-            if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                depth_stencil_format = context->m_MainTextureDepthStencil.m_Format;
-            }
-            else
-            {
-                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureDepthStencil)->m_Format;
-            }
-
-            VkImageAspectFlags vk_aspect = 0;
-
-            if ((flags & BUFFER_TYPE_DEPTH_BIT) && FormatHasDepth(depth_stencil_format))
-            {
-                vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
-            }
-
-            if ((flags & BUFFER_TYPE_STENCIL_BIT) && FormatHasStencil(depth_stencil_format))
-            {
-                vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-            }
-
-            if (vk_aspect != 0)
-            {
-                VkClearAttachment& vk_depth_attachment = vk_clear_attachments[attachment_count++];
-                vk_depth_attachment.aspectMask = vk_aspect;
-                vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
-                vk_depth_attachment.clearValue.depthStencil.depth   = depth;
-            }
+            VkClearAttachment& vk_depth_attachment = vk_clear_attachments[attachment_count++];
+            vk_depth_attachment.aspectMask = clear_aspects;
+            vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
+            vk_depth_attachment.clearValue.depthStencil.depth   = depth;
         }
 
-        vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
-            attachment_count, vk_clear_attachments, 1, &vk_clear_rect);
-
+        if (attachment_count)
+        {
+            BeginRenderPass(context, context->m_CurrentRenderTarget);
+            vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
+                                  attachment_count, vk_clear_attachments, 1, &vk_clear_rect);
+        }
     }
 
     static void DeviceBufferUploadHelper(VulkanContext* context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
@@ -4906,9 +4842,9 @@ namespace dmGraphics
 
             rp_attachment_depth_stencil                    = &rp_attachments[fb_attachment_count];
             rp_attachment_depth_stencil->m_ImageLayout     = GetDepthStencilFinalLayout(depth_stencil_texture_ptr);
-            rp_attachment_depth_stencil->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
             rp_attachment_depth_stencil->m_Format          = depth_stencil_texture_ptr->m_Format;
-            rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_LOAD;
             rp_attachment_depth_stencil->m_StoreOp         = VK_ATTACHMENT_STORE_OP_STORE;
 
             fb_attachments[fb_attachment_count++] = depth_stencil_texture_ptr->m_Handle.m_ImageView;
@@ -4942,7 +4878,7 @@ namespace dmGraphics
         // m_RenderPass, so pipelines compiled against m_RenderPass remain compatible.
         //
         // Two variants are created:
-        //   m_RenderPassClear          - CLEAR on all colors, DONT_CARE on depth/stencil
+        //   m_RenderPassClear          - CLEAR on all colors, LOAD on depth/stencil
         //   m_RenderPassClearColorDepth - CLEAR on all colors AND depth/stencil (when DS present)
         if (num_color_textures > 0)
         {
@@ -4974,15 +4910,13 @@ namespace dmGraphics
             // Color+depth CLEAR variant: same as above but depth also uses LOAD_OP_CLEAR.
             if (rp_attachment_depth_stencil != 0)
             {
-                rp_attachment_depth_stencil->m_LoadOp          = VK_ATTACHMENT_LOAD_OP_CLEAR;
-                rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
-                res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures, rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassClearColorDepth);
+                RenderPassAttachment depth_stencil_clear = *rp_attachment_depth_stencil;
+                depth_stencil_clear.m_LoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+                res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures, &depth_stencil_clear, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassClearColorDepth);
                 if (res != VK_SUCCESS)
                 {
                     return res;
                 }
-                // Restore depth load op so subsequent use of rp_attachment_depth_stencil is clean.
-                rp_attachment_depth_stencil->m_LoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             }
         }
 
@@ -4990,11 +4924,6 @@ namespace dmGraphics
         {
             rp_attachments[i].m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
             rp_attachments[i].m_ImageLayoutInitial = rp_attachments[i].m_ImageLayout;
-        }
-        if (rp_attachment_depth_stencil)
-        {
-            rp_attachment_depth_stencil->m_LoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            rp_attachment_depth_stencil->m_ImageLayoutInitial = rp_attachment_depth_stencil->m_ImageLayout;
         }
         res = CreateRenderPass(context->m_LogicalDevice.m_Device, vk_sample_count, rp_attachments, num_color_textures,
             rp_attachment_depth_stencil, has_msaa ? rp_resolve_attachments : 0, &rtOut->m_Handle.m_RenderPassLoad);

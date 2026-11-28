@@ -1225,6 +1225,74 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
     return valid;
 }
 
+// Checks that offscreen depth and stencil survive a target switch and that
+// partial or consecutive clears preserve unselected aspects.
+static bool CheckDepthStencilClears(HContext context, const CaptureResources& resources)
+{
+    const struct
+    {
+        uint32_t m_ClearFlags;
+        bool     m_Rebind;
+    } checks[] = {
+        { 0, true },
+        { BUFFER_TYPE_COLOR0_BIT, true },
+        { BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, true },
+        { BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_STENCIL_BIT, true },
+        { BUFFER_TYPE_COLOR0_BIT, false },
+    };
+    const CaptureRectangleData& rect = CAPTURE_RECTANGLES[RECT_DEPTH_NEAR];
+    const uint32_t rectangle_pixels = (rect.m_Right - rect.m_Left) * (rect.m_Bottom - rect.m_Top);
+    dmArray<uint8_t> pixels;
+    bool valid = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(checks); ++i)
+    {
+        RenderCapture(context, resources, "clear");
+        Clear(context, CAPTURE_BUFFERS, 37, 73, 109, 255, 0.5f, 7);
+        if (checks[i].m_Rebind)
+        {
+            SetRenderTarget(context, 0, RenderTargetBindingParams());
+            SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
+        }
+
+        const uint32_t flags = checks[i].m_ClearFlags;
+        if (flags)
+        {
+            Clear(context, flags, 37, 73, 109, 255, 1.0f, 9);
+        }
+
+        EnableState(context, STATE_DEPTH_TEST);
+        SetDepthFunc(context, COMPARE_FUNC_LESS);
+        SetDepthMask(context, false);
+        EnableState(context, STATE_STENCIL_TEST);
+        SetStencilFunc(context, COMPARE_FUNC_EQUAL, (flags & BUFFER_TYPE_STENCIL_BIT) ? 9 : 7, 0xff);
+        SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_KEEP);
+        DrawRectangle(context, RECT_DEPTH_NEAR);
+        DrawRectangle(context, RECT_DEPTH_FAR);
+        ReadCapturePixels(context, pixels);
+
+        // Both rectangles contain the same number of pixels. The near one
+        // always passes, while the far one passes only after an explicit depth clear.
+        uint32_t white_pixels = 0;
+        for (uint32_t p = 0; p < pixels.Size(); p += 4)
+        {
+            white_pixels += pixels[p] == 255 && pixels[p + 1] == 255 && pixels[p + 2] == 255 && pixels[p + 3] == 255;
+        }
+
+        const uint32_t expected = (flags & BUFFER_TYPE_DEPTH_BIT) ? rectangle_pixels * 2 : rectangle_pixels;
+        if (white_pixels != expected)
+        {
+            dmLogError("Depth/stencil clear flags %u (rebind %u) expected %u white pixels but got %u",
+                       flags, (uint32_t) checks[i].m_Rebind, expected, white_pixels);
+            valid = false;
+        }
+    }
+
+    DisableState(context, STATE_DEPTH_TEST);
+    SetDepthMask(context, true);
+    DisableState(context, STATE_STENCIL_TEST);
+    return valid;
+}
+
 // Populate distinct MRT attachments on all adapters, including OpenGL where
 // Clear(COLOR0_BIT) clears every enabled draw buffer and COLOR1_BIT is ignored.
 static void DrawReadPixelsMRT(HContext context, uint32_t size, void* user_data)
@@ -1434,6 +1502,7 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
 
     if (strcmp(name, "triangle") == 0)
     {
+        valid &= CheckDepthStencilClears(context, resources);
         valid &= CheckCaptureReadPixelsTargets(context, resources);
         valid &= CheckCaptureBackbuffer(context, resources);
         if (GetInstalledAdapterFamily() == ADAPTER_FAMILY_VULKAN)
