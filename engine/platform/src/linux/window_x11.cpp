@@ -60,6 +60,7 @@ struct LinuxX11
     unsigned long m_SizeReadSerial;
     uint64_t      m_LayoutHash;
     int           m_RequestX, m_RequestY;
+    int           m_LastResizeWidth, m_LastResizeHeight;
     bool          m_RequestIsSize, m_ClampAfterResize, m_ClientMachinePending;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
@@ -1400,6 +1401,7 @@ namespace dmPlatform
 
         x->m_ResizeRequests.Clear();
         x->m_AppliedResizeSerials.Clear();
+        x->m_LastResizeWidth = x->m_LastResizeHeight = 0;
         x->m_ConfigureSerial = 0;
         x->m_ClampAfterResize = false;
         XSync(w->m_Display, False);
@@ -1447,6 +1449,24 @@ namespace dmPlatform
         return true;
     }
 
+    static void SendResize(HWindow w, int width, int height)
+    {
+        XResizeWindow(w->m_Display, w->m_Xid, width, height);
+        w->m_X11->m_LastResizeWidth = width;
+        w->m_X11->m_LastResizeHeight = height;
+    }
+
+    static void ReassertResize(HWindow w, int width, int height)
+    {
+        // ConfigureNotify describes the geometry. The manager can still be holding an older request.
+        LinuxX11* x = w->m_X11;
+        if (x->m_LastResizeWidth && (x->m_LastResizeWidth != width || x->m_LastResizeHeight != height))
+        {
+            SendResize(w, width, height);
+            XFlush(w->m_Display);
+        }
+    }
+
     static void Size(HWindow w, int width, int height)
     {
         if (!w->m_Shown)
@@ -1470,7 +1490,7 @@ namespace dmPlatform
         }
 
         RecordGeometryRequest(w, true, width, height);
-        XResizeWindow(w->m_Display, w->m_Xid, width, height);
+        SendResize(w, width, height);
         ReadDrawableSize(w);
         WindowPlacementChanged(w);
     }
@@ -1487,6 +1507,7 @@ namespace dmPlatform
             {
                 const Window xid = w->m_Xid;
                 const uint32_t count = w->m_ResizeCallbackCount;
+                ReassertResize(w, width, height);
                 // The read includes earlier resizes. A later external change can carry the read's own serial.
                 w->m_X11->m_SizeReadSerial = read_serial;
                 LinuxUpdateSize(w, width, height, w->m_Scale);
@@ -1519,6 +1540,7 @@ namespace dmPlatform
                     // A later external resize can supersede the request before we poll its ConfigureNotify.
                     if (applied || !HasQueuedConfigure(w, last.m_Serial))
                     {
+                        ReassertResize(w, width, height);
                         ++last.m_Count;
                         return;
                     }
@@ -1530,8 +1552,9 @@ namespace dmPlatform
                     XCheckIfEvent(w->m_Display, &event, ObserveResizeReply, reinterpret_cast<XPointer>(&query));
                     if (query.m_Next == requests.Size())
                     {
-                        // The server has applied this size and answered the older requests. A native
-                        // no-op can produce no ConfigureNotify. Deliver this callback after those replies.
+                        // An unchanged resize may produce no ConfigureNotify. Dispatch its callback
+                        // after the queued changes, independently of forwarding the request.
+                        ReassertResize(w, width, height);
                         jc::RingBuffer<unsigned long>& applied_serials = w->m_X11->m_AppliedResizeSerials;
                         if (applied_serials.Full())
                         {

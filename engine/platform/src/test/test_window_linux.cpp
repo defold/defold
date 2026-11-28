@@ -462,6 +462,81 @@ TEST(LinuxWindow, X11CloseDuringCoalescedResize)
     dmPlatform::DeleteWindow(w);
 }
 
+static Window RedirectX11WindowResizes(Display* manager, HWindow w)
+{
+    Window parent = XCreateSimpleWindow(manager, DefaultRootWindow(manager), 0, 0, 640, 480, 0, 0, 0);
+    XSetWindowAttributes attributes = {};
+    attributes.override_redirect = True;
+    XChangeWindowAttributes(manager, parent, CWOverrideRedirect, &attributes);
+    XMapWindow(manager, parent);
+    XReparentWindow(manager, w->m_Xid, parent, 0, 0);
+    XSync(manager, False);
+    dmPlatform::ShowWindow(w);
+    XSync(w->m_Display, False);
+    XSelectInput(manager, parent, SubstructureRedirectMask);
+    XSync(manager, False);
+    dmPlatform::PollEvents(w);
+    return parent;
+}
+
+// A manager can resize the window independently before processing the application's earlier request.
+TEST(LinuxWindow, X11LatestResizeReachesManager)
+{
+    HWindow w = NewX11TestWindow();
+    if (!w)
+    {
+        SKIP();
+    }
+
+    X11ResizeEvents events = {};
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    p.m_Hidden = true;
+    p.m_ResizeCallback = OnX11Resize;
+    p.m_ResizeCallbackUserData = &events;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    Display* manager = XOpenDisplay(0);
+    ASSERT_TRUE(manager);
+    Window parent = RedirectX11WindowResizes(manager, w);
+    for (int poll_first = 0; poll_first <= 1; ++poll_first)
+    {
+        dmPlatform::SetWindowSize(w, 481, 311);
+        XEvent first;
+        ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &first));
+        ASSERT_EQ(481, first.xconfigurerequest.width);
+
+        const int width = 503 + poll_first, height = 327 + poll_first;
+        XResizeWindow(manager, w->m_Xid, width, height);
+        XSync(manager, False);
+        if (poll_first)
+        {
+            dmPlatform::PollEvents(w);
+        }
+
+        dmPlatform::SetWindowSize(w, width, height);
+        dmPlatform::SetWindowSize(w, width, height);
+        XSync(w->m_Display, False);
+        XEvent last;
+        ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &last));
+        EXPECT_EQ(width, last.xconfigurerequest.width);
+        EXPECT_EQ(height, last.xconfigurerequest.height);
+        XEvent extra;
+        EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &extra));
+        XResizeWindow(manager, w->m_Xid, first.xconfigurerequest.width, first.xconfigurerequest.height);
+        XResizeWindow(manager, w->m_Xid, last.xconfigurerequest.width, last.xconfigurerequest.height);
+        XSync(manager, False);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ((uint32_t)width, events.m_Width);
+        EXPECT_EQ((uint32_t)height, events.m_Height);
+        EXPECT_EQ((uint32_t)width, dmPlatform::GetWindowWidth(w));
+        EXPECT_EQ((uint32_t)height, dmPlatform::GetWindowHeight(w));
+    }
+
+    dmPlatform::DeleteWindow(w);
+    XDestroyWindow(manager, parent);
+    XCloseDisplay(manager);
+}
+
 // Each explicit resize must report the dimensions the manager accepts, including when it declines a request.
 TEST(LinuxWindow, X11ConstrainedResize)
 {
@@ -483,17 +558,7 @@ TEST(LinuxWindow, X11ConstrainedResize)
     EXPECT_EQ(255u, dmPlatform::GetWindowHeight(w));
     Display* manager = XOpenDisplay(0);
     ASSERT_TRUE(manager);
-    Window parent = XCreateSimpleWindow(manager, DefaultRootWindow(manager), 0, 0, 640, 480, 0, 0, 0);
-    XSetWindowAttributes attributes = {};
-    attributes.override_redirect = True;
-    XChangeWindowAttributes(manager, parent, CWOverrideRedirect, &attributes);
-    XMapWindow(manager, parent);
-    XReparentWindow(manager, w->m_Xid, parent, 0, 0);
-    XSync(manager, False);
-    dmPlatform::ShowWindow(w);
-    XSelectInput(manager, parent, SubstructureRedirectMask);
-    XSync(manager, False);
-    dmPlatform::PollEvents(w);
+    Window parent = RedirectX11WindowResizes(manager, w);
     events.m_Count = 0;
     g_ResizeWaits = 0;
     g_ResizeFd = ConnectionNumber(w->m_Display);
@@ -518,6 +583,9 @@ TEST(LinuxWindow, X11ConstrainedResize)
 
     dmPlatform::SetWindowSize(w, 420, 300);
     EXPECT_EQ(2u, events.m_Count);
+    XSync(w->m_Display, False);
+    ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+    EXPECT_EQ(420, request.xconfigurerequest.width);
     dmPlatform::SetWindowSize(w, 450, 320);
     dmPlatform::SetWindowSize(w, 450, 320);
     dmPlatform::SetWindowSize(w, 460, 320);
@@ -565,6 +633,10 @@ TEST(LinuxWindow, X11ConstrainedResize)
     dmPlatform::SetWindowSize(w, 455, 325);
     EXPECT_EQ(8u, events.m_Count);
     XSync(w->m_Display, False);
+    ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+    EXPECT_EQ(450, request.xconfigurerequest.width);
+    ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+    EXPECT_EQ(455, request.xconfigurerequest.width);
     EXPECT_FALSE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
 
     // A manager that has only answered the first request still needs the final size request.
