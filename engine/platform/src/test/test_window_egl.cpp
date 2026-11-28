@@ -26,6 +26,73 @@ struct TestDisplay
     EGLint     m_Count;
 };
 
+static struct
+{
+    char       m_Main, m_Aux, m_Window, m_Pbuffer;
+    EGLContext m_Current;
+    int        m_LiveObjects, m_PbufferAttempts;
+    bool       m_AllowPbuffer, m_AllowSurfaceless, m_RejectRestore;
+} g_Worker;
+
+static int EGL_CALL BindAPI(EGLenum api)
+{
+    return api == EGL_OPENGL_ES_API;
+}
+
+static EGLContext EGL_CALL CreateContext(EGLDisplay, EGLConfig, EGLContext share, const EGLint*)
+{
+    if (share && share != &g_Worker.m_Main)
+    {
+        return 0;
+    }
+
+    ++g_Worker.m_LiveObjects;
+    return share ? &g_Worker.m_Aux : &g_Worker.m_Main;
+}
+
+static EGLSurface EGL_CALL CreateWindowSurface(EGLDisplay, EGLConfig, void* native, const EGLint*)
+{
+    ++g_Worker.m_LiveObjects;
+    return native;
+}
+
+static EGLSurface EGL_CALL CreatePbufferSurface(EGLDisplay, EGLConfig, const EGLint*)
+{
+    ++g_Worker.m_PbufferAttempts;
+    if (!g_Worker.m_AllowPbuffer)
+    {
+        return 0;
+    }
+
+    ++g_Worker.m_LiveObjects;
+    return &g_Worker.m_Pbuffer;
+}
+
+static int EGL_CALL MakeCurrent(EGLDisplay, EGLSurface draw, EGLSurface read, EGLContext context)
+{
+    bool restore_failed = g_Worker.m_RejectRestore && g_Worker.m_Current == &g_Worker.m_Aux;
+    bool main = context == &g_Worker.m_Main && draw == &g_Worker.m_Window && !restore_failed;
+    bool aux = context == &g_Worker.m_Aux && (draw ? draw == &g_Worker.m_Pbuffer : g_Worker.m_AllowSurfaceless);
+    if (draw != read || !(main || aux || (!context && !draw)))
+    {
+        return 0;
+    }
+
+    g_Worker.m_Current = context;
+    return 1;
+}
+
+static EGLContext EGL_CALL GetCurrentContext()
+{
+    return g_Worker.m_Current;
+}
+
+static int EGL_CALL DestroyObject(EGLDisplay, void*)
+{
+    --g_Worker.m_LiveObjects;
+    return 1;
+}
+
 static int EGL_CALL GetConfigAttrib(EGLDisplay, EGLConfig config, EGLint attribute, EGLint* value)
 {
     const TestConfig* format = (const TestConfig*)config;
@@ -106,6 +173,64 @@ TEST(WindowEGL, OptionalPbuffer)
         EXPECT_EQ(shared_format, pbuffer);
     }
 
+    g_Display = 0;
+    g_EGL = {};
+}
+
+// Worker uploads can use a pbuffer or a surfaceless context. Window creation must leave the render context current.
+TEST(WindowEGL, SharedWorkerContext)
+{
+    TestDisplay display = { { { 0, EGL_WINDOW_BIT, 24, 8 } }, 1 };
+    g_Display = &display;
+    g_Users = 1;
+    g_EGL.m_BindAPI = BindAPI;
+    g_EGL.m_ChooseConfig = ChooseConfigs;
+    g_EGL.m_GetConfigAttrib = GetConfigAttrib;
+    g_EGL.m_CreateContext = CreateContext;
+    g_EGL.m_CreateWindowSurface = CreateWindowSurface;
+    g_EGL.m_CreatePbufferSurface = CreatePbufferSurface;
+    g_EGL.m_MakeCurrent = MakeCurrent;
+    g_EGL.m_GetCurrentContext = GetCurrentContext;
+    g_EGL.m_DestroyContext = g_EGL.m_DestroySurface = DestroyObject;
+    const struct
+    {
+        bool config_pbuffer, allow_pbuffer, surfaceless, reject_restore;
+    } cases[] = {
+        { true, true, false, false },    // Working pbuffer.
+        { false, false, true, false },   // Window-only config.
+        { true, false, true, false },    // Advertised pbuffer fails to allocate.
+        { false, false, false, false },  // Only the render context is usable.
+        { false, false, true, true }     // Render context cannot be restored.
+    };
+    WindowCreateParams params = {};
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        g_Worker = {};
+        g_Worker.m_AllowPbuffer = cases[i].allow_pbuffer;
+        g_Worker.m_AllowSurfaceless = cases[i].surfaceless;
+        g_Worker.m_RejectRestore = cases[i].reject_restore;
+        display.m_Configs[0].m_SurfaceTypes = EGL_WINDOW_BIT | (cases[i].config_pbuffer ? EGL_PBUFFER_BIT : 0);
+        uint32_t samples;
+        WindowEGL* window = dmPlatform::EGLCreateWindow(&g_Worker.m_Window, params, &samples);
+        EXPECT_EQ(!cases[i].reject_restore, window != 0);
+        EXPECT_EQ((int)cases[i].config_pbuffer, g_Worker.m_PbufferAttempts);
+        if (window)
+        {
+            bool expected = cases[i].allow_pbuffer || cases[i].surfaceless;
+            EXPECT_EQ((EGLContext) & g_Worker.m_Main, g_Worker.m_Current);
+            EXPECT_EQ(expected, dmPlatform::EGLHasAuxContext(window));
+            void* worker = dmPlatform::EGLAcquireAuxContext(window);
+            EXPECT_EQ(expected ? &g_Worker.m_Aux : (EGLContext)0, worker);
+            dmPlatform::EGLUnacquireAuxContext(window, worker);
+            dmPlatform::EGLDestroyWindow(window);
+        }
+
+        EXPECT_EQ((EGLContext)0, g_Worker.m_Current);
+        EXPECT_EQ(0, g_Worker.m_LiveObjects);
+        EXPECT_EQ(1u, g_Users);
+    }
+
+    g_Users = 0;
     g_Display = 0;
     g_EGL = {};
 }

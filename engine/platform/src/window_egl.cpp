@@ -266,21 +266,32 @@ namespace dmPlatform
             return 0;
         }
 
-        if (!has_pbuffer)
+        egl->m_AuxContext = g_EGL.m_CreateContext(g_Display, egl->m_Config, egl->m_Context, version);
+        if (!egl->m_AuxContext)
         {
             return egl;
         }
 
-        const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
-        egl->m_AuxSurface = g_EGL.m_CreatePbufferSurface(g_Display, egl->m_Config, pbuffer);
-        if (egl->m_AuxSurface)
+        if (has_pbuffer)
         {
-            egl->m_AuxContext = g_EGL.m_CreateContext(g_Display, egl->m_Config, egl->m_Context, version);
-            if (!egl->m_AuxContext)
+            const EGLint pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
+            egl->m_AuxSurface = g_EGL.m_CreatePbufferSurface(g_Display, egl->m_Config, pbuffer);
+            if (egl->m_AuxSurface)
             {
-                g_EGL.m_DestroySurface(g_Display, egl->m_AuxSurface);
-                egl->m_AuxSurface = 0;
+                return egl;
             }
+        }
+
+        // Surfaceless binding requires support from both the EGL display and this ES context.
+        if (!g_EGL.m_MakeCurrent(g_Display, 0, 0, egl->m_AuxContext))
+        {
+            g_EGL.m_DestroyContext(g_Display, egl->m_AuxContext);
+            egl->m_AuxContext = 0;
+        }
+        else if (!g_EGL.m_MakeCurrent(g_Display, egl->m_Surface, egl->m_Surface, egl->m_Context))
+        {
+            EGLDestroyWindow(egl);
+            return 0;
         }
 
         return egl;
