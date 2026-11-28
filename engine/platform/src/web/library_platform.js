@@ -38,10 +38,14 @@ var LibraryDefoldPlatform = {
       Tab: 293, Enter: 294, Backspace: 295, Insert: 296, Delete: 297,
       PageUp: 298, PageDown: 299, Home: 300, End: 301,
       NumpadDivide: 312, NumpadMultiply: 313, NumpadSubtract: 314, NumpadAdd: 315,
-      NumpadDecimal: 316, NumpadComma: 316, NumpadEqual: 317, NumpadEnter: 318,
+      NumpadDecimal: 316, NumpadEnter: 318,
       NumLock: 319, CapsLock: 320, ScrollLock: 321, Pause: 322,
-      MetaLeft: 323, MetaRight: 324, ContextMenu: 325,
-      Space: 32, Quote: 39, Comma: 44, Minus: 45, Period: 46, Slash: 47, Semicolon: 59,
+      MetaLeft: 323, MetaRight: 324, ContextMenu: 325, Space: 32
+    },
+
+    punctuationKeys: {
+      NumpadComma: 316, NumpadEqual: 317,
+      Quote: 39, Comma: 44, Minus: 45, Period: 46, Slash: 47, Semicolon: 59,
       Equal: 61, BracketLeft: 91, Backslash: 92, IntlRo: 92, IntlYen: 92, IntlBackslash: 92,
       BracketRight: 93, Backquote: 96
     },
@@ -81,8 +85,12 @@ var LibraryDefoldPlatform = {
       if (value >= 112 && value <= 123) return 258 + value - 112;
       if (value >= 96 && value <= 105) return 302 + value - 96;
       if (code === 'NumpadEnter' && value === 13) return DefoldPlatform.namedKeys.NumpadEnter;
-      var named = DefoldPlatform.namedKeys[DefoldPlatform.legacyKeyNames[value]] ||
-        (!modifierCode && DefoldPlatform.namedKeys[code]);
+      var named = DefoldPlatform.namedKeys[DefoldPlatform.legacyKeyNames[value]] || DefoldPlatform.punctuationKeys[code];
+      if (named) return named;
+      // A layout can put a printable key on a navigation, lock or other named key's position.
+      if (value && (value === 32 || (value >= 48 && value <= 57) || (value >= 65 && value <= 90) ||
+          (event.key && event.key.length === 1))) return value;
+      named = !modifierCode && DefoldPlatform.namedKeys[code];
       if (named) return named;
       if (value) return value;
       if (/^F([1-9]|1[0-2])$/.test(code)) return 257 + Number(code.slice(1));

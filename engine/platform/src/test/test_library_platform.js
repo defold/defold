@@ -357,6 +357,7 @@ function testKeyboardMappingFallbacks() {
     // A modifier position remapped to a letter or Caps Lock must retain that reported keyCode.
     assert.strictEqual(platform.keyNumber({ keyCode: 65, code: "ControlLeft" }), 65);
     assert.strictEqual(platform.keyNumber({ keyCode: 20, code: "AltLeft" }), 20);
+    assert.strictEqual(platform.keyNumber({ keyCode: 72, code: "ArrowLeft" }), 72);
 }
 
 // Verify physical punctuation remains a fallback, preserving remapped Backspace and other explicit keyCodes.
@@ -366,7 +367,8 @@ function testPunctuationPhysicalKeyCodes() {
         [189, "Minus", 45], [190, "Period", 46], [188, "Comma", 44], [191, "Slash", 47],
         [220, "Backslash", 92], [193, "IntlRo", 92], [255, "IntlYen", 92], [226, "IntlBackslash", 92],
         [192, "Backquote", 96], [219, "BracketLeft", 91], [221, "BracketRight", 93],
-        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316]
+        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316],
+        [65, "Semicolon", 59]
     ]) {
         assert.strictEqual(platform.keyNumber({ keyCode, code }), expected);
         assert.strictEqual(platform.keyNumber({ keyCode: 0, code }), expected);
@@ -3109,6 +3111,30 @@ function testKeyboardTranslation() {
     assert.deepStrictEqual(characters, [[32, 1], [0x1f600, 1]]);
 }
 
+// Remapped printable keys must update the logical binding and still deliver the typed character.
+function testPrintableKeysOnNamedPositions() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    const characters = [];
+    api.dmNativeSetCharCallback(codepoint => characters.push(codepoint));
+    for (const [code, key, keyCode, physicalKey] of [
+        ["CapsLock", " ", 32, 320], ["ArrowLeft", "h", 72, 285], ["Space", "3", 51, 32]
+    ]) {
+        let prevented = false;
+        const event = { target: canvas, code, key, keyCode,
+            preventDefault() { prevented = true; }, stopPropagation() {} };
+        context.window.dispatchEvent({ ...event, type: "keydown" });
+        assert.strictEqual(api.dmNativeGetKey(keyCode), 1, code);
+        assert.strictEqual(api.dmNativeGetKey(physicalKey), 0, code);
+        assert.strictEqual(prevented, key === " ", code);
+        if (!prevented) context.window.dispatchEvent({ ...event, type: "keypress", charCode: key.charCodeAt(0) });
+        context.window.dispatchEvent({ ...event, type: "keyup" });
+        assert.strictEqual(api.dmNativeGetKey(keyCode), 0, code);
+    }
+    assert.deepStrictEqual(characters, [32, 104, 51]);
+}
+
 // Candidate navigation belongs to the IME, including the boundary events only identified by keyCode 229.
 function testKeyboardComposition() {
     const context = loadEnvironment();
@@ -3195,7 +3221,7 @@ function testWebGLFallbackAndRetry() {
 }
 
 async function runTests() {
-    for (const test of [testKeyboardTranslation, testKeyboardComposition, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
+    for (const test of [testKeyboardTranslation, testPrintableKeysOnNamedPositions, testKeyboardComposition, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
                        testWebGLFallbackAndRetry, testWindowCloseAndReopen, testGraphicsFallbackCanvasListeners,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testRemappedModifierKeys,
                        testKeyboardMappingFallbacks, testPunctuationPhysicalKeyCodes, testGamepadCapabilitiesAndInput, testGamepadCallbackTeardown,
