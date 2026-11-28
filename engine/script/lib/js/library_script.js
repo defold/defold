@@ -3,10 +3,31 @@ var LibraryScript = {
 
   },
 
-  dmScriptHttpRequestAsync: function(method, url, headers, arg, onload, onerror, onprogress, send_data, send_data_length, timeout) {
+  dmScriptHttpRequestAsync: function(method, url, headers, arg, onload, onerror, onprogress, send_data, send_data_length, timeout, stall_timeout) {
       var xhr = new XMLHttpRequest();
+      var done = false;
+      var stallTimer = 0;
+
+      // XMLHttpRequest has no stall timeout. Abort when no progress event arrives in time.
+      function resetStallTimer() {
+          if (done || stall_timeout <= 0) {
+              return;
+          }
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(function() {
+              done = true;
+              xhr.abort();
+              {{{ makeDynCall('vii', 'onerror') }}}(arg, 0);
+          }, stall_timeout / 1000.0);
+      }
 
       function listener() {
+          if (done) {
+              return;
+          }
+          done = true;
+          clearTimeout(stallTimer);
+
           var resp_headers = xhr.getAllResponseHeaders();
           resp_headers = resp_headers.replace(new RegExp("\r", "g"), "");
           resp_headers += "\n";
@@ -26,11 +47,20 @@ var LibraryScript = {
       xhr.onload = listener;
       xhr.onerror = listener;
       xhr.ontimeout = listener;
+      xhr.onreadystatechange = resetStallTimer;
       xhr.onprogress = function(progress_event) {
+        if (done) { // xhr.abort() fires a progress event, but the stall timeout already completes the request
+            return;
+        }
+        resetStallTimer();
         if (onprogress != 0) { // NULL passed as 0 into js
             {{{ makeDynCall('viii', 'onprogress') }}}(arg, progress_event.loaded, progress_event.total);
         }
       };
+      // An upload listener makes cross-origin requests use a CORS preflight, so add it only when it is necessary
+      if (stall_timeout > 0 && send_data_length > 0) {
+          xhr.upload.onprogress = resetStallTimer;
+      }
       xhr.open(UTF8ToString(method), UTF8ToString(url), true);
       // TODO: Doesn't work in node.js. Why? xhr2?
       xhr.responseType = 'arraybuffer';
@@ -46,6 +76,7 @@ var LibraryScript = {
           }
       }
 
+      resetStallTimer();
       if (send_data_length > 0) {
           xhr.send(HEAPU8.subarray(send_data, send_data + send_data_length));
       } else {
