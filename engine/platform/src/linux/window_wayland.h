@@ -32,8 +32,19 @@ struct LinuxOutput
     bool       m_SwapAxes, m_Entered;
 };
 
+struct WaylandClipboardWriter
+{
+    pthread_t m_Thread;
+    int       m_CancelFd;
+};
+
 struct LinuxWayland
 {
+    enum
+    {
+        MAX_CLIPBOARD_WRITERS = 8
+    };
+
     wl_registry*                     m_Registry;
     wl_compositor*                   m_Compositor;
     wl_subcompositor*                m_Subcompositor;
@@ -103,6 +114,8 @@ struct LinuxWayland
     wl_data_source*            m_DataSource;
     dmArray<char>              m_Clipboard;
     dmArray<char>              m_Title;
+
+    dmArray<WaylandClipboardWriter> m_ClipboardWriters;
 };
 
 namespace dmPlatform
@@ -119,6 +132,7 @@ namespace dmPlatform
     void        WaylandReleaseSeat(HWindow window);
     void        WaylandInitDataDevice(HWindow window);
     void        WaylandSetClipboard(HWindow window, const char* text, unsigned length);
+    void        WaylandStopClipboardWriters(LinuxWayland* wl);
     void        WaylandSetCursor(HWindow window);
     void        WaylandReleaseCursor(HWindow window);
     void        WaylandRepeat(HWindow window, uint64_t now);

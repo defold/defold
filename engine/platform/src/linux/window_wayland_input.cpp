@@ -19,6 +19,7 @@
 #include <linux/input-event-codes.h>
 #include <sys/mman.h>
 #include <poll.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
 #include <errno.h>
@@ -600,6 +601,7 @@ namespace dmPlatform
     void WaylandReleaseSeat(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
+        WaylandStopClipboardWriters(wl);
         if (!wl->m_Seat)
         {
             return;
@@ -676,7 +678,7 @@ namespace dmPlatform
 
     struct ClipboardWrite
     {
-        int      m_Fd;
+        int      m_Fd, m_CancelFd;
         unsigned m_Length;
         char     m_Text[1];
     };
@@ -689,17 +691,22 @@ namespace dmPlatform
         sigemptyset(&signals);
         sigaddset(&signals, SIGPIPE);
         pthread_sigmask(SIG_BLOCK, &signals, 0);
-        pollfd descriptor = { request->m_Fd, POLLOUT, 0 };
+        pollfd descriptors[] = { { request->m_Fd, POLLOUT, 0 }, { request->m_CancelFd, POLLIN, 0 } };
         unsigned offset = 0;
         while (offset < request->m_Length)
         {
-            if (poll(&descriptor, 1, -1) < 0)
+            if (poll(descriptors, 2, -1) < 0)
             {
                 if (errno == EINTR)
                 {
                     continue;
                 }
 
+                break;
+            }
+
+            if (descriptors[1].revents || (descriptors[0].revents & (POLLERR | POLLHUP | POLLNVAL)))
+            {
                 break;
             }
 
@@ -718,33 +725,91 @@ namespace dmPlatform
         }
 
         close(request->m_Fd);
+        close(request->m_CancelFd);
         free(request);
         return 0;
     }
 
+    static void StopClipboardWriter(const WaylandClipboardWriter& writer)
+    {
+        // Closing the control pipe wakes the writer even if the consumer never reads again.
+        close(writer.m_CancelFd);
+        pthread_join(writer.m_Thread, 0);
+    }
+
+    void WaylandStopClipboardWriters(LinuxWayland* wl)
+    {
+        for (uint32_t i = 0; i < wl->m_ClipboardWriters.Size(); ++i)
+        {
+            StopClipboardWriter(wl->m_ClipboardWriters[i]);
+        }
+
+        wl->m_ClipboardWriters.SetSize(0);
+    }
+
+    static void MakeClipboardWriterRoom(dmArray<WaylandClipboardWriter>& writers)
+    {
+        uint32_t active = 0;
+        for (uint32_t i = 0; i < writers.Size(); ++i)
+        {
+            if (pthread_tryjoin_np(writers[i].m_Thread, 0) == 0)
+            {
+                close(writers[i].m_CancelFd);
+            }
+            else
+            {
+                writers[active++] = writers[i];
+            }
+        }
+
+        if (active == LinuxWayland::MAX_CLIPBOARD_WRITERS)
+        {
+            // Give the newest paste a slot when all previous transfers are still active.
+            StopClipboardWriter(writers[0]);
+            --active;
+            memmove(writers.Begin(), writers.Begin() + 1, active * sizeof(WaylandClipboardWriter));
+        }
+
+        writers.SetSize(active);
+        if (!writers.Capacity())
+        {
+            writers.SetCapacity(LinuxWayland::MAX_CLIPBOARD_WRITERS);
+        }
+    }
+
     static void Send(void* data, wl_data_source*, const char*, int fd)
     {
-        const dmArray<char>& text = ((HWindow)data)->m_Wayland->m_Clipboard;
+        LinuxWayland* wl = ((HWindow)data)->m_Wayland;
+        const dmArray<char>& text = wl->m_Clipboard;
+        const int flags = fcntl(fd, F_GETFL);
+        int cancel[2];
+        if (text.Empty() || flags == -1 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1 || pipe2(cancel, O_CLOEXEC) == -1)
+        {
+            close(fd);
+            return;
+        }
+
+        MakeClipboardWriterRoom(wl->m_ClipboardWriters);
         ClipboardWrite* request = (ClipboardWrite*)malloc(sizeof(ClipboardWrite) + text.Size());
         if (request)
         {
             request->m_Fd = fd;
+            request->m_CancelFd = cancel[0];
             request->m_Length = text.Size();
-            if (text.Size())
+            memcpy(request->m_Text, text.Begin(), text.Size());
+            WaylandClipboardWriter writer;
+            writer.m_CancelFd = cancel[1];
+            if (pthread_create(&writer.m_Thread, 0, WriteClipboard, request) == 0)
             {
-                memcpy(request->m_Text, text.Begin(), text.Size());
-            }
-
-            pthread_t thread;
-            if (pthread_create(&thread, 0, WriteClipboard, request) == 0)
-            {
-                pthread_detach(thread);
+                wl->m_ClipboardWriters.Push(writer);
                 return;
             }
 
             free(request);
         }
 
+        close(cancel[0]);
+        close(cancel[1]);
         close(fd);
     }
 

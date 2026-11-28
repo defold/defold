@@ -314,7 +314,7 @@ static unsigned g_ClipboardWriteWaits;
 extern "C" int __real_poll(struct pollfd*, nfds_t, int);
 extern "C" int __wrap_poll(struct pollfd* fds, nfds_t count, int timeout)
 {
-    if (count == 1 && fds[0].fd == g_ClipboardWriteFd && fds[0].events == POLLOUT)
+    if (count == 2 && fds[0].fd == g_ClipboardWriteFd && fds[0].events == POLLOUT)
     {
         ++g_ClipboardWriteWaits;
         if (g_ClipboardWriteWaits == 1 && timeout >= 0)
@@ -1099,7 +1099,7 @@ TEST(LinuxWindow, X11WindowClass)
     dmPlatform::DeleteWindow(w);
 }
 
-// A slow reader and an interrupted wait must still receive every byte of a Wayland clipboard offer.
+// A slow reader must receive its original selection even across an interrupted wait and a clipboard change.
 TEST(LinuxWindow, WaylandClipboardBackpressure)
 {
     int fds[2];
@@ -1122,13 +1122,63 @@ TEST(LinuxWindow, WaylandClipboardBackpressure)
     g_ClipboardWriteWaits = 0;
     g_ClipboardWriteFd = fds[1];
     dmPlatform::g_WaylandDataSourceListener.send(&window, 0, "text/plain", fds[1]);
+    dmArray<char> expected;
+    expected.EnsureSize(wl.m_Clipboard.Size());
+    memcpy(expected.Begin(), wl.m_Clipboard.Begin(), expected.Size());
+    memset(wl.m_Clipboard.Begin(), 0, wl.m_Clipboard.Size());
     dmArray<char> received;
-    received.EnsureSize(wl.m_Clipboard.Size() + 1);
+    received.EnsureSize(expected.Size() + 1);
     const size_t size = fread(received.Begin(), 1, received.Size(), reader);
     fclose(reader);
+    dmPlatform::WaylandStopClipboardWriters(&wl);
     g_ClipboardWriteFd = -1;
-    ASSERT_EQ((size_t)wl.m_Clipboard.Size(), size);
-    EXPECT_EQ(0, memcmp(wl.m_Clipboard.Begin(), received.Begin(), size));
+    EXPECT_GT(g_ClipboardWriteWaits, 1u);
+    ASSERT_EQ((size_t)expected.Size(), size);
+    EXPECT_EQ(0, memcmp(expected.Begin(), received.Begin(), size));
+}
+
+// Stalled paste requests leave capacity for a new reader and all writers release their pipes on window close.
+TEST(LinuxWindow, WaylandClipboardStalledReaders)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    LinuxWayland* wl = window->m_Wayland;
+    if (!wl)
+    {
+        dmPlatform::DeleteWindow(window);
+        SKIP();
+    }
+
+    WindowCreateParams params = Params();
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    pollfd readers[LinuxWayland::MAX_CLIPBOARD_WRITERS + 1];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(readers); ++i)
+    {
+        int fds[2];
+        ASSERT_EQ(0, pipe(fds));
+        int capacity = fcntl(fds[1], F_GETPIPE_SZ);
+        ASSERT_GT(capacity, 0);
+        wl->m_Clipboard.EnsureSize(2 * capacity);
+        memset(wl->m_Clipboard.Begin(), 'a' + i, wl->m_Clipboard.Size());
+        dmPlatform::g_WaylandDataSourceListener.send(window, 0, "text/plain", fds[1]);
+        readers[i] = { fds[0], POLLIN, 0 };
+        ASSERT_EQ(1, poll(&readers[i], 1, 5000));
+        ASSERT_TRUE(readers[i].revents & POLLIN);
+        readers[i].events = 0; // Poll for hangup without consuming the buffered data.
+    }
+
+    EXPECT_EQ(1, poll(readers, DM_ARRAY_SIZE(readers), 0));
+    EXPECT_TRUE(readers[0].revents & POLLHUP);
+    dmPlatform::CloseWindow(window);
+    EXPECT_EQ((int)DM_ARRAY_SIZE(readers), poll(readers, DM_ARRAY_SIZE(readers), 0));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(readers); ++i)
+    {
+        EXPECT_TRUE(readers[i].revents & POLLHUP);
+        close(readers[i].fd);
+    }
+
+    dmPlatform::DeleteWindow(window);
 }
 
 struct TestClipboardManager

@@ -881,6 +881,7 @@ namespace dmPlatform
     static void Close(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
+        WaylandStopClipboardWriters(wl);
         WaylandReleaseCursor(w);
         DROP(m_Token, xdg_activation_token_v1_destroy)
         DROP(m_Inhibitor, zwp_idle_inhibitor_v1_destroy)
