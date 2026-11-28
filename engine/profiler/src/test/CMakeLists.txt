@@ -97,3 +97,17 @@ if(TARGET profiler_remotery)
   endif()
   defold_register_test_target(test_profiler_remotery ON "${PROFILER_ROOT}")
 endif()
+
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  _defold_find_wasm_runner(_profiler_js_test_runner)
+  if(_profiler_js_test_runner)
+    add_custom_target(run_test_profiler_js
+      COMMAND "${_profiler_js_test_runner}" "${PROFILER_TEST_ROOT}/test_profiler_js.cjs"
+      USES_TERMINAL)
+    if(TARGET run_tests)
+      add_dependencies(run_tests run_test_profiler_js)
+    endif()
+  else()
+    message(WARNING "Bun or Node.js not found; run_test_profiler_js is unavailable")
+  endif()
+endif()

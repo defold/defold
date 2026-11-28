@@ -34,7 +34,7 @@ extern "C" {
 bool dmProfileJSInit(uint8_t enablePerformanceTimeline);
 void dmProfileJSReset(uint32_t thread_id);
 void dmProfileJSEndFrame(uint32_t thread_id);
-uint32_t dmProfileJSBeginMark(uint32_t thread_id, const char *name);
+uint32_t dmProfileJSBeginMark(uint32_t thread_id, const char* name, uint32_t hash_lo, uint32_t hash_hi);
 bool dmProfileJSEndMark(uint32_t thread_id);
 uint32_t dmProfileJSFirstChild(uint32_t thread_id, uint32_t idx);
 uint32_t dmProfileJSNextSibling(uint32_t thread_id, uint32_t idx);
@@ -233,10 +233,9 @@ static ProfileResult FrameEnd(void*)
 
 static ProfileResult ScopeBegin(void*, const char* name, uint64_t name_hash)
 {
-    (void)name_hash;
     CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_Lock);
-    dmProfileJSBeginMark(GetThreadId(), name);
+    dmProfileJSBeginMark(GetThreadId(), name, (uint32_t)name_hash, (uint32_t)(name_hash >> 32));
     return PROFILE_RESULT_OK;
 }
 
